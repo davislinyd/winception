@@ -1,0 +1,27 @@
+# Generated deployment artifacts
+*.iso
+*.wim
+*.esd
+*.vhd
+*.vhdx
+*.avhdx
+
+# Local download and cache folders
+downloads/
+*.tmp
+*.temp
+
+# Screenshots captured during interactive troubleshooting
+*.png
+*.jpg
+*.jpeg
+
+# Logs and transcripts
+*.log
+*.etl
+*.evtx
+
+# Windows metadata
+Thumbs.db
+desktop.ini
+
