@@ -4,7 +4,12 @@ This workspace documents and validates a Windows 11 zero-touch deployment lab us
 
 ## Current Goal
 
-The working target is a repeatable OSDCloud ISO that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE.
+The working target is a repeatable OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE.
+
+Two paths are now validated:
+
+- ISO path: VM VM boots from `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso`
+- iPXE path: VM VM boots from PXE/iPXE, loads WinPE over HTTP, and downloads the Windows ESD from the host HTTP server
 
 Local account:
 
@@ -33,6 +38,12 @@ OSDCloud workspace:
 C:\OSDCloud\Win11-Lab
 ```
 
+iPXE workspace:
+
+```text
+C:\OSDCloud\Win11-iPXE-Lab
+```
+
 Cached Windows image:
 
 ```text
@@ -47,6 +58,18 @@ C:\OSDCloud\Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd
 C:\OSDCloud\Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1
 ```
 
+iPXE helper files:
+
+```text
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.ipxe
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.wim
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\wimboot
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\os\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
+C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeDhcp.ps1
+C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1
+C:\OSDCloud\Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs
+```
+
 ## Critical Lessons
 
 - Do not put OOBE injection in `Config\Scripts\StartNet`. OSDCloud runs StartNet scripts before Windows is deployed. This caused early reboot loops where the VHD stayed near `0.04GB`.
@@ -54,6 +77,12 @@ C:\OSDCloud\Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1
 - Keep the Windows ESD cached under `Media\OSDCloud\OS`; otherwise each deployment downloads Windows from Microsoft again.
 - The ISO should set `LaunchUserOOBE=0`, `SkipMachineOOBE=1`, `SkipUserOOBE=1`, and `NoAutoUpdate=1` to avoid the first-boot OOBE update screen.
 - `wuauserv` may later show as Running even with `NoAutoUpdate=1`; this is not by itself a failure. Failure is seeing `CloudExperienceHost`, `msoobe`, or an OOBE update screen after the desktop should be ready.
+- For iPXE custom image deployment, do not combine `-ImageFileUrl` / `-OSImageIndex` with `-OSName`, `-OSLanguage`, `-OSEdition`, or `-OSActivation`. `Start-OSDCloud` treats custom image as a separate parameter set.
+- For the isolated `PXE-Lab` switch, remove or bypass `Initialize-OSDCloudStartnetUpdate` in the iPXE WinPE. It tries external PowerShell Gallery / Microsoft update endpoints and can stall before `Start-OSDCloud`.
+- For iPXE WinPE, `Invoke-DavisOobe.ps1` must first look for SetupComplete scripts at `$PSScriptRoot\..\SetupComplete`, then fall back to scanning non-`C:` / non-`X:` drives. iPXE loads only `boot.wim`; it does not provide the ISO media path.
+- The working iPXE `boot.ipxe` explicitly loads `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim` over HTTP.
+- The working DHCP path returns `snponly.efi` for UEFI PXE first stage and returns `http://192.168.100.1/osdcloud/boot.ipxe` once the client identifies as iPXE. Keep `autoexec.ipxe` disabled unless you intentionally retest the TFTP script path.
+- VM blocks changing the Secure Boot template after vTPM initialization. If a VM was initialized with the PXE template and must hard-boot Windows with `MicrosoftWindows`, preserve the VHDX and recreate the VM configuration before enabling vTPM.
 
 ## Rebuild ISO
 
@@ -112,6 +141,15 @@ ImageFileSource : D:\OSDCloud\OS\...zh-tw.esd
 ImageFileUrl    :
 ```
 
+For the iPXE path, also verify:
+
+```text
+ImageFileUrl    : http://192.168.100.1/osdcloud/os/...zh-tw.esd
+OSImageIndex    : 6
+```
+
+The HTTP access log must show `wimboot`, `boot.wim`, and the zh-TW ESD. The VM must not have a DVD drive or ISO attached as the deployment source.
+
 ## VM Notes
 
 Use Generation 2 VMs with:
@@ -129,6 +167,19 @@ The final known-good test VM is:
 ```text
 OSDCloud-Win11-NoTouch-01
 ```
+
+The final known-good iPXE test VM is:
+
+```text
+OSDCloud-Win11-iPXE-01
+```
+
+iPXE VM notes:
+
+- Use internal switch `PXE-Lab` with host vEthernet `192.168.100.1/24`.
+- The current host-side PXE helper uses PowerShell DHCP/TFTP plus Node HTTP. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
+- Full iPXE deployment succeeded with PXE-stage Secure Boot temporarily off. Hard-disk boot was verified with Secure Boot `MicrosoftWindows` and vTPM.
+- Signed shim PXE remains a caveat: `snponly-shim.efi` and `ipxe-shim.efi` were both tested with `MicrosoftUEFICertificateAuthority`, but the probe did not reach HTTP and stopped during TFTP shim transfer.
 
 ## Documentation
 
