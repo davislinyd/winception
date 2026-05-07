@@ -1,0 +1,11 @@
+#!ipxe
+dhcp
+set base http://192.168.100.1/osdcloud
+kernel ${base}/wimboot
+initrd ${base}/bootmgr bootmgr
+initrd ${base}/bootx64.efi bootx64.efi
+initrd ${base}/BCD BCD
+initrd ${base}/boot.sdi boot.sdi
+initrd ${base}/boot.wim boot.wim
+imgstat
+boot

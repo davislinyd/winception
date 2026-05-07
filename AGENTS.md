@@ -30,6 +30,12 @@ Primary report:
 C:\Users\Davis\Documents\New project\OSDCloud-Win11-Automated-Deployment-Test-Report.md
 ```
 
+Versioned asset mirror:
+
+```text
+C:\Users\Davis\Documents\New project\osdcloud-assets
+```
+
 ## Important Paths
 
 OSDCloud workspace:
@@ -92,6 +98,7 @@ Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.
 - The working iPXE `boot.ipxe` explicitly loads `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim` over HTTP.
 - The working DHCP path returns `snponly.efi` for UEFI PXE first stage and returns `http://192.168.100.1/osdcloud/boot.ipxe` once the client identifies as iPXE. Keep `autoexec.ipxe` disabled unless you intentionally retest the TFTP script path.
 - VM blocks changing the Secure Boot template after vTPM initialization. If a VM was initialized with the PXE template and must hard-boot Windows with `MicrosoftWindows`, preserve the VHDX and recreate the VM configuration before enabling vTPM.
+- The live deployment files are under `C:\OSDCloud`, not only in this repo. After changing deployment behavior, run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts` so `osdcloud-assets` contains the current scripts, WinPE startup files, and large-artifact manifest before committing.
 
 ## iPXE Runbook
 
@@ -314,6 +321,7 @@ When behavior changes, update:
 README.md
 OSDCloud-Win11-Automated-Deployment-Test-Report.md
 AGENTS.md
+osdcloud-assets
 ```
 
 Keep `README.md` concise and user-facing. Keep the report detailed and evidence-oriented. Keep `AGENTS.md` as the operational contract for future agents.
@@ -328,6 +336,12 @@ Track these files by default:
 README.md
 AGENTS.md
 OSDCloud-Win11-Automated-Deployment-Test-Report.md
+tools\Invoke-IpxeTimingRun.ps1
+tools\Sync-OsdCloudAssets.ps1
+osdcloud-assets\README.md
+osdcloud-assets\manifest.json
+osdcloud-assets\Win11-Lab\...
+osdcloud-assets\Win11-iPXE-Lab\...
 .gitignore
 ```
 
@@ -352,3 +366,5 @@ git status --short --branch
 ```
 
 For normal documentation/process updates, commit only the intended text files and leave generated artifacts untracked or ignored.
+
+For OSDCloud behavior changes, the intended commit set must include the synchronized `osdcloud-assets` files. The sync mirror may contain lab-only credentials and must remain in private repositories only.
