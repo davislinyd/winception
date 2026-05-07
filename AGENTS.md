@@ -1,15 +1,19 @@
 # Agent Instructions
 
-This workspace documents and validates a Windows 11 zero-touch deployment lab using VM and OSDCloud. Follow these instructions when continuing work here.
+This workspace documents and validates a Windows 11 zero-touch deployment lab using OSDCloud and iPXE. The active physical-laptop path does not use VM; VM content is historical regression evidence only.
 
 ## Current Goal
 
 The working target is a repeatable OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE.
 
-Two paths are now validated:
+Previously validated VM paths:
 
 - ISO path: VM VM boots from `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso`
 - iPXE path: VM VM boots from PXE/iPXE, loads WinPE over HTTP, and applies the Windows ESD directly from a host SMB share
+
+Current active path:
+
+- Physical laptop boots from UEFI PXE/iPXE on the real wired LAN, loads WinPE over HTTP, and applies the Windows ESD directly from the host SMB share. No VM vSwitch or VM is required for this path.
 
 Local account:
 
@@ -73,15 +77,16 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\wimboot
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeDhcp.ps1
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs
+C:\Users\Davis\Documents\New project\tools\Set-IpxePhysicalNic.ps1
 ```
 
 iPXE SMB image source:
 
 ```text
-Share: \\192.168.100.1\OSDCloudiPXE
-Path : \\192.168.100.1\OSDCloudiPXE\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
+Share: \\192.168.100.100\OSDCloudiPXE
+Path : \\192.168.100.100\OSDCloudiPXE\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
 User : pxeinstall
-Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.168.100.1
+Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.168.100.100
 ```
 
 ## Critical Lessons
@@ -92,26 +97,28 @@ Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.
 - The ISO should set `LaunchUserOOBE=0`, `SkipMachineOOBE=1`, `SkipUserOOBE=1`, and `NoAutoUpdate=1` to avoid the first-boot OOBE update screen.
 - `wuauserv` may later show as Running even with `NoAutoUpdate=1`; this is not by itself a failure. Failure is seeing `CloudExperienceHost`, `msoobe`, or an OOBE update screen after the desktop should be ready.
 - For iPXE custom image deployment, do not combine `-ImageFileUrl` / `-OSImageIndex` with `-OSName`, `-OSLanguage`, `-OSEdition`, or `-OSActivation`. `Start-OSDCloud` treats custom image as a separate parameter set.
-- For iPXE no-redownload deployment, do not use `-ImageFileUrl`. It always triggers OSDCloud's `Download Operating System` step and copies the ESD into WinPE. The current WinPE maps `\\192.168.100.1\OSDCloudiPXE` as `Z:`, sets `$Global:StartOSDCloud.ImageFileDestination` to the ESD `FileInfo`, sets `OSImageIndex=6`, then calls `Invoke-OSDCloud`.
-- For the isolated `PXE-Lab` switch, remove or bypass `Initialize-OSDCloudStartnetUpdate` in the iPXE WinPE. It tries external PowerShell Gallery / Microsoft update endpoints and can stall before `Start-OSDCloud`.
+- For iPXE no-redownload deployment, do not use `-ImageFileUrl`. It always triggers OSDCloud's `Download Operating System` step and copies the ESD into WinPE. The current WinPE maps `\\192.168.100.100\OSDCloudiPXE` as `Z:`, sets `$Global:StartOSDCloud.ImageFileDestination` to the ESD `FileInfo`, sets `OSImageIndex=6`, then calls `Invoke-OSDCloud`.
+- For isolated or restricted networks, remove or bypass `Initialize-OSDCloudStartnetUpdate` in the iPXE WinPE. It tries external PowerShell Gallery / Microsoft update endpoints and can stall before `Start-OSDCloud`.
 - For iPXE WinPE, `Invoke-DavisOobe.ps1` must first look for SetupComplete scripts at `$PSScriptRoot\..\SetupComplete`, then fall back to scanning non-`C:` / non-`X:` drives. iPXE loads only `boot.wim`; it does not provide the ISO media path.
 - The working iPXE `boot.ipxe` explicitly loads `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim` over HTTP.
-- The working DHCP path returns `snponly.efi` for UEFI PXE first stage and returns `http://192.168.100.1/osdcloud/boot.ipxe` once the client identifies as iPXE. Keep `autoexec.ipxe` disabled unless you intentionally retest the TFTP script path.
-- VM blocks changing the Secure Boot template after vTPM initialization. If a VM was initialized with the PXE template and must hard-boot Windows with `MicrosoftWindows`, preserve the VHDX and recreate the VM configuration before enabling vTPM.
+- The working DHCP path returns addresses from `192.168.100.200` through `192.168.100.250`, gateway `192.168.100.1`, DNS `1.1.1.1` / `8.8.8.8`, `snponly.efi` for UEFI PXE first stage, and `http://192.168.100.100/osdcloud/boot.ipxe` once the client identifies as iPXE. Keep `autoexec.ipxe` disabled unless you intentionally retest the TFTP script path.
+- Historical VM note: VM blocks changing the Secure Boot template after vTPM initialization. If a VM was initialized with the PXE template and must hard-boot Windows with `MicrosoftWindows`, preserve the VHDX and recreate the VM configuration before enabling vTPM.
 - The live deployment files are under `C:\OSDCloud`, not only in this repo. After changing deployment behavior, run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts` so `osdcloud-assets` contains the current scripts, WinPE startup files, and large-artifact manifest before committing.
 
 ## iPXE Runbook
 
-Use this runbook for the network-install validation path. The goal is to prove that the VM can deploy without an attached ISO/DVD, with WinPE served over HTTP and the Windows ESD applied directly from the lab SMB share.
+Use this runbook for the physical-laptop network-install validation path. The goal is to prove that the laptop can deploy without USB or ISO media, with WinPE served over HTTP and the Windows ESD applied directly from the lab SMB share.
 
 Expected host network:
 
 ```text
-Switch: PXE-Lab
-Host vEthernet: 192.168.100.1/24
-PXE client: 192.168.100.100
-HTTP base: http://192.168.100.1/osdcloud
-SMB image share: \\192.168.100.1\OSDCloudiPXE
+Host wired adapter: 乙太網路 3
+Host adapter IP: 192.168.100.100/24
+DHCP range: 192.168.100.200-192.168.100.250
+Gateway: 192.168.100.1
+DNS: 1.1.1.1, 8.8.8.8
+HTTP base: http://192.168.100.100/osdcloud
+SMB image share: \\192.168.100.100\OSDCloudiPXE
 ```
 
 Expected HTTP root:
@@ -132,22 +139,30 @@ boot.sdi
 boot.wim
 ```
 
+OSDCloud progress status is collected by the same Node HTTP server:
+
+```text
+POST/GET: http://192.168.100.100/osdcloud/status
+Events : http://192.168.100.100/osdcloud/status/events
+Files  : C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
+         C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
+```
+
 Run sequence:
 
-1. Confirm `PXE-Lab` exists and the host vEthernet has `192.168.100.1/24`.
-2. Start the host-side PXE helpers: DHCP/TFTP for first-stage boot and HTTP for OSDCloud content.
-3. Keep the working unsigned PXE path on `snponly.efi` unless the task is specifically to retest signed shim Secure Boot.
-4. Confirm DHCP returns `snponly.efi` for UEFI PXE and returns `http://192.168.100.1/osdcloud/boot.ipxe` after the client identifies as iPXE.
-5. Confirm the iPXE WinPE maps `\\192.168.100.1\OSDCloudiPXE` to `Z:` and sets `$Global:StartOSDCloud.ImageFileDestination` to `Z:\OSDCloud\OS\...zh-tw.esd`.
-6. Confirm `Initialize-OSDCloudStartnetUpdate` is bypassed for the isolated switch.
-7. Boot `OSDCloud-Win11-iPXE-01` from the PXE NIC with no ISO/DVD attached.
+1. Confirm the real network DHCP server is temporarily disabled.
+2. Confirm the host wired adapter `乙太網路 3` has `192.168.100.100/24`; use `.\tools\Set-IpxePhysicalNic.ps1` if it needs to be configured.
+3. Start the host-side PXE helpers: DHCP/TFTP for first-stage boot and HTTP for OSDCloud content.
+4. Keep the working unsigned PXE path on `snponly.efi` unless the task is specifically to retest signed shim Secure Boot.
+5. Boot the physical laptop from UEFI IPv4 PXE, with no USB or ISO media involved.
+6. Confirm DHCP returns a `192.168.100.200-250` lease, router `192.168.100.1`, DNS `1.1.1.1` / `8.8.8.8`, `snponly.efi` for UEFI PXE, and `http://192.168.100.100/osdcloud/boot.ipxe` after the client identifies as iPXE.
+7. Confirm the iPXE WinPE maps `\\192.168.100.100\OSDCloudiPXE` to `Z:` and sets `$Global:StartOSDCloud.ImageFileDestination` to `Z:\OSDCloud\OS\...zh-tw.esd`.
 8. Watch the HTTP access log for `boot.ipxe`, `wimboot`, and `boot.wim`. A valid no-redownload run must not show zh-TW ESD `HEAD` or `GET`.
-9. After WinPE shuts down, confirm the VHDX grew well beyond the initial near-empty size.
-10. Switch the VM to hard-disk boot. If VM blocks Secure Boot template changes because vTPM was initialized, preserve the VHDX and recreate the VM configuration before enabling vTPM.
-11. Boot Windows from the VHD with Secure Boot template `MicrosoftWindows`.
-12. Verify the final state with PowerShell Direct and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\...zh-tw.esd`, `ImageFileDestination.PSDrive.DisplayRoot = \\192.168.100.1\OSDCloudiPXE`, and `OSImageIndex : 6`.
+9. Watch `C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl` for WinPE status events such as `winpe-start`, `smb-mounted`, `osdcloud-start`, `apply-image`, `osdcloud-finished`, and `rebooting`.
+10. After WinPE finishes, it should post final status and reboot itself with `wpeutil reboot`; the laptop should then boot from the internal disk if PXE was selected through a one-time boot menu.
+11. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\...zh-tw.esd`, `ImageFileDestination.PSDrive.DisplayRoot = \\192.168.100.100\OSDCloudiPXE`, and `OSImageIndex : 6`.
 
-For unattended timing runs, use the repo script instead of driving the VM manually:
+Legacy VM timing runs are historical regression tools only; do not use them for the physical-laptop path unless the user explicitly asks for VM validation:
 
 ```powershell
 .\tools\Invoke-IpxeTimingRun.ps1 -VmName OSDCloud-Win11-iPXE-Timing-XX
@@ -160,7 +175,7 @@ Timing run contract:
 - The script is responsible for the automated transition from WinPE shutdown to VHD boot with Secure Boot `MicrosoftWindows` and vTPM.
 - iPXE timing VMs should use 8GB static memory with Dynamic Memory disabled. 6GB with Dynamic Memory can starve WinPE during DISM apply.
 - For normal desktop-validation runs, keep `-PostDeploySwitchName ''` so the installed Windows VM remains on `PXE-Lab`.
-- `PXE-Lab` should have host NAT named `PXE-Lab-NAT` for `192.168.100.0/24`, with host vEthernet `192.168.100.1/24`.
+- Physical-laptop validation should use the host wired adapter directly, not a VM vSwitch.
 - The final timing validation should include internet checks: ping `1.1.1.1`, DNS resolution for `www.microsoft.com`, and HTTP access to `http://www.msftconnecttest.com/connecttest.txt`.
 - Only use `-PostDeploySwitchName 'Default Switch'` when the task explicitly asks to compare against VM's default NAT switch.
 - Only use `-SkipInternetValidation` when the task explicitly asks for a fully isolated post-deploy test.
@@ -190,20 +205,22 @@ ImageFileDestinationDisplayRoot: \\192.168.100.1\OSDCloudiPXE
 Final guest: DESKTOP-LTK4NLM\davis, ExplorerRunning=True, DesktopReadyFile=True
 ```
 
+This timing evidence used the earlier isolated `192.168.100.0/24` lab. Current physical-network defaults use `192.168.100.100` as the PXE/SMB host and `192.168.100.200-250` for DHCP leases.
+
 Post-deploy network lesson:
 
-- If a deployed VM has no internet and still shows `192.168.100.x`, first verify `Get-NetNat -Name PXE-Lab-NAT` and `Ethernet` = `192.168.100.1/24`.
-- The guest should use `192.168.100.1` as gateway and working DNS such as `1.1.1.1` / `8.8.8.8`.
+- If a deployed laptop has no internet and still shows a `192.168.100.x` address, first verify the real gateway `192.168.100.1` is reachable and that the upstream DHCP server is still intentionally disabled only for the test window.
+- The deployed system should use `192.168.100.1` as gateway and working DNS such as `1.1.1.1` / `8.8.8.8`.
 - If Start menu pins show gray placeholders after the first offline boot, refresh StartMenuExperienceHost / Explorer and rebuild the current user's icon cache after internet is available.
 
 Failure triage:
 
 - No HTTP `boot.ipxe`: debug UEFI PXE, TFTP, or first-stage iPXE.
-- `boot.ipxe` / `boot.wim` appears but the VHDX does not grow: debug WinPE startup, SMB mapping to `\\192.168.100.1\OSDCloudiPXE`, `$Global:StartOSDCloud.ImageFileDestination`, and isolated-switch addressing.
+- `boot.ipxe` / `boot.wim` appears but Windows is not applied to disk: debug WinPE startup, SMB mapping to `\\192.168.100.100\OSDCloudiPXE`, `$Global:StartOSDCloud.ImageFileDestination`, and physical-network addressing.
 - `Start-OSDCloud` returns to `X:\>` immediately: check for mixed parameter sets.
-- `Expand-WindowsImage failed` with `Insufficient memory`: check VM memory assignment. Use 8GB static memory and disable Dynamic Memory for iPXE timing/deployment runs.
-- VHDX stays around `0.04GB`: Windows was not applied.
-- VHDX grows and VM shuts down but first boot stops in OOBE: inspect `Invoke-DavisOobe.ps1`, SetupComplete injection, `CloudExperienceHost` / `msoobe`, and OOBE registry values.
+- `Expand-WindowsImage failed` with `Insufficient memory`: check physical RAM. Use a laptop with at least 8GB RAM for the first physical validation.
+- Disk remains effectively empty or unbootable: Windows was not applied.
+- Disk boots but first boot stops in OOBE: inspect `Invoke-DavisOobe.ps1`, SetupComplete injection, `CloudExperienceHost` / `msoobe`, and OOBE registry values.
 
 Secure Boot status:
 
@@ -233,18 +250,15 @@ New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
 
 ## Zero-Touch Test Standard
 
-A valid end-to-end VM test must not require clicking or typing inside VMConnect.
+A valid physical-laptop iPXE test must not require USB media, an attached ISO, or clicking through OOBE on the laptop.
 
 Allowed host-side automation:
 
-- Create VM
-- Attach ISO
-- Boot from ISO
-- Wait for WinPE to shut down after deployment
-- Change first boot device to the VHD
-- Remove DVD drive or ISO
-- Start VM
-- Verify with PowerShell Direct
+- Configure the host wired adapter
+- Start DHCP/TFTP/HTTP helpers
+- Watch DHCP/TFTP/HTTP logs
+- Reboot or power-cycle the physical laptop when needed
+- Verify locally on the deployed laptop or through remote management
 
 Final validation should include:
 
@@ -263,7 +277,7 @@ Culture          : zh-TW
 TimeZone         : Taipei Standard Time
 ```
 
-Also verify the OSDCloud log from the deployed VHD:
+Also verify the OSDCloud log from the deployed disk:
 
 ```text
 ImageFileSource : D:\OSDCloud\OS\...zh-tw.esd
@@ -275,15 +289,15 @@ For the iPXE path, also verify:
 ```text
 ImageFileUrl                    : <empty>
 ImageFileDestination            : Z:\OSDCloud\OS\...zh-tw.esd
-ImageFileDestinationDisplayRoot : \\192.168.100.1\OSDCloudiPXE
+ImageFileDestinationDisplayRoot : \\192.168.100.100\OSDCloudiPXE
 OSImageIndex                    : 6
 ```
 
-The HTTP access log must show `boot.ipxe`, `wimboot`, and `boot.wim`, and must not show zh-TW ESD `HEAD` or `GET`. The VM must not have a DVD drive or ISO attached as the deployment source.
+The HTTP access log must show `boot.ipxe`, `wimboot`, and `boot.wim`, and must not show zh-TW ESD `HEAD` or `GET`. The laptop must not use USB or ISO media as the deployment source.
 
-## VM Notes
+## Legacy VM Notes
 
-Use Generation 2 VMs with:
+These notes are historical regression evidence only. Do not use VM for the active physical-laptop iPXE path. If the user explicitly asks for VM regression, use Generation 2 VMs with:
 
 - Secure Boot enabled with `MicrosoftWindows` template
 - vTPM enabled
@@ -305,9 +319,9 @@ The final known-good iPXE test VM is:
 OSDCloud-Win11-iPXE-01
 ```
 
-iPXE VM notes:
+Historical iPXE VM notes:
 
-- Use internal switch `PXE-Lab` with host vEthernet `192.168.100.1/24`.
+- Earlier VM validation used `PXE-Lab`; the active physical-laptop path uses the host wired adapter directly.
 - The current host-side PXE helper uses PowerShell DHCP/TFTP plus Node HTTP. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
 - Use static memory for iPXE timing VMs. `Timing-04` failed in WinPE DISM apply when Dynamic Memory assigned only about 1.5GB even though startup memory was configured higher.
 - Full iPXE deployment succeeded with PXE-stage Secure Boot temporarily off. Hard-disk boot was verified with Secure Boot `MicrosoftWindows` and vTPM.
@@ -337,6 +351,7 @@ README.md
 AGENTS.md
 OSDCloud-Win11-Automated-Deployment-Test-Report.md
 tools\Invoke-IpxeTimingRun.ps1
+tools\Set-IpxePhysicalNic.ps1
 tools\Sync-OsdCloudAssets.ps1
 osdcloud-assets\README.md
 osdcloud-assets\manifest.json

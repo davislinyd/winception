@@ -1,6 +1,6 @@
 param(
     [string] $Root = 'C:\OSDCloud\Win11-iPXE-Lab\Media',
-    [string] $Prefix = 'http://172.25.96.1:8088/',
+    [string] $Prefix = 'http://192.168.100.100:8088/',
     [string] $LogPath = 'C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\host-http.log'
 )
 

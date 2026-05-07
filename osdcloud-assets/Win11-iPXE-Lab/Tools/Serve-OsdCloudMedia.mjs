@@ -4,12 +4,121 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(process.argv[2] ?? 'C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot');
-const host = process.argv[3] ?? '192.168.100.1';
+const host = process.argv[3] ?? '192.168.100.100';
 const port = Number.parseInt(process.argv[4] ?? '80', 10);
 const logPath = process.argv[5] ?? 'C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\host-http.log';
+const statusRoot = path.resolve(process.argv[6] ?? path.join(root, 'status'));
+const statusLogPath = path.join(statusRoot, 'progress.jsonl');
+const latestStatusPath = path.join(statusRoot, 'latest.json');
 
 function writeLog(message) {
-  fs.appendFileSync(logPath, `${new Date().toISOString()} ${message}\n`, 'ascii');
+  const line = `${new Date().toISOString()} ${message}`;
+  fs.appendFileSync(logPath, `${line}\n`, 'ascii');
+  console.log(line);
+}
+
+function sanitizeName(value) {
+  return String(value ?? 'unknown').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 120) || 'unknown';
+}
+
+function readRequestBody(req, maxBytes = 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(new Error(`Request body too large: ${total} bytes`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+function sendJson(res, statusCode, payload) {
+  const body = `${JSON.stringify(payload, null, 2)}\n`;
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+  });
+  res.end(body);
+}
+
+async function handleStatus(req, res, remote) {
+  const requestUrl = new URL(req.url ?? '/', `http://${host}:${port}`);
+
+  if (req.method === 'GET') {
+    if (requestUrl.pathname === '/osdcloud/status/events') {
+      if (!fs.existsSync(statusLogPath)) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('No status events');
+        writeLog(`${remote} GET ${requestUrl.pathname} 404 bytes=0`);
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+      fs.createReadStream(statusLogPath).pipe(res);
+      writeLog(`${remote} GET ${requestUrl.pathname} 200 file=${statusLogPath}`);
+      return;
+    }
+
+    if (!fs.existsSync(latestStatusPath)) {
+      sendJson(res, 404, { error: 'No deployment status has been reported yet.' });
+      writeLog(`${remote} GET ${requestUrl.pathname} 404 bytes=0`);
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    fs.createReadStream(latestStatusPath).pipe(res);
+    writeLog(`${remote} GET ${requestUrl.pathname} 200 file=${latestStatusPath}`);
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.writeHead(405, { Allow: 'GET, POST' });
+    res.end();
+    writeLog(`${remote} ${req.method} ${requestUrl.pathname} 405 bytes=0`);
+    return;
+  }
+
+  let payload;
+  try {
+    const body = await readRequestBody(req);
+    payload = body.trim() ? JSON.parse(body) : {};
+  } catch (error) {
+    sendJson(res, 400, { error: error.message });
+    writeLog(`${remote} POST ${requestUrl.pathname} 400 error=${error.message}`);
+    return;
+  }
+
+  const event = {
+    receivedAt: new Date().toISOString(),
+    remote,
+    ...payload,
+  };
+  const runId = sanitizeName(event.runId);
+  const line = `${JSON.stringify(event)}\n`;
+
+  fs.mkdirSync(statusRoot, { recursive: true });
+  fs.appendFileSync(statusLogPath, line, 'utf8');
+  fs.appendFileSync(path.join(statusRoot, `${runId}.jsonl`), line, 'utf8');
+  fs.writeFileSync(latestStatusPath, `${JSON.stringify(event, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(path.join(statusRoot, `${runId}.latest.json`), `${JSON.stringify(event, null, 2)}\n`, 'utf8');
+
+  const details = [
+    `run=${runId}`,
+    event.clientId ? `client=${sanitizeName(event.clientId)}` : null,
+    event.stage ? `stage=${event.stage}` : null,
+    Number.isFinite(event.percent) ? `percent=${event.percent}` : null,
+    event.message ? `message=${String(event.message).replace(/\s+/g, ' ').slice(0, 180)}` : null,
+  ].filter(Boolean).join(' ');
+
+  res.writeHead(204);
+  res.end();
+  writeLog(`${remote} POST ${requestUrl.pathname} 204 ${details}`);
 }
 
 function resolveRequestPath(requestUrl) {
@@ -59,8 +168,15 @@ function parseRange(rangeHeader, fileSize) {
   return { start, end };
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const remote = `${req.socket.remoteAddress ?? ''}:${req.socket.remotePort ?? ''}`;
+  const requestUrl = new URL(req.url ?? '/', `http://${host}:${port}`);
+
+  if (requestUrl.pathname === '/osdcloud/status' || requestUrl.pathname === '/osdcloud/status/events') {
+    await handleStatus(req, res, remote);
+    return;
+  }
+
   const requestPath = resolveRequestPath(req.url ?? '/');
 
   if (!requestPath) {
@@ -123,5 +239,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(port, host, () => {
   const scriptPath = fileURLToPath(import.meta.url);
-  writeLog(`START node=${process.version} script=${scriptPath} root=${root} prefix=http://${host}:${port}/`);
+  writeLog(`START node=${process.version} script=${scriptPath} root=${root} prefix=http://${host}:${port}/ status=${statusRoot}`);
 });

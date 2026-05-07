@@ -1,6 +1,6 @@
 param(
     [string] $Root = 'C:\OSDCloud\Win11-iPXE-Lab\PXE-TFTP',
-    [string] $ListenIp = '192.168.100.1',
+    [string] $ListenIp = '192.168.100.100',
     [int] $Port = 69,
     [string] $LogPath = 'C:\OSDCloud\Win11-iPXE-Lab\PXE-TFTP\pxe-tftp.log'
 )
@@ -8,7 +8,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Write-Log([string] $Message) {
-    "$(Get-Date -Format o) $Message" | Add-Content -LiteralPath $LogPath -Encoding ASCII
+    $line = "$(Get-Date -Format o) $Message"
+    $line | Add-Content -LiteralPath $LogPath -Encoding ASCII
+    Write-Host $line
 }
 
 function New-TftpPacket([int] $OpCode, [byte[]] $Payload) {
