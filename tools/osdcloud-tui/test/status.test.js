@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatDeploymentStatus } from '../src/status.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { formatDeploymentStatus, resolveDeploymentSummary } from '../src/status.js';
 
 test('formats missing deployment status with visible placeholder', () => {
   const lines = formatDeploymentStatus(null);
@@ -43,4 +46,70 @@ test('formats deployment summary start and end records', () => {
   assert.match(lines.join('\n'), /Status   : completed/);
   assert.match(lines.join('\n'), /Started  : 2026-05-09T01:00:00Z/);
   assert.match(lines.join('\n'), /Finished : 2026-05-09T01:15:00Z/);
+});
+
+test('does not display WinPE reboot handoff as active running', () => {
+  const latest = {
+    runId: 'run-rebooting',
+    clientId: 'client-1',
+    stage: 'rebooting',
+    receivedAt: '2026-05-09T01:00:00Z',
+    message: 'WinPE is rebooting in 10 seconds.',
+  };
+
+  const summary = resolveDeploymentSummary(
+    { http: { statusRoot: os.tmpdir() } },
+    latest,
+    null,
+    new Date('2026-05-09T01:01:00Z'),
+  );
+
+  assert.equal(summary.status, 'awaiting-windows');
+  assert.match(formatDeploymentStatus(latest, summary).join('\n'), /Status   : awaiting-windows/);
+});
+
+test('marks old unfinished status as stale previous run', () => {
+  const latest = {
+    runId: 'run-stale',
+    clientId: 'client-1',
+    stage: 'rebooting',
+    receivedAt: '2026-05-09T01:00:00Z',
+    message: 'WinPE is rebooting in 10 seconds.',
+  };
+
+  const summary = resolveDeploymentSummary(
+    { http: { statusRoot: os.tmpdir() } },
+    latest,
+    null,
+    new Date('2026-05-09T01:30:00Z'),
+  );
+
+  assert.equal(summary.status, 'stale');
+  assert.equal(summary.previousStatus, 'awaiting-windows');
+  assert.match(formatDeploymentStatus(latest, summary).join('\n'), /stale \(awaiting-windows; previous run\)/);
+});
+
+test('derives completed status from legacy per-run events', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-derive-'));
+  try {
+    const events = [
+      { receivedAt: '2026-05-09T01:00:00Z', runId: 'run-derived', clientId: 'client-1', stage: 'winpe-start', message: 'start' },
+      { receivedAt: '2026-05-09T01:10:00Z', runId: 'run-derived', clientId: 'client-1', stage: 'rebooting', message: 'reboot' },
+      { receivedAt: '2026-05-09T01:15:00Z', runId: 'run-derived', clientId: 'client-1', stage: 'windows-desktop-ready', message: 'ready' },
+    ];
+    fs.writeFileSync(path.join(root, 'run-derived.jsonl'), events.map((event) => JSON.stringify(event)).join('\n'));
+
+    const summary = resolveDeploymentSummary(
+      { http: { statusRoot: root } },
+      events.at(-1),
+      null,
+      new Date('2026-05-09T01:20:00Z'),
+    );
+
+    assert.equal(summary.status, 'completed');
+    assert.equal(summary.winpeEndedAt, '2026-05-09T01:10:00Z');
+    assert.equal(summary.completedAt, '2026-05-09T01:15:00Z');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

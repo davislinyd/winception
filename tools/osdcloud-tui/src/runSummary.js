@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const winpeEndStages = new Set(['osdcloud-finished', 'rebooting']);
-const windowsStartStages = new Set(['windows-setupcomplete-start', 'windows-logon-start']);
-const runEndStages = new Set(['windows-desktop-ready']);
-const failureStages = new Set([
+export const winpeEndStages = new Set(['osdcloud-finished', 'rebooting']);
+export const windowsStartStages = new Set(['windows-setupcomplete-start', 'windows-logon-start']);
+export const runEndStages = new Set(['windows-desktop-ready']);
+export const failureStages = new Set([
   'image-missing',
   'osdcloud-error',
   'reporter-error',
@@ -66,6 +66,9 @@ export function updateRunSummary(statusRoot, event) {
   if (winpeEndStages.has(event.stage) && !summary.winpeEndedAt) {
     summary.winpeEndedAt = now;
     summary.winpeEndStage = event.stage;
+    if (summary.status !== 'completed' && summary.status !== 'failed') {
+      summary.status = 'awaiting-windows';
+    }
     records.push({
       type: 'winpe-end',
       runId,
@@ -78,6 +81,9 @@ export function updateRunSummary(statusRoot, event) {
 
   if (windowsStartStages.has(event.stage) && !summary.windowsStartedAt) {
     summary.windowsStartedAt = now;
+    if (summary.status !== 'completed' && summary.status !== 'failed') {
+      summary.status = 'windows-running';
+    }
     records.push({
       type: 'windows-start',
       runId,
@@ -112,7 +118,11 @@ export function updateRunSummary(statusRoot, event) {
       stage: event.stage,
       message: event.message ?? null,
     });
-  } else if (summary.status !== 'completed' && summary.status !== 'failed') {
+  } else if (winpeEndStages.has(event.stage) && summary.status !== 'completed' && summary.status !== 'failed') {
+    summary.status = 'awaiting-windows';
+  } else if (windowsStartStages.has(event.stage) && summary.status !== 'completed' && summary.status !== 'failed') {
+    summary.status = 'windows-running';
+  } else if (summary.status !== 'completed' && summary.status !== 'failed' && summary.status !== 'awaiting-windows' && summary.status !== 'windows-running') {
     summary.status = 'running';
   }
 

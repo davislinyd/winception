@@ -6,7 +6,7 @@ import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
 import { configurePhysicalNic, removeStatusFiles, runPreflight } from './windows.js';
-import { formatDeploymentStatus, readLatestStatus, readLatestSummary, readStatusEvents, summarizeValidation } from './status.js';
+import { formatDeploymentStatus, readLatestStatus, readLatestSummary, readStatusEvents, resolveDeploymentSummary, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 
 const config = loadConfig();
@@ -176,7 +176,7 @@ function renderServices() {
 
 function renderDeployment() {
   const latest = readLatestStatus(config);
-  const summary = readLatestSummary(config);
+  const summary = resolveDeploymentSummary(config, latest, readLatestSummary(config));
   deploymentBox.setContent(formatDeploymentStatus(latest, summary).join('\n'));
 }
 

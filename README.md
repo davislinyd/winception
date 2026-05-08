@@ -189,6 +189,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\deployment-runs.jsonl
 ```
 
 WinPE reporter 目前每 `3` 秒檢查一次部署 log；若階段訊息沒有變化，至少每 `15` 秒送出 heartbeat。TUI 會把每次部署整理成 run summary，明確記錄 `run-start`、`winpe-end`、`windows-start`、`run-end` 或 `run-failed`。
+若 TUI 重新開啟時只看到上一輪 `latest.json`，它不會把舊資料當成 active deployment；WinPE 已交棒但還沒有 Windows final callback 時會顯示 `awaiting-windows`，超過約 15 分鐘沒有新事件會標示為 `stale (...; previous run)`。
 
 部署完成進入 Windows 後，SetupComplete 會讀取 WinPE 寫入的：
 
@@ -229,6 +230,7 @@ C:\Users\Davis\Documents\New project\config\osdcloud-tui.json
 ```
 
 TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、live log 與 validation 摘要。Deployment 區塊會顯示目前 stage、percent、elapsed、最後收到時間，以及本 run 的 start / WinPE end / final end 時間。
+舊部署殘留的 status 只會當作 previous run 顯示，不會被標為 running；開始新的 PXE 部署後，新的 `winpe-start` 會取代畫面中的上一輪資料。
 
 使用原則：
 
