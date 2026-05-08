@@ -284,6 +284,8 @@ npm run smoke
 
 iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete`，也必須確認 `boot.wim` 內的 `X:\OSDCloud\Config\Scripts\SetupComplete` 已同步；否則 client 仍會注入舊版 SetupComplete，TUI 會停在 `awaiting-windows` / `rebooting`，收不到 `windows-setupcomplete-*` 或 `windows-desktop-ready`。
 
+`OSDCloudDesktopReadyReport` 使用 any-user logon trigger 並以 SYSTEM 執行。不要把 scheduled task trigger 綁到 `$env:COMPUTERNAME\davis`；SetupComplete 階段可能尚無法穩定解析本機帳號 SID，會造成 `HRESULT 0x80070534`，導致 TUI 停在 `windows-setupcomplete-finished`。
+
 不應納入版本控制：
 
 - ISO / WIM / ESD
