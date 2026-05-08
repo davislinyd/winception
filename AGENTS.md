@@ -146,6 +146,9 @@ POST/GET: http://192.168.100.100/osdcloud/status
 Events : http://192.168.100.100/osdcloud/status/events
 Files  : C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
+         C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-summary.json
+         C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.summary.json
+         C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\deployment-runs.jsonl
 Cadence: check logs every 3 seconds; send heartbeat at least every 15 seconds
 ```
 
@@ -161,7 +164,8 @@ Run sequence:
 8. Watch the HTTP access log for `boot.ipxe`, `wimboot`, and `boot.wim`. A valid no-redownload run must not show zh-TW ESD `HEAD` or `GET`.
 9. Watch `C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl` for WinPE status events such as `winpe-start`, `smb-mounted`, `osdcloud-start`, `apply-image`, `osdcloud-finished`, and `rebooting`.
 10. After WinPE finishes, it should post final status and reboot itself with `wpeutil reboot`; the laptop should then boot from the internal disk if PXE was selected through a one-time boot menu.
-11. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\...zh-tw.esd`, `ImageFileDestination.PSDrive.DisplayRoot = \\192.168.100.100\OSDCloudiPXE`, and `OSImageIndex : 6`.
+11. During first Windows boot, SetupComplete should post `windows-setupcomplete-start` and `windows-setupcomplete-finished`; after `davis` logs on, the Run-key desktop reporter should post `windows-logon-start` and final `windows-desktop-ready`.
+12. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\...zh-tw.esd`, `ImageFileDestination.PSDrive.DisplayRoot = \\192.168.100.100\OSDCloudiPXE`, and `OSImageIndex : 6`.
 
 Legacy VM timing runs are historical regression tools only; do not use them for the physical-laptop path unless the user explicitly asks for VM validation:
 
@@ -276,6 +280,7 @@ CurrentBuild     : 26200
 EditionID        : Professional
 Culture          : zh-TW
 TimeZone         : Taipei Standard Time
+FinalStatusStage : windows-desktop-ready
 ```
 
 Also verify the OSDCloud log from the deployed disk:
@@ -326,6 +331,8 @@ Validation contract:
 - `npm test` must pass for TUI code changes.
 - `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN.
 - A live deployment remains the final hardware validation when TUI networking behavior changes.
+- Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
+- If deployment behavior changes inside `C:\OSDCloud` or WinPE, update the live files first, mount/commit `boot.wim` when needed, then run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts`.
 
 ## Legacy VM Notes
 

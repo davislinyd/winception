@@ -76,6 +76,52 @@ function Send-DeploymentStatus {
     }
 }
 
+function Get-DeployedWindowsRoot {
+    $preferred = @('C:\') + @(
+        Get-PSDrive -PSProvider FileSystem |
+            Where-Object { $_.Name -notin @('C', 'X', 'Z') } |
+            ForEach-Object { "$($_.Name):\" }
+    )
+
+    foreach ($root in ($preferred | Select-Object -Unique)) {
+        if (Test-Path -LiteralPath (Join-Path $root 'Windows\System32\Config\SOFTWARE')) {
+            return $root
+        }
+    }
+
+    return $null
+}
+
+function Save-DeploymentStatusMetadata {
+    $targetRoot = Get-DeployedWindowsRoot
+    if ([string]::IsNullOrWhiteSpace($targetRoot)) {
+        Send-DeploymentStatus -Stage 'windows-metadata-error' -Message 'Unable to locate deployed Windows root for status metadata.'
+        return
+    }
+
+    try {
+        $metadataRoot = Join-Path $targetRoot 'ProgramData\OSDCloud'
+        New-Item -ItemType Directory -Path $metadataRoot -Force | Out-Null
+        $metadataPath = Join-Path $metadataRoot 'DeploymentStatus.json'
+        $metadata = [ordered]@{
+            runId = $runId
+            clientId = $clientId
+            statusUrl = $statusUrl
+            server = $server
+            share = $share
+            imagePath = $imagePath
+            osImageIndex = 6
+            createdAt = (Get-Date).ToString('o')
+        }
+
+        $metadata | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $metadataPath -Encoding UTF8 -Force
+        Send-DeploymentStatus -Stage 'windows-metadata-written' -Message "Deployment status metadata written to $metadataPath" -Extra @{ targetRoot = $targetRoot }
+    }
+    catch {
+        Send-DeploymentStatus -Stage 'windows-metadata-error' -Message $_.Exception.Message -Extra @{ targetRoot = $targetRoot }
+    }
+}
+
 Remove-Item -LiteralPath $stopProgressPath -Force -ErrorAction SilentlyContinue
 Send-DeploymentStatus -Stage 'winpe-start' -Message 'Start-OSDCloud iPXE custom image deployment started.'
 
@@ -152,6 +198,7 @@ try {
     Send-DeploymentStatus -Stage 'osdcloud-start' -Message 'Invoke-OSDCloud starting.'
     Invoke-OSDCloud
     $deploymentSucceeded = $true
+    Save-DeploymentStatusMetadata
     Send-DeploymentStatus -Stage 'osdcloud-finished' -Message 'Invoke-OSDCloud returned successfully. WinPE will reboot.'
 }
 catch {

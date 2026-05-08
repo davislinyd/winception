@@ -3,6 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { appendLog } from './logger.js';
+import { updateRunSummary } from './runSummary.js';
 
 export function sanitizeName(value) {
   return String(value ?? 'unknown').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 120) || 'unknown';
@@ -198,6 +199,7 @@ export class MediaHttpServer extends EventEmitter {
     fs.appendFileSync(path.join(statusRoot, `${runId}.jsonl`), line, 'utf8');
     fs.writeFileSync(latestStatusPath, `${JSON.stringify(event, null, 2)}\n`, 'utf8');
     fs.writeFileSync(path.join(statusRoot, `${runId}.latest.json`), `${JSON.stringify(event, null, 2)}\n`, 'utf8');
+    const runSummary = updateRunSummary(statusRoot, event);
 
     const details = [
       `run=${runId}`,
@@ -210,6 +212,7 @@ export class MediaHttpServer extends EventEmitter {
     res.writeHead(204);
     res.end();
     this.log(`${remote} POST ${requestUrl.pathname} 204 ${details}`);
+    this.emit('status', { event, ...runSummary });
   }
 
   async handleRequest(req, res) {

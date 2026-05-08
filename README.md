@@ -183,9 +183,29 @@ OSDCloud 進度回報會由 Node HTTP server 接收，並寫入：
 ```text
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-summary.json
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.summary.json
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\deployment-runs.jsonl
 ```
 
-WinPE reporter 目前每 `3` 秒檢查一次部署 log；若階段訊息沒有變化，至少每 `15` 秒送出 heartbeat。
+WinPE reporter 目前每 `3` 秒檢查一次部署 log；若階段訊息沒有變化，至少每 `15` 秒送出 heartbeat。TUI 會把每次部署整理成 run summary，明確記錄 `run-start`、`winpe-end`、`windows-start`、`run-end` 或 `run-failed`。
+
+部署完成進入 Windows 後，SetupComplete 會讀取 WinPE 寫入的：
+
+```text
+C:\ProgramData\OSDCloud\DeploymentStatus.json
+```
+
+然後回報 Windows 階段：
+
+```text
+windows-setupcomplete-start
+windows-setupcomplete-finished
+windows-logon-start
+windows-desktop-ready
+```
+
+`windows-desktop-ready` 代表已看到 Explorer、桌面 ready marker，且沒有 `CloudExperienceHost` / `msoobe`。
 
 可用下列方式即時監看：
 
@@ -208,7 +228,7 @@ TUI 設定檔：
 C:\Users\Davis\Documents\New project\config\osdcloud-tui.json
 ```
 
-TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、live log 與 validation 摘要。WinPE 內的 OSDCloud no-redownload、SMB mapping、OOBE injection 與 SetupComplete 部署核心先保持原樣。
+TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、live log 與 validation 摘要。Deployment 區塊會顯示目前 stage、percent、elapsed、最後收到時間，以及本 run 的 start / WinPE end / final end 時間。
 
 使用原則：
 

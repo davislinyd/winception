@@ -6,7 +6,7 @@ import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
 import { configurePhysicalNic, removeStatusFiles, runPreflight } from './windows.js';
-import { formatDeploymentStatus, readLatestStatus, readStatusEvents, summarizeValidation } from './status.js';
+import { formatDeploymentStatus, readLatestStatus, readLatestSummary, readStatusEvents, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 
 const config = loadConfig();
@@ -66,7 +66,7 @@ const servicesBox = blessed.box({
   top: 3,
   left: 34,
   width: 66,
-  height: 9,
+  height: 11,
   border: 'line',
   tags: true,
   label: ' Services ',
@@ -77,7 +77,7 @@ const deploymentBox = blessed.box({
   top: 3,
   left: 100,
   width: '100%-100',
-  height: 9,
+  height: 11,
   border: 'line',
   tags: false,
   label: ' Deployment ',
@@ -85,7 +85,7 @@ const deploymentBox = blessed.box({
 });
 
 const preflightBox = blessed.box({
-  top: 12,
+  top: 14,
   left: 34,
   width: 66,
   height: '38%',
@@ -100,7 +100,7 @@ const preflightBox = blessed.box({
 });
 
 const validationBox = blessed.box({
-  top: 12,
+  top: 14,
   left: 100,
   width: '100%-100',
   height: '38%',
@@ -117,7 +117,7 @@ const logBox = blessed.log({
   bottom: 0,
   left: 34,
   width: '100%-34',
-  height: '100%-12-38%',
+  height: '100%-14-38%',
   border: 'line',
   scrollable: true,
   alwaysScroll: true,
@@ -153,6 +153,12 @@ for (const [name, service] of [['DHCP', dhcp], ['TFTP', tftp], ['HTTP', http]]) 
   service.on('error', (error) => addLog(`[${name}] ERROR ${error.message}`));
 }
 
+http.on('status', ({ records }) => {
+  for (const record of records) {
+    addLog(`[RUN] ${record.type} run=${record.runId} stage=${record.stage ?? ''} message=${record.message ?? ''}`);
+  }
+});
+
 function serviceState(service) {
   return service.running ? '{green-fg}running{/green-fg}' : '{red-fg}stopped{/red-fg}';
 }
@@ -170,7 +176,8 @@ function renderServices() {
 
 function renderDeployment() {
   const latest = readLatestStatus(config);
-  deploymentBox.setContent(formatDeploymentStatus(latest).join('\n'));
+  const summary = readLatestSummary(config);
+  deploymentBox.setContent(formatDeploymentStatus(latest, summary).join('\n'));
 }
 
 function renderPreflight() {

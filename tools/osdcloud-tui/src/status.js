@@ -1,8 +1,21 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { tailFile } from './logger.js';
 
 export function readLatestStatus(config) {
   const filePath = config.paths.statusLatest;
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+export function readLatestSummary(config) {
+  const filePath = path.join(config.http.statusRoot, 'latest-summary.json');
   if (!fs.existsSync(filePath)) {
     return null;
   }
@@ -25,7 +38,7 @@ function compact(value, maxLength = 120) {
   return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
-export function formatDeploymentStatus(latest) {
+export function formatDeploymentStatus(latest, summary = null) {
   if (!latest) {
     return [
       'No deployment status yet.',
@@ -34,12 +47,14 @@ export function formatDeploymentStatus(latest) {
   }
 
   return [
+    `Status   : ${summary?.status ?? 'running'}`,
     `Run      : ${latest.runId ?? ''}`,
     `Client   : ${latest.clientId ?? ''}`,
-    `Stage    : ${latest.stage ?? ''}`,
-    `Percent  : ${Number.isFinite(latest.percent) ? latest.percent : ''}`,
-    `Elapsed  : ${latest.elapsedSeconds ?? ''}`,
-    `Received : ${latest.receivedAt ?? ''}`,
+    `Stage    : ${latest.stage ?? ''}  Percent: ${Number.isFinite(latest.percent) ? latest.percent : ''}  Elapsed: ${latest.elapsedSeconds ?? ''}`,
+    `Started  : ${summary?.startedAt ?? ''}`,
+    `WinPE End: ${summary?.winpeEndedAt ?? ''}`,
+    `Finished : ${summary?.completedAt ?? summary?.failedAt ?? ''}`,
+    `Seen     : ${latest.receivedAt ?? ''}`,
     `Message  : ${compact(latest.message, 140)}`,
   ];
 }
@@ -65,10 +80,11 @@ export function summarizeValidation(config) {
   });
 
   const latest = readLatestStatus(config);
+  const summary = readLatestSummary(config);
   results.push({
     name: 'Latest status',
     ok: Boolean(latest),
-    detail: latest ? `${latest.stage ?? 'unknown'} ${latest.message ?? ''}` : 'no latest.json',
+    detail: latest ? `${summary?.status ?? 'running'} ${latest.stage ?? 'unknown'} ${latest.message ?? ''}` : 'no latest.json',
   });
 
   return results;
