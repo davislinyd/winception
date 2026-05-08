@@ -7,6 +7,7 @@ import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
 import { configurePhysicalNic, removeStatusFiles, runPreflight } from './windows.js';
 import { readLatestStatus, readStatusEvents, summarizeValidation } from './status.js';
+import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 
 const config = loadConfig();
 const dhcp = new DhcpResponder(config.dhcp);
@@ -14,6 +15,7 @@ const tftp = new TftpResponder(config.tftp);
 const http = new MediaHttpServer(config.http);
 const runtimeLog = new RingBuffer(500);
 let preflightResults = [];
+let dialogOpen = false;
 
 const screen = blessed.screen({
   smartCSR: true,
@@ -218,10 +220,12 @@ function renderAll() {
 
 function confirmPrompt(message) {
   return new Promise((resolve) => {
-    const prompt = blessed.question({
+    dialogOpen = true;
+    const previousFocus = screen.focused;
+    const modal = blessed.box({
       parent: screen,
       border: 'line',
-      height: 8,
+      height: 9,
       width: '70%',
       top: 'center',
       left: 'center',
@@ -229,16 +233,39 @@ function confirmPrompt(message) {
       tags: true,
       keys: true,
       mouse: true,
+      focusable: true,
+      content: `${message}\n\n{bold}Y{/bold} / {bold}Enter{/bold}: continue    {bold}N{/bold} / {bold}Esc{/bold}: cancel`,
       style: {
+        fg: 'white',
+        bg: 'black',
         border: { fg: 'yellow' },
       },
     });
-    prompt.ask(`${message}\n\nType y/yes to continue.`, (answer) => {
-      prompt.destroy();
-      menu.focus();
+
+    const done = (answer) => {
+      modal.destroy();
+      if (previousFocus?.focus) {
+        previousFocus.focus();
+      } else {
+        menu.focus();
+      }
       screen.render();
-      resolve(String(answer ?? '').trim().toLowerCase() === 'y' || String(answer ?? '').trim().toLowerCase() === 'yes');
+      setTimeout(() => {
+        dialogOpen = false;
+      }, 0);
+      resolve(answer);
+    };
+
+    modal.on('keypress', (ch, key) => {
+      if (isConfirmKey(ch, key)) {
+        done(true);
+      } else if (isCancelKey(ch, key)) {
+        done(false);
+      }
     });
+
+    modal.focus();
+    screen.render();
   });
 }
 
@@ -330,11 +357,22 @@ async function quit() {
 }
 
 menu.on('select', (_, index) => {
+  if (dialogOpen) {
+    return;
+  }
   runAction(index);
 });
 
-screen.key(['r'], () => runAction(0));
-screen.key(['q', 'C-c'], () => quit());
+screen.key(['r'], () => {
+  if (!dialogOpen) {
+    runAction(0);
+  }
+});
+screen.key(['q', 'C-c'], () => {
+  if (!dialogOpen) {
+    quit();
+  }
+});
 
 setInterval(() => {
   renderAll();
