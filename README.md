@@ -185,6 +185,8 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
 ```
 
+WinPE reporter 目前每 `3` 秒檢查一次部署 log；若階段訊息沒有變化，至少每 `15` 秒送出 heartbeat。
+
 可用下列方式即時監看：
 
 ```powershell

@@ -146,6 +146,7 @@ POST/GET: http://192.168.100.100/osdcloud/status
 Events : http://192.168.100.100/osdcloud/status/events
 Files  : C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
+Cadence: check logs every 3 seconds; send heartbeat at least every 15 seconds
 ```
 
 Run sequence:

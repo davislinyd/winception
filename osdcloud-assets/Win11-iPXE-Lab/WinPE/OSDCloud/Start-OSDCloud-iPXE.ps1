@@ -89,7 +89,9 @@ if (Test-Path -LiteralPath $progressReporter -PathType Leaf) {
         '-RunId', $runId,
         '-ClientId', $clientId,
         '-TranscriptPath', $logPath,
-        '-StopFile', $stopProgressPath
+        '-StopFile', $stopProgressPath,
+        '-IntervalSeconds', '3',
+        '-HeartbeatSeconds', '15'
     )
     try {
         Start-Process -FilePath 'powershell.exe' -ArgumentList $reporterArgs -WindowStyle Hidden | Out-Null

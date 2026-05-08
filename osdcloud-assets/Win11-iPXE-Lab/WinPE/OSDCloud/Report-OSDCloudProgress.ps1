@@ -4,8 +4,8 @@ param(
     [string] $ClientId = '',
     [string] $TranscriptPath = 'X:\OSDCloud\Logs\Start-OSDCloud-iPXE.log',
     [string] $StopFile = 'X:\OSDCloud\Logs\Stop-OSDCloudProgressReporter.txt',
-    [int] $IntervalSeconds = 10,
-    [int] $HeartbeatSeconds = 60,
+    [int] $IntervalSeconds = 3,
+    [int] $HeartbeatSeconds = 15,
     [int] $MaxSeconds = 7200
 )
 
