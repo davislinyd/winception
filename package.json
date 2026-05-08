@@ -1,0 +1,14 @@
+{
+  "name": "osdcloud-win11-deployment-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tui": "node tools/osdcloud-tui/src/index.js",
+    "test": "node --test \"tools/osdcloud-tui/test/**/*.test.js\"",
+    "smoke": "node tools/osdcloud-tui/src/smoke.js"
+  },
+  "dependencies": {
+    "blessed": "^0.1.81"
+  }
+}

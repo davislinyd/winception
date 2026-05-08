@@ -296,6 +296,37 @@ OSImageIndex                    : 6
 
 The HTTP access log must show `boot.ipxe`, `wimboot`, and `boot.wim`, and must not show zh-TW ESD `HEAD` or `GET`. The laptop must not use USB or ISO media as the deployment source.
 
+## Node TUI Host Console
+
+The primary host-side entrypoint is now:
+
+```powershell
+npm run tui
+```
+
+The TUI lives under:
+
+```text
+tools\osdcloud-tui
+config\osdcloud-tui.json
+```
+
+Use the TUI for the active physical-laptop path unless the user explicitly asks to run the legacy helper scripts. It owns the host-side DHCP responder, TFTP responder, HTTP media/status server, live status display, log tailing, and validation summary.
+
+Safety contract:
+
+- Start the TUI from elevated PowerShell.
+- Run preflight before starting services.
+- Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
+- Keep confirmation gates for NIC configuration, DHCP/PXE service start, and status-file deletion.
+- Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.
+
+Validation contract:
+
+- `npm test` must pass for TUI code changes.
+- `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN.
+- A live deployment remains the final hardware validation when TUI networking behavior changes.
+
 ## Legacy VM Notes
 
 These notes are historical regression evidence only. Do not use VM for the active physical-laptop iPXE path. If the user explicitly asks for VM regression, use Generation 2 VMs with:
@@ -323,7 +354,7 @@ OSDCloud-Win11-iPXE-01
 Historical iPXE VM notes:
 
 - Earlier VM validation used `PXE-Lab`; the active physical-laptop path uses the host wired adapter directly.
-- The current host-side PXE helper uses PowerShell DHCP/TFTP plus Node HTTP. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
+- Legacy host-side PXE helper scripts used PowerShell DHCP/TFTP plus Node HTTP. The Node TUI is now the primary host-side console; keep the legacy helper scripts as fallback until a real physical deployment has validated the TUI path. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
 - Use static memory for iPXE timing VMs. `Timing-04` failed in WinPE DISM apply when Dynamic Memory assigned only about 1.5GB even though startup memory was configured higher.
 - Full iPXE deployment succeeded with PXE-stage Secure Boot temporarily off. Hard-disk boot was verified with Secure Boot `MicrosoftWindows` and vTPM.
 - Signed shim PXE remains a caveat: `snponly-shim.efi` and `ipxe-shim.efi` were both tested with `MicrosoftUEFICertificateAuthority`, but the probe did not reach HTTP and stopped during TFTP shim transfer.
@@ -354,6 +385,11 @@ OSDCloud-Win11-Automated-Deployment-Test-Report.md
 tools\Invoke-IpxeTimingRun.ps1
 tools\Set-IpxePhysicalNic.ps1
 tools\Sync-OsdCloudAssets.ps1
+package.json
+package-lock.json
+config\osdcloud-tui.json
+tools\osdcloud-tui\...
+TUI-REWRITE-PLAN.md
 osdcloud-assets\README.md
 osdcloud-assets\manifest.json
 osdcloud-assets\Win11-Lab\...

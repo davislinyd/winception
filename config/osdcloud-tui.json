@@ -1,0 +1,58 @@
+{
+  "adapter": {
+    "interfaceAlias": "乙太網路 3",
+    "serverIp": "192.168.100.100",
+    "prefixLength": 24,
+    "defaultGateway": "192.168.100.1",
+    "interfaceMetric": 5,
+    "remoteSubnet": "192.168.100.0/24"
+  },
+  "dhcp": {
+    "listenIp": "192.168.100.100",
+    "listenPort": 67,
+    "replyPort": 68,
+    "leaseStartIp": "192.168.100.200",
+    "leaseEndIp": "192.168.100.250",
+    "subnetMask": "255.255.255.0",
+    "router": "192.168.100.1",
+    "dnsServers": ["1.1.1.1", "8.8.8.8"],
+    "bootFile": "ipxeboot/x86_64-sb/snponly.efi",
+    "ipxeBootUrl": "http://192.168.100.100/osdcloud/boot.ipxe",
+    "leaseSeconds": 3600,
+    "logPath": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP\\pxe-dhcp.log"
+  },
+  "tftp": {
+    "root": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP",
+    "listenIp": "192.168.100.100",
+    "port": 69,
+    "logPath": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP\\pxe-tftp.log"
+  },
+  "http": {
+    "root": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot",
+    "host": "192.168.100.100",
+    "port": 80,
+    "logPath": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\host-http.log",
+    "statusRoot": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status"
+  },
+  "paths": {
+    "repoRoot": "C:\\Users\\Davis\\Documents\\New project",
+    "osdCloudRoot": "C:\\OSDCloud",
+    "physicalNicScript": "C:\\Users\\Davis\\Documents\\New project\\tools\\Set-IpxePhysicalNic.ps1",
+    "expectedHttpFiles": [
+      "osdcloud\\boot.ipxe",
+      "osdcloud\\wimboot",
+      "osdcloud\\bootmgr",
+      "osdcloud\\bootx64.efi",
+      "osdcloud\\BCD",
+      "osdcloud\\boot.sdi",
+      "osdcloud\\boot.wim"
+    ],
+    "statusLatest": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status\\latest.json",
+    "statusEvents": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status\\progress.jsonl",
+    "imageNamePattern": "26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
+  },
+  "smb": {
+    "share": "\\\\192.168.100.100\\OSDCloudiPXE",
+    "imagePath": "\\\\192.168.100.100\\OSDCloudiPXE\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
+  }
+}

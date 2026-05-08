@@ -8,6 +8,8 @@
 
 # Local download and cache folders
 downloads/
+node_modules/
+.osdcloud-tui/
 *.tmp
 *.temp
 
@@ -24,4 +26,3 @@ downloads/
 # Windows metadata
 Thumbs.db
 desktop.ini
-
