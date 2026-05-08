@@ -192,8 +192,12 @@ export function removeStatusFiles(config) {
   }
   let removed = 0;
   for (const entry of fs.readdirSync(statusRoot)) {
+    const entryPath = path.join(statusRoot, entry);
     if (entry.endsWith('.json') || entry.endsWith('.jsonl')) {
-      fs.rmSync(path.join(statusRoot, entry), { force: true });
+      fs.rmSync(entryPath, { force: true });
+      removed += 1;
+    } else if (entry === 'screenshots') {
+      fs.rmSync(entryPath, { recursive: true, force: true });
       removed += 1;
     }
   }

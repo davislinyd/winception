@@ -54,7 +54,7 @@ function Send-DeploymentStatus {
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
     try {
         Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
-        return
+        return $true
     }
     catch {
     }
@@ -63,6 +63,7 @@ function Send-DeploymentStatus {
         $client = [System.Net.WebClient]::new()
         $client.Headers['Content-Type'] = 'application/json'
         [void] $client.UploadString($statusUrl, 'POST', $json)
+        return $true
     }
     catch {
     }
@@ -71,6 +72,8 @@ function Send-DeploymentStatus {
             $client.Dispose()
         }
     }
+
+    return $false
 }
 
 function Install-DesktopReadyReporter {
@@ -175,21 +178,24 @@ function Get-DesktopReadyFacts {
 }
 
 try {
-    Send-Status -Stage 'windows-logon-start' -Message 'Desktop ready reporter started after davis logon.' -Percent 98
-    $deadline = (Get-Date).AddMinutes(10)
+    [void] (Send-Status -Stage 'windows-logon-start' -Message 'Desktop ready reporter started after davis logon.' -Percent 98)
+    $deadline = (Get-Date).AddMinutes(30)
+    $desktopReadyReported = $false
     do {
         $facts = Get-DesktopReadyFacts
         if ($facts.explorerRunning -and $facts.desktopReadyFile -and @($facts.oobeProcesses).Count -eq 0) {
-            Send-Status -Stage 'windows-desktop-ready' -Message 'Windows desktop is ready for davis.' -Percent 100 -Extra $facts
-            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-            break
+            if (Send-Status -Stage 'windows-desktop-ready' -Message 'Windows desktop is ready for davis.' -Percent 100 -Extra $facts) {
+                $desktopReadyReported = $true
+                Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+                break
+            }
         }
 
         Start-Sleep -Seconds 5
     } while ((Get-Date) -lt $deadline)
 
-    if ((Get-Date) -ge $deadline) {
-        Send-Status -Stage 'windows-desktop-timeout' -Message 'Timed out waiting for Explorer and desktop marker.' -Extra (Get-DesktopReadyFacts)
+    if (-not $desktopReadyReported -and (Get-Date) -ge $deadline) {
+        [void] (Send-Status -Stage 'windows-desktop-timeout' -Message 'Timed out waiting for Explorer and desktop marker or status upload.' -Extra (Get-DesktopReadyFacts))
     }
 }
 finally {
@@ -201,12 +207,12 @@ finally {
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$reporterPath`""
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 35)
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop | Out-Null
     return $reporterPath
 }
 
-Send-DeploymentStatus -Stage 'windows-setupcomplete-start' -Message 'SetupComplete started in deployed Windows.' -Percent 94
+[void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-start' -Message 'SetupComplete started in deployed Windows.' -Percent 94)
 
 try {
     if (-not (Get-LocalUser -Name $UserName -ErrorAction SilentlyContinue)) {
@@ -263,10 +269,12 @@ try {
     New-Item -ItemType Directory -Path 'C:\Users\Public\Desktop' -Force | Out-Null
     "OSDCloud desktop ready $(Get-Date -Format o)" | Out-File 'C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt' -Encoding ascii -Force
     $reporterPath = Install-DesktopReadyReporter
-    Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'SetupComplete finished; desktop ready reporter installed.' -Percent 96 -Extra @{ reporterPath = $reporterPath }
+    [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'SetupComplete finished; desktop ready reporter installed.' -Percent 96 -Extra @{
+        reporterPath = $reporterPath
+    })
 }
 catch {
-    Send-DeploymentStatus -Stage 'windows-setupcomplete-error' -Message $_.Exception.Message -Extra @{ script = 'SetupComplete.ps1' }
+    [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-error' -Message $_.Exception.Message -Extra @{ script = 'SetupComplete.ps1' })
     throw
 }
 finally {

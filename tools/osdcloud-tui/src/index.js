@@ -6,9 +6,11 @@ import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
 import { configurePhysicalNic, removeStatusFiles, runPreflight } from './windows.js';
-import { formatDeploymentStatus, readLatestStatus, readLatestSummary, readStatusEvents, resolveDeploymentSummary, summarizeValidation } from './status.js';
+import { formatDeploymentStatus, formatScreenshotMetadata, readLatestScreenshot, readLatestStatus, readLatestSummary, readScreenshotMetadata, readStatusEvents, resolveDeploymentSummary, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 
+const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
+const appVersion = packageInfo.version ?? 'unknown';
 const config = loadConfig();
 const dhcp = new DhcpResponder(config.dhcp);
 const tftp = new TftpResponder(config.tftp);
@@ -19,7 +21,7 @@ let dialogOpen = false;
 
 const screen = blessed.screen({
   smartCSR: true,
-  title: 'OSDCloud iPXE TUI',
+  title: `OSDCloud iPXE TUI v${appVersion}`,
   fullUnicode: true,
 });
 
@@ -30,7 +32,7 @@ const title = blessed.box({
   height: 3,
   tags: true,
   style: { fg: 'white', bg: 'blue' },
-  content: ' OSDCloud iPXE TUI - physical laptop deployment host console',
+  content: ` OSDCloud iPXE TUI v${appVersion} - physical laptop deployment host console`,
 });
 
 const menu = blessed.list({
@@ -66,7 +68,7 @@ const servicesBox = blessed.box({
   top: 3,
   left: 34,
   width: 66,
-  height: 11,
+  height: 13,
   border: 'line',
   tags: true,
   label: ' Services ',
@@ -77,7 +79,7 @@ const deploymentBox = blessed.box({
   top: 3,
   left: 100,
   width: '100%-100',
-  height: 11,
+  height: 13,
   border: 'line',
   tags: false,
   label: ' Deployment ',
@@ -85,7 +87,7 @@ const deploymentBox = blessed.box({
 });
 
 const preflightBox = blessed.box({
-  top: 14,
+  top: 16,
   left: 34,
   width: 66,
   height: '38%',
@@ -100,7 +102,7 @@ const preflightBox = blessed.box({
 });
 
 const validationBox = blessed.box({
-  top: 14,
+  top: 16,
   left: 100,
   width: '100%-100',
   height: '38%',
@@ -117,7 +119,7 @@ const logBox = blessed.log({
   bottom: 0,
   left: 34,
   width: '100%-34',
-  height: '100%-14-38%',
+  height: '100%-16-38%',
   border: 'line',
   scrollable: true,
   alwaysScroll: true,
@@ -165,6 +167,7 @@ function serviceState(service) {
 
 function renderServices() {
   servicesBox.setContent([
+    `Version     : ${appVersion}`,
     `HTTP/status : ${serviceState(http)} ${config.http.host}:${config.http.port}`,
     `TFTP        : ${serviceState(tftp)} ${config.tftp.listenIp}:${config.tftp.port}`,
     `DHCP        : ${serviceState(dhcp)} ${config.dhcp.listenIp}:${config.dhcp.listenPort}`,
@@ -177,7 +180,7 @@ function renderServices() {
 function renderDeployment() {
   const latest = readLatestStatus(config);
   const summary = resolveDeploymentSummary(config, latest, readLatestSummary(config));
-  deploymentBox.setContent(formatDeploymentStatus(latest, summary).join('\n'));
+  deploymentBox.setContent(formatDeploymentStatus(latest, summary, readLatestScreenshot(config)).join('\n'));
 }
 
 function renderPreflight() {
@@ -197,8 +200,12 @@ function renderValidation() {
     return `${mark} ${item.name}${item.detail ? ` - ${item.detail}` : ''}`;
   });
   const statusTail = readStatusEvents(config, 6);
+  const screenshotTail = readScreenshotMetadata(config, 3).map(formatScreenshotMetadata);
   validationBox.setContent([
     ...rows,
+    '',
+    'Recent screenshots:',
+    ...(screenshotTail.length ? screenshotTail : ['none']),
     '',
     'Recent status events:',
     ...(statusTail.length ? statusTail : ['none']),

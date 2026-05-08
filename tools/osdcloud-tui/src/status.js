@@ -30,8 +30,40 @@ export function readLatestSummary(config) {
   }
 }
 
+export function readLatestScreenshot(config) {
+  const filePath = path.join(config.http.statusRoot, 'latest-screenshot.json');
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 export function readStatusEvents(config, maxLines = 80) {
   return tailFile(config.paths.statusEvents, maxLines);
+}
+
+export function readScreenshotMetadata(config, maxLines = 5) {
+  const latest = readLatestScreenshot(config);
+  if (!latest?.runId) {
+    return [];
+  }
+
+  const filePath = path.join(config.http.statusRoot, `${latest.runId}.screenshots.jsonl`);
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+
+  return tailFile(filePath, maxLines).flatMap((line) => {
+    try {
+      return [JSON.parse(line)];
+    } catch {
+      return [];
+    }
+  });
 }
 
 function parseDate(value) {
@@ -143,7 +175,28 @@ function compact(value, maxLength = 120) {
   return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
-export function formatDeploymentStatus(latest, summary = null) {
+function formatScreenshotLine(screenshot) {
+  if (!screenshot) {
+    return null;
+  }
+
+  const stage = screenshot.stage ?? '';
+  const timestamp = screenshot.timestamp ?? screenshot.receivedAt ?? '';
+  return `${stage} ${timestamp}`.trim();
+}
+
+export function formatScreenshotMetadata(screenshot) {
+  if (!screenshot) {
+    return '';
+  }
+
+  const stage = screenshot.stage ?? '';
+  const timestamp = screenshot.timestamp ?? screenshot.receivedAt ?? '';
+  const filePath = screenshot.filePath ?? '';
+  return `${stage} ${timestamp}${filePath ? ` ${filePath}` : ''}`.trim();
+}
+
+export function formatDeploymentStatus(latest, summary = null, latestScreenshot = null) {
   if (!latest) {
     return [
       'No deployment status yet.',
@@ -155,7 +208,7 @@ export function formatDeploymentStatus(latest, summary = null) {
     ? `stale (${summary.previousStatus ?? 'unknown'}; previous run)`
     : summary?.status ?? 'running';
 
-  return [
+  const lines = [
     `Status   : ${statusLabel}`,
     `Run      : ${latest.runId ?? ''}`,
     `Client   : ${latest.clientId ?? ''}`,
@@ -166,6 +219,13 @@ export function formatDeploymentStatus(latest, summary = null) {
     `Seen     : ${latest.receivedAt ?? ''}`,
     `Message  : ${compact(summary?.staleReason ? `${summary.staleReason}; ${latest.message ?? ''}` : latest.message, 140)}`,
   ];
+
+  if (latestScreenshot) {
+    lines.push(`Latest Shot: ${formatScreenshotLine(latestScreenshot) ?? ''}`);
+    lines.push(`Shot File  : ${compact(latestScreenshot.filePath, 180)}`);
+  }
+
+  return lines;
 }
 
 export function summarizeValidation(config) {

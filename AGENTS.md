@@ -102,6 +102,9 @@ Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.
 - For iPXE WinPE, `Invoke-DavisOobe.ps1` must first look for SetupComplete scripts at `$PSScriptRoot\..\SetupComplete`, then fall back to scanning non-`C:` / non-`X:` drives. iPXE loads only `boot.wim`; it does not provide the ISO media path.
 - When changing iPXE `SetupComplete`, update both `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete` and the embedded `X:\OSDCloud\Config\Scripts\SetupComplete` inside `boot.wim`. If the embedded copy is stale, the laptop can reach the Windows desktop while the TUI remains at `awaiting-windows` / `rebooting` because no `windows-setupcomplete-*` or `windows-desktop-ready` callback exists.
 - The desktop-ready scheduled task must use an any-user `New-ScheduledTaskTrigger -AtLogOn` with a SYSTEM principal. Do not set the trigger user to `$env:COMPUTERNAME\davis`; during SetupComplete the computer name / local account SID mapping can be unstable and fail with `HRESULT 0x80070534`.
+- The desktop-ready scheduled task must not unregister until `windows-desktop-ready` is successfully POSTed. Windows networking can lag behind Explorer; if the first POST fails, keep retrying instead of losing the final TUI completion event.
+- Screenshot progress evidence is best-effort only. Keep JSON deployment status as the source of truth; screenshot upload failures must not block OSDCloud, SetupComplete, reboot, or desktop-ready reporting.
+- Do not install a desktop screenshot Startup helper from `SetupComplete`. The earlier interactive screenshot helper combined screen capture, upload, and hidden PowerShell startup execution, and Defender/AMSI blocked the whole `SetupComplete.ps1` with `ScriptContainedMaliciousContent`. Keep `OSDCloudDesktopReadyReport` as the SYSTEM scheduled task for final status; Windows desktop PNG evidence must remain a separate, explicitly retested best-effort helper if reintroduced later.
 - The working iPXE `boot.ipxe` explicitly loads `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim` over HTTP.
 - The working DHCP path returns addresses from `192.168.100.200` through `192.168.100.250`, gateway `192.168.100.1`, DNS `1.1.1.1` / `8.8.8.8`, `snponly.efi` for UEFI PXE first stage, and `http://192.168.100.100/osdcloud/boot.ipxe` once the client identifies as iPXE. Keep `autoexec.ipxe` disabled unless you intentionally retest the TFTP script path.
 - Historical VM note: VM blocks changing the Secure Boot template after vTPM initialization. If a VM was initialized with the PXE template and must hard-boot Windows with `MicrosoftWindows`, preserve the VHDX and recreate the VM configuration before enabling vTPM.
@@ -146,11 +149,15 @@ OSDCloud progress status is collected by the same Node HTTP server:
 ```text
 POST/GET: http://192.168.100.100/osdcloud/status
 Events : http://192.168.100.100/osdcloud/status/events
+Shots  : POST image/png to http://192.168.100.100/osdcloud/screenshot
 Files  : C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-summary.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.summary.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\deployment-runs.jsonl
+         C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-screenshot.json
+         C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.screenshots.jsonl
+         C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\screenshots\<runId>\*.png
 Cadence: check logs every 3 seconds; send heartbeat at least every 15 seconds
 ```
 
@@ -164,9 +171,9 @@ Run sequence:
 6. Confirm DHCP returns a `192.168.100.200-250` lease, router `192.168.100.1`, DNS `1.1.1.1` / `8.8.8.8`, `snponly.efi` for UEFI PXE, and `http://192.168.100.100/osdcloud/boot.ipxe` after the client identifies as iPXE.
 7. Confirm the iPXE WinPE maps `\\192.168.100.100\OSDCloudiPXE` to `Z:` and sets `$Global:StartOSDCloud.ImageFileDestination` to `Z:\OSDCloud\OS\...zh-tw.esd`.
 8. Watch the HTTP access log for `boot.ipxe`, `wimboot`, and `boot.wim`. A valid no-redownload run must not show zh-TW ESD `HEAD` or `GET`.
-9. Watch `C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl` for WinPE status events such as `winpe-start`, `smb-mounted`, `osdcloud-start`, `apply-image`, `osdcloud-finished`, and `rebooting`.
+9. Watch `C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl` for WinPE status events such as `winpe-start`, `smb-mounted`, `osdcloud-start`, `apply-image`, `osdcloud-finished`, and `rebooting`; use `latest-screenshot.json` / `<runId>.screenshots.jsonl` only as supporting visual evidence.
 10. After WinPE finishes, it should post final status and reboot itself with `wpeutil reboot`; the laptop should then boot from the internal disk if PXE was selected through a one-time boot menu.
-11. During first Windows boot, SetupComplete should post `windows-setupcomplete-start` and `windows-setupcomplete-finished`; after `davis` logs on, the Run-key desktop reporter should post `windows-logon-start` and final `windows-desktop-ready`.
+11. During first Windows boot, SetupComplete should post `windows-setupcomplete-start` and `windows-setupcomplete-finished`; after `davis` logs on, the SYSTEM desktop-ready scheduled task should post `windows-logon-start` and final `windows-desktop-ready`.
 12. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\...zh-tw.esd`, `ImageFileDestination.PSDrive.DisplayRoot = \\192.168.100.100\OSDCloudiPXE`, and `OSImageIndex : 6`.
 
 Legacy VM timing runs are historical regression tools only; do not use them for the physical-laptop path unless the user explicitly asks for VM validation:
@@ -348,6 +355,7 @@ Safety contract:
 - Run preflight before starting services.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
 - Keep confirmation gates for NIC configuration, DHCP/PXE service start, and status-file deletion.
+- `Clear status files` must also remove `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
 - Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.
 
 Validation contract:
@@ -356,6 +364,7 @@ Validation contract:
 - `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN.
 - A live deployment remains the final hardware validation when TUI networking behavior changes.
 - Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
+- Screenshot behavior must preserve the status contract: `/osdcloud/status` stays JSON-only, `/osdcloud/screenshot` accepts PNG-only uploads capped at 5 MB, and PNG files remain local evidence rather than Git artifacts.
 - If deployment behavior changes inside `C:\OSDCloud` or WinPE, update the live files first, mount/commit `boot.wim` when needed, then run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts`.
 
 ## Legacy VM Notes

@@ -72,6 +72,24 @@ function readRequestBody(req, maxBytes = 1024 * 1024) {
   });
 }
 
+function readRequestBuffer(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(new Error(`Request body too large: ${total} bytes`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
 function sendJson(res, statusCode, payload) {
   const body = `${JSON.stringify(payload, null, 2)}\n`;
   res.writeHead(statusCode, {
@@ -79,6 +97,51 @@ function sendJson(res, statusCode, payload) {
     'Content-Length': Buffer.byteLength(body),
   });
   res.end(body);
+}
+
+function isPngBuffer(buffer) {
+  return buffer.length >= 8
+    && buffer[0] === 0x89
+    && buffer[1] === 0x50
+    && buffer[2] === 0x4e
+    && buffer[3] === 0x47
+    && buffer[4] === 0x0d
+    && buffer[5] === 0x0a
+    && buffer[6] === 0x1a
+    && buffer[7] === 0x0a;
+}
+
+function getMetaValue(req, requestUrl, queryName, headerNames) {
+  const queryValue = requestUrl.searchParams.get(queryName);
+  if (queryValue) {
+    return queryValue;
+  }
+
+  for (const headerName of headerNames) {
+    const value = req.headers[headerName.toLowerCase()];
+    if (Array.isArray(value)) {
+      const first = value.find(Boolean);
+      if (first) {
+        return first;
+      }
+    } else if (value) {
+      return value;
+    }
+  }
+
+  return '';
+}
+
+function nextAvailablePath(directory, baseName, extension) {
+  let fileName = `${baseName}${extension}`;
+  let filePath = path.join(directory, fileName);
+  let index = 1;
+  while (fs.existsSync(filePath)) {
+    fileName = `${baseName}-${index}${extension}`;
+    filePath = path.join(directory, fileName);
+    index += 1;
+  }
+  return filePath;
 }
 
 export class MediaHttpServer extends EventEmitter {
@@ -215,6 +278,80 @@ export class MediaHttpServer extends EventEmitter {
     this.emit('status', { event, ...runSummary });
   }
 
+  async handleScreenshot(req, res, remote, requestUrl) {
+    const maxBytes = 5 * 1024 * 1024;
+
+    if (req.method !== 'POST') {
+      res.writeHead(405, { Allow: 'POST' });
+      res.end();
+      this.log(`${remote} ${req.method} ${requestUrl.pathname} 405 bytes=0`);
+      return;
+    }
+
+    const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+    if (contentType !== 'image/png') {
+      sendJson(res, 415, { error: 'Only image/png screenshots are accepted.' });
+      this.log(`${remote} POST ${requestUrl.pathname} 415 contentType=${contentType || 'missing'}`);
+      return;
+    }
+
+    const contentLength = Number.parseInt(String(req.headers['content-length'] ?? ''), 10);
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      req.resume();
+      sendJson(res, 413, { error: `Screenshot exceeds ${maxBytes} byte limit.` });
+      this.log(`${remote} POST ${requestUrl.pathname} 413 bytes=${contentLength}`);
+      return;
+    }
+
+    let body;
+    try {
+      body = await readRequestBuffer(req, maxBytes);
+    } catch (error) {
+      sendJson(res, 413, { error: error.message });
+      this.log(`${remote} POST ${requestUrl.pathname} 413 error=${error.message}`);
+      return;
+    }
+
+    if (!isPngBuffer(body)) {
+      sendJson(res, 400, { error: 'Invalid PNG screenshot body.' });
+      this.log(`${remote} POST ${requestUrl.pathname} 400 invalid-png bytes=${body.length}`);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const timestamp = getMetaValue(req, requestUrl, 'timestamp', ['x-osdcloud-timestamp']) || now;
+    const runId = sanitizeName(getMetaValue(req, requestUrl, 'runId', ['x-osdcloud-run-id', 'x-osdcloud-runid']));
+    const clientId = sanitizeName(getMetaValue(req, requestUrl, 'clientId', ['x-osdcloud-client-id', 'x-osdcloud-clientid']));
+    const stage = sanitizeName(getMetaValue(req, requestUrl, 'stage', ['x-osdcloud-stage']));
+    const source = sanitizeName(getMetaValue(req, requestUrl, 'source', ['x-osdcloud-source']));
+
+    const statusRoot = this.config.statusRoot;
+    const screenshotDir = path.join(statusRoot, 'screenshots', runId);
+    fs.mkdirSync(screenshotDir, { recursive: true });
+
+    const filenameBase = `${sanitizeName(timestamp)}-${stage}`.slice(0, 180);
+    const filePath = nextAvailablePath(screenshotDir, filenameBase, '.png');
+    fs.writeFileSync(filePath, body);
+
+    const metadata = {
+      receivedAt: now,
+      runId,
+      clientId,
+      stage,
+      source,
+      timestamp,
+      filePath,
+      bytes: body.length,
+    };
+    const line = `${JSON.stringify(metadata)}\n`;
+    fs.appendFileSync(path.join(statusRoot, `${runId}.screenshots.jsonl`), line, 'utf8');
+    fs.writeFileSync(path.join(statusRoot, 'latest-screenshot.json'), `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+
+    sendJson(res, 201, metadata);
+    this.log(`${remote} POST ${requestUrl.pathname} 201 run=${runId} client=${clientId} stage=${stage} source=${source} bytes=${body.length} file=${filePath}`);
+    this.emit('screenshot', metadata);
+  }
+
   async handleRequest(req, res) {
     const address = this.server.address();
     const port = typeof address === 'object' && address ? address.port : this.config.port;
@@ -223,6 +360,11 @@ export class MediaHttpServer extends EventEmitter {
 
     if (requestUrl.pathname === '/osdcloud/status' || requestUrl.pathname === '/osdcloud/status/events') {
       await this.handleStatus(req, res, remote, requestUrl);
+      return;
+    }
+
+    if (requestUrl.pathname === '/osdcloud/screenshot') {
+      await this.handleScreenshot(req, res, remote, requestUrl);
       return;
     }
 

@@ -9,6 +9,10 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-tui-smoke-'));
 const httpRoot = path.join(root, 'http');
 const tftpRoot = path.join(root, 'tftp');
 const statusRoot = path.join(httpRoot, 'status');
+const onePixelPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+);
 fs.mkdirSync(path.join(httpRoot, 'osdcloud'), { recursive: true });
 fs.mkdirSync(tftpRoot, { recursive: true });
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.ipxe'), '#!ipxe\n');
@@ -53,6 +57,17 @@ try {
   const latest = await response.json();
   assert.equal(latest.runId, 'smoke');
   assert.equal(latest.stage, 'winpe-start');
+
+  response = await fetch(`${base}/osdcloud/screenshot?runId=smoke&clientId=test-client&stage=winpe-start&source=smoke&timestamp=2026-05-09T08:00:00%2B08:00`, {
+    method: 'POST',
+    headers: { 'content-type': 'image/png' },
+    body: onePixelPng,
+  });
+  assert.equal(response.status, 201);
+  const screenshot = await response.json();
+  assert.ok(fs.existsSync(screenshot.filePath));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(statusRoot, 'latest-screenshot.json'), 'utf8')).stage, 'winpe-start');
+  assert.match(fs.readFileSync(path.join(statusRoot, 'smoke.screenshots.jsonl'), 'utf8'), /winpe-start/);
 
   response = await fetch(`${base}/osdcloud/boot.wim`, {
     headers: { range: 'bytes=0-3' },

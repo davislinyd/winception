@@ -2,6 +2,7 @@ param(
     [string] $StatusUrl = 'http://192.168.100.100/osdcloud/status',
     [string] $RunId = '',
     [string] $ClientId = '',
+    [string] $ScreenshotUrl = '',
     [string] $TranscriptPath = 'X:\OSDCloud\Logs\Start-OSDCloud-iPXE.log',
     [string] $StopFile = 'X:\OSDCloud\Logs\Stop-OSDCloudProgressReporter.txt',
     [int] $IntervalSeconds = 3,
@@ -66,6 +67,105 @@ function Send-Status {
     finally {
         if ($client) {
             $client.Dispose()
+        }
+    }
+}
+
+function Get-ScreenshotUrl {
+    if (-not [string]::IsNullOrWhiteSpace($ScreenshotUrl)) {
+        return $ScreenshotUrl
+    }
+
+    return ($StatusUrl -replace '/status$', '/screenshot')
+}
+
+function New-ScreenshotUri {
+    param(
+        [string] $Stage,
+        [string] $Source = 'winpe'
+    )
+
+    $query = [ordered]@{
+        runId = $RunId
+        clientId = $ClientId
+        stage = $Stage
+        source = $Source
+        timestamp = (Get-Date).ToString('o')
+    }
+
+    $pairs = foreach ($item in $query.GetEnumerator()) {
+        '{0}={1}' -f [Uri]::EscapeDataString($item.Key), [Uri]::EscapeDataString([string] $item.Value)
+    }
+
+    return "$(Get-ScreenshotUrl)`?$($pairs -join '&')"
+}
+
+function Capture-Screenshot {
+    param(
+        [string] $Stage
+    )
+
+    $root = Split-Path -Parent $TranscriptPath
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        $root = 'X:\OSDCloud\Logs'
+    }
+    $screenRoot = Join-Path $root 'Screenshots'
+    New-Item -ItemType Directory -Path $screenRoot -Force | Out-Null
+    $safeStage = $Stage -replace '[^A-Za-z0-9_.-]', '_'
+    $path = Join-Path $screenRoot ("{0}-{1}.png" -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $safeStage)
+
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+    Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+    $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    if ($bounds.Width -le 0 -or $bounds.Height -le 0) {
+        throw "Invalid screen bounds: $($bounds.Width)x$($bounds.Height)"
+    }
+
+    $bitmap = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+        $bitmap.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+        return $path
+    }
+    finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+    }
+}
+
+function Send-Screenshot {
+    param(
+        [string] $Stage,
+        [string] $Source = 'winpe'
+    )
+
+    $path = $null
+    try {
+        $path = Capture-Screenshot -Stage $Stage
+        $uri = New-ScreenshotUri -Stage $Stage -Source $Source
+        try {
+            Invoke-WebRequest -Uri $uri -Method Post -ContentType 'image/png' -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
+            return
+        }
+        catch {
+        }
+
+        $client = [System.Net.WebClient]::new()
+        try {
+            $client.Headers['Content-Type'] = 'image/png'
+            [void] $client.UploadFile($uri, 'POST', $path)
+        }
+        finally {
+            $client.Dispose()
+        }
+    }
+    catch {
+        Write-Warning "Screenshot upload failed for stage '$Stage': $($_.Exception.Message)"
+    }
+    finally {
+        if ($path -and (Test-Path -LiteralPath $path -PathType Leaf)) {
+            Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -140,10 +240,70 @@ Send-Status -Stage 'reporter-start' -Message 'OSDCloud progress reporter started
 $started = Get-Date
 $lastSignature = ''
 $lastSent = Get-Date '2000-01-01'
+$lastScreenshotStage = ''
+$lastApplyImageCheckpoint = 0
+
+function Get-ApplyImageCheckpoint {
+    param([Nullable[double]] $Percent)
+
+    if (-not $Percent.HasValue) {
+        return 0
+    }
+
+    foreach ($checkpoint in @(100, 75, 50, 25)) {
+        if ($Percent.Value -ge $checkpoint) {
+            return $checkpoint
+        }
+    }
+
+    return 0
+}
+
+function Should-CaptureScreenshot {
+    param(
+        [string] $Stage,
+        [Nullable[double]] $Percent = $null
+    )
+
+    if ($Stage -eq 'apply-image') {
+        if ($lastScreenshotStage -ne $Stage) {
+            $script:lastScreenshotStage = $Stage
+            $checkpoint = Get-ApplyImageCheckpoint -Percent $Percent
+            if ($checkpoint -gt $script:lastApplyImageCheckpoint) {
+                $script:lastApplyImageCheckpoint = $checkpoint
+            }
+            return $true
+        }
+
+        $checkpoint = Get-ApplyImageCheckpoint -Percent $Percent
+        if ($checkpoint -gt $script:lastApplyImageCheckpoint) {
+            $script:lastApplyImageCheckpoint = $checkpoint
+            return $true
+        }
+
+        return $false
+    }
+
+    $captureStages = @(
+        'disk',
+        'post-apply-scripts',
+        'osdcloud-finished',
+        'reporter-error',
+        'reporter-timeout'
+    )
+
+    if ($Stage -in $captureStages -and $lastScreenshotStage -ne $Stage) {
+        $script:lastScreenshotStage = $Stage
+        return $true
+    }
+
+    return $false
+}
 
 while (-not (Test-Path -LiteralPath $StopFile)) {
     if (((Get-Date) - $started).TotalSeconds -gt $MaxSeconds) {
         Send-Status -Stage 'reporter-timeout' -Message "Reporter stopped after $MaxSeconds seconds."
+        Send-Screenshot -Stage 'reporter-timeout'
         break
     }
 
@@ -162,6 +322,9 @@ while (-not (Test-Path -LiteralPath $StopFile)) {
             elapsedSeconds = [int] ((Get-Date) - $started).TotalSeconds
         }
         Send-Status -Stage $stage -Message $message -Percent $percent -LogTail $lines -Extra $extra
+        if (Should-CaptureScreenshot -Stage $stage -Percent $percent) {
+            Send-Screenshot -Stage $stage
+        }
         $lastSignature = $signature
         $lastSent = Get-Date
     }

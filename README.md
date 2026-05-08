@@ -145,7 +145,7 @@ iPXE 版 WinPE 使用的 Windows 11 ESD 來源：
 7. iPXE 再次 DHCP，DHCP helper 偵測到 iPXE client 後改回傳 `http://192.168.100.100/osdcloud/boot.ipxe`。
 8. iPXE 透過 HTTP 下載 `boot.ipxe`，再載入 `wimboot`、`bootmgr`、`bootx64.efi`、`BCD`、`boot.sdi`、`boot.wim`。
 9. OSDCloud WinPE 啟動，`Startnet.cmd` 執行 `Initialize-OSDCloudStartnet`，再呼叫 iPXE 專用 `Start-OSDCloud-iPXE.ps1`。
-10. `Start-OSDCloud-iPXE.ps1` 啟動 `Report-OSDCloudProgress.ps1`，定期 POST 部署狀態到 `http://192.168.100.100/osdcloud/status`。
+10. `Start-OSDCloud-iPXE.ps1` 啟動 `Report-OSDCloudProgress.ps1`，定期 POST 部署狀態到 `http://192.168.100.100/osdcloud/status`，並在關鍵階段 best-effort 上傳 PNG 截圖到 `/osdcloud/screenshot`。
 11. `Start-OSDCloud-iPXE.ps1` 用 `net use Z: \\192.168.100.100\OSDCloudiPXE` 掛載 read-only SMB share。
 12. 腳本把 `$Global:StartOSDCloud.ImageFileDestination` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`，並固定 `OSImageIndex=6` 後呼叫 `Invoke-OSDCloud`。
 13. OSDCloud 直接用 SMB 上的 ESD 執行 DISM 套用 Windows 11 Pro，不再執行 `Download Operating System` 的 HTTP ESD 下載。
@@ -186,10 +186,15 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-summary.json
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.summary.json
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\deployment-runs.jsonl
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-screenshot.json
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.screenshots.jsonl
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\screenshots\<runId>\*.png
 ```
 
 WinPE reporter 目前每 `3` 秒檢查一次部署 log；若階段訊息沒有變化，至少每 `15` 秒送出 heartbeat。TUI 會把每次部署整理成 run summary，明確記錄 `run-start`、`winpe-end`、`windows-start`、`run-end` 或 `run-failed`。
 若 TUI 重新開啟時只看到上一輪 `latest.json`，它不會把舊資料當成 active deployment；WinPE 已交棒但還沒有 Windows final callback 時會顯示 `awaiting-windows`，超過約 15 分鐘沒有新事件會標示為 `stale (...; previous run)`。
+
+截圖只作為部署證據，不是部署成功條件。WinPE 會在 `winpe-start`、SMB 掛載、OSDCloud 開始/結束、reboot、錯誤階段，以及 `apply-image` 進度跨過 25/50/75/100 時嘗試截圖。Windows 完成判定仍只依賴 JSON status；不要在 SetupComplete 內安裝互動桌面截圖 Startup helper，先前的螢幕擷取加上 hidden PowerShell helper 曾被 AMSI 擋成 `ScriptContainedMaliciousContent`，造成 TUI 收不到 Windows completion callback。
 
 部署完成進入 Windows 後，SetupComplete 會讀取 WinPE 寫入的：
 
@@ -207,6 +212,7 @@ windows-desktop-ready
 ```
 
 `windows-desktop-ready` 代表已看到 Explorer、桌面 ready marker，且沒有 `CloudExperienceHost` / `msoobe`。
+Desktop-ready reporter 會等到 `windows-desktop-ready` 成功 POST 到 host 後才移除 scheduled task；如果 Windows 桌面先出現但網路尚未連上 `192.168.100.100`，它會持續重試一段時間，避免 TUI 永遠停在 `awaiting-windows`。
 
 最新實體筆電驗證結果：
 
@@ -243,7 +249,7 @@ TUI 設定檔：
 C:\Users\Davis\Documents\New project\config\osdcloud-tui.json
 ```
 
-TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、live log 與 validation 摘要。Deployment 區塊會顯示目前 stage、percent、elapsed、最後收到時間，以及本 run 的 start / WinPE end / final end 時間。
+TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。Deployment 區塊會顯示目前 stage、percent、elapsed、最後收到時間、本 run 的 start / WinPE end / final end 時間，以及最新截圖 metadata。Validation 區塊會列出最近幾筆 screenshot metadata。
 舊部署殘留的 status 只會當作 previous run 顯示，不會被標為 running；開始新的 PXE 部署後，新的 `winpe-start` 會取代畫面中的上一輪資料。
 
 使用原則：
@@ -251,7 +257,7 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 - 用 elevated PowerShell 啟動 `npm run tui`
 - 先執行 `Run preflight`
 - 只有確認真實 LAN DHCP server 已暫時停用後，才在 TUI 啟動 DHCP
-- `Configure physical NIC`、`Start all services`、`Clear status files` 都會要求二次確認
+- `Configure physical NIC`、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除本機 screenshot metadata 與 `status\screenshots`
 - 實體筆電從 UEFI IPv4 PXE 開機後，在 TUI 內看 Deployment、Logs、Validation
 
 驗證與測試：
@@ -262,6 +268,8 @@ npm run smoke
 ```
 
 `npm run smoke` 只使用暫存 root 與測試 port，不會啟動真實 PXE/DHCP 流程。
+
+狀態截圖是本機 evidence，不應提交到 Git；需要保留時以 runId 對應 `status\screenshots\<runId>`。
 
 歷史 VM timing evidence 保留在詳細測試報告；實體筆電驗證不使用 VM timing script。
 

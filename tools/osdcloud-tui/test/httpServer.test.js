@@ -5,6 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { MediaHttpServer, parseRange, resolveRequestPath, sanitizeName } from '../src/httpServer.js';
 
+const onePixelPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+);
+
 test('sanitizes status run names', () => {
   assert.equal(sanitizeName('run:one/two'), 'run_one_two');
 });
@@ -54,6 +59,82 @@ test('serves status and ranged files', async () => {
     });
     assert.equal(response.status, 206);
     assert.equal(await response.text(), 'cde');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('accepts PNG screenshots and writes sanitized metadata', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-screenshot-test-'));
+  const statusRoot = path.join(root, 'status');
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+  });
+
+  try {
+    await server.start();
+    const port = server.address.port;
+    const response = await fetch(`http://127.0.0.1:${port}/osdcloud/screenshot?runId=..%5Cevil&clientId=client-1&stage=apply%2Fimage&source=winpe&timestamp=2026-05-09T08%3A00%3A00%2B08%3A00`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: onePixelPng,
+    });
+    assert.equal(response.status, 201);
+    const metadata = await response.json();
+    assert.equal(metadata.runId, '.._evil');
+    assert.equal(metadata.stage, 'apply_image');
+    assert.equal(metadata.bytes, onePixelPng.length);
+    assert.ok(metadata.filePath.startsWith(path.join(statusRoot, 'screenshots', '.._evil')));
+    assert.ok(fs.existsSync(metadata.filePath));
+
+    const latest = JSON.parse(fs.readFileSync(path.join(statusRoot, 'latest-screenshot.json'), 'utf8'));
+    assert.equal(latest.filePath, metadata.filePath);
+    const jsonl = fs.readFileSync(path.join(statusRoot, '.._evil.screenshots.jsonl'), 'utf8').trim();
+    assert.equal(JSON.parse(jsonl).stage, 'apply_image');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects non-PNG screenshot content types and oversized bodies', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-screenshot-reject-'));
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot: path.join(root, 'status'),
+  });
+
+  try {
+    await server.start();
+    const port = server.address.port;
+    let response = await fetch(`http://127.0.0.1:${port}/osdcloud/screenshot?runId=test`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      body: 'not png',
+    });
+    assert.equal(response.status, 415);
+
+    response = await fetch(`http://127.0.0.1:${port}/osdcloud/screenshot?runId=test`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: Buffer.alloc((5 * 1024 * 1024) + 1),
+    });
+    assert.equal(response.status, 413);
+
+    response = await fetch(`http://127.0.0.1:${port}/osdcloud/screenshot?runId=test`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: Buffer.from('not a png'),
+    });
+    assert.equal(response.status, 400);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });
