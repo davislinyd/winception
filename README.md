@@ -208,6 +208,20 @@ windows-desktop-ready
 
 `windows-desktop-ready` 代表已看到 Explorer、桌面 ready marker，且沒有 `CloudExperienceHost` / `msoobe`。
 
+最新實體筆電驗證結果：
+
+```text
+RunId       : 20260509-031647-9VDYLD4
+Status      : completed
+Final stage : windows-desktop-ready
+Percent     : 100
+Started     : 2026-05-08T19:16:49.151Z
+WinPE End   : 2026-05-08T19:23:39.219Z
+Finished    : 2026-05-08T19:28:19.736Z
+Computer    : DESKTOP-8AMUG6V
+Message     : Windows desktop is ready for davis.
+```
+
 可用下列方式即時監看：
 
 ```powershell

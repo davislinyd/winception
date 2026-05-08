@@ -285,6 +285,28 @@ TimeZone         : Taipei Standard Time
 FinalStatusStage : windows-desktop-ready
 ```
 
+Latest physical TUI validation evidence:
+
+```text
+RunId            : 20260509-031647-9VDYLD4
+Status           : completed
+FinalStatusStage : windows-desktop-ready
+Percent          : 100
+Started          : 2026-05-08T19:16:49.151Z
+WinPE End        : 2026-05-08T19:23:39.219Z
+Windows Start    : 2026-05-08T19:28:08.202Z
+Completed        : 2026-05-08T19:28:19.736Z
+ComputerName     : DESKTOP-8AMUG6V
+ExplorerRunning  : True
+DesktopReadyFile : True
+OobeProcesses    :
+DisplayVersion   : 25H2
+CurrentBuild     : 26200
+EditionID        : Professional
+Culture          : zh-TW
+TimeZone         : Taipei Standard Time
+```
+
 Also verify the OSDCloud log from the deployed disk:
 
 ```text
