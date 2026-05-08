@@ -84,7 +84,7 @@ Repo 內的可版本化 OSDCloud 資產鏡像：
 C:\Users\Davis\Documents\New project\osdcloud-assets
 ```
 
-這個目錄保存從 `C:\OSDCloud` 匯出的真實部署腳本、PXE helper、`boot.ipxe`、以及從 iPXE `boot.wim` 抽出的 `Startnet.cmd` / `Start-OSDCloud-iPXE.ps1`。大型 `ISO/WIM/ESD/VHDX` 和上游 boot binary 不進 Git，只在 `osdcloud-assets\manifest.json` 記錄路徑、大小、時間與 SHA-256。
+這個目錄保存從 `C:\OSDCloud` 匯出的真實部署腳本、PXE helper、`boot.ipxe`、以及從 iPXE `boot.wim` 抽出的 `Startnet.cmd`、WinPE OSDCloud scripts、WinPE 內嵌 `Config\Scripts`。大型 `ISO/WIM/ESD/VHDX` 和上游 boot binary 不進 Git，只在 `osdcloud-assets\manifest.json` 記錄路徑、大小、時間與 SHA-256。
 
 OSDCloud workspace：
 
@@ -281,6 +281,8 @@ npm run smoke
 ```powershell
 .\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts
 ```
+
+iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete`，也必須確認 `boot.wim` 內的 `X:\OSDCloud\Config\Scripts\SetupComplete` 已同步；否則 client 仍會注入舊版 SetupComplete，TUI 會停在 `awaiting-windows` / `rebooting`，收不到 `windows-setupcomplete-*` 或 `windows-desktop-ready`。
 
 不應納入版本控制：
 

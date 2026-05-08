@@ -19,6 +19,8 @@ The repo tracks the small source/config files that define deployment behavior:
 - WinPE startup files extracted from `boot.wim`:
   - `Win11-iPXE-Lab\WinPE\Windows\System32\Startnet.cmd`
   - `Win11-iPXE-Lab\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1`
+  - `Win11-iPXE-Lab\WinPE\OSDCloud\Report-OSDCloudProgress.ps1`
+  - `Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\...`
 
 Large generated or upstream binary artifacts are not committed:
 
@@ -35,6 +37,8 @@ Refresh the mirror after changing anything under `C:\OSDCloud`:
 .\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts
 ```
 
-`-MountWinPe` mounts `C:\OSDCloud\Win11-iPXE-Lab\Media\sources\boot.wim` read-only, copies the current WinPE startup scripts into this folder, and unmounts the image with `/Discard`.
+`-MountWinPe` mounts `C:\OSDCloud\Win11-iPXE-Lab\Media\sources\boot.wim` read-only, copies the current WinPE startup scripts and embedded `OSDCloud\Config\Scripts` into this folder, and unmounts the image with `/Discard`.
+
+For iPXE, `Invoke-DavisOobe.ps1` copies SetupComplete from inside `boot.wim` first. If `WinPE\OSDCloud\Config\Scripts\SetupComplete` is stale, the deployed Windows can reach the desktop without reporting `windows-desktop-ready` back to the TUI.
 
 The files include lab-only credentials such as the local `davis` account and SMB `pxeinstall` account. Keep this repository private.

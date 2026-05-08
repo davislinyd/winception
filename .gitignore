@@ -22,6 +22,7 @@ node_modules/
 *.log
 *.etl
 *.evtx
+client_osdcloud/
 
 # Windows metadata
 Thumbs.db

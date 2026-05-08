@@ -127,6 +127,9 @@ try {
         @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeDhcp.ps1'; Target = 'Win11-iPXE-Lab\Tools\Start-PxeDhcp.ps1' },
         @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeTftp.ps1'; Target = 'Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1' },
         @{ Source = Join-Path $winPeMount 'Windows\System32\Startnet.cmd'; Target = 'Win11-iPXE-Lab\WinPE\Windows\System32\Startnet.cmd'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; SourceKind = 'boot.wim:index1' },
         @{ Source = Join-Path $winPeMount 'OSDCloud\Report-OSDCloudProgress.ps1'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Report-OSDCloudProgress.ps1'; SourceKind = 'boot.wim:index1' },
         @{ Source = Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1'; SourceKind = 'boot.wim:index1' }
     )
