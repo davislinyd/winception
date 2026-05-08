@@ -17,6 +17,33 @@ export function readStatusEvents(config, maxLines = 80) {
   return tailFile(config.paths.statusEvents, maxLines);
 }
 
+function compact(value, maxLength = 120) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+export function formatDeploymentStatus(latest) {
+  if (!latest) {
+    return [
+      'No deployment status yet.',
+      'WinPE will POST to /osdcloud/status after boot.',
+    ];
+  }
+
+  return [
+    `Run      : ${latest.runId ?? ''}`,
+    `Client   : ${latest.clientId ?? ''}`,
+    `Stage    : ${latest.stage ?? ''}`,
+    `Percent  : ${Number.isFinite(latest.percent) ? latest.percent : ''}`,
+    `Elapsed  : ${latest.elapsedSeconds ?? ''}`,
+    `Received : ${latest.receivedAt ?? ''}`,
+    `Message  : ${compact(latest.message, 140)}`,
+  ];
+}
+
 export function summarizeValidation(config) {
   const httpLines = tailFile(config.http.logPath, 500);
   const required = ['boot.ipxe', 'wimboot', 'boot.wim'];

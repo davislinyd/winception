@@ -6,7 +6,7 @@ import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
 import { configurePhysicalNic, removeStatusFiles, runPreflight } from './windows.js';
-import { readLatestStatus, readStatusEvents, summarizeValidation } from './status.js';
+import { formatDeploymentStatus, readLatestStatus, readStatusEvents, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 
 const config = loadConfig();
@@ -65,7 +65,7 @@ const menu = blessed.list({
 const servicesBox = blessed.box({
   top: 3,
   left: 34,
-  width: '32%',
+  width: 66,
   height: 9,
   border: 'line',
   tags: true,
@@ -75,11 +75,11 @@ const servicesBox = blessed.box({
 
 const deploymentBox = blessed.box({
   top: 3,
-  left: '32%+34',
-  width: '100%-32%-34',
+  left: 100,
+  width: '100%-100',
   height: 9,
   border: 'line',
-  tags: true,
+  tags: false,
   label: ' Deployment ',
   style: { border: { fg: 'cyan' } },
 });
@@ -87,7 +87,7 @@ const deploymentBox = blessed.box({
 const preflightBox = blessed.box({
   top: 12,
   left: 34,
-  width: '50%',
+  width: 66,
   height: '38%',
   border: 'line',
   scrollable: true,
@@ -101,8 +101,8 @@ const preflightBox = blessed.box({
 
 const validationBox = blessed.box({
   top: 12,
-  left: '50%+34',
-  width: '100%-50%-34',
+  left: 100,
+  width: '100%-100',
   height: '38%',
   border: 'line',
   scrollable: true,
@@ -170,19 +170,7 @@ function renderServices() {
 
 function renderDeployment() {
   const latest = readLatestStatus(config);
-  if (!latest) {
-    deploymentBox.setContent('No deployment status yet.\nWinPE will POST to /osdcloud/status after boot.');
-    return;
-  }
-
-  deploymentBox.setContent([
-    `Run     : ${latest.runId ?? ''}`,
-    `Client  : ${latest.clientId ?? ''}`,
-    `Stage   : ${latest.stage ?? ''}`,
-    `Percent : ${Number.isFinite(latest.percent) ? latest.percent : ''}`,
-    `Elapsed : ${latest.elapsedSeconds ?? ''}`,
-    `Message : ${latest.message ?? ''}`,
-  ].join('\n'));
+  deploymentBox.setContent(formatDeploymentStatus(latest).join('\n'));
 }
 
 function renderPreflight() {
