@@ -13,6 +13,7 @@ import { wrapLinesWithIndent } from './textWrap.js';
 import { focusOrder, focusShortcutKeyNames, formatPanelLabel, resolveFocusShortcutRequest, resolveShortcutHintRequest, resolveTabFocusTarget } from './focusKeys.js';
 import { startWindowsAltKeyWatcher } from './altKeyWatcher.js';
 import { nextLogAutoFollowState, resolveMouseFocusTarget, wheelDeltaForAction } from './mouseInteractions.js';
+import { ensureKeyboardInput } from './keyboardInput.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -1019,6 +1020,14 @@ screen.key(['q', 'C-c'], () => {
     quit();
   }
 });
+
+process.on('SIGINT', () => {
+  if (!dialogOpen) {
+    void quit();
+  }
+});
+
+ensureKeyboardInput(screen, menu);
 
 setInterval(() => {
   requestRender();
