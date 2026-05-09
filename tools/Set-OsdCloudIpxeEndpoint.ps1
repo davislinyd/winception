@@ -4,6 +4,7 @@ param(
     [string] $InterfaceAlias,
     [string] $ServerIp,
     [int] $PrefixLength = 24,
+    [string] $DefaultGateway,
     [string] $SmbShareName = 'OSDCloudiPXE',
     [string] $ImageNamePattern,
     [switch] $CommitWinPe,
@@ -40,6 +41,121 @@ function Set-Property {
     else {
         $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value
     }
+}
+
+function ConvertTo-IPv4UInt32 {
+    param([Parameter(Mandatory)][string] $Address)
+
+    $bytes = [System.Net.IPAddress]::Parse($Address).GetAddressBytes()
+    if ([BitConverter]::IsLittleEndian) {
+        [Array]::Reverse($bytes)
+    }
+    [BitConverter]::ToUInt32($bytes, 0)
+}
+
+function ConvertFrom-IPv4UInt32 {
+    param([Parameter(Mandatory)][uint32] $Value)
+
+    $bytes = [BitConverter]::GetBytes($Value)
+    if ([BitConverter]::IsLittleEndian) {
+        [Array]::Reverse($bytes)
+    }
+    [System.Net.IPAddress]::new($bytes).ToString()
+}
+
+function ConvertTo-PrefixMask {
+    param([Parameter(Mandatory)][int] $PrefixLength)
+
+    if ($PrefixLength -lt 0 -or $PrefixLength -gt 32) {
+        throw "Invalid IPv4 prefix length: $PrefixLength"
+    }
+    if ($PrefixLength -eq 0) {
+        return [uint32] 0
+    }
+    [uint32] (([uint64] 4294967295 -shl (32 - $PrefixLength)) -band [uint64] 4294967295)
+}
+
+function Test-IPv4InPrefix {
+    param(
+        [Parameter(Mandatory)][string] $Address,
+        [Parameter(Mandatory)][string] $NetworkAddress,
+        [Parameter(Mandatory)][int] $PrefixLength
+    )
+
+    $mask = ConvertTo-PrefixMask -PrefixLength $PrefixLength
+    ((ConvertTo-IPv4UInt32 $Address) -band $mask) -eq ((ConvertTo-IPv4UInt32 $NetworkAddress) -band $mask)
+}
+
+function Get-SubnetInfo {
+    param(
+        [Parameter(Mandatory)][string] $Address,
+        [Parameter(Mandatory)][int] $PrefixLength
+    )
+
+    $addressValue = ConvertTo-IPv4UInt32 $Address
+    $mask = ConvertTo-PrefixMask -PrefixLength $PrefixLength
+    $network = [uint32] ($addressValue -band $mask)
+    $broadcast = [uint32] ($network -bor ([uint32](([uint64] 4294967295) -bxor [uint64] $mask)))
+    $firstUsable = if ($PrefixLength -ge 31) { $network } else { [uint32] ($network + 1) }
+    $lastUsable = if ($PrefixLength -ge 31) { $broadcast } else { [uint32] ($broadcast - 1) }
+
+    [pscustomobject]@{
+        AddressValue = $addressValue
+        Network = $network
+        Broadcast = $broadcast
+        FirstUsable = $firstUsable
+        LastUsable = $lastUsable
+        Mask = $mask
+    }
+}
+
+function Get-DhcpLeaseRange {
+    param(
+        [Parameter(Mandatory)][string] $ServerIp,
+        [Parameter(Mandatory)][int] $PrefixLength
+    )
+
+    $info = Get-SubnetInfo -Address $ServerIp -PrefixLength $PrefixLength
+    $preferredStart = [uint32] ($info.Network + 200)
+    $preferredEnd = [uint32] ($info.Network + 250)
+    if ($preferredStart -ge $info.FirstUsable -and
+        $preferredEnd -le $info.LastUsable -and
+        ($info.AddressValue -lt $preferredStart -or $info.AddressValue -gt $preferredEnd)) {
+        return [pscustomobject]@{
+            LeaseStartIp = ConvertFrom-IPv4UInt32 $preferredStart
+            LeaseEndIp = ConvertFrom-IPv4UInt32 $preferredEnd
+        }
+    }
+
+    $end = if ($info.LastUsable -eq $info.AddressValue) { [uint32] ($info.AddressValue - 1) } else { $info.LastUsable }
+    $start = [uint32] [Math]::Max($info.FirstUsable, $end - 50)
+    if ($info.AddressValue -ge $start -and $info.AddressValue -le $end) {
+        if ($info.AddressValue -eq $start) {
+            $start = [uint32] ($start + 1)
+        }
+        else {
+            $end = [uint32] ($info.AddressValue - 1)
+        }
+    }
+
+    if ($start -gt $end) {
+        throw "No DHCP lease range available outside server IP $ServerIp/$PrefixLength"
+    }
+
+    [pscustomobject]@{
+        LeaseStartIp = ConvertFrom-IPv4UInt32 $start
+        LeaseEndIp = ConvertFrom-IPv4UInt32 $end
+    }
+}
+
+function Get-SubnetCidr {
+    param(
+        [Parameter(Mandatory)][string] $ServerIp,
+        [Parameter(Mandatory)][int] $PrefixLength
+    )
+
+    $info = Get-SubnetInfo -Address $ServerIp -PrefixLength $PrefixLength
+    "$(ConvertFrom-IPv4UInt32 $info.Network)/$PrefixLength"
 }
 
 function Set-RegexInFile {
@@ -131,12 +247,38 @@ function Set-ProgressReporterEndpoint {
 }
 
 function Set-LegacyHelperDefaults {
-    param([string] $IpxeLab)
+    param(
+        [string] $IpxeLab,
+        [string] $LeaseStartIp,
+        [string] $LeaseEndIp,
+        [string] $SubnetMask,
+        [string] $Router
+    )
 
     Set-RegexInFile `
         -Path (Join-Path $IpxeLab 'Tools\Start-PxeDhcp.ps1') `
         -Pattern "\[string\]\s*\`$ServerIp\s*=\s*'[^']*'" `
         -Replacement "[string] `$ServerIp = '$ServerIp'" `
+        -Optional | Out-Null
+    Set-RegexInFile `
+        -Path (Join-Path $IpxeLab 'Tools\Start-PxeDhcp.ps1') `
+        -Pattern "\[string\]\s*\`$LeaseStartIp\s*=\s*'[^']*'" `
+        -Replacement "[string] `$LeaseStartIp = '$LeaseStartIp'" `
+        -Optional | Out-Null
+    Set-RegexInFile `
+        -Path (Join-Path $IpxeLab 'Tools\Start-PxeDhcp.ps1') `
+        -Pattern "\[string\]\s*\`$LeaseEndIp\s*=\s*'[^']*'" `
+        -Replacement "[string] `$LeaseEndIp = '$LeaseEndIp'" `
+        -Optional | Out-Null
+    Set-RegexInFile `
+        -Path (Join-Path $IpxeLab 'Tools\Start-PxeDhcp.ps1') `
+        -Pattern "\[string\]\s*\`$SubnetMask\s*=\s*'[^']*'" `
+        -Replacement "[string] `$SubnetMask = '$SubnetMask'" `
+        -Optional | Out-Null
+    Set-RegexInFile `
+        -Path (Join-Path $IpxeLab 'Tools\Start-PxeDhcp.ps1') `
+        -Pattern "\[string\]\s*\`$Router\s*=\s*'[^']*'" `
+        -Replacement "[string] `$Router = '$Router'" `
         -Optional | Out-Null
     Set-RegexInFile `
         -Path (Join-Path $IpxeLab 'Tools\Start-PxeTftp.ps1') `
@@ -176,12 +318,31 @@ $osdCloudRoot = if ($config.paths.osdCloudRoot) { [string] $config.paths.osdClou
 $ipxeLab = Join-Path $osdCloudRoot 'Win11-iPXE-Lab'
 $share = "\\$ServerIp\$SmbShareName"
 $statusUrl = "http://$ServerIp/osdcloud/status"
+$existingRouter = [string] $config.dhcp.router
+if ([string]::IsNullOrWhiteSpace($DefaultGateway)) {
+    if (-not [string]::IsNullOrWhiteSpace($existingRouter) -and (Test-IPv4InPrefix -Address $existingRouter -NetworkAddress $ServerIp -PrefixLength $PrefixLength)) {
+        $DefaultGateway = $existingRouter
+    }
+    else {
+        $DefaultGateway = $ServerIp
+    }
+}
+$dhcpRouter = if (Test-IPv4InPrefix -Address $DefaultGateway -NetworkAddress $ServerIp -PrefixLength $PrefixLength) { $DefaultGateway } else { $ServerIp }
+$dhcpRange = Get-DhcpLeaseRange -ServerIp $ServerIp -PrefixLength $PrefixLength
+$subnetMask = ConvertFrom-IPv4UInt32 (ConvertTo-PrefixMask -PrefixLength $PrefixLength)
+$remoteSubnet = Get-SubnetCidr -ServerIp $ServerIp -PrefixLength $PrefixLength
 
 Set-Property -Object $config.adapter -Name interfaceAlias -Value $InterfaceAlias
 Set-Property -Object $config.adapter -Name serverIp -Value $ServerIp
 Set-Property -Object $config.adapter -Name prefixLength -Value $PrefixLength
+Set-Property -Object $config.adapter -Name defaultGateway -Value $dhcpRouter
+Set-Property -Object $config.adapter -Name remoteSubnet -Value $remoteSubnet
 Set-Property -Object $config.dhcp -Name listenIp -Value $ServerIp
 Set-Property -Object $config.dhcp -Name ipxeBootUrl -Value "http://$ServerIp/osdcloud/boot.ipxe"
+Set-Property -Object $config.dhcp -Name leaseStartIp -Value $dhcpRange.LeaseStartIp
+Set-Property -Object $config.dhcp -Name leaseEndIp -Value $dhcpRange.LeaseEndIp
+Set-Property -Object $config.dhcp -Name subnetMask -Value $subnetMask
+Set-Property -Object $config.dhcp -Name router -Value $dhcpRouter
 Set-Property -Object $config.tftp -Name listenIp -Value $ServerIp
 Set-Property -Object $config.http -Name host -Value $ServerIp
 Set-Property -Object $config.smb -Name share -Value $share
@@ -196,7 +357,7 @@ Set-BootIpxeEndpoint -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe'
 Set-AutoexecEndpoint -Path (Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled')
 Set-AutoexecEndpoint -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled')
 Set-SetupCompleteEndpoint -Path (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1')
-Set-LegacyHelperDefaults -IpxeLab $ipxeLab
+Set-LegacyHelperDefaults -IpxeLab $ipxeLab -LeaseStartIp $dhcpRange.LeaseStartIp -LeaseEndIp $dhcpRange.LeaseEndIp -SubnetMask $subnetMask -Router $dhcpRouter
 Write-Host "Updated live PXE endpoint files under $ipxeLab"
 
 if ($CommitWinPe) {

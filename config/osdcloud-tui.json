@@ -40,7 +40,6 @@
     "paths":  {
                   "repoRoot":  "C:\\Users\\Davis\\Documents\\New project",
                   "osdCloudRoot":  "C:\\OSDCloud",
-                  "physicalNicScript":  "C:\\Users\\Davis\\Documents\\New project\\tools\\Set-IpxePhysicalNic.ps1",
                   "endpointSyncScript":  "C:\\Users\\Davis\\Documents\\New project\\tools\\Set-OsdCloudIpxeEndpoint.ps1",
                   "expectedHttpFiles":  [
                                             "osdcloud\\boot.ipxe",

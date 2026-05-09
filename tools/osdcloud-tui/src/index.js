@@ -5,7 +5,7 @@ import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
-import { configurePhysicalNic, getServiceBindIps, listIpv4ServiceInterfaces, removeStatusFiles, runPreflight, syncIpxeEndpoint } from './windows.js';
+import { getServiceBindIps, listIpv4ServiceInterfaces, removeStatusFiles, runPreflight, syncIpxeEndpoint } from './windows.js';
 import { formatDeploymentStatus, formatScreenshotMetadata, readLatestScreenshot, readLatestStatus, readLatestSummary, readScreenshotMetadata, readStatusEvents, resolveDeploymentSummary, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
@@ -48,7 +48,6 @@ function getActionItems() {
   return [
     'Run preflight',
     'Select service interface',
-    'Configure physical NIC',
     serviceActionLabel(http, 'HTTP/status'),
     serviceActionLabel(tftp, 'TFTP'),
     serviceActionLabel(dhcp, 'DHCP'),
@@ -337,7 +336,9 @@ function renderServices() {
     `DHCP        : ${serviceState(dhcp)} ${config.dhcp.listenIp}:${config.dhcp.listenPort}`,
     '',
     `Service IP  : ${serviceIpText}`,
-    `Config NIC  : ${config.adapter.interfaceAlias}`,
+    `Service NIC : ${config.adapter.interfaceAlias}`,
+    `DHCP pool   : ${config.dhcp.leaseStartIp}-${config.dhcp.leaseEndIp}`,
+    `DHCP router : ${config.dhcp.router}`,
   ].join('\n'));
 }
 
@@ -633,16 +634,6 @@ async function runAction(index) {
       });
       break;
     case 2:
-      if (await confirmPrompt(`Configure adapter ${config.adapter.interfaceAlias} as ${config.adapter.serverIp}/${config.adapter.prefixLength}?`)) {
-        await withBusy('Configuring physical NIC', async () => {
-          const output = await configurePhysicalNic(config);
-          if (output) {
-            addLog(output.replace(/\r?\n/g, ' | '));
-          }
-        });
-      }
-      break;
-    case 3:
       await toggleService({
         service: http,
         startPrompt: `Start HTTP/status server on ${config.http.host}:${config.http.port}?`,
@@ -651,7 +642,7 @@ async function runAction(index) {
         stopLabel: 'Stopping HTTP/status server',
       });
       break;
-    case 4:
+    case 3:
       await toggleService({
         service: tftp,
         startPrompt: `Start TFTP responder on ${config.tftp.listenIp}:${config.tftp.port}?`,
@@ -660,7 +651,7 @@ async function runAction(index) {
         stopLabel: 'Stopping TFTP responder',
       });
       break;
-    case 5:
+    case 4:
       await toggleService({
         service: dhcp,
         startPrompt: `Start DHCP responder on ${config.dhcp.listenIp}:${config.dhcp.listenPort}? Confirm the real DHCP server is disabled first.`,
@@ -669,7 +660,7 @@ async function runAction(index) {
         stopLabel: 'Stopping DHCP responder',
       });
       break;
-    case 6:
+    case 5:
       if (await confirmPrompt('Start HTTP, TFTP, and DHCP services? Confirm the real DHCP server is disabled first.')) {
         await withBusy('Starting all services', async () => {
           await http.start();
@@ -678,12 +669,12 @@ async function runAction(index) {
         });
       }
       break;
-    case 7:
+    case 6:
       await withBusy('Stopping all services', async () => {
         await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
       });
       break;
-    case 8:
+    case 7:
       if (await confirmPrompt(`Delete status .json/.jsonl files under ${config.http.statusRoot}?`)) {
         await withBusy('Clearing status files', async () => {
           const removed = removeStatusFiles(config);
@@ -691,11 +682,11 @@ async function runAction(index) {
         });
       }
       break;
-    case 9:
+    case 8:
       addLog('Refreshing validation');
       renderAll();
       break;
-    case 10:
+    case 9:
       await quit();
       break;
     default:

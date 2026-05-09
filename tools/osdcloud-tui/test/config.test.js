@@ -16,6 +16,8 @@ test('accepts minimum config shape', () => {
       listenIp: '192.168.100.100',
       leaseStartIp: '192.168.100.200',
       leaseEndIp: '192.168.100.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.100.1',
       bootFile: 'snponly.efi',
       ipxeBootUrl: 'http://192.168.100.100/osdcloud/boot.ipxe',
     },
@@ -41,6 +43,8 @@ test('applies service endpoint to every network-facing config value', () => {
       listenIp: '192.168.100.100',
       leaseStartIp: '192.168.100.200',
       leaseEndIp: '192.168.100.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.100.1',
       bootFile: 'snponly.efi',
       ipxeBootUrl: 'http://192.168.100.100/osdcloud/boot.ipxe',
     },
@@ -60,17 +64,62 @@ test('applies service endpoint to every network-facing config value', () => {
     interfaceAlias: 'Wi-Fi',
     ipAddress: '10.10.10.5',
     prefixLength: 24,
+    gateway: '10.10.10.1',
   });
 
   assert.equal(config.adapter.interfaceAlias, 'Wi-Fi');
   assert.equal(config.adapter.serverIp, '10.10.10.5');
   assert.equal(config.adapter.prefixLength, 24);
+  assert.equal(config.adapter.defaultGateway, '10.10.10.1');
+  assert.equal(config.adapter.remoteSubnet, '10.10.10.0/24');
   assert.equal(config.dhcp.listenIp, '10.10.10.5');
+  assert.equal(config.dhcp.leaseStartIp, '10.10.10.200');
+  assert.equal(config.dhcp.leaseEndIp, '10.10.10.250');
+  assert.equal(config.dhcp.subnetMask, '255.255.255.0');
+  assert.equal(config.dhcp.router, '10.10.10.1');
   assert.equal(config.tftp.listenIp, '10.10.10.5');
   assert.equal(config.http.host, '10.10.10.5');
   assert.equal(config.dhcp.ipxeBootUrl, 'http://10.10.10.5/osdcloud/boot.ipxe');
   assert.equal(config.smb.share, '\\\\10.10.10.5\\OSDCloudiPXE');
   assert.equal(config.smb.imagePath, '\\\\10.10.10.5\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd');
+});
+
+test('applies isolated interface endpoint using server IP as DHCP router', () => {
+  const config = {
+    adapter: { interfaceAlias: 'Ethernet', serverIp: '192.168.100.100', prefixLength: 24 },
+    dhcp: {
+      listenIp: '192.168.100.100',
+      leaseStartIp: '192.168.100.200',
+      leaseEndIp: '192.168.100.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.100.1',
+      bootFile: 'snponly.efi',
+      ipxeBootUrl: 'http://192.168.100.100/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\PXE-TFTP', listenIp: '192.168.100.100' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.100', statusRoot: 'C:\\status' },
+    paths: {
+      expectedHttpFiles: ['osdcloud\\boot.ipxe'],
+      imageNamePattern: 'install.esd',
+    },
+    smb: {
+      share: '\\\\192.168.100.100\\OSDCloudiPXE',
+      imagePath: '\\\\192.168.100.100\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+    },
+  };
+
+  applyServiceEndpoint(config, {
+    interfaceAlias: 'Ethernet',
+    ipAddress: '192.168.100.1',
+    prefixLength: 24,
+    gateway: '',
+  });
+
+  assert.equal(config.adapter.remoteSubnet, '192.168.100.0/24');
+  assert.equal(config.dhcp.leaseStartIp, '192.168.100.200');
+  assert.equal(config.dhcp.leaseEndIp, '192.168.100.250');
+  assert.equal(config.dhcp.subnetMask, '255.255.255.0');
+  assert.equal(config.dhcp.router, '192.168.100.1');
 });
 
 test('saves public config without losing existing fields', () => {
@@ -82,6 +131,8 @@ test('saves public config without losing existing fields', () => {
       listenIp: '192.168.100.100',
       leaseStartIp: '192.168.100.200',
       leaseEndIp: '192.168.100.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.100.1',
       bootFile: 'snponly.efi',
       ipxeBootUrl: 'http://192.168.100.100/osdcloud/boot.ipxe',
       leaseSeconds: 3600,

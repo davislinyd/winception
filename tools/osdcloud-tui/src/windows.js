@@ -247,31 +247,6 @@ $addresses = foreach ($targetIp in $targetIps) {
   return asArray(JSON.parse(result.stdout || '[]'));
 }
 
-export async function configurePhysicalNic(config) {
-  const scriptPath = config.paths.physicalNicScript;
-  const args = [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    scriptPath,
-    '-InterfaceAlias',
-    config.adapter.interfaceAlias,
-    '-ServerIp',
-    config.adapter.serverIp,
-    '-PrefixLength',
-    String(config.adapter.prefixLength),
-    '-DefaultGateway',
-    config.adapter.defaultGateway,
-    '-InterfaceMetric',
-    String(config.adapter.interfaceMetric),
-    '-RemoteSubnet',
-    config.adapter.remoteSubnet,
-  ];
-  const result = await runPowerShell(args);
-  return result.stdout.trim();
-}
-
 function defaultEndpointSyncScript(config) {
   return path.join(config.paths.repoRoot, 'tools', 'Set-OsdCloudIpxeEndpoint.ps1');
 }
@@ -293,6 +268,8 @@ export async function syncIpxeEndpoint(config, options = {}) {
     config.adapter.serverIp,
     '-PrefixLength',
     String(config.adapter.prefixLength),
+    '-DefaultGateway',
+    config.dhcp.router,
     '-SmbShareName',
     shareName,
   ];
@@ -373,7 +350,6 @@ export async function runPreflight(config, services = {}) {
 
   checks.push(fs.existsSync(config.tftp.root) ? pass('TFTP root', config.tftp.root) : fail('TFTP root', config.tftp.root));
   checks.push(fs.existsSync(config.http.root) ? pass('HTTP root', config.http.root) : fail('HTTP root', config.http.root));
-  checks.push(fs.existsSync(config.paths.physicalNicScript) ? pass('NIC script', config.paths.physicalNicScript) : fail('NIC script', config.paths.physicalNicScript));
 
   try {
     checks.push(fs.existsSync(config.smb.imagePath) ? pass('SMB image', config.smb.imagePath) : fail('SMB image', config.smb.imagePath));

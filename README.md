@@ -262,12 +262,13 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 
 - 用 elevated PowerShell 啟動 `npm run tui`
 - 先執行 `Run preflight`；preflight 會檢查服務綁定 IP 是否存在於任一張啟用中的 IPv4 介面，不要求固定 NIC alias
-- 若要改服務監聽介面，使用 `Select service interface`；它會列出目前啟用、具 IPv4、非 APIPA 的介面，選定後寫回 `config\osdcloud-tui.json`，並同步更新 live `boot.ipxe`、iPXE WinPE status/SMB endpoint、published `boot.wim` 與 `osdcloud-assets`
+- 若要改服務監聽介面，使用 `Select service interface`；它會列出目前啟用、具 IPv4、非 APIPA 的介面，選定後寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、published `boot.wim` 與 `osdcloud-assets`
 - 選擇新介面時，HTTP/TFTP/DHCP 任一服務若正在 running，TUI 會先要求停止服務再更新 endpoint
 - 只有確認真實 LAN DHCP server 已暫時停用後，才在 TUI 啟動 DHCP
 - `Start HTTP/status`、`Start TFTP`、`Start DHCP` 是個別服務 toggle；服務 running 時同一個 action 會顯示為 `Stop ...` 並可關閉服務
-- `Configure physical NIC` 只用於需要 TUI 幫忙設定指定 NIC 時；`Configure physical NIC`、服務啟停、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除本機 screenshot metadata 與 `status\screenshots`
-- `Run preflight` 也會檢查 DHCP lease range / router 是否仍落在選定服務 IP 的 prefix 內；跨 subnet 選介面時，需先調整 DHCP 設定再進行實體部署
+- TUI 不再提供 `Configure physical NIC` 動作；如需改 Windows 網卡 IP，請在 TUI 外手動執行 `.\tools\Set-IpxePhysicalNic.ps1`
+- 服務啟停、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除本機 screenshot metadata 與 `status\screenshots`
+- `Run preflight` 也會檢查 DHCP lease range / router 是否仍落在選定服務 IP 的 prefix 內；這是防止手動改 JSON 或舊設定殘留的最後防線
 - 實體筆電從 UEFI IPv4 PXE 開機後，在 TUI 內看 Deployment、Logs、Validation
 
 驗證與測試：
@@ -321,7 +322,7 @@ npm run smoke
 .\tools\Set-OsdCloudIpxeEndpoint.ps1 -ServerIp <host-ip> -InterfaceAlias '<alias>' -PrefixLength <prefix> -CommitWinPe -SyncAssets -HashLargeArtifacts
 ```
 
-這個 helper 會同步 config、live PXE endpoint、WinPE 內嵌 status/SMB endpoint、published `boot.wim`，最後再刷新 `osdcloud-assets` mirror。
+這個 helper 會同步 config、DHCP pool / mask / router、live PXE endpoint、WinPE 內嵌 status/SMB endpoint、published `boot.wim`，最後再刷新 `osdcloud-assets` mirror。
 
 iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete`，也必須確認 `boot.wim` 內的 `X:\OSDCloud\Config\Scripts\SetupComplete` 已同步；否則 client 仍會注入舊版 SetupComplete，TUI 會停在 `awaiting-windows` / `rebooting`，收不到 `windows-setupcomplete-*` 或 `windows-desktop-ready`。
 

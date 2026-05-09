@@ -354,11 +354,12 @@ Use the TUI for the active physical-laptop path unless the user explicitly asks 
 Safety contract:
 
 - Start the TUI from elevated PowerShell.
-- Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter; `Configure physical NIC` remains an optional helper for setting the configured adapter alias, not a required identity check.
-- Use `Select service interface` when the service bind interface/IP must change. It must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist `config\osdcloud-tui.json`, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
-- After changing the selected service interface, preflight must fail if the DHCP lease range or router is outside the selected service IP prefix. Do not start a physical deployment until DHCP settings match the selected service subnet.
+- Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter.
+- Use `Select service interface` when the service bind interface/IP must change. It must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist `config\osdcloud-tui.json`, recalculate DHCP lease pool / subnet mask / router for the selected prefix, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
+- After changing the selected service interface, preflight must fail if the DHCP lease range or router is outside the selected service IP prefix. Treat this as a stale/manual config guard; the TUI selection path should update DHCP settings automatically.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
-- Keep confirmation gates for NIC configuration, DHCP/PXE service start/stop toggles, and status-file deletion.
+- Do not add a TUI `Configure physical NIC` action. If Windows adapter IP assignment must be changed, keep it as an explicit out-of-TUI script step such as `tools\Set-IpxePhysicalNic.ps1`.
+- Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
 - The individual `Start HTTP/status`, `Start TFTP`, and `Start DHCP` actions are service toggles; when a service is running, the same action must become `Stop ...` and shut that service down.
 - `Clear status files` must also remove `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
 - Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.

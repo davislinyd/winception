@@ -30,7 +30,7 @@ export function computeLayout(columns, rows) {
   const mainWidth = width - menuWidth;
   const contentHeight = height - titleHeight;
 
-  let topHeight = clamp(Math.round(contentHeight * 0.24), 9, 13);
+  let topHeight = clamp(Math.round(contentHeight * 0.24), 11, 13);
   let middleHeight = clamp(Math.round(contentHeight * 0.34), 8, 18);
   let logHeight = contentHeight - topHeight - middleHeight;
 
@@ -41,7 +41,7 @@ export function computeLayout(columns, rows) {
   }
 
   if (logHeight < 8) {
-    const topReduction = Math.min(topHeight - 9, 8 - logHeight);
+    const topReduction = Math.min(topHeight - 11, 8 - logHeight);
     topHeight -= Math.max(0, topReduction);
     logHeight = contentHeight - topHeight - middleHeight;
   }
