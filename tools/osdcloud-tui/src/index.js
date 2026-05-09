@@ -1,11 +1,11 @@
 import blessed from 'blessed';
 import fs from 'node:fs';
-import { loadConfig } from './config.js';
+import { applyServiceEndpoint, loadConfig, saveConfig } from './config.js';
 import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
-import { configurePhysicalNic, getServiceBindIps, removeStatusFiles, runPreflight } from './windows.js';
+import { configurePhysicalNic, getServiceBindIps, listIpv4ServiceInterfaces, removeStatusFiles, runPreflight, syncIpxeEndpoint } from './windows.js';
 import { formatDeploymentStatus, formatScreenshotMetadata, readLatestScreenshot, readLatestStatus, readLatestSummary, readScreenshotMetadata, readStatusEvents, resolveDeploymentSummary, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
@@ -47,6 +47,7 @@ function serviceActionLabel(service, label) {
 function getActionItems() {
   return [
     'Run preflight',
+    'Select service interface',
     'Configure physical NIC',
     serviceActionLabel(http, 'HTTP/status'),
     serviceActionLabel(tftp, 'TFTP'),
@@ -473,6 +474,94 @@ function confirmPrompt(message) {
   });
 }
 
+function formatInterfaceChoice(choice) {
+  const gateway = choice.gateway ? ` gw=${choice.gateway}` : ' gw=none';
+  const description = choice.interfaceDescription ? ` ${choice.interfaceDescription}` : '';
+  return `${choice.interfaceAlias} ${choice.ipAddress}/${choice.prefixLength}${gateway}${description}`;
+}
+
+function selectInterfacePrompt(choices) {
+  return new Promise((resolve) => {
+    dialogOpen = true;
+    const previousFocus = screen.focused;
+    const modal = blessed.box({
+      parent: screen,
+      border: 'line',
+      padding: horizontalPanelPadding,
+      height: Math.min(Math.max(choices.length + 6, 10), 18),
+      width: '82%',
+      top: 'center',
+      left: 'center',
+      label: panelLabel('Select Interface'),
+      tags: true,
+      keys: true,
+      mouse: true,
+      focusable: true,
+      style: {
+        fg: 'white',
+        bg: 'black',
+        border: { fg: 'yellow' },
+      },
+    });
+    pinPanelLabel(modal);
+
+    const list = blessed.list({
+      parent: modal,
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%-3',
+      keys: true,
+      mouse: true,
+      vi: true,
+      tags: false,
+      items: choices.map(formatInterfaceChoice),
+      style: {
+        selected: { bg: 'blue', fg: 'white' },
+        item: { fg: 'white' },
+      },
+    });
+    blessed.box({
+      parent: modal,
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: 2,
+      tags: true,
+      content: '{bold}Enter{/bold}: select    {bold}Esc{/bold}: cancel',
+    });
+
+    const done = (choice) => {
+      modal.destroy();
+      if (previousFocus?.focus) {
+        previousFocus.focus();
+      } else {
+        menu.focus();
+      }
+      screen.render();
+      setTimeout(() => {
+        dialogOpen = false;
+      }, 0);
+      resolve(choice);
+    };
+
+    list.on('select', (_, index) => done(choices[index] ?? null));
+    modal.on('keypress', (ch, key) => {
+      if (isCancelKey(ch, key)) {
+        done(null);
+      }
+    });
+    list.on('keypress', (ch, key) => {
+      if (isCancelKey(ch, key)) {
+        done(null);
+      }
+    });
+
+    list.focus();
+    screen.render();
+  });
+}
+
 async function withBusy(label, action) {
   addLog(label);
   try {
@@ -483,6 +572,19 @@ async function withBusy(label, action) {
   } finally {
     renderAll();
   }
+}
+
+async function stopServicesForInterfaceChange() {
+  if (!dhcp.running && !tftp.running && !http.running) {
+    return true;
+  }
+  if (!(await confirmPrompt('Stop running services before changing the service interface?'))) {
+    return false;
+  }
+  await withBusy('Stopping services for interface change', async () => {
+    await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
+  });
+  return true;
 }
 
 async function toggleService({ service, startPrompt, stopPrompt, startLabel, stopLabel }) {
@@ -502,6 +604,35 @@ async function runAction(index) {
       });
       break;
     case 1:
+      if (!(await stopServicesForInterfaceChange())) {
+        break;
+      }
+      await withBusy('Listing service interfaces', async () => {
+        const choices = await listIpv4ServiceInterfaces();
+        if (choices.length === 0) {
+          addLog('No enabled non-APIPA IPv4 interfaces found');
+          return;
+        }
+        const selected = await selectInterfacePrompt(choices);
+        if (!selected) {
+          addLog('Interface selection cancelled');
+          return;
+        }
+        applyServiceEndpoint(config, selected);
+        const savedPath = saveConfig(config);
+        addLog(`Saved service endpoint ${config.adapter.interfaceAlias} ${config.adapter.serverIp}/${config.adapter.prefixLength} to ${savedPath}`);
+        const output = await syncIpxeEndpoint(config, {
+          commitWinPe: true,
+          syncAssets: true,
+          hashLargeArtifacts: true,
+        });
+        if (output) {
+          addLog(output.replace(/\r?\n/g, ' | '));
+        }
+        preflightResults = [];
+      });
+      break;
+    case 2:
       if (await confirmPrompt(`Configure adapter ${config.adapter.interfaceAlias} as ${config.adapter.serverIp}/${config.adapter.prefixLength}?`)) {
         await withBusy('Configuring physical NIC', async () => {
           const output = await configurePhysicalNic(config);
@@ -511,7 +642,7 @@ async function runAction(index) {
         });
       }
       break;
-    case 2:
+    case 3:
       await toggleService({
         service: http,
         startPrompt: `Start HTTP/status server on ${config.http.host}:${config.http.port}?`,
@@ -520,7 +651,7 @@ async function runAction(index) {
         stopLabel: 'Stopping HTTP/status server',
       });
       break;
-    case 3:
+    case 4:
       await toggleService({
         service: tftp,
         startPrompt: `Start TFTP responder on ${config.tftp.listenIp}:${config.tftp.port}?`,
@@ -529,7 +660,7 @@ async function runAction(index) {
         stopLabel: 'Stopping TFTP responder',
       });
       break;
-    case 4:
+    case 5:
       await toggleService({
         service: dhcp,
         startPrompt: `Start DHCP responder on ${config.dhcp.listenIp}:${config.dhcp.listenPort}? Confirm the real DHCP server is disabled first.`,
@@ -538,7 +669,7 @@ async function runAction(index) {
         stopLabel: 'Stopping DHCP responder',
       });
       break;
-    case 5:
+    case 6:
       if (await confirmPrompt('Start HTTP, TFTP, and DHCP services? Confirm the real DHCP server is disabled first.')) {
         await withBusy('Starting all services', async () => {
           await http.start();
@@ -547,12 +678,12 @@ async function runAction(index) {
         });
       }
       break;
-    case 6:
+    case 7:
       await withBusy('Stopping all services', async () => {
         await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
       });
       break;
-    case 7:
+    case 8:
       if (await confirmPrompt(`Delete status .json/.jsonl files under ${config.http.statusRoot}?`)) {
         await withBusy('Clearing status files', async () => {
           const removed = removeStatusFiles(config);
@@ -560,11 +691,11 @@ async function runAction(index) {
         });
       }
       break;
-    case 8:
+    case 9:
       addLog('Refreshing validation');
       renderAll();
       break;
-    case 9:
+    case 10:
       await quit();
       break;
     default:

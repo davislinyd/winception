@@ -78,6 +78,7 @@ C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeDhcp.ps1
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs
 C:\Users\Davis\Documents\New project\tools\Set-IpxePhysicalNic.ps1
+C:\Users\Davis\Documents\New project\tools\Set-OsdCloudIpxeEndpoint.ps1
 ```
 
 iPXE SMB image source:
@@ -354,6 +355,8 @@ Safety contract:
 
 - Start the TUI from elevated PowerShell.
 - Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter; `Configure physical NIC` remains an optional helper for setting the configured adapter alias, not a required identity check.
+- Use `Select service interface` when the service bind interface/IP must change. It must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist `config\osdcloud-tui.json`, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
+- After changing the selected service interface, preflight must fail if the DHCP lease range or router is outside the selected service IP prefix. Do not start a physical deployment until DHCP settings match the selected service subnet.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
 - Keep confirmation gates for NIC configuration, DHCP/PXE service start/stop toggles, and status-file deletion.
 - The individual `Start HTTP/status`, `Start TFTP`, and `Start DHCP` actions are service toggles; when a service is running, the same action must become `Stop ...` and shut that service down.
@@ -426,6 +429,7 @@ AGENTS.md
 OSDCloud-Win11-Automated-Deployment-Test-Report.md
 tools\Invoke-IpxeTimingRun.ps1
 tools\Set-IpxePhysicalNic.ps1
+tools\Set-OsdCloudIpxeEndpoint.ps1
 tools\Sync-OsdCloudAssets.ps1
 package.json
 package-lock.json

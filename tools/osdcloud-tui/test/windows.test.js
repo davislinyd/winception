@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { evaluateServiceIp, getServiceBindIps, removeStatusFiles } from '../src/windows.js';
+import { evaluateDhcpSubnet, evaluateServiceIp, getServiceBindIps, normalizeIpv4ServiceInterfaces, removeStatusFiles } from '../src/windows.js';
 
 test('clears status metadata and screenshot directory', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-clear-'));
@@ -73,6 +73,69 @@ test('service IP preflight rejects disabled or wrong-prefix matches', () => {
     InterfaceAlias: 'Wi-Fi',
     Status: 'Up',
   }], '192.168.100.100').ok, false);
+});
+
+test('normalizes enabled non-APIPA IPv4 service interfaces', () => {
+  const rows = normalizeIpv4ServiceInterfaces([
+    {
+      InterfaceAlias: '乙太網路 3',
+      InterfaceIndex: 6,
+      InterfaceDescription: 'Realtek USB GbE',
+      Status: 'Up',
+      MacAddress: '48-65-EE-10-94-77',
+      LinkSpeed: '1 Gbps',
+      IPAddress: '192.168.100.100',
+      PrefixLength: 24,
+      Gateway: '192.168.100.1',
+    },
+    {
+      InterfaceAlias: 'Ethernet 2',
+      InterfaceIndex: 36,
+      InterfaceDescription: 'VM Virtual Ethernet Adapter',
+      Status: 'Up',
+      IPAddress: '172.25.96.1',
+      PrefixLength: 28,
+      Gateway: '',
+    },
+    {
+      InterfaceAlias: '藍牙網路連線',
+      Status: 'Up',
+      IPAddress: '169.254.147.62',
+      PrefixLength: 16,
+    },
+    {
+      InterfaceAlias: 'Wi-Fi',
+      Status: 'Disabled',
+      IPAddress: '192.168.100.1',
+      PrefixLength: 24,
+    },
+  ]);
+
+  assert.deepEqual(rows.map((row) => row.interfaceAlias), ['乙太網路 3', 'Ethernet 2']);
+  assert.equal(rows.find((row) => row.interfaceAlias === '乙太網路 3').gateway, '192.168.100.1');
+  assert.equal(rows.find((row) => row.interfaceAlias === 'Ethernet 2').gateway, '');
+});
+
+test('DHCP subnet preflight catches lease and router mismatch', () => {
+  assert.equal(evaluateDhcpSubnet({
+    adapter: { serverIp: '192.168.100.100', prefixLength: 24 },
+    dhcp: {
+      leaseStartIp: '192.168.100.200',
+      leaseEndIp: '192.168.100.250',
+      router: '192.168.100.1',
+    },
+  }).ok, true);
+
+  const result = evaluateDhcpSubnet({
+    adapter: { serverIp: '10.10.10.5', prefixLength: 24 },
+    dhcp: {
+      leaseStartIp: '192.168.100.200',
+      leaseEndIp: '192.168.100.250',
+      router: '192.168.100.1',
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /outside 10\.10\.10\.5\/24/);
 });
 
 test('desktop-ready reporter returns success only after status upload', () => {
