@@ -32,6 +32,19 @@ const terminalControl = {
   hideCursor: '\x1b[?25l',
 };
 
+const horizontalPanelPadding = { left: 1, right: 1 };
+const panelLabelLeftInset = 1;
+
+function panelLabel(text) {
+  return `  ${text}  `;
+}
+
+function pinPanelLabel(element) {
+  if (element._label) {
+    element._label.rleft = panelLabelLeftInset;
+  }
+}
+
 const screen = blessed.screen({
   smartCSR: true,
   resizeTimeout: 100,
@@ -66,7 +79,8 @@ const menu = blessed.list({
   vi: true,
   wrap: false,
   border: 'line',
-  label: ' Actions ',
+  padding: horizontalPanelPadding,
+  label: panelLabel('Actions'),
   style: {
     selected: { bg: 'blue', fg: 'white' },
     item: { fg: 'white' },
@@ -92,9 +106,10 @@ const servicesBox = blessed.box({
   width: 66,
   height: 13,
   border: 'line',
+  padding: horizontalPanelPadding,
   tags: true,
   wrap: false,
-  label: ' Services ',
+  label: panelLabel('Services'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -104,9 +119,10 @@ const deploymentBox = blessed.box({
   width: '100%-100',
   height: 13,
   border: 'line',
+  padding: horizontalPanelPadding,
   tags: false,
   wrap: false,
-  label: ' Deployment ',
+  label: panelLabel('Deployment'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -116,12 +132,13 @@ const preflightBox = blessed.box({
   width: 66,
   height: '38%',
   border: 'line',
+  padding: horizontalPanelPadding,
   scrollable: true,
   alwaysScroll: true,
   keys: true,
   tags: true,
   wrap: false,
-  label: ' Preflight ',
+  label: panelLabel('Preflight'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -131,11 +148,12 @@ const validationBox = blessed.box({
   width: '100%-100',
   height: '38%',
   border: 'line',
+  padding: horizontalPanelPadding,
   scrollable: true,
   keys: true,
   tags: true,
   wrap: false,
-  label: ' Validation ',
+  label: panelLabel('Validation'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -145,12 +163,13 @@ const logBox = blessed.log({
   width: '100%-34',
   height: '100%-16-38%',
   border: 'line',
+  padding: horizontalPanelPadding,
   scrollable: true,
   alwaysScroll: true,
   keys: true,
   tags: true,
   wrap: false,
-  label: ' Logs ',
+  label: panelLabel('Logs'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -174,6 +193,9 @@ screen.append(preflightBox);
 screen.append(validationBox);
 screen.append(logBox);
 screen.append(sizeWarningBox);
+for (const element of [menu, servicesBox, deploymentBox, preflightBox, validationBox, logBox]) {
+  pinPanelLabel(element);
+}
 menu.focus();
 
 menu.removeAllListeners('element wheelup');
@@ -375,11 +397,12 @@ function confirmPrompt(message) {
     const modal = blessed.box({
       parent: screen,
       border: 'line',
+      padding: horizontalPanelPadding,
       height: 9,
       width: '70%',
       top: 'center',
       left: 'center',
-      label: ' Confirm ',
+      label: panelLabel('Confirm'),
       tags: true,
       keys: true,
       mouse: true,
@@ -391,6 +414,7 @@ function confirmPrompt(message) {
         border: { fg: 'yellow' },
       },
     });
+    pinPanelLabel(modal);
 
     const done = (answer) => {
       modal.destroy();
