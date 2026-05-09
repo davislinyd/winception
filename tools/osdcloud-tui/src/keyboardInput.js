@@ -121,6 +121,13 @@ export function bindFallbackKeyboardInput(screen, {
     });
   };
 
-  input?.on?.('data', handler);
-  return () => input?.off?.('data', handler);
+  const addListener = input?.prependListener ?? input?.on;
+  addListener?.call(input, 'data', handler);
+  return () => {
+    if (input?.off) {
+      input.off('data', handler);
+    } else {
+      input?.removeListener?.('data', handler);
+    }
+  };
 }

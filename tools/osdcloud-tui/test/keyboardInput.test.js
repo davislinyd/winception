@@ -129,3 +129,32 @@ test('fallback emits keypresses only when blessed observed none', () => {
   unbind();
   assert.equal(input.listeners.has('data'), false);
 });
+
+test('fallback prepends data listener so blessed can suppress duplicates', () => {
+  const calls = [];
+  const input = {
+    prependListener(event, handler) {
+      calls.push(['prependListener', event, handler]);
+    },
+    on(event, handler) {
+      calls.push(['on', event, handler]);
+    },
+    off(event, handler) {
+      calls.push(['off', event, handler]);
+    },
+  };
+  const screen = {
+    program: {
+      input,
+      emit() {},
+    },
+  };
+
+  const unbind = bindFallbackKeyboardInput(screen);
+  const handler = calls[0][2];
+  unbind();
+
+  assert.equal(calls[0][0], 'prependListener');
+  assert.equal(calls[0][1], 'data');
+  assert.deepEqual(calls[1], ['off', 'data', handler]);
+});
