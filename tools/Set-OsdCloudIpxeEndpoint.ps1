@@ -177,12 +177,17 @@ function Set-RegexInFile {
     }
 
     $content = [System.IO.File]::ReadAllText($Path)
-    $updated = [regex]::Replace($content, $Pattern, $Replacement)
-    if ($updated -eq $content) {
+    $matched = [regex]::IsMatch($content, $Pattern)
+    if (-not $matched) {
         if ($Optional) {
             return $false
         }
         throw "No endpoint replacement matched in $Path"
+    }
+
+    $updated = [regex]::Replace($content, $Pattern, $Replacement)
+    if ($updated -eq $content) {
+        return $true
     }
 
     Write-Utf8NoBom -Path $Path -Content $updated
@@ -424,9 +429,11 @@ else {
 
 if ($SyncAssets) {
     $syncScript = Join-Path $repoRoot 'tools\Sync-OsdCloudAssets.ps1'
-    $syncArgs = @('-MountWinPe')
+    $syncArgs = @{
+        MountWinPe = $true
+    }
     if ($HashLargeArtifacts) {
-        $syncArgs += '-HashLargeArtifacts'
+        $syncArgs.HashLargeArtifacts = $true
     }
     & $syncScript @syncArgs
     Write-Host "Synced osdcloud-assets from live files"

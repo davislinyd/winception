@@ -1,5 +1,5 @@
 param(
-    [string] $ServerIp = '192.168.100.100',
+    [string] $ServerIp = '192.168.100.1',
     [string] $ClientIp = '',
     [string] $LeaseStartIp = '192.168.100.200',
     [string] $LeaseEndIp = '192.168.100.250',

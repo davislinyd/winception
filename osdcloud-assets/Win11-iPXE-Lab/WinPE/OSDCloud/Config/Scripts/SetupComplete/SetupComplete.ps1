@@ -7,8 +7,7 @@ $UserName = 'davis'
 $PlainPassword = 'password'
 $SecurePassword = ConvertTo-SecureString $PlainPassword -AsPlainText -Force
 $DeploymentMetadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
-$DefaultStatusUrl = 'http://192.168.100.100/osdcloud/status'
-
+$DefaultStatusUrl = 'http://192.168.100.1/osdcloud/status'
 function Get-DeploymentMetadata {
     if (Test-Path -LiteralPath $DeploymentMetadataPath -PathType Leaf) {
         try {
@@ -84,7 +83,7 @@ function Install-DesktopReadyReporter {
     $reporter = @'
 $ErrorActionPreference = 'Continue'
 $metadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
-$defaultStatusUrl = 'http://192.168.100.100/osdcloud/status'
+$defaultStatusUrl = 'http://192.168.100.1/osdcloud/status'
 $taskName = 'OSDCloudDesktopReadyReport'
 $logDir = 'C:\Windows\Temp\osdcloud-logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null

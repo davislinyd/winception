@@ -29,6 +29,12 @@ OSDCloud-Win11-NoTouch-01
 OSDCloud-Win11-iPXE-01
 ```
 
+最新 VM vSwitch 回歸驗證 VM：
+
+```text
+OSDCloud-Win11-vSwitch-04
+```
+
 最終測試結果：
 
 ```text
@@ -234,6 +240,26 @@ Computer    : DESKTOP-8AMUG6V
 Message     : Windows desktop is ready for davis.
 ```
 
+最新 VM vSwitch 回歸驗證結果：
+
+```text
+RunId       : 20260509-180631-3516-7778-8933-1804-0874-8294-77
+VM          : OSDCloud-Win11-vSwitch-04
+Switch      : vSwitch
+Status      : windows-desktop-ready
+User        : DESKTOP-BM8R03K\davis
+IPv4        : 192.168.100.200/24
+Gateway     : 192.168.100.1
+DNS         : 1.1.1.1,8.8.8.8
+Explorer    : True
+OOBE        : skipped
+OS          : Windows 11 Pro 25H2 build 26200 zh-TW
+HTTP ESD    : 0 HEAD/GET matches during this run
+Internet    : ping 1.1.1.1, DNS, and msftconnecttest all passed
+```
+
+目前 `config\osdcloud-tui.json` 與 live iPXE WinPE endpoint 已切到 `Ethernet` / `192.168.100.1` 以支援 VM 回歸測試。若要回到實體筆電路徑，先用 `.\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '乙太網路 3' -ServerIp '192.168.100.100' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts` 切回真實有線網卡，再啟動 TUI。
+
 可用下列方式即時監看：
 
 ```powershell
@@ -248,6 +274,14 @@ Get-Content -Wait 'C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
 npm install
 npm run tui
 ```
+
+VM 回歸測試若不需要 blessed TUI 畫面，可用 headless host services：
+
+```powershell
+node .\tools\osdcloud-tui\src\headless.js
+```
+
+這個入口同樣啟動 HTTP/status、TFTP、DHCP。測試結束後必須停止該 `node.exe`，避免 DHCP responder 留在測試網段上。
 
 TUI 設定檔：
 

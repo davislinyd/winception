@@ -10,10 +10,12 @@ Previously validated VM paths:
 
 - ISO path: VM VM boots from `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso`
 - iPXE path: VM VM boots from PXE/iPXE, loads WinPE over HTTP, and applies the Windows ESD directly from a host SMB share
+- vSwitch regression path: VM VM `OSDCloud-Win11-vSwitch-04` boots from PXE/iPXE on `vSwitch`, applies the Windows ESD directly from `\\192.168.100.1\OSDCloudiPXE`, and reaches `DESKTOP-BM8R03K\davis` with `windows-desktop-ready`
 
 Current active path:
 
 - Physical laptop boots from UEFI PXE/iPXE on the real wired LAN, loads WinPE over HTTP, and applies the Windows ESD directly from the host SMB share. No VM vSwitch or VM is required for this path.
+- Current repo/live endpoint may be left on `Ethernet` / `192.168.100.1` after VM regression. Before physical-laptop validation, switch back with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '乙太網路 3' -ServerIp '192.168.100.100' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 
 Local account:
 
@@ -79,6 +81,7 @@ C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs
 C:\Users\Davis\Documents\New project\tools\Set-IpxePhysicalNic.ps1
 C:\Users\Davis\Documents\New project\tools\Set-OsdCloudIpxeEndpoint.ps1
+C:\Users\Davis\Documents\New project\tools\osdcloud-tui\src\headless.js
 ```
 
 iPXE SMB image source:
@@ -397,12 +400,21 @@ The final known-good iPXE test VM is:
 OSDCloud-Win11-iPXE-01
 ```
 
+The latest known-good vSwitch regression VM is:
+
+```text
+OSDCloud-Win11-vSwitch-04
+```
+
 Historical iPXE VM notes:
 
 - Earlier VM validation used `PXE-Lab`; the active physical-laptop path uses the host wired adapter directly.
 - Legacy host-side PXE helper scripts used PowerShell DHCP/TFTP plus Node HTTP. The Node TUI is now the primary host-side console; keep the legacy helper scripts as fallback until a real physical deployment has validated the TUI path. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
 - Use static memory for iPXE timing VMs. `Timing-04` failed in WinPE DISM apply when Dynamic Memory assigned only about 1.5GB even though startup memory was configured higher.
 - Full iPXE deployment succeeded with PXE-stage Secure Boot temporarily off. Hard-disk boot was verified with Secure Boot `MicrosoftWindows` and vTPM.
+- For VM first-stage TFTP, do not disable `.efi` OACK/options handling. VM can send paired RRQs where one transfer logs `OACK not acknowledged` and the other succeeds with `SENT snponly.efi`; success is confirmed by later HTTP `boot.ipxe`. If the VM stays at `Downloading NBP file...`, debug TFTP service state before changing WinPE or OSDCloud.
+- After `osdcloud-finished`, do not force power off the VM. Let WinPE run `wpeutil reboot`; premature power-off can leave `Unattend.xml` or `SetupComplete.ps1` NUL-filled and cause Windows Setup unattend parse errors.
+- `tools\osdcloud-tui\src\headless.js` starts the same HTTP/status, TFTP, and DHCP services without the blessed UI. Use it only for VM regression or automation, and stop the owning `node.exe` after the test so DHCP does not keep responding.
 - Signed shim PXE remains a caveat: `snponly-shim.efi` and `ipxe-shim.efi` were both tested with `MicrosoftUEFICertificateAuthority`, but the probe did not reach HTTP and stopped during TFTP shim transfer.
 
 ## Documentation

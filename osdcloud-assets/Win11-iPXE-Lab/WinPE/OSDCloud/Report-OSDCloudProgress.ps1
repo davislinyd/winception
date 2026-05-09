@@ -1,5 +1,5 @@
 param(
-    [string] $StatusUrl = 'http://192.168.100.100/osdcloud/status',
+    [string] $StatusUrl = 'http://192.168.100.1/osdcloud/status',
     [string] $RunId = '',
     [string] $ClientId = '',
     [string] $ScreenshotUrl = '',
