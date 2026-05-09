@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { focusOrder, isReverseTab, nextFocusTarget, resolveFocusShortcut, resolveFocusShortcutRequest, resolveTabFocusTarget } from '../src/focusKeys.js';
+import {
+  focusOrder,
+  formatPanelLabel,
+  isReverseTab,
+  isShortcutHintKey,
+  nextFocusTarget,
+  resolveFocusShortcut,
+  resolveFocusShortcutRequest,
+  resolveTabFocusTarget,
+} from '../src/focusKeys.js';
 
 test('resolves Alt shortcuts from blessed full key names', () => {
   assert.equal(resolveFocusShortcut({ full: 'M-a' }), 'actions');
@@ -35,6 +44,19 @@ test('detects reverse tab', () => {
   assert.equal(isReverseTab({ name: 'tab', shift: true }), true);
   assert.equal(isReverseTab({ name: 'tab' }), false);
   assert.equal(isReverseTab({ name: 'down', shift: true }), false);
+});
+
+test('formats panel labels with temporary shortcut underlines', () => {
+  assert.equal(formatPanelLabel('Clients', 'C', false), '  Clients Alt+C  ');
+  assert.equal(formatPanelLabel('Clients', 'C', true), '  Clients Alt+{underline}C{/underline}  ');
+  assert.equal(formatPanelLabel('Services', '', true), '  Services  ');
+});
+
+test('detects shortcut hint key events', () => {
+  assert.equal(isShortcutHintKey({ meta: true, name: 'c' }), true);
+  assert.equal(isShortcutHintKey({ full: 'M-c' }), true);
+  assert.equal(isShortcutHintKey({ name: 'escape' }), true);
+  assert.equal(isShortcutHintKey({ name: 'c' }), false);
 });
 
 test('ignores panel focus requests while dialogs are open', () => {

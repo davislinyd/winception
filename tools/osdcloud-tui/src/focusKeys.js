@@ -37,6 +37,18 @@ export function resolveFocusShortcutRequest(key = {}, { dialogOpen = false } = {
   return dialogOpen ? null : resolveFocusShortcut(key);
 }
 
+export function isShortcutHintKey(key = {}) {
+  const full = String(key.full ?? '').toLowerCase();
+  return Boolean(key.meta) || key.name === 'escape' || full.startsWith('m-');
+}
+
+export function formatPanelLabel(title, shortcutKey = '', hintsVisible = false) {
+  const shortcut = shortcutKey
+    ? ` Alt+${hintsVisible ? `{underline}${shortcutKey}{/underline}` : shortcutKey}`
+    : '';
+  return `  ${title}${shortcut}  `;
+}
+
 export function isReverseTab(key = {}) {
   return key.name === 'tab' && Boolean(key.shift);
 }

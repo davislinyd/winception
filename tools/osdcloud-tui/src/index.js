@@ -10,7 +10,7 @@ import { formatFleetClientRows, formatFleetCounts, formatFleetRunDetail, formatS
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
-import { focusOrder, resolveFocusShortcutRequest, resolveTabFocusTarget } from './focusKeys.js';
+import { focusOrder, formatPanelLabel, isShortcutHintKey, resolveFocusShortcutRequest, resolveTabFocusTarget } from './focusKeys.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -29,6 +29,8 @@ let selectedRunId = null;
 let currentFleetRuns = [];
 let renderTimer = null;
 let focusedPanelId = 'actions';
+let shortcutHintsVisible = false;
+let shortcutHintsTimer = null;
 
 const terminalControl = {
   alternateBuffer: '\x1b[?1049h',
@@ -42,8 +44,7 @@ const horizontalPanelPadding = { left: 1, right: 1 };
 const panelLabelLeftInset = 1;
 
 function panelLabel(text, shortcut = '') {
-  const suffix = shortcut ? ` ${shortcut}` : '';
-  return `  ${text}${suffix}  `;
+  return formatPanelLabel(text, shortcut, shortcutHintsVisible);
 }
 
 function serviceActionLabel(service, label) {
@@ -68,6 +69,9 @@ function getActionItems() {
 function pinPanelLabel(element) {
   if (element._label) {
     element._label.rleft = panelLabelLeftInset;
+    // Labels need tags even when the panel body, such as Clients, stays tags:false.
+    element._label.parseTags = true;
+    element._label._clines = null;
   }
 }
 
@@ -107,7 +111,7 @@ const menu = blessed.list({
   wrap: false,
   border: 'line',
   padding: horizontalPanelPadding,
-  label: panelLabel('Actions', 'Alt+A'),
+  label: panelLabel('Actions', 'A'),
   style: {
     selected: { bg: 'blue', fg: 'white' },
     item: { fg: 'white' },
@@ -142,7 +146,7 @@ const clientsBox = blessed.list({
   vi: true,
   tags: false,
   wrap: false,
-  label: panelLabel('Clients', 'Alt+C'),
+  label: panelLabel('Clients', 'C'),
   style: {
     selected: { bg: 'blue', fg: 'white' },
     item: { fg: 'white' },
@@ -163,7 +167,7 @@ const preflightBox = blessed.box({
   focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Preflight', 'Alt+P'),
+  label: panelLabel('Preflight', 'P'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -179,7 +183,7 @@ const detailsBox = blessed.box({
   focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Client Detail', 'Alt+D'),
+  label: panelLabel('Client Detail', 'D'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -195,7 +199,7 @@ const validationBox = blessed.box({
   focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Validation', 'Alt+V'),
+  label: panelLabel('Validation', 'V'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -212,7 +216,7 @@ const logBox = blessed.log({
   focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Logs', 'Alt+L'),
+  label: panelLabel('Logs', 'L'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -241,6 +245,16 @@ for (const element of [menu, servicesBox, clientsBox, preflightBox, detailsBox, 
   pinPanelLabel(element);
 }
 menu.focus();
+
+const panelLabelSpecs = [
+  [menu, 'Actions', 'A'],
+  [servicesBox, 'Services', ''],
+  [clientsBox, 'Clients', 'C'],
+  [preflightBox, 'Preflight', 'P'],
+  [detailsBox, 'Client Detail', 'D'],
+  [validationBox, 'Validation', 'V'],
+  [logBox, 'Logs', 'L'],
+];
 
 const focusTargets = {
   actions: menu,
@@ -271,6 +285,45 @@ function applyFocusStyles() {
     element.style.border.fg = targetId === focusedPanelId ? 'yellow' : 'cyan';
   }
   servicesBox.style.border.fg = 'cyan';
+}
+
+function setPanelLabels() {
+  for (const [element, title, shortcut] of panelLabelSpecs) {
+    element.setLabel(panelLabel(title, shortcut));
+    pinPanelLabel(element);
+  }
+}
+
+function setShortcutHintsVisible(visible) {
+  if (shortcutHintsVisible === visible) {
+    return;
+  }
+  shortcutHintsVisible = visible;
+  requestRender();
+}
+
+function clearShortcutHints() {
+  if (shortcutHintsTimer) {
+    clearTimeout(shortcutHintsTimer);
+    shortcutHintsTimer = null;
+  }
+  setShortcutHintsVisible(false);
+}
+
+function activateShortcutHints() {
+  if (dialogOpen) {
+    clearShortcutHints();
+    return;
+  }
+  setShortcutHintsVisible(true);
+  if (shortcutHintsTimer) {
+    clearTimeout(shortcutHintsTimer);
+  }
+  shortcutHintsTimer = setTimeout(() => {
+    shortcutHintsTimer = null;
+    setShortcutHintsVisible(false);
+  }, 2000);
+  shortcutHintsTimer.unref?.();
 }
 
 for (const [targetId, element] of Object.entries(focusTargets)) {
@@ -543,6 +596,7 @@ function renderAll({ forceRedraw = false } = {}) {
   renderPreflight();
   renderValidation();
   renderLogs();
+  setPanelLabels();
   applyFocusStyles();
   screen.render();
 }
@@ -554,6 +608,7 @@ function handleTerminalResize() {
 function confirmPrompt(message) {
   return new Promise((resolve) => {
     dialogOpen = true;
+    clearShortcutHints();
     const previousFocus = screen.focused;
     const modal = blessed.box({
       parent: screen,
@@ -613,6 +668,7 @@ function formatInterfaceChoice(choice) {
 function selectInterfacePrompt(choices) {
   return new Promise((resolve) => {
     dialogOpen = true;
+    clearShortcutHints();
     const previousFocus = screen.focused;
     const modal = blessed.box({
       parent: screen,
@@ -865,10 +921,14 @@ function handleFocusShortcut(key) {
 }
 
 screen.key(['M-a', 'M-c', 'M-d', 'M-p', 'M-v', 'M-l'], (_ch, key) => {
+  activateShortcutHints();
   handleFocusShortcut(key);
 });
 
 screen.on('keypress', (_ch, key) => {
+  if (isShortcutHintKey(key)) {
+    activateShortcutHints();
+  }
   if (key?.meta && !String(key.full ?? '').toLowerCase().startsWith('m-')) {
     handleFocusShortcut(key);
   }
