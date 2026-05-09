@@ -41,4 +41,6 @@ Refresh the mirror after changing anything under `C:\OSDCloud`:
 
 For iPXE, `Invoke-DavisOobe.ps1` copies SetupComplete from inside `boot.wim` first. If `WinPE\OSDCloud\Config\Scripts\SetupComplete` is stale, the deployed Windows can reach the desktop without reporting `windows-desktop-ready` back to the TUI.
 
+The current iPXE `SetupComplete.ps1` installs only the JSON desktop-ready reporter for Windows completion. It does not install a desktop screenshot Startup helper, because that path was blocked by Defender/AMSI as `ScriptContainedMaliciousContent`. The desktop-ready reporter retries every 5 seconds for up to 30 minutes from `windows-logon-start`; after a successful HTTP POST or WebClient fallback it must return success and unregister `OSDCloudDesktopReadyReport`.
+
 The files include lab-only credentials such as the local `davis` account and SMB `pxeinstall` account. Keep this repository private.

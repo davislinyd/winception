@@ -4,7 +4,7 @@
 
 這份規劃定義下一階段的部署可視化能力：保留現有狀態事件機制，不做影片串流，只在關鍵階段由 client 擷取 still screenshot 並回傳 host server。目標是讓 TUI 能看到即時部署進度、明確的開始/結束記錄，以及 WinPE / Windows 重要階段的畫面證據。
 
-這份文件是實作規劃，不代表截圖機制已完成。真正實作時需要改 host HTTP server、TUI、WinPE reporter、Windows SetupComplete / desktop-ready reporter，並同步 live OSDCloud assets。
+截至 2026-05-09，host screenshot API、TUI screenshot metadata 顯示、WinPE screenshot reporter、status cleanup、tests、live `C:\OSDCloud` 與 `osdcloud-assets` 同步都已完成。Windows completion 仍以 JSON status 為唯一完成判定；Windows desktop PNG helper 不由 SetupComplete 安裝，因為先前的互動截圖 Startup helper 被 Defender/AMSI 擋成 `ScriptContainedMaliciousContent`，會阻止整個 SetupComplete 執行。
 
 ## 設計原則
 
@@ -12,6 +12,7 @@
 - 完全使用 Microsoft / Windows 內建能力：PowerShell、.NET `System.Drawing` / `System.Windows.Forms`、`Invoke-WebRequest`、Scheduled Task。
 - `POST /osdcloud/status` 繼續只處理 JSON 狀態事件，不把圖片 base64 塞進 status payload。
 - 截圖是 best-effort 證據，不可阻斷部署主流程。
+- Windows 完成判定必須以 `windows-desktop-ready` JSON status 為準，截圖不可成為成功條件。
 - 不支援 BIOS / PXE / iPXE 畫面截圖，因為那時 Windows / WinPE 尚未啟動。
 
 ## Host 端變更
@@ -98,14 +99,18 @@ WinPE reporter 在以下階段嘗試截圖：
 
 ### Windows
 
-Windows 階段在以下事件截圖：
+Windows 階段目前不由 SetupComplete 安裝 desktop screenshot helper。先前嘗試透過 Default/user Startup command 啟動 hidden PowerShell、擷取互動桌面並上傳 PNG，會被 Defender/AMSI 視為高風險行為鏈，導致 `SetupComplete.ps1` 在解析階段以 `ScriptContainedMaliciousContent` 失敗。
 
-- `windows-logon-start`
-- `windows-desktop-ready`
-- `windows-desktop-timeout`
-- `windows-setupcomplete-error`
+Windows completion path 維持：
 
-桌面截圖必須在登入使用者互動 session 內執行，避免 SYSTEM session 0 擷取到黑畫面。既有 desktop-ready reporter 可以繼續由 Scheduled Task 觸發，但截圖動作要確認能看到 `davis` 的互動桌面。
+- SetupComplete POST `windows-setupcomplete-start`
+- SetupComplete POST `windows-setupcomplete-finished`
+- `OSDCloudDesktopReadyReport` SYSTEM scheduled task 在登入後 POST `windows-logon-start`
+- `OSDCloudDesktopReadyReport` 在 Explorer ready、desktop marker 存在且沒有 OOBE process 時 POST `windows-desktop-ready`
+
+Desktop-ready reporter 每 5 秒重試一次，最多從 `windows-logon-start` 起算 30 分鐘。`Send-Status` 必須在 HTTP POST 或 WebClient fallback 成功時回傳 `$true`，成功後 unregister `OSDCloudDesktopReadyReport`；若回傳 `$null`，TUI 會已顯示 `completed`，但 client 會每 5 秒重送相同 `windows-desktop-ready` 到 30 分鐘 deadline。
+
+如果未來要重新導入 Windows desktop PNG evidence，必須獨立設計、明確重測 Defender/AMSI 行為，且不得影響 `windows-setupcomplete-*` 或 `windows-desktop-ready` JSON status。
 
 ## PowerShell 截圖與上傳要求
 
@@ -121,7 +126,7 @@ Windows 階段在以下事件截圖：
 - `Invoke-WebRequest -Method Post -ContentType 'image/png' -InFile <png>`
 - fallback 可使用 `System.Net.WebClient.UploadFile`
 
-上傳 timeout 10 秒。失敗時只記錄 warning 或送出 `screenshot-error` 狀態事件，不重試到阻塞部署。
+WinPE screenshot 上傳 timeout 10 秒。失敗時只記錄 warning 或送出 `screenshot-error` 狀態事件，不重試到阻塞部署。
 
 ## 實作步驟
 
@@ -130,7 +135,7 @@ Windows 階段在以下事件截圖：
 3. 更新 `Clear status files` 清理 screenshot metadata 與目錄。
 4. 在 smoke test 加入 1x1 PNG 上傳驗證。
 5. 在 WinPE reporter 加入 `Capture-Screenshot` 與 `Send-Screenshot`。
-6. 在 Windows desktop-ready reporter 加入登入後截圖。
+6. Windows desktop-ready reporter 不加入截圖 helper；保留 JSON completion retry。
 7. 更新 live `C:\OSDCloud` 腳本與 iPXE `boot.wim`。
 8. 執行同步：
 
@@ -150,14 +155,14 @@ Windows 階段在以下事件截圖：
 - Unit test：`latest-screenshot.json` 與 `<runId>.screenshots.jsonl` 正確更新。
 - Smoke test：用 1x1 PNG 模擬 client 上傳，確認檔案與 metadata 都可讀。
 - PowerShell syntax check：檢查 WinPE reporter 與 SetupComplete / desktop-ready reporter。
-- 實機測試：physical laptop iPXE 部署時至少收到 `winpe-start`、`apply-image`、`rebooting`、`windows-desktop-ready` 截圖。
+- 實機測試：physical laptop iPXE 部署時至少收到 `winpe-start`、`apply-image`、`rebooting` 等 WinPE 截圖，且最終 JSON status 收到 `windows-desktop-ready`。
+- Regression test：desktop-ready reporter 的 `Send-Status` 成功 POST 後必須回傳 `$true`，避免完成後持續重送相同 status。
 - 清理測試：TUI `Clear status files` 後，舊截圖與 metadata 不再出現在 TUI。
 
 ## 驗收標準
 
 - TUI Deployment 區塊能顯示目前 status event 與最新 screenshot metadata。
 - Host status 目錄能按 run 保存截圖與 JSONL metadata。
-- WinPE / Windows 截圖失敗不會讓部署失敗。
+- WinPE 截圖失敗不會讓部署失敗。
 - 完成部署後，run summary 仍以 `windows-desktop-ready` 作為完成狀態。
 - Git 不提交 PNG 截圖；截圖只作為本機 deployment evidence。
-

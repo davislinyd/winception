@@ -1,5 +1,11 @@
 # Node TUI 重寫計畫
 
+## 目前狀態
+
+TUI 已進入 `0.1.1`，並成為實體筆電 iPXE path 的主要 host console。除原本 DHCP/TFTP/HTTP/status/live log/validation 外，現在也包含 `/osdcloud/screenshot` PNG endpoint、screenshot metadata 顯示、status cleanup 的 screenshot 清理，以及 run lifecycle summary。
+
+Windows completion 仍以 JSON status 為準。`OSDCloudDesktopReadyReport` 在登入後每 5 秒重試，最多 30 分鐘；成功 POST `windows-desktop-ready` 後必須 unregister 自己。Windows desktop screenshot Startup helper 目前不啟用，因為先前的 hidden PowerShell + screenshot + upload 行為被 Defender/AMSI 擋成 `ScriptContainedMaliciousContent`，會讓 SetupComplete 完全不執行。
+
 ## 摘要
 
 這個計畫把目前的 OSDCloud / iPXE 實體筆電部署流程改成 host 端 Node TUI 操作台。TUI 接管 host 端的 DHCP、TFTP、HTTP media server、status API、log 監看與部署流程控制。v1 不改 WinPE 內已驗證的 OSDCloud、SMB no-redownload、OOBE 注入與 SetupComplete 部署核心。
