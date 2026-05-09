@@ -117,7 +117,7 @@ function Send-Status {
     )
 
     $statusUrl = if ($metadata.statusUrl) { [string] $metadata.statusUrl } else { $defaultStatusUrl }
-        $payload = [ordered]@{
+    $payload = [ordered]@{
         timestamp = (Get-Date).ToString('o')
         runId = [string] $metadata.runId
         clientId = [string] $metadata.clientId
@@ -136,7 +136,7 @@ function Send-Status {
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
     try {
         Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
-        return
+        return $true
     }
     catch {
     }
@@ -145,6 +145,7 @@ function Send-Status {
         $client = [System.Net.WebClient]::new()
         $client.Headers['Content-Type'] = 'application/json'
         [void] $client.UploadString($statusUrl, 'POST', $json)
+        return $true
     }
     catch {
     }
@@ -153,6 +154,8 @@ function Send-Status {
             $client.Dispose()
         }
     }
+
+    return $false
 }
 
 function Get-DesktopReadyFacts {

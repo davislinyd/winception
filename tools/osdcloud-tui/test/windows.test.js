@@ -27,3 +27,25 @@ test('clears status metadata and screenshot directory', () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('desktop-ready reporter returns success only after status upload', () => {
+  const setupCompletePath = path.resolve(
+    'osdcloud-assets',
+    'Win11-iPXE-Lab',
+    'Config',
+    'Scripts',
+    'SetupComplete',
+    'SetupComplete.ps1',
+  );
+  const setupComplete = fs.readFileSync(setupCompletePath, 'utf8');
+  const sendStatusStart = setupComplete.indexOf('function Send-Status');
+  const sendStatusEnd = setupComplete.indexOf('function Get-DesktopReadyFacts', sendStatusStart);
+
+  assert.ok(sendStatusStart > 0);
+  assert.ok(sendStatusEnd > sendStatusStart);
+
+  const sendStatus = setupComplete.slice(sendStatusStart, sendStatusEnd);
+  assert.match(sendStatus, /Invoke-WebRequest[\s\S]*return \$true/);
+  assert.match(sendStatus, /UploadString[\s\S]*return \$true/);
+  assert.match(sendStatus, /return \$false/);
+});

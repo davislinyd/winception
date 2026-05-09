@@ -212,7 +212,7 @@ windows-desktop-ready
 ```
 
 `windows-desktop-ready` 代表已看到 Explorer、桌面 ready marker，且沒有 `CloudExperienceHost` / `msoobe`。
-Desktop-ready reporter 會等到 `windows-desktop-ready` 成功 POST 到 host 後才移除 scheduled task；如果 Windows 桌面先出現但網路尚未連上 `192.168.100.100`，它會持續重試一段時間，避免 TUI 永遠停在 `awaiting-windows`。
+Desktop-ready reporter 會等到 `windows-desktop-ready` 成功 POST 到 host 後才移除 scheduled task；如果 Windows 桌面先出現但網路尚未連上 `192.168.100.100`，它會持續重試一段時間，避免 TUI 永遠停在 `awaiting-windows`。`Send-Status` 必須在 HTTP POST 或 WebClient fallback 成功後回傳 `$true`，否則 reporter 會把 HTTP `204` 當成未完成並每 5 秒重送相同 `windows-desktop-ready`。
 
 最新實體筆電驗證結果：
 
