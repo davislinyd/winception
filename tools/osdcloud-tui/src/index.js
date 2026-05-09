@@ -12,6 +12,7 @@ import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
 import { focusOrder, focusShortcutKeyNames, formatPanelLabel, resolveFocusShortcutRequest, resolveShortcutHintRequest, resolveTabFocusTarget } from './focusKeys.js';
 import { startWindowsAltKeyWatcher } from './altKeyWatcher.js';
+import { nextLogAutoFollowState, resolveMouseFocusTarget, wheelDeltaForAction } from './mouseInteractions.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -33,6 +34,7 @@ let focusedPanelId = 'actions';
 let shortcutHintsVisible = false;
 let shortcutHintsTimer = null;
 let altKeyWatcher = null;
+let logAutoFollow = true;
 
 const terminalControl = {
   alternateBuffer: '\x1b[?1049h',
@@ -130,6 +132,8 @@ const servicesBox = blessed.box({
   height: 13,
   border: 'line',
   padding: horizontalPanelPadding,
+  scrollable: true,
+  alwaysScroll: true,
   keys: true,
   mouse: true,
   focusable: true,
@@ -170,6 +174,7 @@ const preflightBox = blessed.box({
   scrollable: true,
   alwaysScroll: true,
   keys: true,
+  mouse: true,
   focusable: true,
   tags: true,
   wrap: false,
@@ -186,6 +191,7 @@ const detailsBox = blessed.box({
   padding: horizontalPanelPadding,
   scrollable: true,
   keys: true,
+  mouse: true,
   focusable: true,
   tags: true,
   wrap: false,
@@ -202,6 +208,7 @@ const validationBox = blessed.box({
   padding: horizontalPanelPadding,
   scrollable: true,
   keys: true,
+  mouse: true,
   focusable: true,
   tags: true,
   wrap: false,
@@ -219,6 +226,7 @@ const logBox = blessed.log({
   scrollable: true,
   alwaysScroll: true,
   keys: true,
+  mouse: true,
   focusable: true,
   tags: true,
   wrap: false,
@@ -348,18 +356,92 @@ function setAltKeyPressed(isPressed) {
   }
 }
 
+function focusPanelFromMouse(targetId) {
+  const target = resolveMouseFocusTarget(targetId, { dialogOpen });
+  if (target) {
+    setFocusedPanel(target);
+  }
+}
+
+function scrollBoxPanel(targetId, element, action) {
+  if (dialogOpen) {
+    return;
+  }
+  focusPanelFromMouse(targetId);
+  const delta = wheelDeltaForAction(action);
+  if (delta) {
+    element.scroll(delta);
+  }
+  requestRender({ immediate: true });
+}
+
+function handleLogWheel(action) {
+  if (dialogOpen) {
+    return;
+  }
+  focusPanelFromMouse('logs');
+  logAutoFollow = nextLogAutoFollowState({
+    current: logAutoFollow,
+    action,
+    scrollPercent: logBox.getScrollPerc(),
+  });
+  const delta = wheelDeltaForAction(action);
+  if (delta) {
+    logBox.scroll(delta);
+  }
+  logAutoFollow = nextLogAutoFollowState({
+    current: logAutoFollow,
+    action,
+    scrollPercent: logBox.getScrollPerc(),
+  });
+  requestRender({ immediate: true });
+}
+
+function updateClientSelectionFromMouse() {
+  selectFleetRunByIndex(clientsBox.selected);
+  focusPanelFromMouse('clients');
+  requestRender({ immediate: true });
+}
+
 for (const [targetId, element] of Object.entries(focusTargets)) {
   element.on('focus', () => {
     focusedPanelId = targetId;
     requestRender({ immediate: true });
   });
+  element.on('mousedown', () => focusPanelFromMouse(targetId));
 }
 
 menu.removeAllListeners('element wheelup');
 menu.removeAllListeners('element wheeldown');
-
-screen.on('wheelup', () => renderAll());
-screen.on('wheeldown', () => renderAll());
+menu.on('element wheelup', () => focusPanelFromMouse('actions'));
+menu.on('element wheeldown', () => focusPanelFromMouse('actions'));
+for (const element of [servicesBox, preflightBox, detailsBox, validationBox, logBox]) {
+  element.removeAllListeners('wheelup');
+  element.removeAllListeners('wheeldown');
+}
+for (const [targetId, element] of [
+  ['services', servicesBox],
+  ['preflight', preflightBox],
+  ['details', detailsBox],
+  ['validation', validationBox],
+]) {
+  element.on('wheelup', () => scrollBoxPanel(targetId, element, 'wheelup'));
+  element.on('wheeldown', () => scrollBoxPanel(targetId, element, 'wheeldown'));
+}
+clientsBox.on('element wheelup', updateClientSelectionFromMouse);
+clientsBox.on('element wheeldown', updateClientSelectionFromMouse);
+logBox.on('wheelup', () => handleLogWheel('wheelup'));
+logBox.on('wheeldown', () => handleLogWheel('wheeldown'));
+logBox.on('keypress', (_ch, key) => {
+  if (dialogOpen) {
+    return;
+  }
+  if (key?.name === 'end') {
+    logBox.setScrollPerc(100);
+    logAutoFollow = nextLogAutoFollowState({ current: logAutoFollow, action: 'end' });
+    requestRender({ immediate: true });
+  }
+});
 screen.program.setMouse({ vt200Mouse: true, sgrMouse: true, cellMotion: true }, true);
 
 function applyBoxLayout(element, spec) {
@@ -580,7 +662,9 @@ function renderValidation() {
 
 function renderLogs() {
   setWrappedContent(logBox, runtimeLog.lines());
-  logBox.setScrollPerc(100);
+  if (logAutoFollow) {
+    logBox.setScrollPerc(100);
+  }
 }
 
 function renderActionMenu() {
