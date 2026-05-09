@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { driverPackCacheStage, handleDriverPackCacheRequest } from './driverPackCache.js';
 import { appendLog } from './logger.js';
 import { buildRunsIndex, updateRunSummary } from './runSummary.js';
 
@@ -164,6 +165,22 @@ export class MediaHttpServer extends EventEmitter {
     this.emit('log', line);
   }
 
+  queueDriverPackCacheRequest(event) {
+    if (event.stage !== driverPackCacheStage) {
+      return;
+    }
+
+    void handleDriverPackCacheRequest(event, this.config, {
+      log: (message) => this.log(message),
+    }).then((result) => {
+      if (result) {
+        this.emit('driver-pack-cache', result);
+      }
+    }).catch((error) => {
+      this.log(`Driver pack cache request failed outside status path: ${error.message}`);
+    });
+  }
+
   async start() {
     if (this.server) {
       return;
@@ -293,6 +310,7 @@ export class MediaHttpServer extends EventEmitter {
     res.end();
     this.log(`${remote} POST ${requestUrl.pathname} 204 ${details}`);
     this.emit('status', { event, ...runSummary });
+    this.queueDriverPackCacheRequest(event);
   }
 
   async handleScreenshot(req, res, remote, requestUrl) {

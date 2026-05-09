@@ -10,6 +10,17 @@ const onePixelPng = Buffer.from(
   'base64',
 );
 
+async function waitFor(condition, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (condition()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail('Timed out waiting for condition');
+}
+
 test('sanitizes status run names', () => {
   assert.equal(sanitizeName('run:one/two'), 'run_one_two');
 });
@@ -66,6 +77,50 @@ test('serves status and ranged files', async () => {
     });
     assert.equal(response.status, 206);
     assert.equal(await response.text(), 'cde');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('keeps status POST successful when driver pack cache backfill rejects metadata', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-http-driverpack-test-'));
+  const statusRoot = path.join(root, 'status');
+  const cacheRoot = path.join(root, 'driverpacks');
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+    driverPackCache: {
+      enabled: true,
+      root: cacheRoot,
+      allowedHosts: ['downloads.dell.com'],
+    },
+  });
+
+  try {
+    await server.start();
+    const port = server.address.port;
+    const response = await fetch(`http://127.0.0.1:${port}/osdcloud/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        runId: 'driverpack-run',
+        stage: 'windows-driverpack-cache-request',
+        driverPacks: [{
+          fileName: '..\\evil.exe',
+          url: 'https://downloads.dell.com/FOLDER/evil.exe',
+        }],
+      }),
+    });
+    assert.equal(response.status, 204);
+
+    assert.equal(JSON.parse(fs.readFileSync(path.join(statusRoot, 'latest.json'), 'utf8')).stage, 'windows-driverpack-cache-request');
+    await waitFor(() => fs.existsSync(path.join(cacheRoot, 'driverpack-cache.jsonl')));
+    const manifest = fs.readFileSync(path.join(cacheRoot, 'driverpack-cache.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+    assert.equal(manifest[0].status, 'rejected');
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

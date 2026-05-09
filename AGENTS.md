@@ -399,6 +399,8 @@ Safety contract:
 - TUI v0.2.6 mouse interaction must allow clicking any visible panel to focus it. Mouse wheel scrolls the hovered panel, not the previously focused panel. Logs pause auto-follow when the user scrolls upward and resume when scrolled back to bottom or `End` is pressed.
 - TUI label tag parsing must not mutate blessed private line-cache fields such as `_clines`; call normal content parsing instead, because scrollable panels inspect label children during scroll-height calculation.
 - Keep `GET /osdcloud/status` backward-compatible as the latest single status event, and use `GET /osdcloud/status/runs` plus `runs-index.json` for multi-run fleet status.
+- Driver pack host-first cache is supported through `windows-driverpack-cache-request`: client Windows only reports `C:\Drivers\*.json` metadata, and host TUI downloads official driver packs into `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`. Do not add a client-side custom downloader and do not grant deployed Windows write access to the SMB share.
+- Driver pack cache safety rules: `fileName` must be a plain file name with no path separators or `..`; allowed extensions are `.exe`, `.cab`, `.zip`, and `.msi`; v1 allowed download host is `downloads.dell.com`; resolved destinations must remain under the cache root; never overwrite an existing non-empty cache file.
 - `Clear status files` must also remove `runs-index.json`, `*.summary.json`, `*.latest.json`, `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
 - Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.
 
@@ -410,6 +412,7 @@ Validation contract:
 - Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Multi-client TUI changes must include synthetic tests for at least two interleaved runs and must verify that one client does not overwrite another client's summary.
 - Screenshot behavior must preserve the status contract: `/osdcloud/status` stays JSON-only, `/osdcloud/screenshot` accepts PNG-only uploads capped at 5 MB, and PNG files remain local evidence rather than Git artifacts.
+- Driver pack cache changes must test validation failures, disallowed hosts, cache hits, download success/failure, and confirm status events still persist when cache backfill fails.
 - If deployment behavior changes inside `C:\OSDCloud` or WinPE, update the live files first, mount/commit `boot.wim` when needed, then run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts`.
 
 ## VM VM Regression Notes

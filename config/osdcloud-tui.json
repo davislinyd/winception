@@ -57,5 +57,12 @@
   "smb": {
     "share": "\\\\192.168.100.1\\OSDCloudiPXE",
     "imagePath": "\\\\192.168.100.1\\OSDCloudiPXE\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
+  },
+  "driverPackCache": {
+    "enabled": true,
+    "root": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\DriverPacks",
+    "allowedHosts": [
+      "downloads.dell.com"
+    ]
   }
 }

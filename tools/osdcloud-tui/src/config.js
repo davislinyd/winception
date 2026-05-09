@@ -190,6 +190,22 @@ export function validateConfig(config) {
     throw new Error('paths.expectedHttpFiles must be a non-empty array');
   }
 
+  if (config.driverPackCache?.enabled === true) {
+    if (!config.driverPackCache.root) {
+      throw new Error('driverPackCache.root is required when driver pack cache is enabled');
+    }
+
+    if (
+      config.driverPackCache.allowedHosts !== undefined
+      && (
+        !Array.isArray(config.driverPackCache.allowedHosts)
+        || config.driverPackCache.allowedHosts.length === 0
+      )
+    ) {
+      throw new Error('driverPackCache.allowedHosts must be a non-empty array when provided');
+    }
+  }
+
   return config;
 }
 

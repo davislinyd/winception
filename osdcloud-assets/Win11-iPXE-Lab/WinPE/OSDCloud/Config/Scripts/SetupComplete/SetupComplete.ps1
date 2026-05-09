@@ -75,6 +75,86 @@ function Send-DeploymentStatus {
     return $false
 }
 
+function Get-FirstObjectPropertyValue {
+    param(
+        [object] $InputObject,
+        [string[]] $Names
+    )
+
+    if ($null -eq $InputObject) {
+        return $null
+    }
+
+    foreach ($name in $Names) {
+        $property = $InputObject.PSObject.Properties[$name]
+        if ($property -and $null -ne $property.Value -and -not [string]::IsNullOrWhiteSpace([string] $property.Value)) {
+            return $property.Value
+        }
+    }
+
+    return $null
+}
+
+function Get-DriverPackCacheMetadata {
+    $driverRoot = 'C:\Drivers'
+    $driverPacks = @()
+
+    if (-not (Test-Path -LiteralPath $driverRoot -PathType Container)) {
+        return @()
+    }
+
+    $metadataFiles = @(Get-ChildItem -LiteralPath $driverRoot -Filter '*.json' -File -ErrorAction SilentlyContinue)
+    foreach ($metadataFile in $metadataFiles) {
+        try {
+            $metadata = Get-Content -LiteralPath $metadataFile.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            continue
+        }
+
+        $fileName = Get-FirstObjectPropertyValue -InputObject $metadata -Names @('fileName', 'FileName')
+        $url = Get-FirstObjectPropertyValue -InputObject $metadata -Names @('url', 'Url', 'URL')
+        if ([string]::IsNullOrWhiteSpace([string] $fileName) -or [string]::IsNullOrWhiteSpace([string] $url)) {
+            continue
+        }
+
+        $product = Get-FirstObjectPropertyValue -InputObject $metadata -Names @('product', 'Product')
+        $productList = @()
+        if ($null -ne $product) {
+            $productList = @($product) | Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) }
+        }
+
+        $driverPacks += [ordered]@{
+            manufacturer = Get-FirstObjectPropertyValue -InputObject $metadata -Names @('manufacturer', 'Manufacturer')
+            model = Get-FirstObjectPropertyValue -InputObject $metadata -Names @('model', 'Model')
+            product = @($productList)
+            name = Get-FirstObjectPropertyValue -InputObject $metadata -Names @('name', 'Name')
+            packageId = Get-FirstObjectPropertyValue -InputObject $metadata -Names @('packageId', 'PackageID', 'PackageId')
+            fileName = [string] $fileName
+            url = [string] $url
+            metadataPath = $metadataFile.FullName
+        }
+    }
+
+    return @($driverPacks)
+}
+
+function Send-DriverPackCacheRequest {
+    try {
+        $driverPacks = @(Get-DriverPackCacheMetadata)
+        if ($driverPacks.Count -eq 0) {
+            return $false
+        }
+
+        return (Send-DeploymentStatus -Stage 'windows-driverpack-cache-request' -Message "Requesting host driver pack cache backfill for $($driverPacks.Count) driver pack(s)." -Percent 95 -Extra @{
+            driverPacks = @($driverPacks)
+        })
+    }
+    catch {
+        return $false
+    }
+}
+
 function Install-DesktopReadyReporter {
     $programData = 'C:\ProgramData\OSDCloud'
     New-Item -ItemType Directory -Path $programData -Force | Out-Null
@@ -271,8 +351,10 @@ try {
     New-Item -ItemType Directory -Path 'C:\Users\Public\Desktop' -Force | Out-Null
     "OSDCloud desktop ready $(Get-Date -Format o)" | Out-File 'C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt' -Encoding ascii -Force
     $reporterPath = Install-DesktopReadyReporter
+    $driverPackCacheRequestSent = Send-DriverPackCacheRequest
     [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'SetupComplete finished; desktop ready reporter installed.' -Percent 96 -Extra @{
         reporterPath = $reporterPath
+        driverPackCacheRequestSent = $driverPackCacheRequestSent
     })
 }
 catch {

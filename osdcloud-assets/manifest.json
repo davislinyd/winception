@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-09T09:12:48.6306373Z",
+  "generatedAt": "2026-05-09T17:01:13.7575976Z",
   "sourceRoot": "C:\\OSDCloud",
   "assetsRoot": "C:\\Users\\Davis\\Documents\\New project\\osdcloud-assets",
   "hashLargeArtifacts": true,
@@ -48,9 +48,9 @@
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 12308,
-      "lastWriteTimeUtc": "2026-05-09T08:26:26.7576946Z",
-      "sha256": "85C5F7A2AE4C2DD5E49C3199476059099C23C9E7CC96D4B1168E51E768763562"
+      "length": 15247,
+      "lastWriteTimeUtc": "2026-05-09T16:59:10.3215446Z",
+      "sha256": "57B6F99703BA2189474F53EA76353BE4E6487E5472DCE5C4264A4187D6EC8AEC"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\osdcloud\\boot.ipxe",
@@ -136,9 +136,9 @@
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 12308,
-      "lastWriteTimeUtc": "2026-05-09T09:11:52.8799793Z",
-      "sha256": "85C5F7A2AE4C2DD5E49C3199476059099C23C9E7CC96D4B1168E51E768763562"
+      "length": 15247,
+      "lastWriteTimeUtc": "2026-05-09T16:59:10.3215446Z",
+      "sha256": "57B6F99703BA2189474F53EA76353BE4E6487E5472DCE5C4264A4187D6EC8AEC"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\MountReadOnly\\OSDCloud\\Report-OSDCloudProgress.ps1",
@@ -180,18 +180,18 @@
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\sources\\boot.wim",
       "exists": true,
       "reason": "generated WinPE boot image, rebuilt from versioned scripts",
-      "length": 615645589,
-      "lastWriteTimeUtc": "2026-05-09T09:11:57.8400142Z",
-      "sha256": "06FD3A91105526D1F45154115C08F241BE644E7E4C72AF93A6AA3774BD7E92A1",
+      "length": 617766263,
+      "lastWriteTimeUtc": "2026-05-09T17:00:28.1635708Z",
+      "sha256": "092B099F6FBF9EB930C1B0D5CCF6CCDA24245ED01B25C52870A44AB9C03E503F",
       "hashStatus": "sha256"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\osdcloud\\boot.wim",
       "exists": true,
       "reason": "published WinPE boot image hardlink/copy",
-      "length": 615645589,
-      "lastWriteTimeUtc": "2026-05-09T09:11:57.8400142Z",
-      "sha256": "06FD3A91105526D1F45154115C08F241BE644E7E4C72AF93A6AA3774BD7E92A1",
+      "length": 617766263,
+      "lastWriteTimeUtc": "2026-05-09T17:00:28.1635708Z",
+      "sha256": "092B099F6FBF9EB930C1B0D5CCF6CCDA24245ED01B25C52870A44AB9C03E503F",
       "hashStatus": "sha256"
     },
     {

@@ -9,6 +9,8 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-tui-smoke-'));
 const httpRoot = path.join(root, 'http');
 const tftpRoot = path.join(root, 'tftp');
 const statusRoot = path.join(httpRoot, 'status');
+const driverPackCacheRoot = path.join(root, 'driverpacks');
+const driverPackFileName = 'PA14250-YWNJX_Win11_1.0_A06.exe';
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
   'base64',
@@ -17,7 +19,19 @@ fs.mkdirSync(path.join(httpRoot, 'osdcloud'), { recursive: true });
 fs.mkdirSync(tftpRoot, { recursive: true });
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.ipxe'), '#!ipxe\n');
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.wim'), 'boot-image');
+fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'driverpack.exe'), 'driver-pack-smoke');
 fs.writeFileSync(path.join(tftpRoot, 'snponly.efi'), 'efi');
+
+async function waitFor(condition, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (condition()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.fail('Timed out waiting for smoke condition');
+}
 
 const httpServer = new MediaHttpServer({
   root: httpRoot,
@@ -25,6 +39,11 @@ const httpServer = new MediaHttpServer({
   port: 0,
   logPath: path.join(root, 'http.log'),
   statusRoot,
+  driverPackCache: {
+    enabled: true,
+    root: driverPackCacheRoot,
+    allowedHosts: ['127.0.0.1'],
+  },
 });
 
 const tftpServer = new TftpResponder({
@@ -58,6 +77,49 @@ try {
     body: JSON.stringify({
       runId: 'smoke-b',
       clientId: 'test-client-b',
+      computerName: 'DESKTOP-SMOKE',
+      stage: 'windows-driverpack-cache-request',
+      percent: 98,
+      driverPacks: [{
+        manufacturer: 'Dell',
+        model: 'Dell Pro 14 Premium',
+        product: ['0CE4'],
+        name: 'Dell Pro 14 Premium Windows 11 Driver Pack',
+        packageId: 'YWNJX',
+        fileName: driverPackFileName,
+        url: `${base}/osdcloud/driverpack.exe`,
+      }],
+    }),
+  });
+  assert.equal(response.status, 204);
+  await waitFor(() => fs.existsSync(path.join(driverPackCacheRoot, driverPackFileName)));
+  const driverPackManifest = fs.readFileSync(path.join(driverPackCacheRoot, 'driverpack-cache.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.equal(driverPackManifest[0].status, 'downloaded');
+  assert.equal(driverPackManifest[0].fileName, driverPackFileName);
+
+  response = await fetch(`${base}/osdcloud/status`);
+  assert.equal(response.status, 200);
+  const latest = await response.json();
+  assert.equal(latest.runId, 'smoke-b');
+  assert.equal(latest.stage, 'windows-driverpack-cache-request');
+
+  response = await fetch(`${base}/osdcloud/status/runs`);
+  assert.equal(response.status, 200);
+  const runs = await response.json();
+  assert.equal(runs.total, 2);
+  assert.equal(runs.counts.running, 2);
+  assert.equal(runs.counts.completed, 0);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(statusRoot, 'runs-index.json'), 'utf8')).total, 2);
+
+  response = await fetch(`${base}/osdcloud/status`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      runId: 'smoke-b',
+      clientId: 'test-client-b',
       stage: 'windows-desktop-ready',
       percent: 100,
       message: 'smoke test b',
@@ -65,19 +127,12 @@ try {
   });
   assert.equal(response.status, 204);
 
-  response = await fetch(`${base}/osdcloud/status`);
-  assert.equal(response.status, 200);
-  const latest = await response.json();
-  assert.equal(latest.runId, 'smoke-b');
-  assert.equal(latest.stage, 'windows-desktop-ready');
-
   response = await fetch(`${base}/osdcloud/status/runs`);
   assert.equal(response.status, 200);
-  const runs = await response.json();
-  assert.equal(runs.total, 2);
-  assert.equal(runs.counts.running, 1);
-  assert.equal(runs.counts.completed, 1);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(statusRoot, 'runs-index.json'), 'utf8')).total, 2);
+  const completedRuns = await response.json();
+  assert.equal(completedRuns.total, 2);
+  assert.equal(completedRuns.counts.running, 1);
+  assert.equal(completedRuns.counts.completed, 1);
 
   response = await fetch(`${base}/osdcloud/screenshot?runId=smoke-a&clientId=test-client-a&stage=winpe-start&source=smoke&timestamp=2026-05-09T08:00:00%2B08:00`, {
     method: 'POST',
