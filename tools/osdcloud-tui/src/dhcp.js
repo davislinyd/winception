@@ -212,7 +212,9 @@ export class DhcpResponder extends EventEmitter {
     super();
     this.config = config;
     this.socket = null;
-    this.leasePool = new LeasePool(config.leaseStartIp, config.leaseEndIp);
+    this.leasePool = null;
+    this.leasePoolKey = null;
+    this.refreshLeasePool();
   }
 
   get running() {
@@ -224,11 +226,22 @@ export class DhcpResponder extends EventEmitter {
     this.emit('log', line);
   }
 
+  refreshLeasePool() {
+    const nextKey = `${this.config.leaseStartIp}-${this.config.leaseEndIp}`;
+    if (this.leasePool && this.leasePoolKey === nextKey) {
+      return;
+    }
+
+    this.leasePool = new LeasePool(this.config.leaseStartIp, this.config.leaseEndIp);
+    this.leasePoolKey = nextKey;
+  }
+
   async start() {
     if (this.socket) {
       return;
     }
 
+    this.refreshLeasePool();
     this.socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
     this.socket.on('error', (error) => {
       this.log(`ERROR ${error.message}`);

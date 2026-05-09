@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { evaluateDhcpSubnet, evaluateServiceIp, getServiceBindIps, normalizeIpv4ServiceInterfaces, removeStatusFiles } from '../src/windows.js';
+import { evaluateDhcpSubnet, evaluateServiceIp, getServiceBindIps, normalizeIpv4ServiceInterfaces, preparePowerShellArgs, removeStatusFiles } from '../src/windows.js';
+
+test('prepends UTF-8 output settings to PowerShell command calls', () => {
+  const args = preparePowerShellArgs(['-NoProfile', '-Command', 'Get-NetAdapter | ConvertTo-Json']);
+  assert.match(args[2], /\[Console\]::OutputEncoding/);
+  assert.match(args[2], /Get-NetAdapter/);
+  assert.deepEqual(preparePowerShellArgs(['-NoProfile', '-File', 'script.ps1']), ['-NoProfile', '-File', 'script.ps1']);
+});
 
 test('clears status metadata and screenshot directory', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-clear-'));

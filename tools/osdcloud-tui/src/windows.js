@@ -10,9 +10,23 @@ function powershellExe() {
   return process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
 }
 
+const utf8OutputPrelude = "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false);";
+
+export function preparePowerShellArgs(args) {
+  const prepared = [...args];
+  const commandIndex = prepared.findIndex((arg) => ['-command', '-c'].includes(String(arg).toLowerCase()));
+  if (commandIndex >= 0 && commandIndex + 1 < prepared.length) {
+    const command = String(prepared[commandIndex + 1]);
+    if (!command.includes('[Console]::OutputEncoding')) {
+      prepared[commandIndex + 1] = `${utf8OutputPrelude}\n${command}`;
+    }
+  }
+  return prepared;
+}
+
 export function runPowerShell(args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(powershellExe(), args, {
+    const child = spawn(powershellExe(), preparePowerShellArgs(args), {
       windowsHide: true,
       ...options,
     });

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
 import {
+  DhcpResponder,
   LeasePool,
   broadcastAddress,
   getDhcpMessageType,
@@ -56,4 +59,29 @@ test('allocates requested IPs only inside the lease pool', () => {
   assert.equal(pool.getLease('AA-BB-CC-00-00-01', '192.168.100.0'), '192.168.100.201');
   assert.equal(pool.getLease('AA-BB-CC-00-00-02', '192.168.100.201'), '192.168.100.200');
   assert.equal(pool.getLease('AA-BB-CC-00-00-03', '10.0.0.10'), '192.168.100.0');
+});
+
+test('refreshes DHCP lease pool after endpoint lease range changes', () => {
+  const config = {
+    listenIp: '192.168.100.1',
+    leaseStartIp: '192.168.100.200',
+    leaseEndIp: '192.168.100.250',
+    subnetMask: '255.255.255.0',
+    router: '192.168.100.1',
+    dnsServers: ['1.1.1.1'],
+    bootFile: 'ipxeboot/x86_64-sb/snponly.efi',
+    ipxeBootUrl: 'http://192.168.100.1/osdcloud/boot.ipxe',
+    logPath: path.join(os.tmpdir(), 'osdcloud-dhcp-refresh-test.log'),
+  };
+  const responder = new DhcpResponder(config);
+  assert.equal(responder.leasePool.getLease('AA-BB-CC-00-00-01', null), '192.168.100.200');
+
+  config.listenIp = '192.168.100.1';
+  config.leaseStartIp = '192.168.100.200';
+  config.leaseEndIp = '192.168.100.250';
+  config.router = '192.168.100.1';
+  config.ipxeBootUrl = 'http://192.168.100.1/osdcloud/boot.ipxe';
+  responder.refreshLeasePool();
+
+  assert.equal(responder.leasePool.getLease('AA-BB-CC-00-00-01', null), '192.168.100.200');
 });
