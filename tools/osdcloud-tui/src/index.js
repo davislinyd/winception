@@ -8,6 +8,8 @@ import { RingBuffer, tailFile } from './logger.js';
 import { configurePhysicalNic, removeStatusFiles, runPreflight } from './windows.js';
 import { formatDeploymentStatus, formatScreenshotMetadata, readLatestScreenshot, readLatestStatus, readLatestSummary, readScreenshotMetadata, readStatusEvents, resolveDeploymentSummary, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
+import { computeLayout } from './layout.js';
+import { wrapLinesWithIndent } from './textWrap.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -18,12 +20,30 @@ const http = new MediaHttpServer(config.http);
 const runtimeLog = new RingBuffer(500);
 let preflightResults = [];
 let dialogOpen = false;
+let lastLayoutSignature = '';
+let wasTooSmall = false;
+let terminalDefaultsRestored = false;
+
+const terminalControl = {
+  alternateBuffer: '\x1b[?1049h',
+  clearScreenAndScrollback: '\x1b[H\x1b[2J\x1b[3J',
+  disableAutoWrap: '\x1b[?7l',
+  enableAutoWrap: '\x1b[?7h',
+  hideCursor: '\x1b[?25l',
+};
 
 const screen = blessed.screen({
   smartCSR: true,
+  resizeTimeout: 100,
   title: `OSDCloud iPXE TUI v${appVersion}`,
   fullUnicode: true,
 });
+
+screen.program.removeAllListeners('resize');
+screen.program.on('resize', handleTerminalResize);
+
+enterStableTerminal({ clear: true });
+process.once('exit', restoreTerminalDefaults);
 
 const title = blessed.box({
   top: 0,
@@ -31,6 +51,7 @@ const title = blessed.box({
   width: '100%',
   height: 3,
   tags: true,
+  wrap: false,
   style: { fg: 'white', bg: 'blue' },
   content: ` OSDCloud iPXE TUI v${appVersion} - physical laptop deployment host console`,
 });
@@ -43,6 +64,7 @@ const menu = blessed.list({
   keys: true,
   mouse: true,
   vi: true,
+  wrap: false,
   border: 'line',
   label: ' Actions ',
   style: {
@@ -71,6 +93,7 @@ const servicesBox = blessed.box({
   height: 13,
   border: 'line',
   tags: true,
+  wrap: false,
   label: ' Services ',
   style: { border: { fg: 'cyan' } },
 });
@@ -82,6 +105,7 @@ const deploymentBox = blessed.box({
   height: 13,
   border: 'line',
   tags: false,
+  wrap: false,
   label: ' Deployment ',
   style: { border: { fg: 'cyan' } },
 });
@@ -95,8 +119,8 @@ const preflightBox = blessed.box({
   scrollable: true,
   alwaysScroll: true,
   keys: true,
-  mouse: true,
   tags: true,
+  wrap: false,
   label: ' Preflight ',
   style: { border: { fg: 'cyan' } },
 });
@@ -109,8 +133,8 @@ const validationBox = blessed.box({
   border: 'line',
   scrollable: true,
   keys: true,
-  mouse: true,
   tags: true,
+  wrap: false,
   label: ' Validation ',
   style: { border: { fg: 'cyan' } },
 });
@@ -124,10 +148,22 @@ const logBox = blessed.log({
   scrollable: true,
   alwaysScroll: true,
   keys: true,
-  mouse: true,
   tags: true,
+  wrap: false,
   label: ' Logs ',
   style: { border: { fg: 'cyan' } },
+});
+
+const sizeWarningBox = blessed.box({
+  top: 3,
+  left: 0,
+  width: '100%',
+  height: '100%-3',
+  tags: false,
+  hidden: true,
+  align: 'center',
+  valign: 'middle',
+  style: { fg: 'yellow', bg: 'black' },
 });
 
 screen.append(title);
@@ -137,20 +173,109 @@ screen.append(deploymentBox);
 screen.append(preflightBox);
 screen.append(validationBox);
 screen.append(logBox);
+screen.append(sizeWarningBox);
 menu.focus();
+
+menu.removeAllListeners('element wheelup');
+menu.removeAllListeners('element wheeldown');
+
+screen.on('wheelup', () => renderAll());
+screen.on('wheeldown', () => renderAll());
+screen.program.setMouse({ vt200Mouse: true, sgrMouse: true, cellMotion: true }, true);
+
+function applyBoxLayout(element, spec) {
+  element.rtop = spec.top;
+  element.rleft = spec.left;
+  element.width = spec.width;
+  element.height = spec.height;
+  if (spec.hidden) {
+    element.hide();
+  } else {
+    element.show();
+  }
+}
+
+function applyLayout() {
+  const layout = computeLayout(screen.width, screen.height);
+  applyBoxLayout(title, layout.title);
+  title.setContent(` OSDCloud iPXE TUI v${appVersion} - physical laptop deployment host console`);
+
+  if (layout.tooSmall) {
+    for (const element of [menu, servicesBox, deploymentBox, preflightBox, validationBox, logBox]) {
+      element.hide();
+    }
+    applyBoxLayout(sizeWarningBox, layout.warning);
+    sizeWarningBox.setContent([
+      'Terminal window is too small for the OSDCloud iPXE TUI.',
+      '',
+      `Current : ${screen.width} columns x ${screen.height} rows`,
+      `Minimum : ${layout.minimum.columns} columns x ${layout.minimum.rows} rows`,
+      '',
+      'Resize the window to restore the locked dashboard layout.',
+    ].join('\n'));
+    return layout;
+  }
+
+  sizeWarningBox.hide();
+  applyBoxLayout(menu, layout.menu);
+  applyBoxLayout(servicesBox, layout.services);
+  applyBoxLayout(deploymentBox, layout.deployment);
+  applyBoxLayout(preflightBox, layout.preflight);
+  applyBoxLayout(validationBox, layout.validation);
+  applyBoxLayout(logBox, layout.logs);
+  return layout;
+}
+
+function layoutSignature(layout) {
+  return JSON.stringify(layout);
+}
+
+function writeTerminalControl(sequence) {
+  screen.program.output.write(sequence);
+}
+
+function enterStableTerminal({ clear = false } = {}) {
+  screen.program.isAlt = true;
+  writeTerminalControl([
+    terminalControl.alternateBuffer,
+    terminalControl.disableAutoWrap,
+    terminalControl.hideCursor,
+    clear ? terminalControl.clearScreenAndScrollback : '',
+  ].join(''));
+  screen.program.csr(0, Math.max(0, screen.height - 1));
+}
+
+function restoreTerminalDefaults() {
+  if (terminalDefaultsRestored) {
+    return;
+  }
+  terminalDefaultsRestored = true;
+  writeTerminalControl(terminalControl.enableAutoWrap);
+}
+
+function resetTerminalForFullRedraw() {
+  enterStableTerminal({ clear: true });
+  screen.realloc();
+}
+
+function innerWidth(element) {
+  return Math.max(1, element.width - element.iwidth);
+}
+
+function setWrappedContent(element, lines, indent = 2) {
+  element.setContent(wrapLinesWithIndent(lines, innerWidth(element), indent).join('\n'));
+}
 
 function addLog(message) {
   const line = `${new Date().toISOString()} ${message}`;
   runtimeLog.push(line);
-  logBox.log(line);
-  screen.render();
+  renderAll();
 }
 
 for (const [name, service] of [['DHCP', dhcp], ['TFTP', tftp], ['HTTP', http]]) {
   service.on('log', (line) => {
-    runtimeLog.push(line);
-    logBox.log(`[${name}] ${line}`);
-    screen.render();
+    runtimeLog.push(`[${name}] ${line}`);
+    renderAll();
   });
   service.on('error', (error) => addLog(`[${name}] ERROR ${error.message}`));
 }
@@ -180,18 +305,18 @@ function renderServices() {
 function renderDeployment() {
   const latest = readLatestStatus(config);
   const summary = resolveDeploymentSummary(config, latest, readLatestSummary(config));
-  deploymentBox.setContent(formatDeploymentStatus(latest, summary, readLatestScreenshot(config)).join('\n'));
+  setWrappedContent(deploymentBox, formatDeploymentStatus(latest, summary, readLatestScreenshot(config)));
 }
 
 function renderPreflight() {
   if (preflightResults.length === 0) {
-    preflightBox.setContent('Run preflight to validate adapter, files, ports, SMB, and status paths.');
+    setWrappedContent(preflightBox, ['Run preflight to validate adapter, files, ports, SMB, and status paths.']);
     return;
   }
-  preflightBox.setContent(preflightResults.map((item) => {
+  setWrappedContent(preflightBox, preflightResults.map((item) => {
     const mark = item.ok ? '{green-fg}OK{/green-fg}' : '{red-fg}FAIL{/red-fg}';
     return `${mark} ${item.name}${item.detail ? ` - ${item.detail}` : ''}`;
-  }).join('\n'));
+  }));
 }
 
 function renderValidation() {
@@ -201,7 +326,7 @@ function renderValidation() {
   });
   const statusTail = readStatusEvents(config, 6);
   const screenshotTail = readScreenshotMetadata(config, 3).map(formatScreenshotMetadata);
-  validationBox.setContent([
+  setWrappedContent(validationBox, [
     ...rows,
     '',
     'Recent screenshots:',
@@ -209,15 +334,38 @@ function renderValidation() {
     '',
     'Recent status events:',
     ...(statusTail.length ? statusTail : ['none']),
-  ].join('\n'));
+  ]);
 }
 
-function renderAll() {
+function renderLogs() {
+  setWrappedContent(logBox, runtimeLog.lines());
+  logBox.setScrollPerc(100);
+}
+
+function renderAll({ forceRedraw = false } = {}) {
+  const layout = applyLayout();
+  const signature = layoutSignature(layout);
+  const sizeModeChanged = layout.tooSmall !== wasTooSmall;
+  if (forceRedraw || signature !== lastLayoutSignature || sizeModeChanged) {
+    resetTerminalForFullRedraw();
+    lastLayoutSignature = signature;
+  }
+  wasTooSmall = layout.tooSmall;
+
+  if (layout.tooSmall) {
+    screen.render();
+    return;
+  }
   renderServices();
   renderDeployment();
   renderPreflight();
   renderValidation();
+  renderLogs();
   screen.render();
+}
+
+function handleTerminalResize() {
+  renderAll({ forceRedraw: true });
 }
 
 function confirmPrompt(message) {
@@ -354,6 +502,7 @@ async function quit() {
     return;
   }
   await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
+  restoreTerminalDefaults();
   screen.destroy();
   process.exit(0);
 }
@@ -386,7 +535,6 @@ for (const line of [
   ...tailFile(config.http.logPath, 5).map((line) => `[HTTP] ${line}`),
 ]) {
   runtimeLog.push(line);
-  logBox.log(line);
 }
 
 fs.mkdirSync(config.http.statusRoot, { recursive: true });
