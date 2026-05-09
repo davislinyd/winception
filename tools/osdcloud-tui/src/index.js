@@ -10,7 +10,7 @@ import { formatFleetClientRows, formatFleetCounts, formatFleetRunDetail, formatS
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
-import { focusOrder, formatPanelLabel, isShortcutHintKey, resolveFocusShortcutRequest, resolveTabFocusTarget } from './focusKeys.js';
+import { focusOrder, formatPanelLabel, resolveFocusShortcutRequest, resolveShortcutHintRequest, resolveTabFocusTarget } from './focusKeys.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -42,6 +42,7 @@ const terminalControl = {
 
 const horizontalPanelPadding = { left: 1, right: 1 };
 const panelLabelLeftInset = 1;
+const shortcutHintDurationMs = 1500;
 
 function panelLabel(text, shortcut = '') {
   return formatPanelLabel(text, shortcut, shortcutHintsVisible);
@@ -127,9 +128,12 @@ const servicesBox = blessed.box({
   height: 13,
   border: 'line',
   padding: horizontalPanelPadding,
+  keys: true,
+  mouse: true,
+  focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Services'),
+  label: panelLabel('Services', 'S'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -248,7 +252,7 @@ menu.focus();
 
 const panelLabelSpecs = [
   [menu, 'Actions', 'A'],
-  [servicesBox, 'Services', ''],
+  [servicesBox, 'Services', 'S'],
   [clientsBox, 'Clients', 'C'],
   [preflightBox, 'Preflight', 'P'],
   [detailsBox, 'Client Detail', 'D'],
@@ -258,9 +262,10 @@ const panelLabelSpecs = [
 
 const focusTargets = {
   actions: menu,
+  services: servicesBox,
   clients: clientsBox,
-  details: detailsBox,
   preflight: preflightBox,
+  details: detailsBox,
   validation: validationBox,
   logs: logBox,
 };
@@ -284,7 +289,6 @@ function applyFocusStyles() {
   for (const [targetId, element] of Object.entries(focusTargets)) {
     element.style.border.fg = targetId === focusedPanelId ? 'yellow' : 'cyan';
   }
-  servicesBox.style.border.fg = 'cyan';
 }
 
 function setPanelLabels() {
@@ -322,7 +326,7 @@ function activateShortcutHints() {
   shortcutHintsTimer = setTimeout(() => {
     shortcutHintsTimer = null;
     setShortcutHintsVisible(false);
-  }, 2000);
+  }, shortcutHintDurationMs);
   shortcutHintsTimer.unref?.();
 }
 
@@ -920,13 +924,13 @@ function handleFocusShortcut(key) {
   }
 }
 
-screen.key(['M-a', 'M-c', 'M-d', 'M-p', 'M-v', 'M-l'], (_ch, key) => {
+screen.key(['M-a', 'M-s', 'M-c', 'M-d', 'M-p', 'M-v', 'M-l'], (_ch, key) => {
   activateShortcutHints();
   handleFocusShortcut(key);
 });
 
 screen.on('keypress', (_ch, key) => {
-  if (isShortcutHintKey(key)) {
+  if (resolveShortcutHintRequest(key, { dialogOpen })) {
     activateShortcutHints();
   }
   if (key?.meta && !String(key.full ?? '').toLowerCase().startsWith('m-')) {

@@ -1,7 +1,8 @@
-export const focusOrder = ['actions', 'clients', 'details', 'preflight', 'validation', 'logs'];
+export const focusOrder = ['actions', 'services', 'clients', 'preflight', 'details', 'validation', 'logs'];
 
 export const focusShortcutMap = new Map([
   ['a', 'actions'],
+  ['s', 'services'],
   ['c', 'clients'],
   ['d', 'details'],
   ['p', 'preflight'],
@@ -42,11 +43,26 @@ export function isShortcutHintKey(key = {}) {
   return Boolean(key.meta) || key.name === 'escape' || full.startsWith('m-');
 }
 
-export function formatPanelLabel(title, shortcutKey = '', hintsVisible = false) {
-  const shortcut = shortcutKey
-    ? ` Alt+${hintsVisible ? `{underline}${shortcutKey}{/underline}` : shortcutKey}`
-    : '';
-  return `  ${title}${shortcut}  `;
+export function resolveShortcutHintRequest(key = {}, { dialogOpen = false } = {}) {
+  return !dialogOpen && isShortcutHintKey(key);
+}
+
+export function formatPanelLabel(title, mnemonic = '', hintsVisible = false) {
+  if (!hintsVisible || !mnemonic) {
+    return `  ${title}  `;
+  }
+
+  const index = title.toLowerCase().indexOf(String(mnemonic).toLowerCase());
+  if (index === -1) {
+    return `  ${title}  `;
+  }
+
+  const highlighted = [
+    title.slice(0, index),
+    `{underline}${title.slice(index, index + 1)}{/underline}`,
+    title.slice(index + 1),
+  ].join('');
+  return `  ${highlighted}  `;
 }
 
 export function isReverseTab(key = {}) {
