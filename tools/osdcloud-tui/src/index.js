@@ -76,7 +76,7 @@ function pinPanelLabel(element) {
     element._label.rleft = panelLabelLeftInset;
     // Labels need tags even when the panel body, such as Clients, stays tags:false.
     element._label.parseTags = true;
-    element._label._clines = null;
+    element._label.parseContent?.();
   }
 }
 
