@@ -395,6 +395,7 @@ Safety contract:
 - TUI v0.2.3 keyboard navigation must keep `Alt+A` Actions, `Alt+S` Services, `Alt+C` Clients, `Alt+D` Client Detail, `Alt+P` Preflight, `Alt+V` Validation, and `Alt+L` Logs. `Tab` cycles Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs, and `Shift+Tab` reverses that order.
 - TUI v0.2.3 labels must normally show only panel names. While Alt hint mode is active, underline the mnemonic letter inside each panel name. Keep label tag parsing enabled for all panel labels, including list panels such as `Clients`.
 - TUI v0.2.4 must detect physical Alt key hold on Windows with a host-side key-state watcher, so underlines appear when Alt alone is held, not only after `Alt+<letter>`. Focus changes and Alt hint visibility should render immediately; status/fleet refresh may stay debounced.
+- TUI v0.2.5 Alt shortcut handling must be Caps Lock tolerant: register and resolve both lowercase and uppercase blessed meta names such as `M-c` and `M-C`, because Caps Lock can change the terminal-reported key name while the intended shortcut remains `Alt+C`.
 - Keep `GET /osdcloud/status` backward-compatible as the latest single status event, and use `GET /osdcloud/status/runs` plus `runs-index.json` for multi-run fleet status.
 - `Clear status files` must also remove `runs-index.json`, `*.summary.json`, `*.latest.json`, `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
 - Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.

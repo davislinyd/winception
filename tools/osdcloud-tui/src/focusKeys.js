@@ -10,6 +10,11 @@ export const focusShortcutMap = new Map([
   ['l', 'logs'],
 ]);
 
+export const focusShortcutKeyNames = Array.from(focusShortcutMap.keys()).flatMap((key) => [
+  `M-${key}`,
+  `M-${key.toUpperCase()}`,
+]);
+
 export function normalizeFocusTarget(value) {
   return focusOrder.includes(value) ? value : focusOrder[0];
 }

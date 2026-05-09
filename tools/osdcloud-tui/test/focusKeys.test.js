@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   focusOrder,
+  focusShortcutKeyNames,
   formatPanelLabel,
   isReverseTab,
   isShortcutHintKey,
@@ -14,12 +15,26 @@ import {
 
 test('resolves Alt shortcuts from blessed full key names', () => {
   assert.equal(resolveFocusShortcut({ full: 'M-a' }), 'actions');
+  assert.equal(resolveFocusShortcut({ full: 'M-A' }), 'actions');
   assert.equal(resolveFocusShortcut({ full: 'M-s' }), 'services');
+  assert.equal(resolveFocusShortcut({ full: 'M-S' }), 'services');
   assert.equal(resolveFocusShortcut({ full: 'M-c' }), 'clients');
+  assert.equal(resolveFocusShortcut({ full: 'M-C' }), 'clients');
   assert.equal(resolveFocusShortcut({ full: 'M-d' }), 'details');
+  assert.equal(resolveFocusShortcut({ full: 'M-D' }), 'details');
   assert.equal(resolveFocusShortcut({ full: 'M-p' }), 'preflight');
+  assert.equal(resolveFocusShortcut({ full: 'M-P' }), 'preflight');
   assert.equal(resolveFocusShortcut({ full: 'M-v' }), 'validation');
+  assert.equal(resolveFocusShortcut({ full: 'M-V' }), 'validation');
   assert.equal(resolveFocusShortcut({ full: 'M-l' }), 'logs');
+  assert.equal(resolveFocusShortcut({ full: 'M-L' }), 'logs');
+});
+
+test('registers uppercase Alt key names for Caps Lock terminals', () => {
+  assert.ok(focusShortcutKeyNames.includes('M-c'));
+  assert.ok(focusShortcutKeyNames.includes('M-C'));
+  assert.ok(focusShortcutKeyNames.includes('M-s'));
+  assert.ok(focusShortcutKeyNames.includes('M-S'));
 });
 
 test('resolves Alt shortcuts from meta key fields', () => {
@@ -62,6 +77,7 @@ test('formats panel labels with temporary shortcut underlines', () => {
 test('detects shortcut hint key events', () => {
   assert.equal(isShortcutHintKey({ meta: true, name: 'c' }), true);
   assert.equal(isShortcutHintKey({ full: 'M-c' }), true);
+  assert.equal(isShortcutHintKey({ full: 'M-C' }), true);
   assert.equal(isShortcutHintKey({ name: 'escape' }), true);
   assert.equal(isShortcutHintKey({ name: 'c' }), false);
   assert.equal(resolveShortcutHintRequest({ full: 'M-c' }, { dialogOpen: true }), false);

@@ -10,7 +10,7 @@ import { formatFleetClientRows, formatFleetCounts, formatFleetRunDetail, formatS
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
-import { focusOrder, formatPanelLabel, resolveFocusShortcutRequest, resolveShortcutHintRequest, resolveTabFocusTarget } from './focusKeys.js';
+import { focusOrder, focusShortcutKeyNames, formatPanelLabel, resolveFocusShortcutRequest, resolveShortcutHintRequest, resolveTabFocusTarget } from './focusKeys.js';
 import { startWindowsAltKeyWatcher } from './altKeyWatcher.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
@@ -943,16 +943,15 @@ function handleFocusShortcut(key) {
   }
 }
 
-screen.key(['M-a', 'M-s', 'M-c', 'M-d', 'M-p', 'M-v', 'M-l'], (_ch, key) => {
+screen.key(focusShortcutKeyNames, (_ch, key) => {
   activateShortcutHints();
   handleFocusShortcut(key);
 });
 
 screen.on('keypress', (_ch, key) => {
-  if (resolveShortcutHintRequest(key, { dialogOpen })) {
+  const isShortcutRequest = resolveShortcutHintRequest(key, { dialogOpen });
+  if (isShortcutRequest) {
     activateShortcutHints();
-  }
-  if (key?.meta && !String(key.full ?? '').toLowerCase().startsWith('m-')) {
     handleFocusShortcut(key);
   }
 });
