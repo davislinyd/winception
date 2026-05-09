@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { formatDeploymentStatus, formatFleetClientRows, formatFleetRunDetail, resolveDeploymentSummary } from '../src/status.js';
+import {
+  formatDeploymentStatus,
+  formatFleetClientRows,
+  formatFleetRunDetail,
+  formatStatusEventLine,
+  resolveDeploymentSummary,
+} from '../src/status.js';
 
 test('formats missing deployment status with visible placeholder', () => {
   const lines = formatDeploymentStatus(null);
@@ -170,4 +176,22 @@ test('formats selected fleet run detail and screenshot metadata', () => {
   assert.match(text, /Windows  : 2026-05-09T01:12:00Z/);
   assert.match(text, /Warnings : run-id-sanitized/);
   assert.match(text, /Latest Shot: winpe-start/);
+});
+
+test('formats long status events into compact TUI lines', () => {
+  const line = JSON.stringify({
+    receivedAt: '2026-05-09T18:35:42.036Z',
+    clientId: '9VDYLD4',
+    stage: 'apply-image',
+    percent: 42,
+    message: 'x'.repeat(1000),
+    largePayload: 'y'.repeat(3000),
+  });
+
+  const formatted = formatStatusEventLine(line, 120);
+
+  assert.ok(formatted.length <= 120);
+  assert.match(formatted, /9VDYLD4/);
+  assert.match(formatted, /apply-image/);
+  assert.match(formatted, /42%/);
 });

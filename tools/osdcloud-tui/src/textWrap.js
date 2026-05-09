@@ -96,13 +96,16 @@ export function wrapLineWithIndent(line, width, indent = 2) {
     return [''];
   }
 
-  while (visibleWidth(remaining) > (output.length === 0 ? firstWidth : continuationWidth)) {
+  while (remaining.length > 0) {
     const targetWidth = output.length === 0 ? firstWidth : continuationWidth;
     const [head, tail] = splitLineAtWidth(remaining, targetWidth);
     if (!head || tail === remaining) {
       break;
     }
     output.push(`${output.length === 0 ? '' : continuationPrefix}${head}`);
+    if (!tail) {
+      return output;
+    }
     remaining = tail;
   }
 

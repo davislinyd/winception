@@ -274,6 +274,23 @@ export function formatScreenshotMetadata(screenshot) {
   return `${stage} ${timestamp}${filePath ? ` ${filePath}` : ''}`.trim();
 }
 
+export function formatStatusEventLine(line, maxLength = 180) {
+  try {
+    const event = JSON.parse(line);
+    const percent = Number.isFinite(event.percent) ? ` ${event.percent}%` : '';
+    const message = compact(event.message, 80);
+    return compact([
+      event.receivedAt ?? event.timestamp ?? '',
+      event.clientId ?? '',
+      event.stage ?? '',
+      percent.trim(),
+      message,
+    ].filter(Boolean).join(' '), maxLength);
+  } catch {
+    return compact(line, maxLength);
+  }
+}
+
 export function formatFleetCounts(counts = {}) {
   return [
     `running=${counts.running ?? 0}`,

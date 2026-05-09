@@ -6,7 +6,7 @@ import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
 import { getServiceBindIps, listIpv4ServiceInterfaces, removeStatusFiles, runPreflight, syncIpxeEndpoint } from './windows.js';
-import { formatFleetClientRows, formatFleetCounts, formatFleetRunDetail, formatScreenshotMetadata, readFleetStatus, readRecentScreenshotMetadata, readRunLatestScreenshot, readStatusEvents, summarizeValidation } from './status.js';
+import { formatFleetClientRows, formatFleetCounts, formatFleetRunDetail, formatScreenshotMetadata, formatStatusEventLine, readFleetStatus, readRecentScreenshotMetadata, readRunLatestScreenshot, readStatusEvents, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
@@ -611,7 +611,7 @@ function renderValidation() {
     const mark = item.ok ? '{green-fg}OK{/green-fg}' : '{red-fg}FAIL{/red-fg}';
     return `${mark} ${item.name}${item.detail ? ` - ${item.detail}` : ''}`;
   });
-  const statusTail = readStatusEvents(config, 6);
+  const statusTail = readStatusEvents(config, 6).map((line) => formatStatusEventLine(line));
   const screenshotTail = readRecentScreenshotMetadata(config, 3).map(formatScreenshotMetadata);
   setWrappedContent(validationBox, [
     `Fleet: total=${fleet.total} ${formatFleetCounts(fleet.counts)}`,
