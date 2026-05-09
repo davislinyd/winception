@@ -13,7 +13,7 @@ import { wrapLinesWithIndent } from './textWrap.js';
 import { focusOrder, focusShortcutKeyNames, formatPanelLabel, resolveFocusShortcutRequest, resolveShortcutHintRequest, resolveTabFocusTarget } from './focusKeys.js';
 import { startWindowsAltKeyWatcher } from './altKeyWatcher.js';
 import { nextLogAutoFollowState, resolveMouseFocusTarget, wheelDeltaForAction } from './mouseInteractions.js';
-import { ensureKeyboardInput } from './keyboardInput.js';
+import { bindFallbackKeyboardInput, ensureKeyboardInput } from './keyboardInput.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -35,6 +35,8 @@ let shortcutHintsVisible = false;
 let shortcutHintsTimer = null;
 let altKeyWatcher = null;
 let logAutoFollow = true;
+let observedKeypressCount = 0;
+let stopKeyboardFallback = null;
 
 const horizontalPanelPadding = { left: 1, right: 1 };
 const panelLabelLeftInset = 1;
@@ -996,6 +998,7 @@ screen.key(focusShortcutKeyNames, (_ch, key) => {
 });
 
 screen.on('keypress', (_ch, key) => {
+  observedKeypressCount += 1;
   const isShortcutRequest = resolveShortcutHintRequest(key, { dialogOpen });
   if (isShortcutRequest) {
     activateShortcutHints();
@@ -1028,6 +1031,9 @@ process.on('SIGINT', () => {
 });
 
 ensureKeyboardInput(screen, menu);
+stopKeyboardFallback = bindFallbackKeyboardInput(screen, {
+  getObservedKeypressCount: () => observedKeypressCount,
+});
 
 setInterval(() => {
   requestRender();
@@ -1046,6 +1052,7 @@ altKeyWatcher = startWindowsAltKeyWatcher({
   onError: (message) => runtimeLog.push(`[KEY] Alt watcher: ${message}`),
 });
 process.once('exit', () => altKeyWatcher?.stop());
+process.once('exit', () => stopKeyboardFallback?.());
 
 fs.mkdirSync(config.http.statusRoot, { recursive: true });
 renderAll({ forceRedraw: true });

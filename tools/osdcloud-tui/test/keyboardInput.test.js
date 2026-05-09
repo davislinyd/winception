@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ensureKeyboardInput } from '../src/keyboardInput.js';
+import { bindFallbackKeyboardInput, ensureKeyboardInput, parseRawKeypresses } from '../src/keyboardInput.js';
 
 test('enables blessed keys and resumes raw stdin', () => {
   const calls = [];
@@ -55,4 +55,77 @@ test('does not reset raw mode when stdin is already raw', () => {
     ['enableKeys'],
     ['resume'],
   ]);
+});
+
+test('parses raw terminal key sequences', () => {
+  assert.deepEqual(
+    parseRawKeypresses(Buffer.from('\x1b[A\x1b[B\r\t\x03q')),
+    [
+      { ch: undefined, key: { name: 'up', full: 'up' } },
+      { ch: undefined, key: { name: 'down', full: 'down' } },
+      { ch: '\r', key: { name: 'enter', full: 'enter' } },
+      { ch: '\t', key: { name: 'tab', full: 'tab' } },
+      { ch: '\x03', key: { name: 'c', ctrl: true, full: 'C-c' } },
+      { ch: 'q', key: { name: 'q', shift: false, full: 'q' } },
+    ],
+  );
+});
+
+test('parses shift-tab and Alt mnemonic raw sequences', () => {
+  assert.deepEqual(
+    parseRawKeypresses('\x1b[Z\x1bc'),
+    [
+      { ch: undefined, key: { name: 'tab', shift: true, full: 'S-tab' } },
+      { ch: 'c', key: { name: 'c', meta: true, full: 'M-c' } },
+    ],
+  );
+});
+
+test('ignores unhandled CSI sequences such as mouse input', () => {
+  assert.deepEqual(parseRawKeypresses('\x1b[<0;10;10M'), []);
+});
+
+test('fallback emits keypresses only when blessed observed none', () => {
+  const emitted = [];
+  let observed = 0;
+  const input = {
+    listeners: new Map(),
+    on(event, handler) {
+      this.listeners.set(event, handler);
+    },
+    off(event, handler) {
+      if (this.listeners.get(event) === handler) {
+        this.listeners.delete(event);
+      }
+    },
+  };
+  const screen = {
+    program: {
+      input,
+      emit(event, ch, key) {
+        emitted.push([event, ch, key.full]);
+      },
+    },
+  };
+  const queued = [];
+  const unbind = bindFallbackKeyboardInput(screen, {
+    getObservedKeypressCount: () => observed,
+    defer: (callback) => queued.push(callback),
+  });
+
+  input.listeners.get('data')('\x1b[A');
+  queued.shift()();
+
+  assert.deepEqual(emitted, [
+    ['keypress', undefined, 'up'],
+    ['key up', undefined, 'up'],
+  ]);
+
+  input.listeners.get('data')('\x1b[B');
+  observed += 1;
+  queued.shift()();
+  assert.equal(emitted.length, 2);
+
+  unbind();
+  assert.equal(input.listeners.has('data'), false);
 });

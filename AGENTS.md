@@ -384,6 +384,7 @@ Use the TUI for the active physical-laptop path unless the user explicitly asks 
 Safety contract:
 
 - Start the TUI from elevated PowerShell.
+- Keep the repo `.npmrc` foreground/silent behavior for `npm run tui`; the TUI is interactive and depends on foreground stdio rather than npm script banner output.
 - Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter.
 - Use `Select service interface` when the service bind interface/IP must change. It must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist `config\osdcloud-tui.json`, recalculate DHCP lease pool / subnet mask / router for the selected prefix, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
 - After changing the selected service interface, preflight must fail if the DHCP lease range or router is outside the selected service IP prefix. Treat this as a stale/manual config guard; the TUI selection path should update DHCP settings automatically.
