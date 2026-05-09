@@ -10,6 +10,7 @@ import {
   getRequestedIp,
   isIpxeClient,
   ipv4ToUInt32,
+  normalizeMacAddress,
   uint32ToIPv4,
 } from '../src/dhcp.js';
 
@@ -61,6 +62,22 @@ test('allocates requested IPs only inside the lease pool', () => {
   assert.equal(pool.getLease('AA-BB-CC-00-00-03', '10.0.0.10'), '192.168.100.0');
 });
 
+test('normalizes MAC address formats', () => {
+  assert.equal(normalizeMacAddress('aa:bb:cc:dd:ee:ff'), 'AA-BB-CC-DD-EE-FF');
+  assert.equal(normalizeMacAddress('AABB.CCDD.EEFF'), 'AA-BB-CC-DD-EE-FF');
+  assert.throws(() => normalizeMacAddress('bad-mac'), /Invalid MAC/);
+});
+
+test('honors DHCP reservations outside the dynamic lease pool', () => {
+  const pool = new LeasePool('192.168.100.200', '192.168.100.0', [
+    { mac: 'AA-BB-CC-DD-EE-FF', ip: '192.168.100.115' },
+  ]);
+
+  assert.equal(pool.getLease('AA-BB-CC-DD-EE-FF', null), '192.168.100.115');
+  assert.equal(pool.getLease('AA-BB-CC-00-00-01', '192.168.100.115'), '192.168.100.200');
+  assert.equal(pool.getLease('AA-BB-CC-00-00-02', null), '192.168.100.201');
+});
+
 test('refreshes DHCP lease pool after endpoint lease range changes', () => {
   const config = {
     listenIp: '192.168.100.1',
@@ -81,7 +98,9 @@ test('refreshes DHCP lease pool after endpoint lease range changes', () => {
   config.leaseEndIp = '192.168.100.250';
   config.router = '192.168.100.1';
   config.ipxeBootUrl = 'http://192.168.100.1/osdcloud/boot.ipxe';
+  config.reservations = [{ mac: 'AA-BB-CC-DD-EE-FF', ip: '192.168.100.115' }];
   responder.refreshLeasePool();
 
   assert.equal(responder.leasePool.getLease('AA-BB-CC-00-00-01', null), '192.168.100.200');
+  assert.equal(responder.leasePool.getLease('AA-BB-CC-DD-EE-FF', null), '192.168.100.115');
 });

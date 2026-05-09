@@ -122,6 +122,38 @@ test('applies isolated interface endpoint using server IP as DHCP router', () =>
   assert.equal(config.dhcp.router, '192.168.100.1');
 });
 
+test('validates DHCP reservations', () => {
+  const config = {
+    adapter: { interfaceAlias: 'Ethernet', serverIp: '192.168.100.1', prefixLength: 24 },
+    dhcp: {
+      listenIp: '192.168.100.1',
+      leaseStartIp: '192.168.100.200',
+      leaseEndIp: '192.168.100.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.100.1',
+      reservations: [{ mac: 'AA-BB-CC-DD-EE-FF', ip: '192.168.100.115' }],
+      bootFile: 'snponly.efi',
+      ipxeBootUrl: 'http://192.168.100.1/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\PXE-TFTP', listenIp: '192.168.100.1' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.1', statusRoot: 'C:\\status' },
+    paths: {
+      expectedHttpFiles: ['osdcloud\\boot.ipxe'],
+      imageNamePattern: 'install.esd',
+    },
+    smb: {
+      share: '\\\\192.168.100.1\\OSDCloudiPXE',
+      imagePath: '\\\\192.168.100.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+    },
+  };
+
+  assert.equal(validateConfig(config), config);
+  config.dhcp.reservations = [{ mac: 'bad-mac', ip: '192.168.100.115' }];
+  assert.throws(() => validateConfig(config), /Invalid DHCP reservation MAC/);
+  config.dhcp.reservations = [{ mac: 'AA-BB-CC-DD-EE-FF', ip: '10.0.0.115' }];
+  assert.throws(() => validateConfig(config), /outside/);
+});
+
 test('saves public config without losing existing fields', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-config-save-'));
   const configPath = path.join(root, 'osdcloud-tui.json');

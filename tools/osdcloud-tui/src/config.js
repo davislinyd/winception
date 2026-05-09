@@ -74,7 +74,7 @@ function subnetInfo(address, prefixLength) {
 
 function isInSubnet(address, serverIp, prefixLength) {
   const { network, mask } = subnetInfo(serverIp, prefixLength);
-  return (ipv4ToUInt32(address) & mask) === network;
+  return ((ipv4ToUInt32(address) & mask) >>> 0) === network;
 }
 
 function subnetMask(prefixLength) {
@@ -188,6 +188,30 @@ export function validateConfig(config) {
 
   if (!Array.isArray(config.paths.expectedHttpFiles) || config.paths.expectedHttpFiles.length === 0) {
     throw new Error('paths.expectedHttpFiles must be a non-empty array');
+  }
+
+  if (config.dhcp.reservations !== undefined) {
+    if (!Array.isArray(config.dhcp.reservations)) {
+      throw new Error('dhcp.reservations must be an array when provided');
+    }
+
+    const reservedIps = new Set();
+    for (const reservation of config.dhcp.reservations) {
+      const mac = String(reservation.mac ?? reservation.Mac ?? reservation.macAddress ?? reservation.MacAddress ?? '');
+      const ip = String(reservation.ip ?? reservation.IP ?? reservation.ipAddress ?? reservation.IPAddress ?? '');
+      const normalizedMac = mac.replace(/[^0-9A-Fa-f]/gu, '');
+      if (!/^[0-9A-Fa-f]{12}$/u.test(normalizedMac)) {
+        throw new Error(`Invalid DHCP reservation MAC address: ${mac}`);
+      }
+      ipv4ToUInt32(ip);
+      if (!isInSubnet(ip, config.dhcp.listenIp, config.adapter.prefixLength)) {
+        throw new Error(`DHCP reservation ${ip} is outside ${config.dhcp.listenIp}/${config.adapter.prefixLength}`);
+      }
+      if (reservedIps.has(ip)) {
+        throw new Error(`Duplicate DHCP reservation IP address: ${ip}`);
+      }
+      reservedIps.add(ip);
+    }
   }
 
   if (config.driverPackCache?.enabled === true) {

@@ -19,6 +19,13 @@
       "1.1.1.1",
       "8.8.8.8"
     ],
+    "reservations": [
+      {
+        "mac": "AA-BB-CC-DD-EE-FF",
+        "ip": "192.168.100.115",
+        "description": "Physical Dell PXE client"
+      }
+    ],
     "bootFile": "ipxeboot/x86_64-sb/snponly.efi",
     "ipxeBootUrl": "http://192.168.100.1/osdcloud/boot.ipxe",
     "leaseSeconds": 3600,

@@ -84,6 +84,14 @@ export function getClientMac(packet) {
   return [...bytes].map((byte) => byte.toString(16).toUpperCase().padStart(2, '0')).join('-');
 }
 
+export function normalizeMacAddress(mac) {
+  const hex = String(mac ?? '').replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+  if (hex.length !== 12) {
+    throw new Error(`Invalid MAC address: ${mac}`);
+  }
+  return hex.match(/.{2}/g).join('-');
+}
+
 export function isIpxeClient(packet) {
   if (getDhcpOptionValue(packet, 175)) {
     return true;
@@ -125,13 +133,26 @@ function pxeVendorOption(serverIp) {
 }
 
 export class LeasePool {
-  constructor(startIp, endIp) {
+  constructor(startIp, endIp, reservations = []) {
     this.start = ipv4ToUInt32(startIp);
     this.end = ipv4ToUInt32(endIp);
     if (this.end < this.start) {
       throw new Error(`LeaseEndIp must be greater than or equal to LeaseStartIp: ${startIp} - ${endIp}`);
     }
     this.byMac = new Map();
+    this.reservations = new Map();
+    this.reservedIps = new Map();
+
+    for (const reservation of reservations ?? []) {
+      const mac = normalizeMacAddress(reservation.mac ?? reservation.Mac ?? reservation.macAddress ?? reservation.MacAddress);
+      const ip = String(reservation.ip ?? reservation.IP ?? reservation.ipAddress ?? reservation.IPAddress ?? '').trim();
+      ipv4ToUInt32(ip);
+      if (this.reservedIps.has(ip) && this.reservedIps.get(ip) !== mac) {
+        throw new Error(`DHCP reservation IP ${ip} is assigned to multiple MAC addresses`);
+      }
+      this.reservations.set(mac, ip);
+      this.reservedIps.set(ip, mac);
+    }
   }
 
   hasAddress(address) {
@@ -143,8 +164,13 @@ export class LeasePool {
   }
 
   isLeased(address, requestMac) {
+    const normalizedMac = normalizeMacAddress(requestMac);
+    if (this.reservedIps.has(address) && this.reservedIps.get(address) !== normalizedMac) {
+      return true;
+    }
+
     for (const [mac, leasedAddress] of this.byMac.entries()) {
-      if (mac !== requestMac && leasedAddress === address) {
+      if (mac !== normalizedMac && leasedAddress === address) {
         return true;
       }
     }
@@ -152,19 +178,26 @@ export class LeasePool {
   }
 
   getLease(mac, requestedIp) {
-    if (this.byMac.has(mac)) {
-      return this.byMac.get(mac);
+    const normalizedMac = normalizeMacAddress(mac);
+    const reservedIp = this.reservations.get(normalizedMac);
+    if (reservedIp) {
+      this.byMac.set(normalizedMac, reservedIp);
+      return reservedIp;
     }
 
-    if (this.hasAddress(requestedIp) && !this.isLeased(requestedIp, mac)) {
-      this.byMac.set(mac, requestedIp);
+    if (this.byMac.has(normalizedMac)) {
+      return this.byMac.get(normalizedMac);
+    }
+
+    if (this.hasAddress(requestedIp) && !this.isLeased(requestedIp, normalizedMac)) {
+      this.byMac.set(normalizedMac, requestedIp);
       return requestedIp;
     }
 
     for (let candidate = this.start; candidate <= this.end; candidate += 1) {
       const candidateIp = uint32ToIPv4(candidate >>> 0);
-      if (!this.isLeased(candidateIp, mac)) {
-        this.byMac.set(mac, candidateIp);
+      if (!this.isLeased(candidateIp, normalizedMac)) {
+        this.byMac.set(normalizedMac, candidateIp);
         return candidateIp;
       }
     }
@@ -227,12 +260,12 @@ export class DhcpResponder extends EventEmitter {
   }
 
   refreshLeasePool() {
-    const nextKey = `${this.config.leaseStartIp}-${this.config.leaseEndIp}`;
+    const nextKey = `${this.config.leaseStartIp}-${this.config.leaseEndIp}-${JSON.stringify(this.config.reservations ?? [])}`;
     if (this.leasePool && this.leasePoolKey === nextKey) {
       return;
     }
 
-    this.leasePool = new LeasePool(this.config.leaseStartIp, this.config.leaseEndIp);
+    this.leasePool = new LeasePool(this.config.leaseStartIp, this.config.leaseEndIp, this.config.reservations);
     this.leasePoolKey = nextKey;
   }
 
