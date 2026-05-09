@@ -70,6 +70,85 @@ $route = Get-NetRoute -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -Dest
   return JSON.parse(result.stdout);
 }
 
+function toPowerShellArray(values) {
+  return values.map((value) => `'${String(value).replaceAll("'", "''")}'`).join(', ');
+}
+
+function asArray(value) {
+  if (value === undefined || value === null || value === '') {
+    return [];
+  }
+  return Array.isArray(value) ? value : [value];
+}
+
+export function getServiceBindIps(config) {
+  return [...new Set([
+    config.http?.host,
+    config.dhcp?.listenIp,
+    config.tftp?.listenIp,
+  ].filter((ip) => ip && ip !== '0.0.0.0'))];
+}
+
+export function evaluateServiceIp(config, states, targetIp) {
+  const expectedPrefix = config.adapter?.serverIp === targetIp && config.adapter?.prefixLength !== undefined
+    ? Number(config.adapter.prefixLength)
+    : undefined;
+  const matches = states.filter((state) => state.TargetIp === targetIp);
+  const good = matches.find((state) => (
+    state.Status === 'Up'
+    && (!state.AddressState || state.AddressState === 'Preferred')
+    && (expectedPrefix === undefined || Number(state.PrefixLength) === expectedPrefix)
+  ));
+
+  if (good) {
+    return pass(
+      `Service IP ${targetIp}`,
+      `${good.InterfaceAlias} ${good.IPAddress}/${good.PrefixLength}`,
+    );
+  }
+
+  const expected = expectedPrefix === undefined ? targetIp : `${targetIp}/${expectedPrefix}`;
+  if (matches.length === 0) {
+    return fail(`Service IP ${targetIp}`, `not assigned to any IPv4 interface; expected ${expected}`);
+  }
+
+  return fail(
+    `Service IP ${targetIp}`,
+    matches.map((state) => (
+      `${state.InterfaceAlias} status=${state.Status} actual=${state.IPAddress}/${state.PrefixLength} state=${state.AddressState || 'unknown'} expected=${expected}`
+    )).join('; '),
+  );
+}
+
+export async function getServiceIpStates(config) {
+  const bindIps = getServiceBindIps(config);
+  if (bindIps.length === 0) {
+    return [];
+  }
+  const script = `
+$targetIps = @(${toPowerShellArray(bindIps)})
+$addresses = foreach ($targetIp in $targetIps) {
+  Get-NetIPAddress -AddressFamily IPv4 -IPAddress $targetIp -ErrorAction SilentlyContinue | ForEach-Object {
+    $adapter = Get-NetAdapter -InterfaceIndex $_.InterfaceIndex -ErrorAction SilentlyContinue
+    [pscustomobject]@{
+      TargetIp = $targetIp
+      IPAddress = $_.IPAddress
+      PrefixLength = $_.PrefixLength
+      AddressState = $_.AddressState.ToString()
+      InterfaceAlias = $_.InterfaceAlias
+      InterfaceIndex = $_.InterfaceIndex
+      Status = if ($adapter) { $adapter.Status.ToString() } else { $null }
+      MacAddress = if ($adapter) { $adapter.MacAddress } else { $null }
+      InterfaceDescription = if ($adapter) { $adapter.InterfaceDescription } else { $null }
+    }
+  }
+}
+@($addresses) | ConvertTo-Json -Compress
+`;
+  const result = await runPowerShell(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
+  return asArray(JSON.parse(result.stdout || '[]'));
+}
+
 export async function configurePhysicalNic(config) {
   const scriptPath = config.paths.physicalNicScript;
   const args = [
@@ -133,13 +212,15 @@ export async function runPreflight(config, services = {}) {
   }
 
   try {
-    const adapter = await getAdapterState(config);
-    const expected = `${config.adapter.serverIp}/${config.adapter.prefixLength}`;
-    const actual = adapter.IPv4 ? `${adapter.IPv4}/${adapter.PrefixLength}` : 'no IPv4';
-    const ok = adapter.Status === 'Up' && adapter.IPv4 === config.adapter.serverIp && Number(adapter.PrefixLength) === Number(config.adapter.prefixLength);
-    checks.push(ok ? pass('Adapter', `${adapter.Name} ${actual}`) : fail('Adapter', `${adapter.Name} status=${adapter.Status} actual=${actual} expected=${expected}`));
+    const serviceIpStates = await getServiceIpStates(config);
+    const bindIps = getServiceBindIps(config);
+    if (bindIps.length === 0) {
+      checks.push(pass('Service IP', 'services bind all IPv4 interfaces'));
+    } else {
+      checks.push(...bindIps.map((targetIp) => evaluateServiceIp(config, serviceIpStates, targetIp)));
+    }
   } catch (error) {
-    checks.push(fail('Adapter', error.message));
+    checks.push(fail('Service IP', error.message));
   }
 
   for (const relativePath of config.paths.expectedHttpFiles) {

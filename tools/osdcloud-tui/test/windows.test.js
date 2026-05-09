@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { removeStatusFiles } from '../src/windows.js';
+import { evaluateServiceIp, getServiceBindIps, removeStatusFiles } from '../src/windows.js';
 
 test('clears status metadata and screenshot directory', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-clear-'));
@@ -26,6 +26,53 @@ test('clears status metadata and screenshot directory', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('service IP preflight accepts any up interface carrying the service address', () => {
+  const config = {
+    adapter: { serverIp: '192.168.100.100', prefixLength: 24 },
+    dhcp: { listenIp: '192.168.100.100' },
+    tftp: { listenIp: '192.168.100.100' },
+    http: { host: '192.168.100.100' },
+  };
+  const states = [{
+    TargetIp: '192.168.100.100',
+    IPAddress: '192.168.100.100',
+    PrefixLength: 24,
+    AddressState: 'Preferred',
+    InterfaceAlias: 'Wi-Fi',
+    Status: 'Up',
+  }];
+
+  assert.deepEqual(getServiceBindIps(config), ['192.168.100.100']);
+  assert.equal(evaluateServiceIp(config, states, '192.168.100.100').ok, true);
+});
+
+test('service IP preflight rejects disabled or wrong-prefix matches', () => {
+  const config = {
+    adapter: { serverIp: '192.168.100.100', prefixLength: 24 },
+    dhcp: { listenIp: '192.168.100.100' },
+    tftp: { listenIp: '192.168.100.100' },
+    http: { host: '192.168.100.100' },
+  };
+
+  assert.equal(evaluateServiceIp(config, [{
+    TargetIp: '192.168.100.100',
+    IPAddress: '192.168.100.100',
+    PrefixLength: 24,
+    AddressState: 'Preferred',
+    InterfaceAlias: 'Ethernet',
+    Status: 'Disabled',
+  }], '192.168.100.100').ok, false);
+
+  assert.equal(evaluateServiceIp(config, [{
+    TargetIp: '192.168.100.100',
+    IPAddress: '192.168.100.100',
+    PrefixLength: 16,
+    AddressState: 'Preferred',
+    InterfaceAlias: 'Wi-Fi',
+    Status: 'Up',
+  }], '192.168.100.100').ok, false);
 });
 
 test('desktop-ready reporter returns success only after status upload', () => {

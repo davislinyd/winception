@@ -5,7 +5,7 @@ import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
-import { configurePhysicalNic, removeStatusFiles, runPreflight } from './windows.js';
+import { configurePhysicalNic, getServiceBindIps, removeStatusFiles, runPreflight } from './windows.js';
 import { formatDeploymentStatus, formatScreenshotMetadata, readLatestScreenshot, readLatestStatus, readLatestSummary, readScreenshotMetadata, readStatusEvents, resolveDeploymentSummary, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
@@ -313,14 +313,21 @@ function serviceState(service) {
 }
 
 function renderServices() {
+  const serviceIps = getServiceBindIps(config);
+  const serviceIpText = serviceIps.length === 0
+    ? 'all IPv4 interfaces'
+    : serviceIps.map((ip) => (
+      ip === config.adapter.serverIp ? `${ip}/${config.adapter.prefixLength}` : ip
+    )).join(', ');
+
   servicesBox.setContent([
     `Version     : ${appVersion}`,
     `HTTP/status : ${serviceState(http)} ${config.http.host}:${config.http.port}`,
     `TFTP        : ${serviceState(tftp)} ${config.tftp.listenIp}:${config.tftp.port}`,
     `DHCP        : ${serviceState(dhcp)} ${config.dhcp.listenIp}:${config.dhcp.listenPort}`,
     '',
-    `Adapter     : ${config.adapter.interfaceAlias}`,
-    `Host IP     : ${config.adapter.serverIp}/${config.adapter.prefixLength}`,
+    `Service IP  : ${serviceIpText}`,
+    `Config NIC  : ${config.adapter.interfaceAlias}`,
   ].join('\n'));
 }
 

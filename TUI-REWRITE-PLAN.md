@@ -42,7 +42,7 @@ npm run tui
    - 舊 PowerShell/Node helper 先保留作 fallback，不在 v1 刪除。
 
 5. TUI 畫面
-   - Preflight：檢查管理員權限、網卡 IP、必要 boot files、SMB image、port 67/69/80、status 目錄。
+   - Preflight：檢查管理員權限、服務綁定 IP 是否存在於任一張啟用中的 IPv4 介面、必要 boot files、SMB image、port 67/69/80、status 目錄。
    - Services：啟停 DHCP/TFTP/HTTP，顯示 socket 狀態。
    - Deployment：顯示 runId、clientId、stage、percent、elapsed、最新訊息。
    - Logs：即時顯示 DHCP/TFTP/HTTP/status events。

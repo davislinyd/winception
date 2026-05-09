@@ -353,7 +353,7 @@ Use the TUI for the active physical-laptop path unless the user explicitly asks 
 Safety contract:
 
 - Start the TUI from elevated PowerShell.
-- Run preflight before starting services.
+- Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter; `Configure physical NIC` remains an optional helper for setting the configured adapter alias, not a required identity check.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
 - Keep confirmation gates for NIC configuration, DHCP/PXE service start, and status-file deletion.
 - `Clear status files` must also remove `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
