@@ -26,7 +26,6 @@ let dialogOpen = false;
 let lastLayoutSignature = '';
 let lastActionItemsSignature = '';
 let wasTooSmall = false;
-let terminalDefaultsRestored = false;
 let selectedRunId = null;
 let currentFleetRuns = [];
 let renderTimer = null;
@@ -35,14 +34,6 @@ let shortcutHintsVisible = false;
 let shortcutHintsTimer = null;
 let altKeyWatcher = null;
 let logAutoFollow = true;
-
-const terminalControl = {
-  alternateBuffer: '\x1b[?1049h',
-  clearScreenAndScrollback: '\x1b[H\x1b[2J\x1b[3J',
-  disableAutoWrap: '\x1b[?7l',
-  enableAutoWrap: '\x1b[?7h',
-  hideCursor: '\x1b[?25l',
-};
 
 const horizontalPanelPadding = { left: 1, right: 1 };
 const panelLabelLeftInset = 1;
@@ -87,11 +78,7 @@ const screen = blessed.screen({
   fullUnicode: true,
 });
 
-screen.program.removeAllListeners('resize');
-screen.program.on('resize', handleTerminalResize);
-
-enterStableTerminal({ clear: true });
-process.once('exit', restoreTerminalDefaults);
+screen.on('resize', handleTerminalResize);
 
 const title = blessed.box({
   top: 0,
@@ -492,31 +479,7 @@ function layoutSignature(layout) {
   return JSON.stringify(layout);
 }
 
-function writeTerminalControl(sequence) {
-  screen.program.output.write(sequence);
-}
-
-function enterStableTerminal({ clear = false } = {}) {
-  screen.program.isAlt = true;
-  writeTerminalControl([
-    terminalControl.alternateBuffer,
-    terminalControl.disableAutoWrap,
-    terminalControl.hideCursor,
-    clear ? terminalControl.clearScreenAndScrollback : '',
-  ].join(''));
-  screen.program.csr(0, Math.max(0, screen.height - 1));
-}
-
-function restoreTerminalDefaults() {
-  if (terminalDefaultsRestored) {
-    return;
-  }
-  terminalDefaultsRestored = true;
-  writeTerminalControl(terminalControl.enableAutoWrap);
-}
-
 function resetTerminalForFullRedraw() {
-  enterStableTerminal({ clear: true });
   screen.realloc();
 }
 
@@ -991,7 +954,6 @@ async function quit() {
   }
   altKeyWatcher?.stop();
   await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
-  restoreTerminalDefaults();
   screen.destroy();
   process.exit(0);
 }
@@ -1077,4 +1039,6 @@ altKeyWatcher = startWindowsAltKeyWatcher({
 process.once('exit', () => altKeyWatcher?.stop());
 
 fs.mkdirSync(config.http.statusRoot, { recursive: true });
-renderAll();
+renderAll({ forceRedraw: true });
+const startupRedrawTimer = setTimeout(() => renderAll({ forceRedraw: true }), 75);
+startupRedrawTimer.unref?.();
