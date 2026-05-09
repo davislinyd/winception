@@ -391,7 +391,8 @@ Safety contract:
 - Do not add a TUI `Configure physical NIC` action. If Windows adapter IP assignment must be changed, keep it as an explicit out-of-TUI script step such as `tools\Set-IpxePhysicalNic.ps1`.
 - Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
 - The individual `Start HTTP/status`, `Start TFTP`, and `Start DHCP` actions are service toggles; when a service is running, the same action must become `Stop ...` and shut that service down.
-- TUI v0.2.0 must show multi-client deployment state as a fleet view: `Clients` is a scrollable table of run status/client/run/stage/percent/last seen/elapsed, `Client Detail` shows the selected run, `Validation` shows fleet counts plus boot evidence, and `Tab` switches focus between Actions and Clients.
+- TUI v0.2.0 must show multi-client deployment state as a fleet view: `Clients` is a scrollable table of run status/client/run/stage/percent/last seen/elapsed, `Client Detail` shows the selected run, and `Validation` shows fleet counts plus boot evidence.
+- TUI v0.2.1 keyboard navigation must keep `Alt+A` Actions, `Alt+C` Clients, `Alt+D` Client Detail, `Alt+P` Preflight, `Alt+V` Validation, and `Alt+L` Logs. `Tab` cycles forward through those focusable panels and `Shift+Tab` cycles backward. Services remains an informational panel with no shortcut.
 - Keep `GET /osdcloud/status` backward-compatible as the latest single status event, and use `GET /osdcloud/status/runs` plus `runs-index.json` for multi-run fleet status.
 - `Clear status files` must also remove `runs-index.json`, `*.summary.json`, `*.latest.json`, `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
 - Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.

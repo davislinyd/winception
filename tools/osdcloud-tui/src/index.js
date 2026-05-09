@@ -10,6 +10,7 @@ import { formatFleetClientRows, formatFleetCounts, formatFleetRunDetail, formatS
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
+import { focusOrder, resolveFocusShortcutRequest, resolveTabFocusTarget } from './focusKeys.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -27,6 +28,7 @@ let terminalDefaultsRestored = false;
 let selectedRunId = null;
 let currentFleetRuns = [];
 let renderTimer = null;
+let focusedPanelId = 'actions';
 
 const terminalControl = {
   alternateBuffer: '\x1b[?1049h',
@@ -39,8 +41,9 @@ const terminalControl = {
 const horizontalPanelPadding = { left: 1, right: 1 };
 const panelLabelLeftInset = 1;
 
-function panelLabel(text) {
-  return `  ${text}  `;
+function panelLabel(text, shortcut = '') {
+  const suffix = shortcut ? ` ${shortcut}` : '';
+  return `  ${text}${suffix}  `;
 }
 
 function serviceActionLabel(service, label) {
@@ -99,11 +102,12 @@ const menu = blessed.list({
   height: '100%-3',
   keys: true,
   mouse: true,
+  focusable: true,
   vi: true,
   wrap: false,
   border: 'line',
   padding: horizontalPanelPadding,
-  label: panelLabel('Actions'),
+  label: panelLabel('Actions', 'Alt+A'),
   style: {
     selected: { bg: 'blue', fg: 'white' },
     item: { fg: 'white' },
@@ -134,10 +138,11 @@ const clientsBox = blessed.list({
   padding: horizontalPanelPadding,
   keys: true,
   mouse: true,
+  focusable: true,
   vi: true,
   tags: false,
   wrap: false,
-  label: panelLabel('Clients'),
+  label: panelLabel('Clients', 'Alt+C'),
   style: {
     selected: { bg: 'blue', fg: 'white' },
     item: { fg: 'white' },
@@ -155,9 +160,10 @@ const preflightBox = blessed.box({
   scrollable: true,
   alwaysScroll: true,
   keys: true,
+  focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Preflight'),
+  label: panelLabel('Preflight', 'Alt+P'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -170,9 +176,10 @@ const detailsBox = blessed.box({
   padding: horizontalPanelPadding,
   scrollable: true,
   keys: true,
+  focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Client Detail'),
+  label: panelLabel('Client Detail', 'Alt+D'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -185,9 +192,10 @@ const validationBox = blessed.box({
   padding: horizontalPanelPadding,
   scrollable: true,
   keys: true,
+  focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Validation'),
+  label: panelLabel('Validation', 'Alt+V'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -201,9 +209,10 @@ const logBox = blessed.log({
   scrollable: true,
   alwaysScroll: true,
   keys: true,
+  focusable: true,
   tags: true,
   wrap: false,
-  label: panelLabel('Logs'),
+  label: panelLabel('Logs', 'Alt+L'),
   style: { border: { fg: 'cyan' } },
 });
 
@@ -232,6 +241,44 @@ for (const element of [menu, servicesBox, clientsBox, preflightBox, detailsBox, 
   pinPanelLabel(element);
 }
 menu.focus();
+
+const focusTargets = {
+  actions: menu,
+  clients: clientsBox,
+  details: detailsBox,
+  preflight: preflightBox,
+  validation: validationBox,
+  logs: logBox,
+};
+
+function setFocusedPanel(targetId, { focus = true } = {}) {
+  if (!focusOrder.includes(targetId)) {
+    return;
+  }
+  const element = focusTargets[targetId];
+  if (!element) {
+    return;
+  }
+  focusedPanelId = targetId;
+  if (focus) {
+    element.focus();
+  }
+  requestRender();
+}
+
+function applyFocusStyles() {
+  for (const [targetId, element] of Object.entries(focusTargets)) {
+    element.style.border.fg = targetId === focusedPanelId ? 'yellow' : 'cyan';
+  }
+  servicesBox.style.border.fg = 'cyan';
+}
+
+for (const [targetId, element] of Object.entries(focusTargets)) {
+  element.on('focus', () => {
+    focusedPanelId = targetId;
+    requestRender();
+  });
+}
 
 menu.removeAllListeners('element wheelup');
 menu.removeAllListeners('element wheeldown');
@@ -496,6 +543,7 @@ function renderAll({ forceRedraw = false } = {}) {
   renderPreflight();
   renderValidation();
   renderLogs();
+  applyFocusStyles();
   screen.render();
 }
 
@@ -809,16 +857,28 @@ clientsBox.on('select', (_item, index) => {
   requestRender();
 });
 
-screen.key(['tab'], () => {
-  if (dialogOpen) {
-    return;
+function handleFocusShortcut(key) {
+  const target = resolveFocusShortcutRequest(key, { dialogOpen });
+  if (target) {
+    setFocusedPanel(target);
   }
-  if (screen.focused === clientsBox) {
-    menu.focus();
-  } else {
-    clientsBox.focus();
+}
+
+screen.key(['M-a', 'M-c', 'M-d', 'M-p', 'M-v', 'M-l'], (_ch, key) => {
+  handleFocusShortcut(key);
+});
+
+screen.on('keypress', (_ch, key) => {
+  if (key?.meta && !String(key.full ?? '').toLowerCase().startsWith('m-')) {
+    handleFocusShortcut(key);
   }
-  requestRender();
+});
+
+screen.key(['tab', 'S-tab'], (_ch, key) => {
+  const target = resolveTabFocusTarget(focusedPanelId, key, { dialogOpen });
+  if (target) {
+    setFocusedPanel(target);
+  }
 });
 
 screen.key(['r'], () => {
