@@ -11,6 +11,7 @@ import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
 import { focusOrder, formatPanelLabel, resolveFocusShortcutRequest, resolveShortcutHintRequest, resolveTabFocusTarget } from './focusKeys.js';
+import { startWindowsAltKeyWatcher } from './altKeyWatcher.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -31,6 +32,7 @@ let renderTimer = null;
 let focusedPanelId = 'actions';
 let shortcutHintsVisible = false;
 let shortcutHintsTimer = null;
+let altKeyWatcher = null;
 
 const terminalControl = {
   alternateBuffer: '\x1b[?1049h',
@@ -282,7 +284,7 @@ function setFocusedPanel(targetId, { focus = true } = {}) {
   if (focus) {
     element.focus();
   }
-  requestRender();
+  requestRender({ immediate: true });
 }
 
 function applyFocusStyles() {
@@ -303,7 +305,7 @@ function setShortcutHintsVisible(visible) {
     return;
   }
   shortcutHintsVisible = visible;
-  requestRender();
+  requestRender({ immediate: true });
 }
 
 function clearShortcutHints() {
@@ -330,10 +332,26 @@ function activateShortcutHints() {
   shortcutHintsTimer.unref?.();
 }
 
+function setAltKeyPressed(isPressed) {
+  if (dialogOpen) {
+    clearShortcutHints();
+    return;
+  }
+  if (isPressed) {
+    if (shortcutHintsTimer) {
+      clearTimeout(shortcutHintsTimer);
+      shortcutHintsTimer = null;
+    }
+    setShortcutHintsVisible(true);
+  } else {
+    clearShortcutHints();
+  }
+}
+
 for (const [targetId, element] of Object.entries(focusTargets)) {
   element.on('focus', () => {
     focusedPanelId = targetId;
-    requestRender();
+    requestRender({ immediate: true });
   });
 }
 
@@ -428,13 +446,13 @@ function setWrappedContent(element, lines, indent = 2) {
   element.setContent(wrapLinesWithIndent(lines, innerWidth(element), indent).join('\n'));
 }
 
-function requestRender({ forceRedraw = false } = {}) {
-  if (forceRedraw) {
+function requestRender({ forceRedraw = false, immediate = false } = {}) {
+  if (forceRedraw || immediate) {
     if (renderTimer) {
       clearTimeout(renderTimer);
       renderTimer = null;
     }
-    renderAll({ forceRedraw: true });
+    renderAll({ forceRedraw });
     return;
   }
 
@@ -887,6 +905,7 @@ async function quit() {
   if ((dhcp.running || tftp.running || http.running) && !(await confirmPrompt('Stop services and quit?'))) {
     return;
   }
+  altKeyWatcher?.stop();
   await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
   restoreTerminalDefaults();
   screen.destroy();
@@ -967,6 +986,12 @@ for (const line of [
 ]) {
   runtimeLog.push(line);
 }
+
+altKeyWatcher = startWindowsAltKeyWatcher({
+  onChange: setAltKeyPressed,
+  onError: (message) => runtimeLog.push(`[KEY] Alt watcher: ${message}`),
+});
+process.once('exit', () => altKeyWatcher?.stop());
 
 fs.mkdirSync(config.http.statusRoot, { recursive: true });
 renderAll();

@@ -338,7 +338,7 @@ TUI 設定檔：
 C:\Users\Davis\Documents\New project\config\osdcloud-tui.json
 ```
 
-TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/status/runs` fleet API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。v0.2.0 起，`Clients` 區塊會以 scrollable table 顯示多台 client / run 的 status、client、run、stage、percent、last seen 與 elapsed；`Client Detail` 區塊顯示選定 run 的 start / WinPE end / Windows start / final end、最後訊息與最新截圖 metadata。v0.2.3 起，panel label 常態只顯示 Actions、Services、Clients、Client Detail、Preflight、Validation、Logs；按下 `Alt` 時會短暫替可用快捷字母加底線。可用 `Alt+A`、`Alt+S`、`Alt+C`、`Alt+D`、`Alt+P`、`Alt+V`、`Alt+L` 直接切換到對應區塊，或按 `Tab` / `Shift+Tab` 依序循環 Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs。Clients 聚焦時可用方向鍵選擇要查看的 run。
+TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/status/runs` fleet API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。v0.2.0 起，`Clients` 區塊會以 scrollable table 顯示多台 client / run 的 status、client、run、stage、percent、last seen 與 elapsed；`Client Detail` 區塊顯示選定 run 的 start / WinPE end / Windows start / final end、最後訊息與最新截圖 metadata。v0.2.4 起，panel label 常態只顯示 Actions、Services、Clients、Client Detail、Preflight、Validation、Logs；按住 `Alt` 時會立即替可用快捷字母加底線，放開 `Alt` 時移除底線。可用 `Alt+A`、`Alt+S`、`Alt+C`、`Alt+D`、`Alt+P`、`Alt+V`、`Alt+L` 直接切換到對應區塊，或按 `Tab` / `Shift+Tab` 依序循環 Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs。Clients 聚焦時可用方向鍵選擇要查看的 run。
 舊部署殘留的 status 只會當作 previous run 顯示，不會被標為 running；開始新的 PXE 部署後，新的 `winpe-start` 會加入 Clients 清單，不會覆蓋其他 client 的 run summary。
 
 使用原則：
