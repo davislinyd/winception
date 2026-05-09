@@ -17,6 +17,18 @@
 - 時區為 `Taipei Standard Time`
 - 停用 OOBE 更新檢查
 
+## 流程分界
+
+本 workspace 有兩條部署路徑，不能混用：
+
+| 路徑 | 用途 | Host endpoint | 入口 | 驗證意義 |
+| --- | --- | --- | --- | --- |
+| 實體筆電 iPXE | Active path，用來驗證真實大量部署 | `乙太網路 3` / `192.168.100.100` | `npm run tui` | 可作為實體部署證據 |
+| VM VM iPXE | Regression path，用來快速驗證 WinPE、OOBE、status callback | `Ethernet` / `192.168.100.1` | `node .\tools\osdcloud-tui\src\headless.js` 或 TUI | 只證明 VM regression，不代表實體筆電路徑已準備好 |
+| ISO VM | Historical path，用來驗證 ISO zero-touch | `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso` | VM DVD/ISO boot | 只保留為歷史證據 |
+
+切換路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-tui.json` 與 `osdcloud-assets`。不要把 VM 的 `192.168.100.1` endpoint 當成實體筆電設定，也不要把實體筆電的 `192.168.100.100` endpoint 當成 vSwitch VM 設定。
+
 歷史 ISO 驗證 VM：
 
 ```text
@@ -130,13 +142,13 @@ iPXE HTTP root：
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 ```
 
-iPXE 版 WinPE 使用的 Windows 11 ESD 來源：
+實體筆電 iPXE 版 WinPE 使用的 Windows 11 ESD 來源：
 
 ```text
 \\192.168.100.100\OSDCloudiPXE\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
 ```
 
-## iPXE 網路安裝流程
+## 實體筆電 iPXE 流程
 
 這條流程的重點是：實體筆電不需要 USB 或 ISO，直接用 UEFI PXE 啟動 iPXE，再由 iPXE 用 HTTP 載入 OSDCloud WinPE。WinPE 進入後掛載 `\\192.168.100.100\OSDCloudiPXE`，直接用該 SMB share 上的 Windows 11 ESD 套用 `Index 6`，避免每台機器再把 5GB ESD 下載到 WinPE 暫存目錄。
 
@@ -172,6 +184,12 @@ iPXE 版 WinPE 使用的 Windows 11 ESD 來源：
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
 
+若目前 endpoint 留在 VM 測試狀態，先切回實體筆電：
+
+```powershell
+.\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '乙太網路 3' -ServerIp '192.168.100.100' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts
+```
+
 設定實體網卡並啟動 PXE helper：
 
 ```powershell
@@ -183,6 +201,36 @@ powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\OSDCloud\Win11-iPXE-Lab\
 powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1'
 node 'C:\OSDCloud\Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs'
 ```
+
+## VM VM 回歸流程
+
+這條流程只用來驗證 VM regression。它使用 VM `vSwitch` 與 `192.168.100.1/24`，不應作為實體筆電部署 runbook。
+
+VM 回歸用途：
+
+- 快速確認 iPXE first stage、HTTP WinPE、SMB direct image、OOBE injection、SetupComplete、desktop-ready callback 是否仍可端到端完成
+- 在不碰實體筆電的情況下重跑 Windows 11 zero-touch 邏輯
+- 驗證文件或工具變更沒有破壞已知 VM path
+
+VM 回歸前切到 vSwitch endpoint：
+
+```powershell
+.\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'Ethernet' -ServerIp '192.168.100.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts
+```
+
+VM 回歸可用 headless services：
+
+```powershell
+node .\tools\osdcloud-tui\src\headless.js
+```
+
+VM 回歸注意事項：
+
+- VM 使用 `vSwitch` / `192.168.100.1` / `\\192.168.100.1\OSDCloudiPXE`
+- 成功條件仍是 `windows-desktop-ready`、`davis` 桌面、OOBE registry 正確、HTTP log 沒有 zh-TW ESD `HEAD` / `GET`
+- `osdcloud-finished` 後不要強制關機，讓 WinPE 自然 `wpeutil reboot`
+- 測試結束後停止 headless/TUI services，避免 DHCP responder 留著
+- 回到實體筆電前必須切回 `乙太網路 3` / `192.168.100.100`
 
 OSDCloud 進度回報會由 Node HTTP server 接收，並寫入：
 
@@ -388,12 +436,10 @@ Edit-OSDCloudWinPE `
 New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
 ```
 
-## 驗證重點
+## 共通 Windows 完成條件
 
 部署完成後，應確認：
 
-- `ImageFileSource` 指向 `D:\OSDCloud\OS\...zh-tw.esd`
-- `ImageFileUrl` 為空
 - `C:\OSDCloud\Logs\DavisOobeInjected.txt` 存在
 - `C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt` 存在
 - `ExplorerRunning=True`
@@ -402,7 +448,14 @@ New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
 - `SkipUserOOBE=1`
 - `NoAutoUpdate=1`
 
-iPXE 網路安裝還要確認：
+ISO VM 還要確認：
+
+- `ImageFileSource` 指向 `D:\OSDCloud\OS\...zh-tw.esd`
+- `ImageFileUrl` 為空
+
+## 實體筆電 iPXE 驗證重點
+
+實體筆電部署還要確認：
 
 - 測試筆電沒有使用 USB/ISO
 - HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`，且沒有 zh-TW ESD `HEAD` / `GET`
@@ -411,6 +464,21 @@ iPXE 網路安裝還要確認：
 - `ImageFileDestination.PSDrive.DisplayRoot` 為 `\\192.168.100.100\OSDCloudiPXE`
 - `OSImageIndex=6`
 - 硬碟第一次開機直接進入 `davis` 桌面，不停在 OOBE
+
+## VM VM 驗證重點
+
+VM 回歸完成後，應確認：
+
+- VM 網卡接在 `vSwitch`
+- VM endpoint 使用 `192.168.100.1`
+- HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`
+- 本次 run window 沒有 zh-TW ESD `HEAD` / `GET`
+- `DeploymentStatus.share` 為 `\\192.168.100.1\OSDCloudiPXE`
+- `DeploymentStatus.imagePath` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`
+- `windows-desktop-ready` 回報成功
+- PowerShell Direct 驗證 `DESKTOP-...\davis`、Explorer、OOBE registry、版本、語系、時區、網路
+
+VM 結果只能作為 regression evidence。要宣告實體筆電 path 可用，仍必須跑實體筆電 iPXE 流程。
 
 目前 caveat：
 

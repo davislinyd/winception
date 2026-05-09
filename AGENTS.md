@@ -6,6 +6,32 @@ This workspace documents and validates a Windows 11 zero-touch deployment lab us
 
 The working target is a repeatable OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE.
 
+## Path Separation Rules
+
+There are two live-looking but separate paths. Treat them as mutually exclusive until the user explicitly asks to switch.
+
+Physical-laptop path:
+
+- This is the active production-like validation path.
+- Use host wired adapter `乙太網路 3`, service IP `192.168.100.100`, DHCP leases `192.168.100.200-250`, and SMB share `\\192.168.100.100\OSDCloudiPXE`.
+- Use `npm run tui` unless the user explicitly requests lower-level helper scripts.
+- Do not use VM, `vSwitch`, `192.168.100.1`, VMConnect, PowerShell Direct, or `tools\osdcloud-tui\src\headless.js` as evidence for this path.
+
+VM VM regression path:
+
+- Use this only when the user explicitly asks for VM, VM, vSwitch, or regression validation.
+- Use `Ethernet`, service IP `192.168.100.1`, DHCP leases `192.168.100.200-250`, and SMB share `\\192.168.100.1\OSDCloudiPXE`.
+- `tools\osdcloud-tui\src\headless.js` is allowed for VM regression automation, but it must be stopped after the test so DHCP does not keep responding.
+- VM success proves the WinPE/OOBE/status workflow still works in VM. It does not prove the physical-laptop path is ready.
+- VM evidence must not overwrite or replace the `Latest physical TUI validation evidence` block.
+
+Endpoint switching:
+
+- Before physical-laptop validation, switch back with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '乙太網路 3' -ServerIp '192.168.100.100' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- Before vSwitch VM regression, switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'Ethernet' -ServerIp '192.168.100.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- After either switch, keep `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, and `osdcloud-assets` aligned with the live endpoint state.
+- Document physical results under physical-laptop sections and VM results under VM/VM regression sections. Do not mix VM timings, vSwitch IPs, or PowerShell Direct validation into the physical-laptop evidence block.
+
 Previously validated VM paths:
 
 - ISO path: VM VM boots from `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso`
@@ -84,7 +110,7 @@ C:\Users\Davis\Documents\New project\tools\Set-OsdCloudIpxeEndpoint.ps1
 C:\Users\Davis\Documents\New project\tools\osdcloud-tui\src\headless.js
 ```
 
-iPXE SMB image source:
+Physical-laptop iPXE SMB image source:
 
 ```text
 Share: \\192.168.100.100\OSDCloudiPXE
@@ -115,7 +141,7 @@ Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.
 - Historical VM note: VM blocks changing the Secure Boot template after vTPM initialization. If a VM was initialized with the PXE template and must hard-boot Windows with `MicrosoftWindows`, preserve the VHDX and recreate the VM configuration before enabling vTPM.
 - The live deployment files are under `C:\OSDCloud`, not only in this repo. After changing deployment behavior, run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts` so `osdcloud-assets` contains the current scripts, embedded WinPE `Config\Scripts`, WinPE startup files, and large-artifact manifest before committing.
 
-## iPXE Runbook
+## Physical-Laptop iPXE Runbook
 
 Use this runbook for the physical-laptop network-install validation path. The goal is to prove that the laptop can deploy without USB or ISO media, with WinPE served over HTTP and the Windows ESD applied directly from the lab SMB share.
 
@@ -376,9 +402,9 @@ Validation contract:
 - Screenshot behavior must preserve the status contract: `/osdcloud/status` stays JSON-only, `/osdcloud/screenshot` accepts PNG-only uploads capped at 5 MB, and PNG files remain local evidence rather than Git artifacts.
 - If deployment behavior changes inside `C:\OSDCloud` or WinPE, update the live files first, mount/commit `boot.wim` when needed, then run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts`.
 
-## Legacy VM Notes
+## VM VM Regression Notes
 
-These notes are historical regression evidence only. Do not use VM for the active physical-laptop iPXE path. If the user explicitly asks for VM regression, use Generation 2 VMs with:
+These notes are regression evidence only. Do not use VM for the active physical-laptop iPXE path. If the user explicitly asks for VM regression, use Generation 2 VMs with:
 
 - Secure Boot enabled with `MicrosoftWindows` template
 - vTPM enabled
@@ -415,6 +441,7 @@ Historical iPXE VM notes:
 - For VM first-stage TFTP, do not disable `.efi` OACK/options handling. VM can send paired RRQs where one transfer logs `OACK not acknowledged` and the other succeeds with `SENT snponly.efi`; success is confirmed by later HTTP `boot.ipxe`. If the VM stays at `Downloading NBP file...`, debug TFTP service state before changing WinPE or OSDCloud.
 - After `osdcloud-finished`, do not force power off the VM. Let WinPE run `wpeutil reboot`; premature power-off can leave `Unattend.xml` or `SetupComplete.ps1` NUL-filled and cause Windows Setup unattend parse errors.
 - `tools\osdcloud-tui\src\headless.js` starts the same HTTP/status, TFTP, and DHCP services without the blessed UI. Use it only for VM regression or automation, and stop the owning `node.exe` after the test so DHCP does not keep responding.
+- Record VM runs under VM / VM regression documentation only. Keep VM names, vSwitch IPs, VHDX details, VMConnect screenshots, and PowerShell Direct results out of the physical-laptop runbook.
 - Signed shim PXE remains a caveat: `snponly-shim.efi` and `ipxe-shim.efi` were both tested with `MicrosoftUEFICertificateAuthority`, but the probe did not reach HTTP and stopped during TFTP shim transfer.
 
 ## Documentation
