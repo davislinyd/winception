@@ -6,7 +6,9 @@ param(
     [int] $PrefixLength = 24,
     [string] $DefaultGateway,
     [string] $SmbShareName = 'OSDCloudiPXE',
+    [string] $SmbFirewallRuleName = 'PXE-Lab SMB Inbound',
     [string] $ImageNamePattern,
+    [switch] $SkipSmbFirewall,
     [switch] $CommitWinPe,
     [switch] $SyncAssets,
     [switch] $HashLargeArtifacts
@@ -302,9 +304,43 @@ function Set-LegacyHelperDefaults {
         -Optional | Out-Null
 }
 
+function Set-SmbFirewallEndpoint {
+    param(
+        [Parameter(Mandatory)]
+        [string] $RuleName,
+        [Parameter(Mandatory)]
+        [string] $LocalAddress,
+        [Parameter(Mandatory)]
+        [string] $RemoteSubnet
+    )
+
+    $rule = Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue
+    if ($rule) {
+        $rule |
+            Get-NetFirewallAddressFilter |
+            Set-NetFirewallAddressFilter -LocalAddress $LocalAddress -RemoteAddress $RemoteSubnet
+        $rule |
+            Get-NetFirewallPortFilter |
+            Set-NetFirewallPortFilter -Protocol TCP -LocalPort 445
+        $rule | Enable-NetFirewallRule | Out-Null
+        return 'updated'
+    }
+
+    New-NetFirewallRule `
+        -DisplayName $RuleName `
+        -Direction Inbound `
+        -Action Allow `
+        -Protocol TCP `
+        -LocalPort 445 `
+        -LocalAddress $LocalAddress `
+        -RemoteAddress $RemoteSubnet `
+        -Profile Any | Out-Null
+    return 'created'
+}
+
 $ConfigPath = (Resolve-Path -LiteralPath $ConfigPath).Path
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+$config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 if ([string]::IsNullOrWhiteSpace($InterfaceAlias)) {
     $InterfaceAlias = [string] $config.adapter.interfaceAlias
@@ -364,6 +400,12 @@ Set-AutoexecEndpoint -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\auto
 Set-SetupCompleteEndpoint -Path (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1')
 Set-LegacyHelperDefaults -IpxeLab $ipxeLab -LeaseStartIp $dhcpRange.LeaseStartIp -LeaseEndIp $dhcpRange.LeaseEndIp -SubnetMask $subnetMask -Router $dhcpRouter
 Write-Host "Updated live PXE endpoint files under $ipxeLab"
+
+$smbFirewallStatus = 'skipped'
+if (-not $SkipSmbFirewall) {
+    $smbFirewallStatus = Set-SmbFirewallEndpoint -RuleName $SmbFirewallRuleName -LocalAddress $ServerIp -RemoteSubnet $remoteSubnet
+    Write-Host "Updated SMB firewall rule '$SmbFirewallRuleName': local=$ServerIp remote=$remoteSubnet"
+}
 
 if ($CommitWinPe) {
     $bootWim = Join-Path $ipxeLab 'Media\sources\boot.wim'
@@ -448,6 +490,8 @@ else {
     PrefixLength = $PrefixLength
     StatusUrl = $statusUrl
     SmbShare = $share
+    SmbFirewallRule = $SmbFirewallRuleName
+    SmbFirewallStatus = $smbFirewallStatus
     CommitWinPe = [bool] $CommitWinPe
     SyncAssets = [bool] $SyncAssets
 } | ConvertTo-Json -Compress
