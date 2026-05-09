@@ -1,10 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { tailFile } from './logger.js';
-import { failureStages, runEndStages, windowsStartStages, winpeEndStages } from './runSummary.js';
-
-const staleThresholdMs = 15 * 60 * 1000;
-const terminalStatuses = new Set(['completed', 'failed', 'stale']);
+import { buildRunsIndex, failureStages, runEndStages, staleThresholdMs, terminalStatuses, windowsStartStages, winpeEndStages } from './runSummary.js';
 
 export function readLatestStatus(config) {
   const filePath = config.paths.statusLatest;
@@ -46,6 +43,10 @@ export function readStatusEvents(config, maxLines = 80) {
   return tailFile(config.paths.statusEvents, maxLines);
 }
 
+export function readFleetStatus(config, now = new Date()) {
+  return buildRunsIndex(config.http.statusRoot, now);
+}
+
 export function readScreenshotMetadata(config, maxLines = 5) {
   const latest = readLatestScreenshot(config);
   if (!latest?.runId) {
@@ -64,6 +65,45 @@ export function readScreenshotMetadata(config, maxLines = 5) {
       return [];
     }
   });
+}
+
+export function readRunLatestScreenshot(config, runId) {
+  if (!runId) {
+    return null;
+  }
+
+  const filePath = path.join(config.http.statusRoot, `${runId}.screenshots.jsonl`);
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  const entries = tailFile(filePath, 1).flatMap((line) => {
+    try {
+      return [JSON.parse(line)];
+    } catch {
+      return [];
+    }
+  });
+  return entries.at(-1) ?? null;
+}
+
+export function readRecentScreenshotMetadata(config, maxLines = 5) {
+  const statusRoot = config.http.statusRoot;
+  if (!fs.existsSync(statusRoot)) {
+    return [];
+  }
+
+  return fs.readdirSync(statusRoot)
+    .filter((entry) => entry.endsWith('.screenshots.jsonl'))
+    .flatMap((entry) => tailFile(path.join(statusRoot, entry), maxLines).flatMap((line) => {
+      try {
+        return [JSON.parse(line)];
+      } catch {
+        return [];
+      }
+    }))
+    .sort((a, b) => (parseDate(b.receivedAt ?? b.timestamp) ?? 0) - (parseDate(a.receivedAt ?? a.timestamp) ?? 0))
+    .slice(0, maxLines);
 }
 
 function parseDate(value) {
@@ -175,6 +215,44 @@ function compact(value, maxLength = 120) {
   return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
+function clip(value, width) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (text.length <= width) {
+    return text.padEnd(width, ' ');
+  }
+  if (width <= 1) {
+    return text.slice(0, width);
+  }
+  if (width <= 3) {
+    return text.slice(0, width);
+  }
+  return `${text.slice(0, Math.max(0, width - 3))}...`.padEnd(width, ' ');
+}
+
+function formatClock(value) {
+  const timestamp = parseDate(value);
+  if (timestamp === null) {
+    return '';
+  }
+  return new Date(timestamp).toISOString().slice(11, 19);
+}
+
+function formatElapsed(seconds) {
+  if (!Number.isFinite(seconds)) {
+    return '';
+  }
+  if (seconds < 60) {
+    return `${Math.round(seconds)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.round(seconds % 60);
+  return `${minutes}m${String(remainder).padStart(2, '0')}s`;
+}
+
+function formatPercent(value) {
+  return Number.isFinite(value) ? `${Math.round(value)}%` : '';
+}
+
 function formatScreenshotLine(screenshot) {
   if (!screenshot) {
     return null;
@@ -194,6 +272,97 @@ export function formatScreenshotMetadata(screenshot) {
   const timestamp = screenshot.timestamp ?? screenshot.receivedAt ?? '';
   const filePath = screenshot.filePath ?? '';
   return `${stage} ${timestamp}${filePath ? ` ${filePath}` : ''}`.trim();
+}
+
+export function formatFleetCounts(counts = {}) {
+  return [
+    `running=${counts.running ?? 0}`,
+    `awaiting=${counts['awaiting-windows'] ?? 0}`,
+    `windows=${counts['windows-running'] ?? 0}`,
+    `stale=${counts.stale ?? 0}`,
+    `failed=${counts.failed ?? 0}`,
+    `completed=${counts.completed ?? 0}`,
+  ].join(' ');
+}
+
+export function formatFleetClientRows(runs, width = 80) {
+  if (!runs?.length) {
+    return ['No deployment clients yet.'];
+  }
+
+  const safeWidth = Math.max(40, Number(width) || 80);
+  const separators = 6;
+  const available = Math.max(7, safeWidth - separators);
+  const statusWidth = available >= 55 ? 15 : Math.max(8, Math.floor(available * 0.24));
+  const percentWidth = available >= 45 ? 4 : 3;
+  const seenWidth = available >= 55 ? 8 : Math.max(4, Math.floor(available * 0.14));
+  const elapsedWidth = available >= 55 ? 8 : Math.max(4, Math.floor(available * 0.14));
+  const remaining = Math.max(3, available - statusWidth - percentWidth - seenWidth - elapsedWidth);
+  const widths = [
+    statusWidth,
+    Math.max(1, Math.floor(remaining * 0.25)),
+    Math.max(1, Math.floor(remaining * 0.32)),
+    Math.max(1, Math.floor(remaining * 0.43)),
+    percentWidth,
+    seenWidth,
+    elapsedWidth,
+  ];
+
+  while (widths.reduce((sum, value) => sum + value, 0) > available) {
+    let index = widths.indexOf(Math.max(...widths));
+    if (widths[index] <= 1) {
+      break;
+    }
+    widths[index] -= 1;
+  }
+  while (widths.reduce((sum, value) => sum + value, 0) < available) {
+    widths[3] += 1;
+  }
+
+  const [, clientWidth, runWidth, stageWidth, finalPercentWidth, finalSeenWidth, finalElapsedWidth] = widths;
+
+  return runs.map((run) => [
+    clip(run.status, statusWidth),
+    clip(run.clientId ?? '', clientWidth),
+    clip(run.runId ?? '', runWidth),
+    clip(run.latestStage ?? '', stageWidth),
+    clip(formatPercent(run.latestPercent), finalPercentWidth),
+    clip(formatClock(run.lastReceivedAt), finalSeenWidth),
+    clip(formatElapsed(run.elapsedSeconds), finalElapsedWidth),
+  ].join(' '));
+}
+
+export function formatFleetRunDetail(run, latestScreenshot = null) {
+  if (!run) {
+    return [
+      'No client selected.',
+      'WinPE clients will appear here after POST /osdcloud/status.',
+    ];
+  }
+
+  const lines = [
+    `Status   : ${run.status}${run.previousStatus ? ` (${run.previousStatus})` : ''}`,
+    `Run      : ${run.runId ?? ''}`,
+    `Client   : ${run.clientId ?? ''}`,
+    `Stage    : ${run.latestStage ?? ''}  Percent: ${formatPercent(run.latestPercent)}  Elapsed: ${formatElapsed(run.elapsedSeconds)}`,
+    `Started  : ${run.startedAt ?? ''}`,
+    `WinPE End: ${run.winpeEndedAt ?? ''}`,
+    `Windows  : ${run.windowsStartedAt ?? ''}`,
+    `Finished : ${run.completedAt ?? run.failedAt ?? ''}`,
+    `Seen     : ${run.lastReceivedAt ?? ''}`,
+    `Message  : ${compact(run.staleReason ? `${run.staleReason}; ${run.latestMessage ?? ''}` : run.latestMessage, 160)}`,
+  ];
+
+  if (run.warnings?.length) {
+    lines.push(`Warnings : ${run.warnings.join(', ')}`);
+  }
+
+  if (latestScreenshot) {
+    lines.push(`Latest Shot: ${formatScreenshotLine(latestScreenshot) ?? ''}`);
+    lines.push(`Shot File  : ${compact(latestScreenshot.filePath, 180)}`);
+  }
+
+  return lines;
 }
 
 export function formatDeploymentStatus(latest, summary = null, latestScreenshot = null) {
@@ -248,12 +417,11 @@ export function summarizeValidation(config) {
     ok: !esdOverHttp,
   });
 
-  const latest = readLatestStatus(config);
-  const summary = resolveDeploymentSummary(config, latest, readLatestSummary(config));
+  const fleet = readFleetStatus(config);
   results.push({
-    name: 'Latest status',
-    ok: Boolean(latest),
-    detail: latest ? `${summary?.status ?? 'running'} ${latest.stage ?? 'unknown'} ${latest.message ?? ''}` : 'no latest.json',
+    name: 'Fleet runs',
+    ok: fleet.total > 0,
+    detail: fleet.total > 0 ? `total=${fleet.total} ${formatFleetCounts(fleet.counts)}` : 'no deployment runs',
   });
 
   return results;

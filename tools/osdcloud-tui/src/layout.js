@@ -59,9 +59,11 @@ export function computeLayout(columns, rows) {
     warning: { ...box(0, 0, 1, 1), hidden: true },
     menu: box(titleHeight, 0, menuWidth, contentHeight),
     services: box(titleHeight, mainLeft, firstPaneWidth, topHeight),
+    clients: box(titleHeight, mainLeft + firstPaneWidth, secondPaneWidth, topHeight),
     deployment: box(titleHeight, mainLeft + firstPaneWidth, secondPaneWidth, topHeight),
     preflight: box(middleTop, mainLeft, firstPaneWidth, middleHeight),
-    validation: box(middleTop, mainLeft + firstPaneWidth, secondPaneWidth, middleHeight),
-    logs: box(logTop, mainLeft, mainWidth, logHeight),
+    details: box(middleTop, mainLeft + firstPaneWidth, secondPaneWidth, middleHeight),
+    validation: box(logTop, mainLeft, firstPaneWidth, logHeight),
+    logs: box(logTop, mainLeft + firstPaneWidth, secondPaneWidth, logHeight),
   };
 }

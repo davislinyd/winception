@@ -239,6 +239,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-summary.json
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.summary.json
+C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\runs-index.json
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\deployment-runs.jsonl
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-screenshot.json
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.screenshots.jsonl
@@ -246,7 +247,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\screenshots\<runId>\*.png
 ```
 
 WinPE reporter 目前每 `3` 秒檢查一次部署 log；若階段訊息沒有變化，至少每 `15` 秒送出 heartbeat。TUI 會把每次部署整理成 run summary，明確記錄 `run-start`、`winpe-end`、`windows-start`、`run-end` 或 `run-failed`。
-若 TUI 重新開啟時只看到上一輪 `latest.json`，它不會把舊資料當成 active deployment；WinPE 已交棒但還沒有 Windows final callback 時會顯示 `awaiting-windows`，超過約 15 分鐘沒有新事件會標示為 `stale (...; previous run)`。
+TUI v0.2.0 會額外維護 `runs-index.json` 與 `GET /osdcloud/status/runs`，用來顯示多台 client / 多個 run 的 fleet overview；既有 `GET /osdcloud/status` 仍只回傳最後一筆 status 以維持相容。若 TUI 重新開啟時只看到上一輪資料，它不會把舊資料當成 active deployment；WinPE 已交棒但還沒有 Windows final callback 時會顯示 `awaiting-windows`，超過約 15 分鐘沒有新事件會標示為 `stale (...; previous run)`。
 
 截圖只作為部署證據，不是部署成功條件。WinPE 會在 `winpe-start`、SMB 掛載、OSDCloud 開始/結束、reboot、錯誤階段，以及 `apply-image` 進度跨過 25/50/75/100 時嘗試截圖。Windows 完成判定仍只依賴 JSON status；不要在 SetupComplete 內安裝互動桌面截圖 Startup helper，先前的螢幕擷取加上 hidden PowerShell helper 曾被 AMSI 擋成 `ScriptContainedMaliciousContent`，造成 TUI 收不到 Windows completion callback。
 
@@ -337,8 +338,8 @@ TUI 設定檔：
 C:\Users\Davis\Documents\New project\config\osdcloud-tui.json
 ```
 
-TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。Deployment 區塊會顯示目前 stage、percent、elapsed、最後收到時間、本 run 的 start / WinPE end / final end 時間，以及最新截圖 metadata。Validation 區塊會列出最近幾筆 screenshot metadata。
-舊部署殘留的 status 只會當作 previous run 顯示，不會被標為 running；開始新的 PXE 部署後，新的 `winpe-start` 會取代畫面中的上一輪資料。
+TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/status/runs` fleet API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。v0.2.0 起，`Clients` 區塊會以 scrollable table 顯示多台 client / run 的 status、client、run、stage、percent、last seen 與 elapsed；`Client Detail` 區塊顯示選定 run 的 start / WinPE end / Windows start / final end、最後訊息與最新截圖 metadata。按 `Tab` 可在 Actions 與 Clients 間切換焦點，Clients 聚焦時可用方向鍵選擇要查看的 run。
+舊部署殘留的 status 只會當作 previous run 顯示，不會被標為 running；開始新的 PXE 部署後，新的 `winpe-start` 會加入 Clients 清單，不會覆蓋其他 client 的 run summary。
 
 使用原則：
 
@@ -349,9 +350,9 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 - 只有確認真實 LAN DHCP server 已暫時停用後，才在 TUI 啟動 DHCP
 - `Start HTTP/status`、`Start TFTP`、`Start DHCP` 是個別服務 toggle；服務 running 時同一個 action 會顯示為 `Stop ...` 並可關閉服務
 - TUI 不再提供 `Configure physical NIC` 動作；如需改 Windows 網卡 IP，請在 TUI 外手動執行 `.\tools\Set-IpxePhysicalNic.ps1`
-- 服務啟停、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除本機 screenshot metadata 與 `status\screenshots`
+- 服務啟停、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除 fleet index、本機 screenshot metadata 與 `status\screenshots`
 - `Run preflight` 也會檢查 DHCP lease range / router 是否仍落在選定服務 IP 的 prefix 內；這是防止手動改 JSON 或舊設定殘留的最後防線
-- 實體筆電從 UEFI IPv4 PXE 開機後，在 TUI 內看 Deployment、Logs、Validation
+- 實體筆電從 UEFI IPv4 PXE 開機後，在 TUI 內看 Clients、Client Detail、Logs、Validation
 
 驗證與測試：
 

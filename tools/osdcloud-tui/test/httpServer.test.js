@@ -54,11 +54,97 @@ test('serves status and ranged files', async () => {
     assert.equal(response.status, 200);
     assert.equal((await response.json()).stage, 'apply-image');
 
+    response = await fetch(`http://127.0.0.1:${port}/osdcloud/status/runs`);
+    assert.equal(response.status, 200);
+    const runs = await response.json();
+    assert.equal(runs.total, 1);
+    assert.equal(runs.counts.running, 1);
+    assert.equal(runs.runs[0].runId, 'test-run');
+
     response = await fetch(`http://127.0.0.1:${port}/osdcloud/boot.wim`, {
       headers: { range: 'bytes=2-4' },
     });
     assert.equal(response.status, 206);
     assert.equal(await response.text(), 'cde');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('tracks multiple status runs and buckets missing run ids', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-http-runs-test-'));
+  const statusRoot = path.join(root, 'status');
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+  });
+
+  try {
+    await server.start();
+    const port = server.address.port;
+    const base = `http://127.0.0.1:${port}`;
+
+    for (const payload of [
+      { runId: 'run-a', clientId: 'client-a', stage: 'winpe-start' },
+      { runId: 'run-b', clientId: 'client-b', stage: 'winpe-start' },
+      { runId: 'run-a', clientId: 'client-a', stage: 'apply-image', percent: 50 },
+      { runId: 'run-b', clientId: 'client-b', stage: 'windows-desktop-ready', percent: 100 },
+      { clientId: 'legacy-client', stage: 'winpe-start' },
+    ]) {
+      const response = await fetch(`${base}/osdcloud/status`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      assert.equal(response.status, 204);
+    }
+
+    const response = await fetch(`${base}/osdcloud/status/runs`);
+    assert.equal(response.status, 200);
+    const index = await response.json();
+    assert.equal(index.total, 3);
+    assert.equal(index.counts.running, 2);
+    assert.equal(index.counts.completed, 1);
+    assert.deepEqual(index.runs.map((run) => run.runId), ['unknown', 'run-a', 'run-b']);
+    assert.deepEqual(index.runs.find((run) => run.runId === 'unknown').warnings, ['missing-run-id']);
+    assert.equal(fs.existsSync(path.join(statusRoot, 'runs-index.json')), true);
+    assert.equal(fs.existsSync(path.join(statusRoot, 'unknown.summary.json')), true);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('sanitizes status run ids before writing summary files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-http-sanitize-test-'));
+  const statusRoot = path.join(root, 'status');
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+  });
+
+  try {
+    await server.start();
+    const port = server.address.port;
+    const response = await fetch(`http://127.0.0.1:${port}/osdcloud/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runId: '..\\evil', clientId: 'client-1', stage: 'winpe-start' }),
+    });
+    assert.equal(response.status, 204);
+
+    const latest = JSON.parse(fs.readFileSync(path.join(statusRoot, 'latest.json'), 'utf8'));
+    assert.equal(latest.runId, '.._evil');
+    assert.deepEqual(latest.warnings, ['run-id-sanitized']);
+    assert.equal(fs.existsSync(path.join(statusRoot, '.._evil.summary.json')), true);
+    assert.equal(fs.existsSync(path.join(root, 'evil.summary.json')), false);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

@@ -44,10 +44,23 @@ try {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      runId: 'smoke',
-      clientId: 'test-client',
+      runId: 'smoke-a',
+      clientId: 'test-client-a',
       stage: 'winpe-start',
-      message: 'smoke test',
+      message: 'smoke test a',
+    }),
+  });
+  assert.equal(response.status, 204);
+
+  response = await fetch(`${base}/osdcloud/status`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      runId: 'smoke-b',
+      clientId: 'test-client-b',
+      stage: 'windows-desktop-ready',
+      percent: 100,
+      message: 'smoke test b',
     }),
   });
   assert.equal(response.status, 204);
@@ -55,10 +68,18 @@ try {
   response = await fetch(`${base}/osdcloud/status`);
   assert.equal(response.status, 200);
   const latest = await response.json();
-  assert.equal(latest.runId, 'smoke');
-  assert.equal(latest.stage, 'winpe-start');
+  assert.equal(latest.runId, 'smoke-b');
+  assert.equal(latest.stage, 'windows-desktop-ready');
 
-  response = await fetch(`${base}/osdcloud/screenshot?runId=smoke&clientId=test-client&stage=winpe-start&source=smoke&timestamp=2026-05-09T08:00:00%2B08:00`, {
+  response = await fetch(`${base}/osdcloud/status/runs`);
+  assert.equal(response.status, 200);
+  const runs = await response.json();
+  assert.equal(runs.total, 2);
+  assert.equal(runs.counts.running, 1);
+  assert.equal(runs.counts.completed, 1);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(statusRoot, 'runs-index.json'), 'utf8')).total, 2);
+
+  response = await fetch(`${base}/osdcloud/screenshot?runId=smoke-a&clientId=test-client-a&stage=winpe-start&source=smoke&timestamp=2026-05-09T08:00:00%2B08:00`, {
     method: 'POST',
     headers: { 'content-type': 'image/png' },
     body: onePixelPng,
@@ -67,7 +88,7 @@ try {
   const screenshot = await response.json();
   assert.ok(fs.existsSync(screenshot.filePath));
   assert.equal(JSON.parse(fs.readFileSync(path.join(statusRoot, 'latest-screenshot.json'), 'utf8')).stage, 'winpe-start');
-  assert.match(fs.readFileSync(path.join(statusRoot, 'smoke.screenshots.jsonl'), 'utf8'), /winpe-start/);
+  assert.match(fs.readFileSync(path.join(statusRoot, 'smoke-a.screenshots.jsonl'), 'utf8'), /winpe-start/);
 
   response = await fetch(`${base}/osdcloud/boot.wim`, {
     headers: { range: 'bytes=0-3' },

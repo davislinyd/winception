@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { appendLog } from './logger.js';
-import { updateRunSummary } from './runSummary.js';
+import { buildRunsIndex, updateRunSummary } from './runSummary.js';
 
 export function sanitizeName(value) {
   return String(value ?? 'unknown').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 120) || 'unknown';
@@ -207,6 +207,12 @@ export class MediaHttpServer extends EventEmitter {
     const latestStatusPath = path.join(statusRoot, 'latest.json');
 
     if (req.method === 'GET') {
+      if (requestUrl.pathname === '/osdcloud/status/runs') {
+        sendJson(res, 200, buildRunsIndex(statusRoot));
+        this.log(`${remote} GET ${requestUrl.pathname} 200 file=${path.join(statusRoot, 'runs-index.json')}`);
+        return;
+      }
+
       if (requestUrl.pathname === '/osdcloud/status/events') {
         if (!fs.existsSync(statusLogPath)) {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -254,7 +260,18 @@ export class MediaHttpServer extends EventEmitter {
       remote,
       ...payload,
     };
-    const runId = sanitizeName(event.runId);
+    const rawRunId = event.runId;
+    const runId = sanitizeName(rawRunId);
+    const warnings = new Set(Array.isArray(event.warnings) ? event.warnings : []);
+    if (!rawRunId) {
+      warnings.add('missing-run-id');
+    } else if (runId !== String(rawRunId)) {
+      warnings.add('run-id-sanitized');
+    }
+    event.runId = runId;
+    if (warnings.size > 0) {
+      event.warnings = [...warnings];
+    }
     const line = `${JSON.stringify(event)}\n`;
 
     fs.mkdirSync(statusRoot, { recursive: true });
@@ -358,7 +375,7 @@ export class MediaHttpServer extends EventEmitter {
     const remote = `${req.socket.remoteAddress ?? ''}:${req.socket.remotePort ?? ''}`;
     const requestUrl = new URL(req.url ?? '/', `http://${this.config.host}:${port}`);
 
-    if (requestUrl.pathname === '/osdcloud/status' || requestUrl.pathname === '/osdcloud/status/events') {
+    if (requestUrl.pathname === '/osdcloud/status' || requestUrl.pathname === '/osdcloud/status/events' || requestUrl.pathname === '/osdcloud/status/runs') {
       await this.handleStatus(req, res, remote, requestUrl);
       return;
     }

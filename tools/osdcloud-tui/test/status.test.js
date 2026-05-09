@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { formatDeploymentStatus, resolveDeploymentSummary } from '../src/status.js';
+import { formatDeploymentStatus, formatFleetClientRows, formatFleetRunDetail, resolveDeploymentSummary } from '../src/status.js';
 
 test('formats missing deployment status with visible placeholder', () => {
   const lines = formatDeploymentStatus(null);
@@ -112,4 +112,62 @@ test('derives completed status from legacy per-run events', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('formats fleet client rows for empty, long, and many clients', () => {
+  assert.deepEqual(formatFleetClientRows([], 80), ['No deployment clients yet.']);
+
+  const longRows = formatFleetClientRows([{
+    runId: 'run-with-a-very-long-identifier-that-must-fit',
+    clientId: 'client-with-a-very-long-name',
+    status: 'windows-running',
+    latestStage: 'apply-image-with-a-very-long-stage-name',
+    latestPercent: 42,
+    lastReceivedAt: '2026-05-09T01:00:00Z',
+    elapsedSeconds: 125,
+  }], 72);
+  assert.equal(longRows.length, 1);
+  assert.ok(longRows[0].length <= 72);
+  assert.match(longRows[0], /windows-running/);
+
+  const many = Array.from({ length: 40 }, (_, index) => ({
+    runId: `run-${index}`,
+    clientId: `client-${index}`,
+    status: index % 2 === 0 ? 'running' : 'completed',
+    latestStage: 'apply-image',
+    latestPercent: index,
+    lastReceivedAt: `2026-05-09T01:${String(index).padStart(2, '0')}:00Z`,
+    elapsedSeconds: index * 10,
+  }));
+  const rows = formatFleetClientRows(many, 90);
+  assert.equal(rows.length, 40);
+  assert.ok(rows.every((row) => row.length <= 90));
+});
+
+test('formats selected fleet run detail and screenshot metadata', () => {
+  const lines = formatFleetRunDetail({
+    runId: 'run-1',
+    clientId: 'client-1',
+    status: 'completed',
+    latestStage: 'windows-desktop-ready',
+    latestPercent: 100,
+    elapsedSeconds: 900,
+    startedAt: '2026-05-09T01:00:00Z',
+    winpeEndedAt: '2026-05-09T01:10:00Z',
+    windowsStartedAt: '2026-05-09T01:12:00Z',
+    completedAt: '2026-05-09T01:15:00Z',
+    lastReceivedAt: '2026-05-09T01:15:00Z',
+    latestMessage: 'desktop ready',
+    warnings: ['run-id-sanitized'],
+  }, {
+    stage: 'winpe-start',
+    timestamp: '2026-05-09T01:01:00Z',
+    filePath: 'C:\\status\\screenshots\\run-1\\shot.png',
+  });
+
+  const text = lines.join('\n');
+  assert.match(text, /Status   : completed/);
+  assert.match(text, /Windows  : 2026-05-09T01:12:00Z/);
+  assert.match(text, /Warnings : run-id-sanitized/);
+  assert.match(text, /Latest Shot: winpe-start/);
 });

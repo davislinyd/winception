@@ -11,6 +11,17 @@ export const failureStages = new Set([
   'windows-setupcomplete-error',
   'windows-desktop-timeout',
 ]);
+export const staleThresholdMs = 15 * 60 * 1000;
+export const terminalStatuses = new Set(['completed', 'failed', 'stale']);
+
+const runStatusOrder = new Map([
+  ['running', 0],
+  ['awaiting-windows', 0],
+  ['windows-running', 0],
+  ['stale', 1],
+  ['failed', 2],
+  ['completed', 3],
+]);
 
 function safeReadJson(filePath, fallback) {
   try {
@@ -27,8 +38,131 @@ function appendRecord(statusRoot, record) {
   fs.appendFileSync(pathName, `${JSON.stringify(record)}\n`, 'utf8');
 }
 
+function parseDate(value) {
+  const timestamp = Date.parse(value ?? '');
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function asDate(value) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value;
+  }
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : new Date();
+}
+
+function sortTimestamp(value) {
+  return parseDate(value) ?? 0;
+}
+
+function statusRank(status) {
+  return runStatusOrder.get(status) ?? 4;
+}
+
+function compareRuns(a, b) {
+  const statusDelta = statusRank(a.status) - statusRank(b.status);
+  if (statusDelta !== 0) {
+    return statusDelta;
+  }
+
+  const timeDelta = sortTimestamp(b.lastReceivedAt) - sortTimestamp(a.lastReceivedAt);
+  if (timeDelta !== 0) {
+    return timeDelta;
+  }
+
+  return String(a.runId ?? '').localeCompare(String(b.runId ?? ''), undefined, { numeric: true });
+}
+
+function uniqueWarnings(values) {
+  return [...new Set((values ?? []).filter(Boolean).map(String))];
+}
+
+function sanitizeRunId(value) {
+  return String(value ?? 'unknown').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 120) || 'unknown';
+}
+
+export function compactRunSummary(summary, now = new Date()) {
+  const nowDate = asDate(now);
+  const run = {
+    runId: summary.runId ?? 'unknown',
+    clientId: summary.clientId ?? null,
+    status: summary.status ?? 'running',
+    startedAt: summary.startedAt ?? null,
+    startedTimestamp: summary.startedTimestamp ?? null,
+    startStage: summary.startStage ?? null,
+    eventCount: Number(summary.eventCount ?? 0),
+    latestStage: summary.latestStage ?? null,
+    latestMessage: summary.latestMessage ?? null,
+    latestPercent: Number.isFinite(summary.latestPercent) ? summary.latestPercent : null,
+    elapsedSeconds: Number.isFinite(summary.elapsedSeconds) ? summary.elapsedSeconds : null,
+    lastReceivedAt: summary.lastReceivedAt ?? summary.startedAt ?? null,
+    winpeEndedAt: summary.winpeEndedAt ?? null,
+    windowsStartedAt: summary.windowsStartedAt ?? null,
+    completedAt: summary.completedAt ?? null,
+    failedAt: summary.failedAt ?? null,
+    warnings: uniqueWarnings(summary.warnings),
+  };
+
+  const lastSeen = parseDate(run.lastReceivedAt);
+  const ageMs = lastSeen === null ? null : nowDate.getTime() - lastSeen;
+  if (!terminalStatuses.has(run.status) && ageMs !== null && ageMs > staleThresholdMs) {
+    run.previousStatus = run.status;
+    run.status = 'stale';
+    run.staleReason = `no status events for ${Math.floor(ageMs / 60000)} minutes`;
+  }
+
+  return run;
+}
+
+function readSummaryFiles(statusRoot, now = new Date()) {
+  if (!fs.existsSync(statusRoot)) {
+    return [];
+  }
+
+  return fs.readdirSync(statusRoot)
+    .filter((entry) => entry.endsWith('.summary.json') && entry !== 'latest-summary.json')
+    .flatMap((entry) => {
+      const summary = safeReadJson(path.join(statusRoot, entry), null);
+      return summary ? [compactRunSummary(summary, now)] : [];
+    });
+}
+
+function countRuns(runs) {
+  return runs.reduce((counts, run) => {
+    const status = run.status ?? 'unknown';
+    counts[status] = (counts[status] ?? 0) + 1;
+    return counts;
+  }, {
+    running: 0,
+    'awaiting-windows': 0,
+    'windows-running': 0,
+    stale: 0,
+    failed: 0,
+    completed: 0,
+  });
+}
+
+export function buildRunsIndex(statusRoot, now = new Date()) {
+  const nowDate = asDate(now);
+  const runs = readSummaryFiles(statusRoot, nowDate).sort(compareRuns);
+  return {
+    updatedAt: nowDate.toISOString(),
+    total: runs.length,
+    counts: countRuns(runs),
+    runs,
+  };
+}
+
+export function writeRunsIndex(statusRoot, now = new Date()) {
+  const index = buildRunsIndex(statusRoot, now);
+  fs.mkdirSync(statusRoot, { recursive: true });
+  fs.writeFileSync(path.join(statusRoot, 'runs-index.json'), `${JSON.stringify(index, null, 2)}\n`, 'utf8');
+  return index;
+}
+
 export function updateRunSummary(statusRoot, event) {
-  const runId = String(event.runId || 'unknown');
+  const rawRunId = event.runId;
+  const runId = sanitizeRunId(rawRunId);
   const summaryPath = path.join(statusRoot, `${runId}.summary.json`);
   const existing = safeReadJson(summaryPath, null);
   const now = event.receivedAt || new Date().toISOString();
@@ -55,6 +189,13 @@ export function updateRunSummary(statusRoot, event) {
     });
   }
 
+  const warnings = uniqueWarnings([
+    ...(summary.warnings ?? []),
+    ...(Array.isArray(event.warnings) ? event.warnings : []),
+    rawRunId ? null : 'missing-run-id',
+    rawRunId && runId !== String(rawRunId) ? 'run-id-sanitized' : null,
+  ]);
+
   summary.clientId = summary.clientId || event.clientId || null;
   summary.eventCount = Number(summary.eventCount ?? 0) + 1;
   summary.lastReceivedAt = now;
@@ -62,6 +203,9 @@ export function updateRunSummary(statusRoot, event) {
   summary.latestMessage = event.message ?? null;
   summary.latestPercent = Number.isFinite(event.percent) ? event.percent : null;
   summary.elapsedSeconds = Number.isFinite(event.elapsedSeconds) ? event.elapsedSeconds : summary.elapsedSeconds;
+  if (warnings.length > 0) {
+    summary.warnings = warnings;
+  }
 
   if (winpeEndStages.has(event.stage) && !summary.winpeEndedAt) {
     summary.winpeEndedAt = now;
@@ -132,6 +276,7 @@ export function updateRunSummary(statusRoot, event) {
   for (const record of records) {
     appendRecord(statusRoot, record);
   }
+  const runsIndex = writeRunsIndex(statusRoot, new Date(now));
 
-  return { summary, records };
+  return { summary, records, runsIndex };
 }

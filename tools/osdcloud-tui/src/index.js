@@ -6,7 +6,7 @@ import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { RingBuffer, tailFile } from './logger.js';
 import { getServiceBindIps, listIpv4ServiceInterfaces, removeStatusFiles, runPreflight, syncIpxeEndpoint } from './windows.js';
-import { formatDeploymentStatus, formatScreenshotMetadata, readLatestScreenshot, readLatestStatus, readLatestSummary, readScreenshotMetadata, readStatusEvents, resolveDeploymentSummary, summarizeValidation } from './status.js';
+import { formatFleetClientRows, formatFleetCounts, formatFleetRunDetail, formatScreenshotMetadata, readFleetStatus, readRecentScreenshotMetadata, readRunLatestScreenshot, readStatusEvents, summarizeValidation } from './status.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
@@ -24,6 +24,9 @@ let lastLayoutSignature = '';
 let lastActionItemsSignature = '';
 let wasTooSmall = false;
 let terminalDefaultsRestored = false;
+let selectedRunId = null;
+let currentFleetRuns = [];
+let renderTimer = null;
 
 const terminalControl = {
   alternateBuffer: '\x1b[?1049h',
@@ -122,17 +125,24 @@ const servicesBox = blessed.box({
   style: { border: { fg: 'cyan' } },
 });
 
-const deploymentBox = blessed.box({
+const clientsBox = blessed.list({
   top: 3,
   left: 100,
   width: '100%-100',
   height: 13,
   border: 'line',
   padding: horizontalPanelPadding,
+  keys: true,
+  mouse: true,
+  vi: true,
   tags: false,
   wrap: false,
-  label: panelLabel('Deployment'),
-  style: { border: { fg: 'cyan' } },
+  label: panelLabel('Clients'),
+  style: {
+    selected: { bg: 'blue', fg: 'white' },
+    item: { fg: 'white' },
+    border: { fg: 'cyan' },
+  },
 });
 
 const preflightBox = blessed.box({
@@ -151,10 +161,25 @@ const preflightBox = blessed.box({
   style: { border: { fg: 'cyan' } },
 });
 
-const validationBox = blessed.box({
+const detailsBox = blessed.box({
   top: 16,
   left: 100,
   width: '100%-100',
+  height: '38%',
+  border: 'line',
+  padding: horizontalPanelPadding,
+  scrollable: true,
+  keys: true,
+  tags: true,
+  wrap: false,
+  label: panelLabel('Client Detail'),
+  style: { border: { fg: 'cyan' } },
+});
+
+const validationBox = blessed.box({
+  top: 16,
+  left: 34,
+  width: 66,
   height: '38%',
   border: 'line',
   padding: horizontalPanelPadding,
@@ -168,8 +193,8 @@ const validationBox = blessed.box({
 
 const logBox = blessed.log({
   bottom: 0,
-  left: 34,
-  width: '100%-34',
+  left: 100,
+  width: '100%-100',
   height: '100%-16-38%',
   border: 'line',
   padding: horizontalPanelPadding,
@@ -197,12 +222,13 @@ const sizeWarningBox = blessed.box({
 screen.append(title);
 screen.append(menu);
 screen.append(servicesBox);
-screen.append(deploymentBox);
+screen.append(clientsBox);
 screen.append(preflightBox);
+screen.append(detailsBox);
 screen.append(validationBox);
 screen.append(logBox);
 screen.append(sizeWarningBox);
-for (const element of [menu, servicesBox, deploymentBox, preflightBox, validationBox, logBox]) {
+for (const element of [menu, servicesBox, clientsBox, preflightBox, detailsBox, validationBox, logBox]) {
   pinPanelLabel(element);
 }
 menu.focus();
@@ -232,7 +258,7 @@ function applyLayout() {
   title.setContent(` OSDCloud iPXE TUI v${appVersion} - physical laptop deployment host console`);
 
   if (layout.tooSmall) {
-    for (const element of [menu, servicesBox, deploymentBox, preflightBox, validationBox, logBox]) {
+    for (const element of [menu, servicesBox, clientsBox, preflightBox, detailsBox, validationBox, logBox]) {
       element.hide();
     }
     applyBoxLayout(sizeWarningBox, layout.warning);
@@ -250,8 +276,9 @@ function applyLayout() {
   sizeWarningBox.hide();
   applyBoxLayout(menu, layout.menu);
   applyBoxLayout(servicesBox, layout.services);
-  applyBoxLayout(deploymentBox, layout.deployment);
+  applyBoxLayout(clientsBox, layout.clients);
   applyBoxLayout(preflightBox, layout.preflight);
+  applyBoxLayout(detailsBox, layout.details);
   applyBoxLayout(validationBox, layout.validation);
   applyBoxLayout(logBox, layout.logs);
   return layout;
@@ -297,16 +324,36 @@ function setWrappedContent(element, lines, indent = 2) {
   element.setContent(wrapLinesWithIndent(lines, innerWidth(element), indent).join('\n'));
 }
 
+function requestRender({ forceRedraw = false } = {}) {
+  if (forceRedraw) {
+    if (renderTimer) {
+      clearTimeout(renderTimer);
+      renderTimer = null;
+    }
+    renderAll({ forceRedraw: true });
+    return;
+  }
+
+  if (renderTimer) {
+    return;
+  }
+  renderTimer = setTimeout(() => {
+    renderTimer = null;
+    renderAll();
+  }, 100);
+  renderTimer.unref?.();
+}
+
 function addLog(message) {
   const line = `${new Date().toISOString()} ${message}`;
   runtimeLog.push(line);
-  renderAll();
+  requestRender();
 }
 
 for (const [name, service] of [['DHCP', dhcp], ['TFTP', tftp], ['HTTP', http]]) {
   service.on('log', (line) => {
     runtimeLog.push(`[${name}] ${line}`);
-    renderAll();
+    requestRender();
   });
   service.on('error', (error) => addLog(`[${name}] ERROR ${error.message}`));
 }
@@ -342,10 +389,39 @@ function renderServices() {
   ].join('\n'));
 }
 
-function renderDeployment() {
-  const latest = readLatestStatus(config);
-  const summary = resolveDeploymentSummary(config, latest, readLatestSummary(config));
-  setWrappedContent(deploymentBox, formatDeploymentStatus(latest, summary, readLatestScreenshot(config)));
+function selectFleetRunByIndex(index) {
+  const run = currentFleetRuns[index] ?? null;
+  selectedRunId = run?.runId ?? null;
+}
+
+function selectedFleetRun(fleet) {
+  if (!fleet.runs.length) {
+    selectedRunId = null;
+    return null;
+  }
+
+  const selected = fleet.runs.find((run) => run.runId === selectedRunId);
+  if (selected) {
+    return selected;
+  }
+
+  selectedRunId = fleet.runs[0].runId;
+  return fleet.runs[0];
+}
+
+function renderClients(fleet) {
+  currentFleetRuns = fleet.runs;
+  const selected = selectedFleetRun(fleet);
+  const selectedIndex = selected ? fleet.runs.findIndex((run) => run.runId === selected.runId) : 0;
+  clientsBox.setItems(formatFleetClientRows(fleet.runs, innerWidth(clientsBox)));
+  if (fleet.runs.length > 0) {
+    clientsBox.select(Math.max(0, selectedIndex));
+  }
+}
+
+function renderClientDetail(fleet) {
+  const selected = selectedFleetRun(fleet);
+  setWrappedContent(detailsBox, formatFleetRunDetail(selected, readRunLatestScreenshot(config, selected?.runId)));
 }
 
 function renderPreflight() {
@@ -360,13 +436,16 @@ function renderPreflight() {
 }
 
 function renderValidation() {
+  const fleet = readFleetStatus(config);
   const rows = summarizeValidation(config).map((item) => {
     const mark = item.ok ? '{green-fg}OK{/green-fg}' : '{red-fg}FAIL{/red-fg}';
     return `${mark} ${item.name}${item.detail ? ` - ${item.detail}` : ''}`;
   });
   const statusTail = readStatusEvents(config, 6);
-  const screenshotTail = readScreenshotMetadata(config, 3).map(formatScreenshotMetadata);
+  const screenshotTail = readRecentScreenshotMetadata(config, 3).map(formatScreenshotMetadata);
   setWrappedContent(validationBox, [
+    `Fleet: total=${fleet.total} ${formatFleetCounts(fleet.counts)}`,
+    '',
     ...rows,
     '',
     'Recent screenshots:',
@@ -410,8 +489,10 @@ function renderAll({ forceRedraw = false } = {}) {
     return;
   }
   renderActionMenu();
+  const fleet = readFleetStatus(config);
   renderServices();
-  renderDeployment();
+  renderClients(fleet);
+  renderClientDetail(fleet);
   renderPreflight();
   renderValidation();
   renderLogs();
@@ -711,6 +792,35 @@ menu.on('select', (_, index) => {
   runAction(index);
 });
 
+clientsBox.on('keypress', (_ch, key) => {
+  if (dialogOpen) {
+    return;
+  }
+  if (['up', 'down', 'j', 'k'].includes(key?.name)) {
+    setTimeout(() => {
+      selectFleetRunByIndex(clientsBox.selected);
+      requestRender();
+    }, 0);
+  }
+});
+
+clientsBox.on('select', (_item, index) => {
+  selectFleetRunByIndex(index);
+  requestRender();
+});
+
+screen.key(['tab'], () => {
+  if (dialogOpen) {
+    return;
+  }
+  if (screen.focused === clientsBox) {
+    menu.focus();
+  } else {
+    clientsBox.focus();
+  }
+  requestRender();
+});
+
 screen.key(['r'], () => {
   if (!dialogOpen) {
     runAction(0);
@@ -723,7 +833,7 @@ screen.key(['q', 'C-c'], () => {
 });
 
 setInterval(() => {
-  renderAll();
+  requestRender();
 }, 1000).unref();
 
 for (const line of [

@@ -185,6 +185,7 @@ Files  : C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-summary.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.summary.json
+         C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\runs-index.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\deployment-runs.jsonl
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-screenshot.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.screenshots.jsonl
@@ -390,7 +391,9 @@ Safety contract:
 - Do not add a TUI `Configure physical NIC` action. If Windows adapter IP assignment must be changed, keep it as an explicit out-of-TUI script step such as `tools\Set-IpxePhysicalNic.ps1`.
 - Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
 - The individual `Start HTTP/status`, `Start TFTP`, and `Start DHCP` actions are service toggles; when a service is running, the same action must become `Stop ...` and shut that service down.
-- `Clear status files` must also remove `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
+- TUI v0.2.0 must show multi-client deployment state as a fleet view: `Clients` is a scrollable table of run status/client/run/stage/percent/last seen/elapsed, `Client Detail` shows the selected run, `Validation` shows fleet counts plus boot evidence, and `Tab` switches focus between Actions and Clients.
+- Keep `GET /osdcloud/status` backward-compatible as the latest single status event, and use `GET /osdcloud/status/runs` plus `runs-index.json` for multi-run fleet status.
+- `Clear status files` must also remove `runs-index.json`, `*.summary.json`, `*.latest.json`, `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
 - Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.
 
 Validation contract:
@@ -399,6 +402,7 @@ Validation contract:
 - `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN.
 - A live deployment remains the final hardware validation when TUI networking behavior changes.
 - Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
+- Multi-client TUI changes must include synthetic tests for at least two interleaved runs and must verify that one client does not overwrite another client's summary.
 - Screenshot behavior must preserve the status contract: `/osdcloud/status` stays JSON-only, `/osdcloud/screenshot` accepts PNG-only uploads capped at 5 MB, and PNG files remain local evidence rather than Git artifacts.
 - If deployment behavior changes inside `C:\OSDCloud` or WinPE, update the live files first, mount/commit `boot.wim` when needed, then run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts`.
 

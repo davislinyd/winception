@@ -10,6 +10,9 @@ test('clears status metadata and screenshot directory', () => {
   const statusRoot = path.join(root, 'status');
   fs.mkdirSync(path.join(statusRoot, 'screenshots', 'run-1'), { recursive: true });
   fs.writeFileSync(path.join(statusRoot, 'latest.json'), '{}');
+  fs.writeFileSync(path.join(statusRoot, 'runs-index.json'), '{}');
+  fs.writeFileSync(path.join(statusRoot, 'run-1.summary.json'), '{}');
+  fs.writeFileSync(path.join(statusRoot, 'run-1.latest.json'), '{}');
   fs.writeFileSync(path.join(statusRoot, 'latest-screenshot.json'), '{}');
   fs.writeFileSync(path.join(statusRoot, 'run-1.screenshots.jsonl'), '{}\n');
   fs.writeFileSync(path.join(statusRoot, 'screenshots', 'run-1', 'shot.png'), 'png');
@@ -17,8 +20,11 @@ test('clears status metadata and screenshot directory', () => {
 
   try {
     const removed = removeStatusFiles({ http: { statusRoot } });
-    assert.equal(removed, 4);
+    assert.equal(removed, 7);
     assert.equal(fs.existsSync(path.join(statusRoot, 'latest.json')), false);
+    assert.equal(fs.existsSync(path.join(statusRoot, 'runs-index.json')), false);
+    assert.equal(fs.existsSync(path.join(statusRoot, 'run-1.summary.json')), false);
+    assert.equal(fs.existsSync(path.join(statusRoot, 'run-1.latest.json')), false);
     assert.equal(fs.existsSync(path.join(statusRoot, 'latest-screenshot.json')), false);
     assert.equal(fs.existsSync(path.join(statusRoot, 'run-1.screenshots.jsonl')), false);
     assert.equal(fs.existsSync(path.join(statusRoot, 'screenshots')), false);
