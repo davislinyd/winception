@@ -263,7 +263,8 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 - 用 elevated PowerShell 啟動 `npm run tui`
 - 先執行 `Run preflight`；preflight 會檢查服務綁定 IP 是否存在於任一張啟用中的 IPv4 介面，不要求固定 NIC alias
 - 只有確認真實 LAN DHCP server 已暫時停用後，才在 TUI 啟動 DHCP
-- `Configure physical NIC` 只用於需要 TUI 幫忙設定指定 NIC 時；`Configure physical NIC`、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除本機 screenshot metadata 與 `status\screenshots`
+- `Start HTTP/status`、`Start TFTP`、`Start DHCP` 是個別服務 toggle；服務 running 時同一個 action 會顯示為 `Stop ...` 並可關閉服務
+- `Configure physical NIC` 只用於需要 TUI 幫忙設定指定 NIC 時；`Configure physical NIC`、服務啟停、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除本機 screenshot metadata 與 `status\screenshots`
 - 實體筆電從 UEFI IPv4 PXE 開機後，在 TUI 內看 Deployment、Logs、Validation
 
 驗證與測試：

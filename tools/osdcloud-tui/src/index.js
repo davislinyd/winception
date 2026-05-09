@@ -21,6 +21,7 @@ const runtimeLog = new RingBuffer(500);
 let preflightResults = [];
 let dialogOpen = false;
 let lastLayoutSignature = '';
+let lastActionItemsSignature = '';
 let wasTooSmall = false;
 let terminalDefaultsRestored = false;
 
@@ -37,6 +38,25 @@ const panelLabelLeftInset = 1;
 
 function panelLabel(text) {
   return `  ${text}  `;
+}
+
+function serviceActionLabel(service, label) {
+  return `${service.running ? 'Stop' : 'Start'} ${label}`;
+}
+
+function getActionItems() {
+  return [
+    'Run preflight',
+    'Configure physical NIC',
+    serviceActionLabel(http, 'HTTP/status'),
+    serviceActionLabel(tftp, 'TFTP'),
+    serviceActionLabel(dhcp, 'DHCP'),
+    'Start all services',
+    'Stop all services',
+    'Clear status files',
+    'Refresh validation',
+    'Quit',
+  ];
 }
 
 function pinPanelLabel(element) {
@@ -86,18 +106,7 @@ const menu = blessed.list({
     item: { fg: 'white' },
     border: { fg: 'cyan' },
   },
-  items: [
-    'Run preflight',
-    'Configure physical NIC',
-    'Start HTTP/status',
-    'Start TFTP',
-    'Start DHCP',
-    'Start all services',
-    'Stop all services',
-    'Clear status files',
-    'Refresh validation',
-    'Quit',
-  ],
+  items: getActionItems(),
 });
 
 const servicesBox = blessed.box({
@@ -371,6 +380,19 @@ function renderLogs() {
   logBox.setScrollPerc(100);
 }
 
+function renderActionMenu() {
+  const items = getActionItems();
+  const signature = items.join('\n');
+  if (signature === lastActionItemsSignature) {
+    return;
+  }
+
+  const selected = Number.isInteger(menu.selected) ? menu.selected : 0;
+  menu.setItems(items);
+  menu.select(Math.min(selected, items.length - 1));
+  lastActionItemsSignature = signature;
+}
+
 function renderAll({ forceRedraw = false } = {}) {
   const layout = applyLayout();
   const signature = layoutSignature(layout);
@@ -385,6 +407,7 @@ function renderAll({ forceRedraw = false } = {}) {
     screen.render();
     return;
   }
+  renderActionMenu();
   renderServices();
   renderDeployment();
   renderPreflight();
@@ -462,6 +485,15 @@ async function withBusy(label, action) {
   }
 }
 
+async function toggleService({ service, startPrompt, stopPrompt, startLabel, stopLabel }) {
+  const wasRunning = service.running;
+  const prompt = wasRunning ? stopPrompt : startPrompt;
+  const label = wasRunning ? stopLabel : startLabel;
+  if (await confirmPrompt(prompt)) {
+    await withBusy(label, () => (wasRunning ? service.stop() : service.start()));
+  }
+}
+
 async function runAction(index) {
   switch (index) {
     case 0:
@@ -480,19 +512,31 @@ async function runAction(index) {
       }
       break;
     case 2:
-      if (await confirmPrompt(`Start HTTP/status server on ${config.http.host}:${config.http.port}?`)) {
-        await withBusy('Starting HTTP/status server', () => http.start());
-      }
+      await toggleService({
+        service: http,
+        startPrompt: `Start HTTP/status server on ${config.http.host}:${config.http.port}?`,
+        stopPrompt: 'Stop HTTP/status server?',
+        startLabel: 'Starting HTTP/status server',
+        stopLabel: 'Stopping HTTP/status server',
+      });
       break;
     case 3:
-      if (await confirmPrompt(`Start TFTP responder on ${config.tftp.listenIp}:${config.tftp.port}?`)) {
-        await withBusy('Starting TFTP responder', () => tftp.start());
-      }
+      await toggleService({
+        service: tftp,
+        startPrompt: `Start TFTP responder on ${config.tftp.listenIp}:${config.tftp.port}?`,
+        stopPrompt: 'Stop TFTP responder?',
+        startLabel: 'Starting TFTP responder',
+        stopLabel: 'Stopping TFTP responder',
+      });
       break;
     case 4:
-      if (await confirmPrompt(`Start DHCP responder on ${config.dhcp.listenIp}:${config.dhcp.listenPort}? Confirm the real DHCP server is disabled first.`)) {
-        await withBusy('Starting DHCP responder', () => dhcp.start());
-      }
+      await toggleService({
+        service: dhcp,
+        startPrompt: `Start DHCP responder on ${config.dhcp.listenIp}:${config.dhcp.listenPort}? Confirm the real DHCP server is disabled first.`,
+        stopPrompt: 'Stop DHCP responder?',
+        startLabel: 'Starting DHCP responder',
+        stopLabel: 'Stopping DHCP responder',
+      });
       break;
     case 5:
       if (await confirmPrompt('Start HTTP, TFTP, and DHCP services? Confirm the real DHCP server is disabled first.')) {

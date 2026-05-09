@@ -355,7 +355,8 @@ Safety contract:
 - Start the TUI from elevated PowerShell.
 - Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter; `Configure physical NIC` remains an optional helper for setting the configured adapter alias, not a required identity check.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
-- Keep confirmation gates for NIC configuration, DHCP/PXE service start, and status-file deletion.
+- Keep confirmation gates for NIC configuration, DHCP/PXE service start/stop toggles, and status-file deletion.
+- The individual `Start HTTP/status`, `Start TFTP`, and `Start DHCP` actions are service toggles; when a service is running, the same action must become `Stop ...` and shut that service down.
 - `Clear status files` must also remove `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
 - Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.
 
