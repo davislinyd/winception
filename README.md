@@ -379,8 +379,9 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
     - Winlogon 自動登入
     - Windows Update policy
     - `SetupComplete.cmd/.ps1`
+    - client app payload `C:\ProgramData\OSDCloud\Apps`
 15. `Start-OSDCloud-iPXE.ps1` 在 `Invoke-OSDCloud` 返回後送出完成狀態，等待 10 秒並執行 `wpeutil reboot`。
-16. Windows 第一次開機執行 SetupComplete，建立/修正 `davis/password`，設定 zh-TW、Taipei timezone、OOBE registry 與桌面 marker。
+16. Windows 第一次開機執行 SetupComplete，建立/修正 `davis/password`，設定 zh-TW、Taipei timezone、OOBE registry，靜默安裝 client apps，並寫入桌面 marker。
 17. 在實體筆電本機或遠端管理通道驗證桌面、版本、語系、時區、OOBE registry、OSDCloud log、HTTP access log。
 
 目前實作中特別重要的限制：
@@ -388,6 +389,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 - iPXE no-redownload 模式不能使用 `-ImageFileUrl`，因為 OSDCloud 會先把 ESD 下載到 WinPE 暫存位置。現在改由 WinPE 掛載 SMB share，設定 `$Global:StartOSDCloud.ImageFileDestination` 為 ESD `FileInfo` 後呼叫 `Invoke-OSDCloud`。
 - Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host TUI 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
 - Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
+- Client app payload 放在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1`。目前包含 `7zip\7z2601-x64.msi`，使用 `msiexec /qn /norestart REBOOT=ReallySuppress` 靜默安裝。
 - 測試時真實環境 DHCP server 必須暫時關閉，避免和本機 PXE DHCP responder 衝突。
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
@@ -471,6 +473,8 @@ C:\ProgramData\OSDCloud\DeploymentStatus.json
 
 ```text
 windows-setupcomplete-start
+windows-apps-start
+windows-apps-finished
 windows-driverpack-cache-request
 windows-setupcomplete-finished
 windows-logon-start
@@ -478,6 +482,8 @@ windows-desktop-ready
 ```
 
 `windows-driverpack-cache-request` 只帶 driver pack metadata，不帶 driver pack 本體。host 端收到後會在背景處理 cache backfill；即使下載失敗，也不會阻斷 `windows-setupcomplete-finished` 或 `windows-desktop-ready`。
+
+`windows-apps-start` / `windows-apps-finished` 代表 SetupComplete 正在安裝 `C:\ProgramData\OSDCloud\Apps` 內的 client app payload。若 installer 回傳非成功碼，會送出 `windows-apps-error` 與 `windows-setupcomplete-error`，log 在 `C:\Windows\Temp\osdcloud-logs\apps-install.log` 和各軟體自己的 log。
 
 `windows-desktop-ready` 代表已看到 Explorer、桌面 ready marker，且沒有 `CloudExperienceHost` / `msoobe`。
 Desktop-ready reporter 會等到 `windows-desktop-ready` 成功 POST 到 host 後才移除 scheduled task；如果 Windows 桌面先出現但網路尚未連上目前 host status endpoint，它會每 `5` 秒重試，最多 `30` 分鐘，避免 TUI 永遠停在 `awaiting-windows`。`Send-Status` 必須在 HTTP POST 或 WebClient fallback 成功後回傳 `$true`，否則 reporter 會把 HTTP `204` 當成未完成並每 5 秒重送相同 `windows-desktop-ready`，直到 30 分鐘 deadline。
@@ -660,6 +666,7 @@ New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
 
 - `C:\OSDCloud\Logs\DavisOobeInjected.txt` 存在
 - `C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt` 存在
+- `C:\Program Files\7-Zip\7z.exe` 存在
 - `ExplorerRunning=True`
 - `OobeProcesses` 為空
 - `LaunchUserOOBE=0`

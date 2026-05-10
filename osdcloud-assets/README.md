@@ -13,6 +13,7 @@ The repo tracks the small source/config files that define deployment behavior:
 
 - ISO OOBE injection scripts under `Win11-Lab\Config\Scripts`
 - iPXE OOBE injection scripts under `Win11-iPXE-Lab\Config\Scripts`
+- iPXE client app payload under `Win11-iPXE-Lab\Media\OSDCloud\Apps`
 - PXE helper scripts under `Win11-iPXE-Lab\Tools`
 - iPXE boot script under `Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.ipxe`
 - Disabled TFTP `autoexec.ipxe` files that document the currently bypassed chain path
@@ -41,6 +42,8 @@ Refresh the mirror after changing anything under `C:\OSDCloud`:
 
 For iPXE, `Invoke-DavisOobe.ps1` copies SetupComplete from inside `boot.wim` first. If `WinPE\OSDCloud\Config\Scripts\SetupComplete` is stale, the deployed Windows can reach the desktop without reporting `windows-desktop-ready` back to the TUI.
 
-The current iPXE `SetupComplete.ps1` installs only the JSON desktop-ready reporter for Windows completion. It does not install a desktop screenshot Startup helper, because that path was blocked by Defender/AMSI as `ScriptContainedMaliciousContent`. The desktop-ready reporter retries every 5 seconds for up to 30 minutes from `windows-logon-start`; after a successful HTTP POST or WebClient fallback it must return success and unregister `OSDCloudDesktopReadyReport`.
+The current iPXE `SetupComplete.ps1` installs the client app payload and the JSON desktop-ready reporter for Windows completion. It does not install a desktop screenshot Startup helper, because that path was blocked by Defender/AMSI as `ScriptContainedMaliciousContent`. The desktop-ready reporter retries every 5 seconds for up to 30 minutes from `windows-logon-start`; after a successful HTTP POST or WebClient fallback it must return success and unregister `OSDCloudDesktopReadyReport`.
+
+The app payload currently installs 7-Zip from `Apps\7zip\7z2601-x64.msi` during SetupComplete with a silent MSI command. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and `7zip-msi.log` on the deployed client.
 
 The files include lab-only credentials such as the local `davis` account and SMB `pxeinstall` account. Keep this repository private.

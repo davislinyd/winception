@@ -101,6 +101,28 @@ try {
         Copy-Item -Path (Join-Path $sourceSetup '*') -Destination $setupScripts -Recurse -Force
     }
 
+    $appCandidates = @()
+    if ($PSScriptRoot) {
+        $osdCloudScriptRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+        $appCandidates += Join-Path $osdCloudScriptRoot 'Apps'
+    }
+
+    $appCandidates += Get-PSDrive -PSProvider FileSystem |
+        Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
+        ForEach-Object { "$($_.Name):\OSDCloud\Apps" }
+
+    $sourceApps = $appCandidates |
+        Where-Object { $_ -and (Test-Path (Join-Path $_ 'Install-Apps.ps1') -PathType Leaf) } |
+        Select-Object -First 1
+
+    if ($sourceApps) {
+        $targetApps = Join-Path $windowsRoot 'ProgramData\OSDCloud\Apps'
+        New-Item -ItemType Directory -Path $targetApps -Force | Out-Null
+        Copy-Item -Path (Join-Path $sourceApps '*') -Destination $targetApps -Recurse -Force
+        Write-Host "Client apps source: $sourceApps"
+        Write-Host "Client apps target: $targetApps"
+    }
+
     $cmdPath = Join-Path $setupScripts 'SetupComplete.cmd'
     if (-not (Test-Path $cmdPath)) {
         $cmd = @'

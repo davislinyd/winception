@@ -155,6 +155,39 @@ function Send-DriverPackCacheRequest {
     }
 }
 
+function Invoke-ClientAppInstallers {
+    $appsRoot = 'C:\ProgramData\OSDCloud\Apps'
+    $installer = Join-Path $appsRoot 'Install-Apps.ps1'
+    if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+        return [ordered]@{
+            found = $false
+            root = $appsRoot
+        }
+    }
+
+    [void] (Send-DeploymentStatus -Stage 'windows-apps-start' -Message 'Installing client applications.' -Percent 94.5 -Extra @{
+        appsRoot = $appsRoot
+    })
+
+    $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $argumentList = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$installer`""
+    $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -Wait -PassThru -WindowStyle Hidden
+    $result = [ordered]@{
+        found = $true
+        root = $appsRoot
+        script = $installer
+        exitCode = $process.ExitCode
+    }
+
+    if ($process.ExitCode -ne 0) {
+        [void] (Send-DeploymentStatus -Stage 'windows-apps-error' -Message "Client application installer failed with exit code $($process.ExitCode)." -Percent 94.9 -Extra $result)
+        throw "Client application installer failed with exit code $($process.ExitCode)."
+    }
+
+    [void] (Send-DeploymentStatus -Stage 'windows-apps-finished' -Message 'Client applications installed.' -Percent 95.5 -Extra $result)
+    return $result
+}
+
 function Install-DesktopReadyReporter {
     $programData = 'C:\ProgramData\OSDCloud'
     New-Item -ItemType Directory -Path $programData -Force | Out-Null
@@ -348,12 +381,14 @@ try {
         New-ItemProperty -Path $LogonUI -Name SelectedUserSID -PropertyType String -Value $Sid -Force | Out-Null
     }
 
+    $clientAppsResult = Invoke-ClientAppInstallers
     New-Item -ItemType Directory -Path 'C:\Users\Public\Desktop' -Force | Out-Null
     "OSDCloud desktop ready $(Get-Date -Format o)" | Out-File 'C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt' -Encoding ascii -Force
     $reporterPath = Install-DesktopReadyReporter
     $driverPackCacheRequestSent = Send-DriverPackCacheRequest
     [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'SetupComplete finished; desktop ready reporter installed.' -Percent 96 -Extra @{
         reporterPath = $reporterPath
+        clientApps = $clientAppsResult
         driverPackCacheRequestSent = $driverPackCacheRequestSent
     })
 }
