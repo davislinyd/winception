@@ -394,6 +394,60 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
 
+自行新增 client 軟體：
+
+1. 在 live SMB media 建立一個軟體資料夾：
+
+```text
+C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps\<SoftwareName>\
+  install.ps1
+  installer.msi 或 installer.exe
+```
+
+2. `install.ps1` 只處理該軟體自己的 silent install、exit code 與安裝後驗證。MSI 範本：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+
+$LogDir = 'C:\Windows\Temp\osdcloud-logs'
+New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+
+$msiPath = Join-Path $PSScriptRoot 'installer.msi'
+$msiLog = Join-Path $LogDir '<software>-msi.log'
+$args = "/i `"$msiPath`" /qn /norestart REBOOT=ReallySuppress /L*v `"$msiLog`""
+$process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $args -Wait -PassThru -WindowStyle Hidden
+
+if (@(0, 1641, 3010) -notcontains $process.ExitCode) {
+    throw "<SoftwareName> install failed with exit code $($process.ExitCode). See $msiLog"
+}
+```
+
+EXE 範本：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+
+$exePath = Join-Path $PSScriptRoot 'installer.exe'
+$process = Start-Process -FilePath $exePath -ArgumentList '/quiet /norestart' -Wait -PassThru -WindowStyle Hidden
+
+if ($process.ExitCode -ne 0) {
+    throw "<SoftwareName> install failed with exit code $($process.ExitCode)"
+}
+```
+
+3. 每個 installer 的 silent 參數可能不同；先查該軟體官方文件或用 installer help 確認。常見參數有 `/quiet /norestart`、`/S`、`/silent`、`/verysilent`。
+4. 只新增或更新 `Apps` payload 時，不需要重建或重新 commit `boot.wim`；既有 WinPE shutdown 已會複製整個 `OSDCloud\Apps`。
+5. 同步 repo mirror 並提交：
+
+```powershell
+.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts
+git status --short --branch
+git add README.md tools\Sync-OsdCloudAssets.ps1 osdcloud-assets\manifest.json osdcloud-assets\Win11-iPXE-Lab\Media\OSDCloud\Apps
+git commit -m "Add <SoftwareName> client app payload"
+```
+
+6. 下一次實體 iPXE 部署時，TUI 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log` 和軟體自己的 log。
+
 若目前 endpoint 留在 VM 測試狀態，先切回實體筆電：
 
 ```powershell

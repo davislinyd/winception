@@ -101,6 +101,17 @@ $ipxeLab = Join-Path $SourceRoot 'Win11-iPXE-Lab'
 $winPeMount = Join-Path $ipxeLab 'MountReadOnly'
 $bootWim = Join-Path $ipxeLab 'Media\sources\boot.wim'
 $mountedByScript = $false
+$appsRoot = Join-Path $ipxeLab 'Media\OSDCloud\Apps'
+$appExports = @()
+if (Test-Path -LiteralPath $appsRoot -PathType Container) {
+    $appExports = @(Get-ChildItem -LiteralPath $appsRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
+        $relativePath = $_.FullName.Substring($appsRoot.Length).TrimStart('\')
+        @{
+            Source = $_.FullName
+            Target = Join-Path 'Win11-iPXE-Lab\Media\OSDCloud\Apps' $relativePath
+        }
+    })
+}
 
 if ($MountWinPe -and -not (Test-Path -LiteralPath (Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1') -PathType Leaf)) {
     New-Item -ItemType Directory -Path $winPeMount -Force | Out-Null
@@ -118,10 +129,8 @@ try {
         @{ Source = Join-Path $win11Lab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd' },
-        @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1' },
-        @{ Source = Join-Path $ipxeLab 'Media\OSDCloud\Apps\Install-Apps.ps1'; Target = 'Win11-iPXE-Lab\Media\OSDCloud\Apps\Install-Apps.ps1' },
-        @{ Source = Join-Path $ipxeLab 'Media\OSDCloud\Apps\7zip\install.ps1'; Target = 'Win11-iPXE-Lab\Media\OSDCloud\Apps\7zip\install.ps1' },
-        @{ Source = Join-Path $ipxeLab 'Media\OSDCloud\Apps\7zip\7z2601-x64.msi'; Target = 'Win11-iPXE-Lab\Media\OSDCloud\Apps\7zip\7z2601-x64.msi' },
+        @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1' }
+    ) + $appExports + @(
         @{ Source = Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe'; Target = 'Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.ipxe' },
         @{ Source = Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled'; Target = 'Win11-iPXE-Lab\PXE-TFTP\autoexec.ipxe.disabled' },
         @{ Source = Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled'; Target = 'Win11-iPXE-Lab\PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled' },
