@@ -119,7 +119,7 @@ TUI 主要區塊：
 1. 如需變更服務網卡，先選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
 2. TUI 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
 3. 在 Preflight panel 看 endpoint update 進度；在 Logs panel 看同步腳本輸出。
-4. 選 `Select deployment profile`，發佈這次要使用的 profile。`default` 會發佈 7-Zip，`minimal` 不發佈任何 client software。
+4. 選 `Select deployment profile`，發佈這次要使用的 profile。`default` 會發佈 7-Zip，`default-chrome` 會發佈 7-Zip + Google Chrome Enterprise，`minimal` 不發佈任何 client software。
 5. 在 TUI 選 `Run preflight`。
 6. 如果 service IP、DHCP pool、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
 7. 確認真實 LAN DHCP server 已暫時關閉。
@@ -389,7 +389,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 - iPXE no-redownload 模式不能使用 `-ImageFileUrl`，因為 OSDCloud 會先把 ESD 下載到 WinPE 暫存位置。現在改由 WinPE 掛載 SMB share，設定 `$Global:StartOSDCloud.ImageFileDestination` 為 ESD `FileInfo` 後呼叫 `Invoke-OSDCloud`。
 - Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host TUI 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
 - Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
-- Client app payload 由 TUI deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 只安裝被選中的軟體。目前 `default` profile 發佈 `7zip\7z2601-x64.msi`，`minimal` profile 不安裝 client software。
+- Client app payload 由 TUI deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 只安裝被選中的軟體。目前 `default` profile 發佈 `7zip\7z2601-x64.msi`，`default-chrome` profile 發佈 7-Zip 與 `chrome\googlechromestandaloneenterprise64.msi`，`minimal` profile 不安裝 client software。
 - 測試時真實環境 DHCP server 必須暫時關閉，避免和本機 PXE DHCP responder 衝突。
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
@@ -436,7 +436,7 @@ if ($process.ExitCode -ne 0) {
 ```
 
 3. 每個 installer 的 silent 參數可能不同；先查該軟體官方文件或用 installer help 確認。常見參數有 `/quiet /norestart`、`/S`、`/silent`、`/verysilent`。
-4. 在 `config\software-catalog.json` 新增軟體 id/name/source，並在 `config\deployment-profiles\<profile>.json` 把該 id 加進 `software` 清單。
+4. 在 `config\software-catalog.json` 新增軟體 id/name/source，並在 `config\deployment-profiles\<profile>.json` 把該 id 加進 `software` 清單。若 installer 很大，使用 Git LFS 追蹤，例如本 repo 以 `.gitattributes` 將 `*.msi` 交給 LFS。
 5. 在 TUI 選 `Select deployment profile` 發佈 profile。TUI 會先停止 running 的 HTTP/TFTP/DHCP service，清空 live `Apps`，再只複製該 profile 選中的軟體與 `selected-profile.json`。
 6. 只新增或更新 `Apps` payload 時，不需要重建或重新 commit `boot.wim`；既有 WinPE shutdown 已會複製整個已發佈的 `OSDCloud\Apps`。
 7. 同步 repo mirror 並提交：
@@ -724,6 +724,7 @@ New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
 - `C:\OSDCloud\Logs\DavisOobeInjected.txt` 存在
 - `C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt` 存在
 - `C:\Program Files\7-Zip\7z.exe` 存在
+- 若選 `default-chrome` profile，`C:\Program Files\Google\Chrome\Application\chrome.exe` 存在
 - `ExplorerRunning=True`
 - `OobeProcesses` 為空
 - `LaunchUserOOBE=0`

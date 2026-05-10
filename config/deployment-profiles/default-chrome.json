@@ -1,0 +1,8 @@
+{
+  "id": "default-chrome",
+  "name": "Default + Chrome",
+  "software": [
+    "7zip",
+    "chrome"
+  ]
+}

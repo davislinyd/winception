@@ -4,6 +4,11 @@
       "id": "7zip",
       "name": "7-Zip 26.01 x64",
       "source": "7zip"
+    },
+    {
+      "id": "chrome",
+      "name": "Google Chrome Enterprise 64-bit",
+      "source": "chrome"
     }
   ]
 }
