@@ -160,6 +160,58 @@ function Get-SubnetCidr {
     "$(ConvertFrom-IPv4UInt32 $info.Network)/$PrefixLength"
 }
 
+function Get-ReservationIp {
+    param([Parameter(Mandatory)][object] $Reservation)
+
+    foreach ($name in @('ip', 'IP', 'ipAddress', 'IPAddress')) {
+        $property = $Reservation.PSObject.Properties[$name]
+        if ($property -and -not [string]::IsNullOrWhiteSpace([string] $property.Value)) {
+            return [string] $property.Value
+        }
+    }
+    return ''
+}
+
+function Update-DhcpReservationsForPrefix {
+    param(
+        [Parameter(Mandatory)][object] $Config,
+        [Parameter(Mandatory)][string] $ServerIp,
+        [Parameter(Mandatory)][int] $PrefixLength
+    )
+
+    if (-not $Config.dhcp.PSObject.Properties['reservations']) {
+        return @()
+    }
+
+    $kept = @()
+    $removed = @()
+    foreach ($reservation in @($Config.dhcp.reservations)) {
+        if (-not $reservation) {
+            continue
+        }
+        $ip = Get-ReservationIp -Reservation $reservation
+        $inPrefix = $false
+        if (-not [string]::IsNullOrWhiteSpace($ip)) {
+            try {
+                $inPrefix = Test-IPv4InPrefix -Address $ip -NetworkAddress $ServerIp -PrefixLength $PrefixLength
+            }
+            catch {
+                $inPrefix = $false
+            }
+        }
+
+        if ($inPrefix) {
+            $kept += $reservation
+        }
+        else {
+            $removed += $reservation
+        }
+    }
+
+    Set-Property -Object $Config.dhcp -Name reservations -Value @($kept)
+    return @($removed)
+}
+
 function Set-RegexInFile {
     param(
         [Parameter(Mandatory)]
@@ -384,6 +436,7 @@ Set-Property -Object $config.dhcp -Name leaseStartIp -Value $dhcpRange.LeaseStar
 Set-Property -Object $config.dhcp -Name leaseEndIp -Value $dhcpRange.LeaseEndIp
 Set-Property -Object $config.dhcp -Name subnetMask -Value $subnetMask
 Set-Property -Object $config.dhcp -Name router -Value $dhcpRouter
+$removedReservations = @(Update-DhcpReservationsForPrefix -Config $config -ServerIp $ServerIp -PrefixLength $PrefixLength)
 Set-Property -Object $config.tftp -Name listenIp -Value $ServerIp
 Set-Property -Object $config.http -Name host -Value $ServerIp
 Set-Property -Object $config.smb -Name share -Value $share
@@ -393,6 +446,23 @@ if (-not [string]::IsNullOrWhiteSpace($ImageNamePattern)) {
 
 Write-Utf8NoBom -Path $ConfigPath -Content (($config | ConvertTo-Json -Depth 12) + [Environment]::NewLine)
 Write-Host "Updated config endpoint: $ServerIp on $InterfaceAlias/$PrefixLength"
+if ($removedReservations.Count -gt 0) {
+    $removedDescriptions = foreach ($reservation in $removedReservations) {
+        $ip = Get-ReservationIp -Reservation $reservation
+        $mac = ''
+        foreach ($name in @('mac', 'Mac', 'macAddress', 'MacAddress')) {
+            $property = $reservation.PSObject.Properties[$name]
+            if ($property -and -not [string]::IsNullOrWhiteSpace([string] $property.Value)) {
+                $mac = [string] $property.Value
+                break
+            }
+        }
+        if ($mac -or $ip) {
+            "$mac=>$ip"
+        }
+    }
+    Write-Host "Removed DHCP reservations outside ${ServerIp}/${PrefixLength}: $($removedDescriptions -join ', ')"
+}
 
 Set-BootIpxeEndpoint -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe')
 Set-AutoexecEndpoint -Path (Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled')

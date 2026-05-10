@@ -122,6 +122,47 @@ test('applies isolated interface endpoint using server IP as DHCP router', () =>
   assert.equal(config.dhcp.router, '192.168.100.1');
 });
 
+test('drops DHCP reservations outside the selected endpoint subnet', () => {
+  const config = {
+    adapter: { interfaceAlias: 'Ethernet', serverIp: '192.168.100.100', prefixLength: 24 },
+    dhcp: {
+      listenIp: '192.168.100.100',
+      leaseStartIp: '192.168.100.200',
+      leaseEndIp: '192.168.100.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.100.1',
+      reservations: [
+        { mac: 'AA-BB-CC-00-00-01', ip: '10.10.10.115' },
+        { mac: 'AA-BB-CC-00-00-02', ip: '192.168.100.115' },
+        { mac: 'AA-BB-CC-00-00-03', ip: 'not-an-ip' },
+      ],
+      bootFile: 'snponly.efi',
+      ipxeBootUrl: 'http://192.168.100.100/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\PXE-TFTP', listenIp: '192.168.100.100' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.100', statusRoot: 'C:\\status' },
+    paths: {
+      expectedHttpFiles: ['osdcloud\\boot.ipxe'],
+      imageNamePattern: 'install.esd',
+    },
+    smb: {
+      share: '\\\\192.168.100.100\\OSDCloudiPXE',
+      imagePath: '\\\\192.168.100.100\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+    },
+  };
+
+  applyServiceEndpoint(config, {
+    interfaceAlias: 'LAN',
+    ipAddress: '10.10.10.5',
+    prefixLength: 24,
+    gateway: '',
+  });
+
+  assert.deepEqual(config.dhcp.reservations, [
+    { mac: 'AA-BB-CC-00-00-01', ip: '10.10.10.115' },
+  ]);
+});
+
 test('validates DHCP reservations', () => {
   const config = {
     adapter: { interfaceAlias: 'Ethernet', serverIp: '192.168.100.1', prefixLength: 24 },

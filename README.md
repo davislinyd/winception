@@ -383,7 +383,7 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 - 若要改服務監聽介面，使用 `Select service interface`；它會列出目前啟用、具 IPv4、非 APIPA 的介面，選定後寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、published `boot.wim` 與 `osdcloud-assets`
 - 選擇新介面時，HTTP/TFTP/DHCP 任一服務若正在 running，TUI 會先要求停止服務再更新 endpoint
 - 切換介面後 DHCP responder 必須使用新 endpoint 的 lease pool；若 log 顯示服務在 `192.168.100.x` 但仍 OFFER/ACK `192.168.100.x`，代表正在跑舊 TUI process，停止服務並重新啟動 `npm run tui`
-- `dhcp.reservations` 可針對已知實體 client MAC 固定派發 IP；切到 `LAN` / `192.168.88.1` 前必須檢查 reservation 是否仍落在 `192.168.88.0/24` 內，避免沿用舊 `192.168.100.x` 位址
+- `dhcp.reservations` 可針對已知實體 client MAC 固定派發 IP；切到新 endpoint 時，TUI / `Set-OsdCloudIpxeEndpoint.ps1` 會移除不在新 subnet 內的 reservation，避免沿用舊 `192.168.100.x` 或 vSwitch 位址
 - 只有確認真實 LAN DHCP server 已暫時停用後，才在 TUI 啟動 DHCP
 - `Start HTTP/status`、`Start TFTP`、`Start DHCP` 是個別服務 toggle；服務 running 時同一個 action 會顯示為 `Stop ...` 並可關閉服務
 - TUI 不再提供 `Configure physical NIC` 動作；如需改 Windows 網卡 IP，請在 TUI 外手動執行 `.\tools\Set-IpxePhysicalNic.ps1`

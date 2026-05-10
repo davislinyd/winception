@@ -77,6 +77,30 @@ function isInSubnet(address, serverIp, prefixLength) {
   return ((ipv4ToUInt32(address) & mask) >>> 0) === network;
 }
 
+function reservationIp(reservation) {
+  return String(
+    reservation?.ip
+    ?? reservation?.IP
+    ?? reservation?.ipAddress
+    ?? reservation?.IPAddress
+    ?? '',
+  );
+}
+
+function filterReservationsForSubnet(reservations, serverIp, prefixLength) {
+  if (!Array.isArray(reservations)) {
+    return reservations;
+  }
+  return reservations.filter((reservation) => {
+    const ip = reservationIp(reservation);
+    try {
+      return ip && isInSubnet(ip, serverIp, prefixLength);
+    } catch {
+      return false;
+    }
+  });
+}
+
 function subnetMask(prefixLength) {
   return uint32ToIPv4(prefixLengthToMask(prefixLength));
 }
@@ -142,6 +166,9 @@ export function applyServiceEndpoint(config, choice, options = {}) {
   config.dhcp.subnetMask = subnetMask(prefixLength);
   config.dhcp.router = gateway && isInSubnet(gateway, serverIp, prefixLength) ? gateway : serverIp;
   Object.assign(config.dhcp, dhcpLeaseRange(serverIp, prefixLength));
+  if (config.dhcp.reservations !== undefined) {
+    config.dhcp.reservations = filterReservationsForSubnet(config.dhcp.reservations, serverIp, prefixLength);
+  }
   config.tftp.listenIp = serverIp;
   config.http.host = serverIp;
 
@@ -198,7 +225,7 @@ export function validateConfig(config) {
     const reservedIps = new Set();
     for (const reservation of config.dhcp.reservations) {
       const mac = String(reservation.mac ?? reservation.Mac ?? reservation.macAddress ?? reservation.MacAddress ?? '');
-      const ip = String(reservation.ip ?? reservation.IP ?? reservation.ipAddress ?? reservation.IPAddress ?? '');
+      const ip = reservationIp(reservation);
       const normalizedMac = mac.replace(/[^0-9A-Fa-f]/gu, '');
       if (!/^[0-9A-Fa-f]{12}$/u.test(normalizedMac)) {
         throw new Error(`Invalid DHCP reservation MAC address: ${mac}`);
