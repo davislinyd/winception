@@ -37,6 +37,7 @@ let altKeyWatcher = null;
 let logAutoFollow = true;
 let observedKeypressCount = 0;
 let stopKeyboardFallback = null;
+let endpointUpdateStatus = [];
 
 const horizontalPanelPadding = { left: 1, right: 1 };
 const panelLabelLeftInset = 1;
@@ -520,6 +521,46 @@ function addLog(message) {
   requestRender();
 }
 
+function endpointStatusMark(state) {
+  return {
+    fail: '{red-fg}FAIL{/red-fg}',
+    ok: '{green-fg}OK{/green-fg}',
+    run: '{yellow-fg}RUN{/yellow-fg}',
+  }[state] ?? '{cyan-fg}INFO{/cyan-fg}';
+}
+
+function addEndpointUpdateStatus(message, state = 'info') {
+  endpointUpdateStatus.push(`${endpointStatusMark(state)} ${message}`);
+  endpointUpdateStatus = endpointUpdateStatus.slice(-14);
+  addLog(`[endpoint] ${message}`);
+  requestRender({ immediate: true });
+}
+
+function createLogStreamer(prefix) {
+  let pending = '';
+  const emit = (line) => {
+    const text = line.trim();
+    if (text) {
+      addLog(`${prefix} ${text}`);
+    }
+  };
+
+  return {
+    flush() {
+      emit(pending);
+      pending = '';
+    },
+    write(chunk) {
+      pending += String(chunk).replace(/\r/gu, '\n');
+      const lines = pending.split('\n');
+      pending = lines.pop() ?? '';
+      for (const line of lines) {
+        emit(line);
+      }
+    },
+  };
+}
+
 for (const [name, service] of [['DHCP', dhcp], ['TFTP', tftp], ['HTTP', http]]) {
   service.on('log', (line) => {
     runtimeLog.push(`[${name}] ${line}`);
@@ -595,6 +636,25 @@ function renderClientDetail(fleet) {
 }
 
 function renderPreflight() {
+  if (endpointUpdateStatus.length > 0) {
+    const lines = [
+      'Endpoint update:',
+      ...endpointUpdateStatus,
+      '',
+    ];
+    if (preflightResults.length === 0) {
+      lines.push('Preflight results will appear after endpoint sync completes.');
+    } else {
+      lines.push('Preflight:');
+      lines.push(...preflightResults.map((item) => {
+        const mark = item.ok ? '{green-fg}OK{/green-fg}' : '{red-fg}FAIL{/red-fg}';
+        return `${mark} ${item.name}${item.detail ? ` - ${item.detail}` : ''}`;
+      }));
+    }
+    setWrappedContent(preflightBox, lines);
+    return;
+  }
+
   if (preflightResults.length === 0) {
     setWrappedContent(preflightBox, ['Run preflight to validate adapter, files, ports, SMB, and status paths.']);
     return;
@@ -865,30 +925,69 @@ async function runAction(index) {
       if (!(await stopServicesForInterfaceChange())) {
         break;
       }
-      await withBusy('Listing service interfaces', async () => {
-        const choices = await listIpv4ServiceInterfaces();
+      {
+        let choices = [];
+        await withBusy('Listing service interfaces', async () => {
+          choices = await listIpv4ServiceInterfaces();
+        });
         if (choices.length === 0) {
           addLog('No enabled non-APIPA IPv4 interfaces found');
-          return;
+          break;
         }
         const selected = await selectInterfacePrompt(choices);
         if (!selected) {
           addLog('Interface selection cancelled');
-          return;
+          break;
         }
-        applyServiceEndpoint(config, selected);
-        const savedPath = saveConfig(config);
-        addLog(`Saved service endpoint ${config.adapter.interfaceAlias} ${config.adapter.serverIp}/${config.adapter.prefixLength} to ${savedPath}`);
-        const output = await syncIpxeEndpoint(config, {
-          commitWinPe: true,
-          syncAssets: true,
-          hashLargeArtifacts: true,
-        });
-        if (output) {
-          addLog(output.replace(/\r?\n/g, ' | '));
-        }
+        endpointUpdateStatus = [];
         preflightResults = [];
-      });
+        addEndpointUpdateStatus(`Selected ${selected.interfaceAlias} ${selected.ipAddress}/${selected.prefixLength}`);
+        await withBusy('Applying service interface endpoint', async () => {
+          try {
+            addEndpointUpdateStatus('Updating TUI config for DHCP, TFTP, HTTP/status, and SMB', 'run');
+            const previousReservations = Array.isArray(config.dhcp.reservations)
+              ? config.dhcp.reservations.length
+              : 0;
+            const previousEndpoint = `${config.adapter.interfaceAlias} ${config.adapter.serverIp}/${config.adapter.prefixLength}`;
+            const previousBootUrl = config.dhcp.ipxeBootUrl;
+
+            applyServiceEndpoint(config, selected);
+            const savedPath = saveConfig(config);
+            const currentReservations = Array.isArray(config.dhcp.reservations)
+              ? config.dhcp.reservations.length
+              : 0;
+
+            addEndpointUpdateStatus(`Saved ${savedPath}`, 'ok');
+            addEndpointUpdateStatus(`Endpoint ${previousEndpoint} -> ${config.adapter.interfaceAlias} ${config.adapter.serverIp}/${config.adapter.prefixLength}`, 'ok');
+            addEndpointUpdateStatus(`iPXE boot URL ${previousBootUrl} -> ${config.dhcp.ipxeBootUrl}`, 'ok');
+            if (currentReservations < previousReservations) {
+              addEndpointUpdateStatus(`Removed ${previousReservations - currentReservations} stale DHCP reservation(s) outside ${config.adapter.serverIp}/${config.adapter.prefixLength}`, 'ok');
+            }
+
+            addEndpointUpdateStatus('Syncing boot.ipxe, autoexec, SetupComplete, WinPE status/SMB endpoint, SMB firewall, boot.wim, and osdcloud-assets', 'run');
+            const stream = createLogStreamer('[endpoint-sync]');
+            try {
+              await syncIpxeEndpoint(config, {
+                commitWinPe: true,
+                syncAssets: true,
+                hashLargeArtifacts: true,
+                onOutput: stream.write,
+              });
+            } finally {
+              stream.flush();
+            }
+            addEndpointUpdateStatus('Endpoint files synced and published boot.wim verified', 'ok');
+
+            addEndpointUpdateStatus('Running preflight against the new endpoint', 'run');
+            preflightResults = await runPreflight(config, { dhcp, tftp, http });
+            const failures = preflightResults.filter((item) => !item.ok).length;
+            addEndpointUpdateStatus(failures === 0 ? 'Preflight passed' : `Preflight completed with ${failures} failure(s)`, failures === 0 ? 'ok' : 'fail');
+          } catch (error) {
+            addEndpointUpdateStatus(`Endpoint update failed: ${error.message}`, 'fail');
+            throw error;
+          }
+        });
+      }
       break;
     case 2:
       await toggleService({

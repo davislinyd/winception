@@ -26,17 +26,22 @@ export function preparePowerShellArgs(args) {
 
 export function runPowerShell(args, options = {}) {
   return new Promise((resolve, reject) => {
+    const { onStdout, onStderr, ...spawnOptions } = options;
     const child = spawn(powershellExe(), preparePowerShellArgs(args), {
       windowsHide: true,
-      ...options,
+      ...spawnOptions,
     });
     let stdout = '';
     let stderr = '';
     child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString();
+      const text = chunk.toString();
+      stdout += text;
+      onStdout?.(text);
     });
     child.stderr?.on('data', (chunk) => {
-      stderr += chunk.toString();
+      const text = chunk.toString();
+      stderr += text;
+      onStderr?.(text);
     });
     child.on('error', reject);
     child.on('close', (code) => {
@@ -302,7 +307,11 @@ export async function syncIpxeEndpoint(config, options = {}) {
     args.push('-HashLargeArtifacts');
   }
 
-  const result = await runPowerShell(args, { cwd: config.paths.repoRoot });
+  const result = await runPowerShell(args, {
+    cwd: config.paths.repoRoot,
+    onStdout: options.onOutput ? (text) => options.onOutput(text, 'stdout') : undefined,
+    onStderr: options.onOutput ? (text) => options.onOutput(text, 'stderr') : undefined,
+  });
   return result.stdout.trim();
 }
 
