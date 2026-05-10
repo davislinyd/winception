@@ -58,6 +58,183 @@ DNS     : 1.1.1.1 / 8.8.8.8
 
 若下一次實體筆電 PXE 部署要走這張 `LAN`，必須先在 TUI 選取 `LAN` 或用同步工具把 live iPXE endpoint 改到 `LAN` / `192.168.88.1`，並同步 `boot.wim` / `osdcloud-assets`。單純改 Windows NIC IP 或名稱不會自動修改 WinPE 內嵌 endpoint。
 
+## 使用手冊
+
+本節是給實際操作人員看的流程。除非要做 VM regression，日常部署都走「實體筆電 iPXE」路徑，入口是 TUI。
+
+### 操作前檢查
+
+操作前先確認：
+
+- Host 以系統管理員身分開啟 PowerShell。
+- 工作目錄是 `C:\Users\Davis\Documents\New project`。
+- `WAN` 是 host 上網介面，保留 default route。
+- `LAN` 是接實體 client / PXE switch 的介面，預期為 `192.168.88.1/24`。
+- 要做 PXE 測試的實體 LAN 上，不應同時有另一台 DHCP server 回答同一台 client。
+- Client 使用 UEFI IPv4 PXE 開機；目前已驗證路徑使用 `snponly.efi`，signed shim Secure Boot PXE 還不是已驗證路徑。
+- 不需要在 client 插 USB 或掛 ISO。
+
+若 `LAN` IP 還沒有設定，先執行：
+
+```powershell
+.\tools\Set-IpxePhysicalNic.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1'
+```
+
+這只設定 Windows host NIC，不會修改 `boot.ipxe` 或 WinPE endpoint。實際部署前仍要在 TUI 選取 service interface，或執行 endpoint sync 工具。
+
+### 啟動 TUI
+
+在 elevated PowerShell 執行：
+
+```powershell
+cd 'C:\Users\Davis\Documents\New project'
+npm install
+npm run tui
+```
+
+`npm install` 只需要在第一次或 `package-lock.json` 改變後執行。平常直接 `npm run tui`。
+
+TUI 主要區塊：
+
+| 區塊 | 用途 |
+| --- | --- |
+| `Actions` | 執行 preflight、選 service interface、啟停服務、清除 status |
+| `Services` | 顯示 HTTP/TFTP/DHCP 是否 running、目前 service IP、DHCP pool/router |
+| `Clients` | 顯示多台 client / 多個 run 的狀態、stage、percent、last seen |
+| `Client Detail` | 顯示選定 run 的詳細階段、時間、訊息與截圖 metadata |
+| `Preflight` | 顯示檢查結果；選 service interface 時也會顯示 endpoint 更新進度 |
+| `Validation` | 顯示 fleet counts、最近截圖、最近 status events |
+| `Logs` | 顯示 TUI、DHCP、TFTP、HTTP、endpoint sync 的即時 log |
+
+鍵盤與滑鼠：
+
+- `Tab` / `Shift+Tab` 在各區塊間切換焦點。
+- `Alt+A/S/C/D/P/V/L` 可直接跳到 Actions、Services、Clients、Client Detail、Preflight、Validation、Logs。
+- 滑鼠點任一區塊可切換焦點。
+- 滑鼠滾輪會 scroll 目前游標所在區塊。
+- Logs 往上滾會暫停 auto-follow；滾到底或按 `End` 後恢復。
+
+### 每次實體部署流程
+
+1. 在 TUI 選 `Run preflight`。
+2. 如果 service IP、DHCP pool、SMB image、HTTP files 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
+3. 選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
+4. TUI 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
+5. 在 Preflight panel 看 endpoint update 進度；在 Logs panel 看同步腳本輸出。
+6. 確認同步完成後自動 preflight 沒有失敗。
+7. 確認真實 LAN DHCP server 已暫時關閉。
+8. 在 TUI 選 `Start all services`，或依序啟動 `Start HTTP/status`、`Start TFTP`、`Start DHCP`。
+9. 實體筆電從 UEFI IPv4 PXE 開機。
+10. 在 TUI 的 `Clients` / `Client Detail` / `Logs` 觀察流程。
+11. WinPE 完成後會自動 `wpeutil reboot`；此時 client 應從內部硬碟開機，不要再反覆 PXE 開機。
+12. Windows 第一次開機後應自動登入 `davis` 桌面，TUI 最終應收到 `windows-desktop-ready`。
+13. 完成後在 TUI 停止 DHCP/TFTP/HTTP services，避免 host DHCP 留在網段上。
+
+選 `Select service interface` 時，TUI 會同步：
+
+- `config\osdcloud-tui.json`
+- DHCP lease pool、subnet mask、router
+- HTTP / TFTP bind IP
+- SMB share / image path
+- live `boot.ipxe`
+- iPXE `autoexec`
+- SetupComplete status URL
+- WinPE 內嵌 `Start-OSDCloud-iPXE.ps1`
+- WinPE 內嵌 `Report-OSDCloudProgress.ps1`
+- WinPE 內嵌 SetupComplete scripts
+- SMB firewall rule
+- `Media\sources\boot.wim`
+- `PXE-HttpRoot\osdcloud\boot.wim`
+- repo 內的 `osdcloud-assets`
+
+不要只手動改 `boot.ipxe`。如果 `boot.ipxe` 更新了，但 WinPE 內的 SMB/status endpoint 還是舊 IP，client 可能可以進 WinPE，後續卻掛不到 SMB image 或回報不到狀態。
+
+### 網路環境變更時
+
+只要「client 看到的 service IP」沒有變，不需要改 `boot.ipxe`。例如 WAN 換網段、WAN gateway 改變、host 外網 IP 改變，但 LAN 仍是 `192.168.88.1/24`，PXE endpoint 就不需要變。
+
+需要重新同步 endpoint 的情況：
+
+- `LAN` service IP 從 `192.168.88.1` 改成別的 IP。
+- 從實體 `LAN` 切到 VM `Ethernet`。
+- 從 VM regression 切回實體 `LAN`。
+- `config\osdcloud-tui.json`、live `boot.ipxe`、SMB share 或 `boot.wim` 內嵌 endpoint 不一致。
+- Client 拿到正確 DHCP lease，但 iPXE 後續 HTTP 仍跑去另一張 NIC 或舊 IP。
+
+TUI 方式是首選：使用 `Select service interface`。
+
+非互動方式可執行：
+
+```powershell
+.\tools\Set-OsdCloudIpxeEndpoint.ps1 `
+  -InterfaceAlias 'LAN' `
+  -ServerIp '192.168.88.1' `
+  -PrefixLength 24 `
+  -DefaultGateway '192.168.88.1' `
+  -CommitWinPe `
+  -SyncAssets `
+  -HashLargeArtifacts
+```
+
+### 成功判斷
+
+TUI 最終應看到：
+
+```text
+Final stage : windows-desktop-ready
+Percent     : 100
+Message     : Windows desktop is ready for davis.
+```
+
+Windows 端應符合：
+
+```text
+User             : <computer>\davis
+ExplorerRunning  : True
+DesktopReadyFile : True
+OobeProcesses    :
+LaunchUserOOBE   : 0
+SkipUserOOBE     : 1
+NoAutoUpdate     : 1
+DisplayVersion   : 25H2
+CurrentBuild     : 26200
+EditionID        : Professional
+Culture          : zh-TW
+TimeZone         : Taipei Standard Time
+```
+
+iPXE no-redownload 還要確認：
+
+- HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`。
+- HTTP access log 沒有 zh-TW ESD `HEAD` / `GET`。
+- OSDCloud log 中 `ImageFileUrl` 為空。
+- `ImageFileDestination` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`。
+- `ImageFileDestination.PSDrive.DisplayRoot` 是當次 service IP 的 SMB share，例如 `\\192.168.88.1\OSDCloudiPXE`。
+- `OSImageIndex` 是 `6`。
+
+### 常見問題判斷
+
+| 現象 | 優先檢查 |
+| --- | --- |
+| Client 沒拿到 IP | DHCP service 是否 running、真實 LAN DHCP 是否衝突、client 是否接到 `LAN` |
+| Client 拿到 IP 但沒有下載 `boot.ipxe` | TFTP `snponly.efi` 是否成功、DHCP 是否在 iPXE 階段回傳 boot URL |
+| Client 拿到 LAN IP 但 HTTP 跑去 WAN | live `boot.ipxe` 的 `set base` 是否仍是舊 IP；在 TUI 重新 `Select service interface` |
+| 有 `boot.ipxe` / `boot.wim` 但不套用 Windows | WinPE 是否掛到 `\\<service-ip>\OSDCloudiPXE`，ESD 是否存在，SMB firewall 是否允許 |
+| HTTP log 出現 zh-TW ESD `HEAD` / `GET` | 可能誤用 `-ImageFileUrl` 或沒有走 SMB direct image |
+| WinPE 完成後又進 PXE | Client boot order 或一次性 boot menu 沒有回到內部硬碟 |
+| 第一次 Windows boot 停在 OOBE | 檢查 `Invoke-DavisOobe.ps1`、SetupComplete 注入、OOBE registry |
+| TUI 停在 `awaiting-windows` | 檢查 SetupComplete status URL、desktop-ready scheduled task、Windows 網路是否能連回 service IP |
+| `windows-desktop-ready` 重複出現 | 舊版 reporter 可能未 unregister，可在 client 執行 `Unregister-ScheduledTask -TaskName OSDCloudDesktopReadyReport -Confirm:$false` |
+
+### 收尾
+
+部署或測試結束後：
+
+- 在 TUI 停止 DHCP、TFTP、HTTP services。
+- 若測試時關閉了環境原本的 DHCP server，確認是否需要恢復。
+- 不要提交 VMConnect 截圖、log、ISO/WIM/ESD/VHDX。
+- 若修改了部署行為或 `C:\OSDCloud` 內容，先同步 `osdcloud-assets`，再 commit。
+
 歷史 ISO 驗證 VM：
 
 ```text
@@ -221,17 +398,19 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 .\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts
 ```
 
-設定實體網卡並啟動 PXE helper：
+設定實體網卡：
 
 ```powershell
 .\tools\Set-IpxePhysicalNic.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1'
 ```
 
+啟動 host 端服務時，日常操作使用 TUI：
+
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeDhcp.ps1'
-powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1'
-node 'C:\OSDCloud\Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs'
+npm run tui
 ```
+
+進入 TUI 後先 `Select service interface`，再 `Run preflight`，最後 `Start all services`。`Start-PxeDhcp.ps1`、`Start-PxeTftp.ps1`、`Serve-OsdCloudMedia.mjs` 只保留作為低階 fallback；一般實體部署不要優先使用這些 helper，否則使用者看不到 fleet status、endpoint sync progress 與完整 validation。
 
 ## VM VM 回歸流程
 
