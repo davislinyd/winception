@@ -486,6 +486,8 @@ osdcloud-assets
 
 Keep `README.md` concise and user-facing. Keep the report detailed and evidence-oriented. Keep `AGENTS.md` as the operational contract for future agents.
 
+`README.md` is also the human user manual. When changing deployment flow, TUI behavior, service-interface selection, endpoint synchronization, network topology, validation criteria, or failure triage, update the `README.md` `使用手冊` section in the same change so a human operator can still run the workflow without reading `AGENTS.md` or the detailed test report.
+
 ## Git Workflow
 
 Use Git to track docs and process definitions in this workspace.
