@@ -98,8 +98,8 @@ TUI 主要區塊：
 
 | 區塊 | 用途 |
 | --- | --- |
-| `Actions` | 執行 preflight、選 service interface、啟停服務、清除 status |
-| `Services` | 顯示 HTTP/TFTP/DHCP 是否 running、目前 service IP、DHCP pool/router |
+| `Actions` | 執行 preflight、選 service interface、選 deployment profile、啟停服務、清除 status |
+| `Services` | 顯示 HTTP/TFTP/DHCP 是否 running、目前 service IP、DHCP pool/router、active profile/software |
 | `Clients` | 顯示多台 client / 多個 run 的狀態、stage、percent、last seen |
 | `Client Detail` | 顯示選定 run 的詳細階段、時間、訊息與截圖 metadata |
 | `Preflight` | 顯示檢查結果；選 service interface 時也會顯示 endpoint 更新進度 |
@@ -116,12 +116,12 @@ TUI 主要區塊：
 
 ### 每次實體部署流程
 
-1. 在 TUI 選 `Run preflight`。
-2. 如果 service IP、DHCP pool、SMB image、HTTP files 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
-3. 選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
-4. TUI 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
-5. 在 Preflight panel 看 endpoint update 進度；在 Logs panel 看同步腳本輸出。
-6. 確認同步完成後自動 preflight 沒有失敗。
+1. 如需變更服務網卡，先選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
+2. TUI 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
+3. 在 Preflight panel 看 endpoint update 進度；在 Logs panel 看同步腳本輸出。
+4. 選 `Select deployment profile`，發佈這次要使用的 profile。`default` 會發佈 7-Zip，`minimal` 不發佈任何 client software。
+5. 在 TUI 選 `Run preflight`。
+6. 如果 service IP、DHCP pool、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
 7. 確認真實 LAN DHCP server 已暫時關閉。
 8. 在 TUI 選 `Start all services`，或依序啟動 `Start HTTP/status`、`Start TFTP`、`Start DHCP`。
 9. 實體筆電從 UEFI IPv4 PXE 開機。
@@ -389,17 +389,17 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 - iPXE no-redownload 模式不能使用 `-ImageFileUrl`，因為 OSDCloud 會先把 ESD 下載到 WinPE 暫存位置。現在改由 WinPE 掛載 SMB share，設定 `$Global:StartOSDCloud.ImageFileDestination` 為 ESD `FileInfo` 後呼叫 `Invoke-OSDCloud`。
 - Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host TUI 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
 - Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
-- Client app payload 放在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1`。目前包含 `7zip\7z2601-x64.msi`，使用 `msiexec /qn /norestart REBOOT=ReallySuppress` 靜默安裝。
+- Client app payload 由 TUI deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 只安裝被選中的軟體。目前 `default` profile 發佈 `7zip\7z2601-x64.msi`，`minimal` profile 不安裝 client software。
 - 測試時真實環境 DHCP server 必須暫時關閉，避免和本機 PXE DHCP responder 衝突。
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
 
-自行新增 client 軟體：
+自行新增 client 軟體與 profile：
 
-1. 在 live SMB media 建立一個軟體資料夾：
+1. 在 repo source 建立一個軟體資料夾：
 
 ```text
-C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps\<SoftwareName>\
+C:\Users\Davis\Documents\New project\Softwares\<SoftwareId>\
   install.ps1
   installer.msi 或 installer.exe
 ```
@@ -436,17 +436,19 @@ if ($process.ExitCode -ne 0) {
 ```
 
 3. 每個 installer 的 silent 參數可能不同；先查該軟體官方文件或用 installer help 確認。常見參數有 `/quiet /norestart`、`/S`、`/silent`、`/verysilent`。
-4. 只新增或更新 `Apps` payload 時，不需要重建或重新 commit `boot.wim`；既有 WinPE shutdown 已會複製整個 `OSDCloud\Apps`。
-5. 同步 repo mirror 並提交：
+4. 在 `config\software-catalog.json` 新增軟體 id/name/source，並在 `config\deployment-profiles\<profile>.json` 把該 id 加進 `software` 清單。
+5. 在 TUI 選 `Select deployment profile` 發佈 profile。TUI 會先停止 running 的 HTTP/TFTP/DHCP service，清空 live `Apps`，再只複製該 profile 選中的軟體與 `selected-profile.json`。
+6. 只新增或更新 `Apps` payload 時，不需要重建或重新 commit `boot.wim`；既有 WinPE shutdown 已會複製整個已發佈的 `OSDCloud\Apps`。
+7. 同步 repo mirror 並提交：
 
 ```powershell
 .\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts
 git status --short --branch
-git add README.md tools\Sync-OsdCloudAssets.ps1 osdcloud-assets\manifest.json osdcloud-assets\Win11-iPXE-Lab\Media\OSDCloud\Apps
-git commit -m "Add <SoftwareName> client app payload"
+git add README.md AGENTS.md OSDCloud-Win11-Automated-Deployment-Test-Report.md config Softwares osdcloud-assets package.json package-lock.json tools\osdcloud-tui
+git commit -m "Add deployment profile software selection"
 ```
 
-6. 下一次實體 iPXE 部署時，TUI 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log` 和軟體自己的 log。
+8. 下一次實體 iPXE 部署時，TUI 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log` 和軟體自己的 log。
 
 若目前 endpoint 留在 VM 測試狀態，先切回實體筆電：
 
@@ -611,7 +613,7 @@ TUI 設定檔：
 C:\Users\Davis\Documents\New project\config\osdcloud-tui.json
 ```
 
-TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/status/runs` fleet API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。v0.2.0 起，`Clients` 區塊會以 scrollable table 顯示多台 client / run 的 status、client、run、stage、percent、last seen 與 elapsed；`Client Detail` 區塊顯示選定 run 的 start / WinPE end / Windows start / final end、最後訊息與最新截圖 metadata。v0.2.7 起，panel label 常態只顯示 Actions、Services、Clients、Client Detail、Preflight、Validation、Logs；按住 `Alt` 時會立即替可用快捷字母加底線，放開 `Alt` 時移除底線。v0.2.8 起，部署 payload 會在 Windows SetupComplete 靜默安裝 7-Zip，並用 `windows-apps-*` status stages 回報。可用 `Alt+A`、`Alt+S`、`Alt+C`、`Alt+D`、`Alt+P`、`Alt+V`、`Alt+L` 直接切換到對應區塊；Caps Lock 開啟時 terminal 可能送出 `M-C` 這類大寫 meta key，TUI 會同樣接受。也可以按 `Tab` / `Shift+Tab` 依序循環 Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs。滑鼠點選任一 panel 會切換焦點；滑鼠停在哪個 panel 上滾輪就會 scroll 哪個 panel。Logs 往上滾會暫停自動跟隨最新 log，滾回底部或按 `End` 後恢復。
+TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/status/runs` fleet API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。v0.2.0 起，`Clients` 區塊會以 scrollable table 顯示多台 client / run 的 status、client、run、stage、percent、last seen 與 elapsed；`Client Detail` 區塊顯示選定 run 的 start / WinPE end / Windows start / final end、最後訊息與最新截圖 metadata。v0.2.7 起，panel label 常態只顯示 Actions、Services、Clients、Client Detail、Preflight、Validation、Logs；按住 `Alt` 時會立即替可用快捷字母加底線，放開 `Alt` 時移除底線。v0.2.9 起，`Select deployment profile` 會發佈 profile 選中的 client software，Services panel 顯示 active profile/software，preflight 會檢查 live payload 是否和 active profile 一致。可用 `Alt+A`、`Alt+S`、`Alt+C`、`Alt+D`、`Alt+P`、`Alt+V`、`Alt+L` 直接切換到對應區塊；Caps Lock 開啟時 terminal 可能送出 `M-C` 這類大寫 meta key，TUI 會同樣接受。也可以按 `Tab` / `Shift+Tab` 依序循環 Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs。滑鼠點選任一 panel 會切換焦點；滑鼠停在哪個 panel 上滾輪就會 scroll 哪個 panel。Logs 往上滾會暫停自動跟隨最新 log，滾回底部或按 `End` 後恢復。
 舊部署殘留的 status 只會當作 previous run 顯示，不會被標為 running；開始新的 PXE 部署後，新的 `winpe-start` 會加入 Clients 清單，不會覆蓋其他 client 的 run summary。
 
 使用原則：
@@ -620,6 +622,7 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 - Repo `.npmrc` 會讓 npm scripts 以前景 stdio 並靜默 banner 執行，避免 `npm run tui` 的 script header 干擾 TUI 啟動與鍵盤輸入
 - 先執行 `Run preflight`；preflight 會檢查服務綁定 IP 是否存在於任一張啟用中的 IPv4 介面，不要求固定 NIC alias
 - 若要改服務監聽介面，使用 `Select service interface`；它會列出目前啟用、具 IPv4、非 APIPA 的介面，選定後寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、SMB firewall、published `boot.wim` 與 `osdcloud-assets`
+- 若要改本次要安裝的 client software，使用 `Select deployment profile`；TUI 會停止 running services，寫回 active profile，並只發佈該 profile 選中的 `Apps` payload
 - `Select service interface` 觸發 endpoint 更新時，Preflight panel 會顯示目前正在更新的項目，Logs 會即時串流同步腳本輸出，完成後會自動針對新 endpoint 跑 preflight
 - 選擇新介面時，HTTP/TFTP/DHCP 任一服務若正在 running，TUI 會先要求停止服務再更新 endpoint
 - 切換介面後 DHCP responder 必須使用新 endpoint 的 lease pool；若 log 顯示服務在 `192.168.100.x` 但仍 OFFER/ACK `192.168.100.x`，代表正在跑舊 TUI process，停止服務並重新啟動 `npm run tui`
@@ -628,7 +631,7 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 - `Start HTTP/status`、`Start TFTP`、`Start DHCP` 是個別服務 toggle；服務 running 時同一個 action 會顯示為 `Stop ...` 並可關閉服務
 - TUI 不再提供 `Configure physical NIC` 動作；如需改 Windows 網卡 IP，請在 TUI 外手動執行 `.\tools\Set-IpxePhysicalNic.ps1`
 - 服務啟停、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除 fleet index、本機 screenshot metadata 與 `status\screenshots`
-- `Run preflight` 也會檢查 DHCP lease range / router 是否仍落在選定服務 IP 的 prefix 內；這是防止手動改 JSON 或舊設定殘留的最後防線
+- `Run preflight` 也會檢查 DHCP lease range / router 是否仍落在選定服務 IP 的 prefix 內，並確認 live `Apps` payload 的 `selected-profile.json` 與 active profile 一致；這是防止手動改 JSON 或舊設定殘留的最後防線
 - 實體筆電從 UEFI IPv4 PXE 開機後，在 TUI 內看 Clients、Client Detail、Logs、Validation
 
 驗證與測試：

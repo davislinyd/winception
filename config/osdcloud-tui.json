@@ -65,5 +65,13 @@
     "allowedHosts": [
       "downloads.dell.com"
     ]
+  },
+  "deploymentProfiles": {
+    "activeProfile": "default",
+    "profilesRoot": "config\\deployment-profiles",
+    "softwareCatalogPath": "config\\software-catalog.json",
+    "softwareSourceRoot": "Softwares",
+    "appsRoot": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps",
+    "installerScript": "Softwares\\Install-Apps.ps1"
   }
 }

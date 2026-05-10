@@ -15,6 +15,7 @@ import { focusOrder, focusShortcutKeyNames, formatPanelLabel, resolveFocusShortc
 import { startWindowsAltKeyWatcher } from './altKeyWatcher.js';
 import { nextLogAutoFollowState, resolveMouseFocusTarget, wheelDeltaForAction } from './mouseInteractions.js';
 import { bindFallbackKeyboardInput, ensureKeyboardInput } from './keyboardInput.js';
+import { formatSoftwareList, publishDeploymentProfile, resolveDeploymentProfileState } from './deploymentProfiles.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -56,6 +57,7 @@ function getActionItems() {
   return [
     'Run preflight',
     'Select service interface',
+    'Select deployment profile',
     serviceActionLabel(http, 'HTTP/status'),
     serviceActionLabel(tftp, 'TFTP'),
     serviceActionLabel(dhcp, 'DHCP'),
@@ -587,6 +589,19 @@ function renderServices() {
     : serviceIps.map((ip) => (
       ip === config.adapter.serverIp ? `${ip}/${config.adapter.prefixLength}` : ip
     )).join(', ');
+  let profileLines = [];
+  try {
+    const profileState = resolveDeploymentProfileState(config);
+    profileLines = [
+      `Profile     : ${profileState.activeProfile.name} (${profileState.activeProfile.id})`,
+      `Software    : ${formatSoftwareList(profileState.selectedSoftware)}`,
+    ];
+  } catch (error) {
+    profileLines = [
+      'Profile     : {red-fg}invalid{/red-fg}',
+      `Software    : ${error.message}`,
+    ];
+  }
 
   servicesBox.setContent([
     `Version     : ${appVersion}`,
@@ -598,6 +613,8 @@ function renderServices() {
     `Service NIC : ${config.adapter.interfaceAlias}`,
     `DHCP pool   : ${config.dhcp.leaseStartIp}-${config.dhcp.leaseEndIp}`,
     `DHCP router : ${config.dhcp.router}`,
+    '',
+    ...profileLines,
   ].join('\n'));
 }
 
@@ -798,6 +815,11 @@ function formatInterfaceChoice(choice) {
   return `${choice.interfaceAlias} ${choice.ipAddress}/${choice.prefixLength}${gateway}${description}`;
 }
 
+function formatDeploymentProfileChoice(profile) {
+  const software = profile.softwareIds.length ? profile.softwareIds.join(',') : 'none';
+  return `${profile.name} (${profile.id}) software=${software}`;
+}
+
 function selectInterfacePrompt(choices) {
   return new Promise((resolve) => {
     dialogOpen = true;
@@ -881,6 +903,89 @@ function selectInterfacePrompt(choices) {
   });
 }
 
+function selectDeploymentProfilePrompt(choices) {
+  return new Promise((resolve) => {
+    dialogOpen = true;
+    clearShortcutHints();
+    const previousFocus = screen.focused;
+    const modal = blessed.box({
+      parent: screen,
+      border: 'line',
+      padding: horizontalPanelPadding,
+      height: Math.min(Math.max(choices.length + 6, 10), 18),
+      width: '82%',
+      top: 'center',
+      left: 'center',
+      label: panelLabel('Select Profile'),
+      tags: true,
+      keys: true,
+      mouse: true,
+      focusable: true,
+      style: {
+        fg: 'white',
+        bg: 'black',
+        border: { fg: 'yellow' },
+      },
+    });
+    pinPanelLabel(modal);
+
+    const list = blessed.list({
+      parent: modal,
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%-3',
+      keys: true,
+      mouse: true,
+      vi: true,
+      tags: false,
+      items: choices.map(formatDeploymentProfileChoice),
+      style: {
+        selected: { bg: 'blue', fg: 'white' },
+        item: { fg: 'white' },
+      },
+    });
+    blessed.box({
+      parent: modal,
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: 2,
+      tags: true,
+      content: '{bold}Enter{/bold}: publish    {bold}Esc{/bold}: cancel',
+    });
+
+    const done = (choice) => {
+      modal.destroy();
+      if (previousFocus?.focus) {
+        previousFocus.focus();
+      } else {
+        menu.focus();
+      }
+      screen.render();
+      setTimeout(() => {
+        dialogOpen = false;
+      }, 0);
+      resolve(choice);
+    };
+
+    list.on('select', (_, index) => done(choices[index] ?? null));
+    modal.on('keypress', (ch, key) => {
+      if (isCancelKey(ch, key)) {
+        done(null);
+      }
+    });
+    list.on('keypress', (ch, key) => {
+      if (isCancelKey(ch, key)) {
+        done(null);
+      }
+    });
+
+    list.focus();
+    screen.render();
+  });
+}
+
 async function withBusy(label, action) {
   addLog(label);
   try {
@@ -901,6 +1006,19 @@ async function stopServicesForInterfaceChange() {
     return false;
   }
   await withBusy('Stopping services for interface change', async () => {
+    await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
+  });
+  return true;
+}
+
+async function stopServicesForDeploymentProfileChange() {
+  if (!dhcp.running && !tftp.running && !http.running) {
+    return true;
+  }
+  if (!(await confirmPrompt('Stop running services before publishing a deployment profile?'))) {
+    return false;
+  }
+  await withBusy('Stopping services for profile change', async () => {
     await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
   });
   return true;
@@ -991,6 +1109,35 @@ async function runAction(index) {
       }
       break;
     case 2:
+      if (!(await stopServicesForDeploymentProfileChange())) {
+        break;
+      }
+      {
+        let profileState = null;
+        await withBusy('Loading deployment profiles', async () => {
+          profileState = resolveDeploymentProfileState(config);
+        });
+        if (!profileState) {
+          break;
+        }
+        const selected = await selectDeploymentProfilePrompt(profileState.profiles);
+        if (!selected) {
+          addLog('Deployment profile selection cancelled');
+          break;
+        }
+        preflightResults = [];
+        await withBusy('Publishing deployment profile', async () => {
+          const result = publishDeploymentProfile(config, selected.id);
+          config.deploymentProfiles ??= {};
+          config.deploymentProfiles.activeProfile = selected.id;
+          const savedPath = saveConfig(config);
+          addLog(`Saved ${savedPath}`);
+          addLog(`Published deployment profile ${result.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+          preflightResults = await runPreflight(config, { dhcp, tftp, http });
+        });
+      }
+      break;
+    case 3:
       await toggleService({
         service: http,
         startPrompt: `Start HTTP/status server on ${config.http.host}:${config.http.port}?`,
@@ -999,7 +1146,7 @@ async function runAction(index) {
         stopLabel: 'Stopping HTTP/status server',
       });
       break;
-    case 3:
+    case 4:
       await toggleService({
         service: tftp,
         startPrompt: `Start TFTP responder on ${config.tftp.listenIp}:${config.tftp.port}?`,
@@ -1008,7 +1155,7 @@ async function runAction(index) {
         stopLabel: 'Stopping TFTP responder',
       });
       break;
-    case 4:
+    case 5:
       await toggleService({
         service: dhcp,
         startPrompt: `Start DHCP responder on ${config.dhcp.listenIp}:${config.dhcp.listenPort}? Confirm the real DHCP server is disabled first.`,
@@ -1017,7 +1164,7 @@ async function runAction(index) {
         stopLabel: 'Stopping DHCP responder',
       });
       break;
-    case 5:
+    case 6:
       if (await confirmPrompt('Start HTTP, TFTP, and DHCP services? Confirm the real DHCP server is disabled first.')) {
         await withBusy('Starting all services', async () => {
           await http.start();
@@ -1026,12 +1173,12 @@ async function runAction(index) {
         });
       }
       break;
-    case 6:
+    case 7:
       await withBusy('Stopping all services', async () => {
         await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
       });
       break;
-    case 7:
+    case 8:
       if (await confirmPrompt(`Delete status .json/.jsonl files under ${config.http.statusRoot}?`)) {
         await withBusy('Clearing status files', async () => {
           const removed = removeStatusFiles(config);
@@ -1039,11 +1186,11 @@ async function runAction(index) {
         });
       }
       break;
-    case 8:
+    case 9:
       addLog('Refreshing validation');
       renderAll();
       break;
-    case 9:
+    case 10:
       await quit();
       break;
     default:

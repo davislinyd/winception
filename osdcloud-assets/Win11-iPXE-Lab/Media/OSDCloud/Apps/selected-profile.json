@@ -1,0 +1,14 @@
+{
+  "profileId": "default",
+  "profileName": "Default",
+  "publishedAt": "2026-05-10T17:58:37.500Z",
+  "selectedSoftware": [
+    "7zip"
+  ],
+  "software": [
+    {
+      "id": "7zip",
+      "name": "7-Zip 26.01 x64"
+    }
+  ]
+}

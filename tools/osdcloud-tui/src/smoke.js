@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { mediaHttpServerConfig } from './config.js';
+import { publishDeploymentProfile } from './deploymentProfiles.js';
 import { MediaHttpServer } from './httpServer.js';
 import { TftpResponder } from './tftp.js';
 
@@ -11,6 +12,9 @@ const httpRoot = path.join(root, 'http');
 const tftpRoot = path.join(root, 'tftp');
 const statusRoot = path.join(httpRoot, 'status');
 const driverPackCacheRoot = path.join(root, 'driverpacks');
+const appsRoot = path.join(root, 'Apps');
+const softwareRoot = path.join(root, 'Softwares');
+const profilesRoot = path.join(root, 'profiles');
 const driverPackFileName = 'PA14250-YWNJX_Win11_1.0_A06.exe';
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -22,6 +26,18 @@ fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.ipxe'), '#!ipxe\n');
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.wim'), 'boot-image');
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'driverpack.exe'), 'driver-pack-smoke');
 fs.writeFileSync(path.join(tftpRoot, 'snponly.efi'), 'efi');
+fs.mkdirSync(path.join(softwareRoot, 'smoke-app'), { recursive: true });
+fs.mkdirSync(profilesRoot, { recursive: true });
+fs.writeFileSync(path.join(root, 'Install-Apps.ps1'), "Write-Host 'smoke installer'\n", 'utf8');
+fs.writeFileSync(path.join(softwareRoot, 'smoke-app', 'install.ps1'), "Write-Host 'smoke app'\n", 'utf8');
+fs.writeFileSync(path.join(root, 'software-catalog.json'), JSON.stringify({
+  software: [{ id: 'smoke-app', name: 'Smoke App', source: 'smoke-app' }],
+}, null, 2));
+fs.writeFileSync(path.join(profilesRoot, 'default.json'), JSON.stringify({
+  id: 'default',
+  name: 'Default',
+  software: ['smoke-app'],
+}, null, 2));
 
 async function waitFor(condition, timeoutMs = 2000) {
   const deadline = Date.now() + timeoutMs;
@@ -35,6 +51,9 @@ async function waitFor(condition, timeoutMs = 2000) {
 }
 
 const config = {
+  paths: {
+    repoRoot: root,
+  },
   http: {
     root: httpRoot,
     host: '127.0.0.1',
@@ -47,7 +66,20 @@ const config = {
     root: driverPackCacheRoot,
     allowedHosts: ['127.0.0.1'],
   },
+  deploymentProfiles: {
+    activeProfile: 'default',
+    profilesRoot,
+    softwareCatalogPath: path.join(root, 'software-catalog.json'),
+    softwareSourceRoot: softwareRoot,
+    appsRoot,
+    installerScript: path.join(root, 'Install-Apps.ps1'),
+  },
 };
+
+const publishedProfile = publishDeploymentProfile(config);
+assert.equal(publishedProfile.profile.id, 'default');
+assert.equal(fs.existsSync(path.join(appsRoot, 'selected-profile.json')), true);
+assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-app', 'install.ps1')), true);
 
 const httpServer = new MediaHttpServer(mediaHttpServerConfig(config));
 

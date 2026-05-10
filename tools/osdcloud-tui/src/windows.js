@@ -5,6 +5,7 @@ import dgram from 'node:dgram';
 import path from 'node:path';
 import { resolveHttpFile } from './config.js';
 import { ipv4ToUInt32 } from './dhcp.js';
+import { evaluateDeploymentProfilePayload } from './deploymentProfiles.js';
 
 function powershellExe() {
   return process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
@@ -403,6 +404,7 @@ export async function runPreflight(config, services = {}) {
 
   fs.mkdirSync(config.http.statusRoot, { recursive: true });
   checks.push(pass('Status root', config.http.statusRoot));
+  checks.push(evaluateDeploymentProfilePayload(config));
 
   checks.sort((a, b) => Number(a.ok) - Number(b.ok));
   return checks;

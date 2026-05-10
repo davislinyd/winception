@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-10T16:38:26.7990701Z",
+  "generatedAt": "2026-05-10T17:59:04.5671514Z",
   "sourceRoot": "C:\\OSDCloud",
   "assetsRoot": "C:\\Users\\Davis\\Documents\\New project\\osdcloud-assets",
   "hashLargeArtifacts": true,
@@ -65,16 +65,24 @@
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/7zip/install.ps1",
       "length": 938,
-      "lastWriteTimeUtc": "2026-05-10T15:13:32.6378534Z",
+      "lastWriteTimeUtc": "2026-05-10T17:55:51.4262479Z",
       "sha256": "0BF698D3BE6511987B2E4E71B7D88F6EA5646AAD26D1BA6BDC26D7127335E3E8"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\Install-Apps.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/Install-Apps.ps1",
-      "length": 1274,
-      "lastWriteTimeUtc": "2026-05-10T15:13:32.6378534Z",
-      "sha256": "2190E3775CD52901EFE0B10DC1A0E5DF60292AF814788D499AEB7D1F7BE7F6A4"
+      "length": 2967,
+      "lastWriteTimeUtc": "2026-05-10T17:58:17.9972438Z",
+      "sha256": "45A4E83260074F090FA2DD0A7111C5E1D6C342B72F795ABAE6151E8819BC6BBC"
+    },
+    {
+      "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\selected-profile.json",
+      "sourceKind": "filesystem",
+      "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/selected-profile.json",
+      "length": 227,
+      "lastWriteTimeUtc": "2026-05-10T17:58:37.5017966Z",
+      "sha256": "CB7DBE9C9DC52CE7A1643E99D1FBF129FAF3ED3ABD728732CC163987E4ABA278"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\osdcloud\\boot.ipxe",
