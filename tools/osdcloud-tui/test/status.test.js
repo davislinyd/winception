@@ -11,6 +11,31 @@ import {
   resolveDeploymentSummary,
 } from '../src/status.js';
 
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function expectedLocalOffset(date) {
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const absolute = Math.abs(offsetMinutes);
+  return `${sign}${pad2(Math.floor(absolute / 60))}:${pad2(absolute % 60)}`;
+}
+
+function expectedLocalTimestamp(value) {
+  const date = new Date(value);
+  return [
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`,
+    `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`,
+    expectedLocalOffset(date),
+  ].join(' ');
+}
+
+function expectedLocalClock(value) {
+  const date = new Date(value);
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+}
+
 test('formats missing deployment status with visible placeholder', () => {
   const lines = formatDeploymentStatus(null);
   assert.match(lines.join('\n'), /No deployment status yet/);
@@ -50,8 +75,8 @@ test('formats deployment summary start and end records', () => {
   });
 
   assert.match(lines.join('\n'), /Status   : completed/);
-  assert.match(lines.join('\n'), /Started  : 2026-05-09T01:00:00Z/);
-  assert.match(lines.join('\n'), /Finished : 2026-05-09T01:15:00Z/);
+  assert.ok(lines.join('\n').includes(`Started  : ${expectedLocalTimestamp('2026-05-09T01:00:00Z')}`));
+  assert.ok(lines.join('\n').includes(`Finished : ${expectedLocalTimestamp('2026-05-09T01:15:00Z')}`));
 });
 
 test('does not display WinPE reboot handoff as active running', () => {
@@ -135,6 +160,7 @@ test('formats fleet client rows for empty, long, and many clients', () => {
   assert.equal(longRows.length, 1);
   assert.ok(longRows[0].length <= 72);
   assert.match(longRows[0], /windows-running/);
+  assert.match(longRows[0], new RegExp(expectedLocalClock('2026-05-09T01:00:00Z')));
 
   const many = Array.from({ length: 40 }, (_, index) => ({
     runId: `run-${index}`,
@@ -173,9 +199,9 @@ test('formats selected fleet run detail and screenshot metadata', () => {
 
   const text = lines.join('\n');
   assert.match(text, /Status   : completed/);
-  assert.match(text, /Windows  : 2026-05-09T01:12:00Z/);
+  assert.ok(text.includes(`Windows  : ${expectedLocalTimestamp('2026-05-09T01:12:00Z')}`));
   assert.match(text, /Warnings : run-id-sanitized/);
-  assert.match(text, /Latest Shot: winpe-start/);
+  assert.ok(text.includes(`Latest Shot: winpe-start ${expectedLocalTimestamp('2026-05-09T01:01:00Z')}`));
 });
 
 test('formats long status events into compact TUI lines', () => {
@@ -191,6 +217,7 @@ test('formats long status events into compact TUI lines', () => {
   const formatted = formatStatusEventLine(line, 120);
 
   assert.ok(formatted.length <= 120);
+  assert.ok(formatted.includes(expectedLocalTimestamp('2026-05-09T18:35:42.036Z')));
   assert.match(formatted, /9VDYLD4/);
   assert.match(formatted, /apply-image/);
   assert.match(formatted, /42%/);

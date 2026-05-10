@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { tailFile } from './logger.js';
 import { buildRunsIndex, failureStages, runEndStages, staleThresholdMs, terminalStatuses, windowsStartStages, winpeEndStages } from './runSummary.js';
+import { formatLocalClock, formatLocalTimestamp, parseTimestamp } from './timeFormat.js';
 
 export function readLatestStatus(config) {
   const filePath = config.paths.statusLatest;
@@ -107,8 +108,7 @@ export function readRecentScreenshotMetadata(config, maxLines = 5) {
 }
 
 function parseDate(value) {
-  const timestamp = Date.parse(value ?? '');
-  return Number.isFinite(timestamp) ? timestamp : null;
+  return parseTimestamp(value);
 }
 
 function readRunEvents(config, runId) {
@@ -230,11 +230,11 @@ function clip(value, width) {
 }
 
 function formatClock(value) {
-  const timestamp = parseDate(value);
-  if (timestamp === null) {
-    return '';
-  }
-  return new Date(timestamp).toISOString().slice(11, 19);
+  return formatLocalClock(value);
+}
+
+function formatTimestamp(value) {
+  return formatLocalTimestamp(value) || String(value ?? '');
 }
 
 function formatElapsed(seconds) {
@@ -259,7 +259,7 @@ function formatScreenshotLine(screenshot) {
   }
 
   const stage = screenshot.stage ?? '';
-  const timestamp = screenshot.timestamp ?? screenshot.receivedAt ?? '';
+  const timestamp = formatTimestamp(screenshot.timestamp ?? screenshot.receivedAt);
   return `${stage} ${timestamp}`.trim();
 }
 
@@ -269,7 +269,7 @@ export function formatScreenshotMetadata(screenshot) {
   }
 
   const stage = screenshot.stage ?? '';
-  const timestamp = screenshot.timestamp ?? screenshot.receivedAt ?? '';
+  const timestamp = formatTimestamp(screenshot.timestamp ?? screenshot.receivedAt);
   const filePath = screenshot.filePath ?? '';
   return `${stage} ${timestamp}${filePath ? ` ${filePath}` : ''}`.trim();
 }
@@ -280,7 +280,7 @@ export function formatStatusEventLine(line, maxLength = 180) {
     const percent = Number.isFinite(event.percent) ? ` ${event.percent}%` : '';
     const message = compact(event.message, 80);
     return compact([
-      event.receivedAt ?? event.timestamp ?? '',
+      formatTimestamp(event.receivedAt ?? event.timestamp),
       event.clientId ?? '',
       event.stage ?? '',
       percent.trim(),
@@ -362,11 +362,11 @@ export function formatFleetRunDetail(run, latestScreenshot = null) {
     `Run      : ${run.runId ?? ''}`,
     `Client   : ${run.clientId ?? ''}`,
     `Stage    : ${run.latestStage ?? ''}  Percent: ${formatPercent(run.latestPercent)}  Elapsed: ${formatElapsed(run.elapsedSeconds)}`,
-    `Started  : ${run.startedAt ?? ''}`,
-    `WinPE End: ${run.winpeEndedAt ?? ''}`,
-    `Windows  : ${run.windowsStartedAt ?? ''}`,
-    `Finished : ${run.completedAt ?? run.failedAt ?? ''}`,
-    `Seen     : ${run.lastReceivedAt ?? ''}`,
+    `Started  : ${formatTimestamp(run.startedAt)}`,
+    `WinPE End: ${formatTimestamp(run.winpeEndedAt)}`,
+    `Windows  : ${formatTimestamp(run.windowsStartedAt)}`,
+    `Finished : ${formatTimestamp(run.completedAt ?? run.failedAt)}`,
+    `Seen     : ${formatTimestamp(run.lastReceivedAt)}`,
     `Message  : ${compact(run.staleReason ? `${run.staleReason}; ${run.latestMessage ?? ''}` : run.latestMessage, 160)}`,
   ];
 
@@ -399,10 +399,10 @@ export function formatDeploymentStatus(latest, summary = null, latestScreenshot 
     `Run      : ${latest.runId ?? ''}`,
     `Client   : ${latest.clientId ?? ''}`,
     `Stage    : ${latest.stage ?? ''}  Percent: ${Number.isFinite(latest.percent) ? latest.percent : ''}  Elapsed: ${latest.elapsedSeconds ?? ''}`,
-    `Started  : ${summary?.startedAt ?? ''}`,
-    `WinPE End: ${summary?.winpeEndedAt ?? ''}`,
-    `Finished : ${summary?.completedAt ?? summary?.failedAt ?? ''}`,
-    `Seen     : ${latest.receivedAt ?? ''}`,
+    `Started  : ${formatTimestamp(summary?.startedAt)}`,
+    `WinPE End: ${formatTimestamp(summary?.winpeEndedAt)}`,
+    `Finished : ${formatTimestamp(summary?.completedAt ?? summary?.failedAt)}`,
+    `Seen     : ${formatTimestamp(latest.receivedAt)}`,
     `Message  : ${compact(summary?.staleReason ? `${summary.staleReason}; ${latest.message ?? ''}` : latest.message, 140)}`,
   ];
 

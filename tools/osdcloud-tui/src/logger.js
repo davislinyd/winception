@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { formatLocalLogLine } from './timeFormat.js';
 
 export function formatLogLine(message, date = new Date()) {
-  return `${date.toISOString()} ${message}`;
+  return formatLocalLogLine(message, date);
 }
 
 export function appendLog(logPath, message) {

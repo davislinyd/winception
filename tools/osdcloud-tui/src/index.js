@@ -4,9 +4,10 @@ import { applyServiceEndpoint, loadConfig, saveConfig } from './config.js';
 import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
-import { RingBuffer, tailFile } from './logger.js';
+import { formatLogLine, RingBuffer, tailFile } from './logger.js';
 import { getServiceBindIps, listIpv4ServiceInterfaces, removeStatusFiles, runPreflight, syncIpxeEndpoint } from './windows.js';
 import { formatFleetClientRows, formatFleetCounts, formatFleetRunDetail, formatScreenshotMetadata, formatStatusEventLine, readFleetStatus, readRecentScreenshotMetadata, readRunLatestScreenshot, readStatusEvents, summarizeValidation } from './status.js';
+import { formatDisplayLogLine } from './timeFormat.js';
 import { isCancelKey, isConfirmKey } from './confirmKeys.js';
 import { computeLayout } from './layout.js';
 import { wrapLinesWithIndent } from './textWrap.js';
@@ -516,7 +517,7 @@ function requestRender({ forceRedraw = false, immediate = false } = {}) {
 }
 
 function addLog(message) {
-  const line = `${new Date().toISOString()} ${message}`;
+  const line = formatLogLine(message);
   runtimeLog.push(line);
   requestRender();
 }
@@ -563,7 +564,7 @@ function createLogStreamer(prefix) {
 
 for (const [name, service] of [['DHCP', dhcp], ['TFTP', tftp], ['HTTP', http]]) {
   service.on('log', (line) => {
-    runtimeLog.push(`[${name}] ${line}`);
+    runtimeLog.push(formatDisplayLogLine(`[${name}] ${line}`));
     requestRender();
   });
   service.on('error', (error) => addLog(`[${name}] ERROR ${error.message}`));
@@ -1139,9 +1140,9 @@ setInterval(() => {
 }, 1000).unref();
 
 for (const line of [
-  ...tailFile(config.dhcp.logPath, 5).map((line) => `[DHCP] ${line}`),
-  ...tailFile(config.tftp.logPath, 5).map((line) => `[TFTP] ${line}`),
-  ...tailFile(config.http.logPath, 5).map((line) => `[HTTP] ${line}`),
+  ...tailFile(config.dhcp.logPath, 5).map((line) => formatDisplayLogLine(`[DHCP] ${line}`)),
+  ...tailFile(config.tftp.logPath, 5).map((line) => formatDisplayLogLine(`[TFTP] ${line}`)),
+  ...tailFile(config.http.logPath, 5).map((line) => formatDisplayLogLine(`[HTTP] ${line}`)),
 ]) {
   runtimeLog.push(line);
 }
