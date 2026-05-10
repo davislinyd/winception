@@ -478,6 +478,15 @@ Keep `README.md` concise and user-facing. Keep the report detailed and evidence-
 
 Use Git to track docs and process definitions in this workspace.
 
+At the start of every new conversation in this workspace, before planning or editing, check for handoff context that may have been written by other agents:
+
+```powershell
+git status --short --branch
+git log --all --notes --decorate --date=iso --max-count=20 --format=fuller
+```
+
+Treat the recent commit subjects, commit bodies, and Git notes as multi-agent handoff material. If any recent commit mentions active work, deployment state, failing validation, endpoint changes, dirty worktree expectations, or files that should not be touched, summarize that context before acting and keep it in the plan. If the task is narrow and the recent log is unrelated, say that no relevant handoff note was found.
+
 Track these files by default:
 
 ```text
