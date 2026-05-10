@@ -23,11 +23,40 @@
 
 | 路徑 | 用途 | Host endpoint | 入口 | 驗證意義 |
 | --- | --- | --- | --- | --- |
-| 實體筆電 iPXE | Active path，用來驗證真實大量部署 | `乙太網路 3` / `192.168.100.100` | `npm run tui` | 可作為實體部署證據 |
+| 實體筆電 iPXE | Active path，用來驗證真實大量部署 | TUI 選定的 service interface / service IP | `npm run tui` | 可作為實體部署證據 |
 | VM VM iPXE | Regression path，用來快速驗證 WinPE、OOBE、status callback | `Ethernet` / `192.168.100.1` | `node .\tools\osdcloud-tui\src\headless.js` 或 TUI | 只證明 VM regression，不代表實體筆電路徑已準備好 |
 | ISO VM | Historical path，用來驗證 ISO zero-touch | `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso` | VM DVD/ISO boot | 只保留為歷史證據 |
 
-切換路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-tui.json` 與 `osdcloud-assets`。不要把 VM 的 `192.168.100.1` endpoint 當成實體筆電設定，也不要把實體筆電的 `192.168.100.100` endpoint 當成 vSwitch VM 設定。
+切換路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-tui.json` 與 `osdcloud-assets`。不要把 VM 的 `192.168.100.1` endpoint 當成實體筆電設定，也不要把某一次實體筆電測試使用的 service IP 當成永久設定。
+
+實體筆電 endpoint 每次以 TUI 選定的 service interface / service IP 為準。下一次實體筆電測試前，先確認 `config\osdcloud-tui.json`、live `boot.ipxe`、published `boot.wim` 內嵌 endpoint 與 host 網卡狀態一致。
+
+## 目前主機網路拓樸
+
+目前主機用兩張實體 NIC 分工：
+
+| 介面 | 角色 | Host IP | Gateway | 備註 |
+| --- | --- | --- | --- | --- |
+| `WAN` | Host 預設上網 | `192.168.100.1/24` | `192.168.100.1` | Default route 只走這張，metric `5` |
+| `LAN` | 實體 client / PXE lab | `192.168.88.1/24` | 無 | Metric `500`，IP forwarding enabled |
+
+`LAN` 目前規劃為獨立 client subnet。Windows NAT 已建立：
+
+```text
+Name   : OSDCloud-PhysicalClient-NAT
+Prefix : 192.168.88.0/24
+```
+
+接在 `LAN` 後面的 client 若手動設定，可使用：
+
+```text
+IP      : 192.168.88.x
+Mask    : 255.255.255.0
+Gateway : 192.168.88.1
+DNS     : 1.1.1.1 / 8.8.8.8
+```
+
+若下一次實體筆電 PXE 部署要走這張 `LAN`，必須先在 TUI 選取 `LAN` 或用同步工具把 live iPXE endpoint 改到 `LAN` / `192.168.88.1`，並同步 `boot.wim` / `osdcloud-assets`。單純改 Windows NIC IP 或名稱不會自動修改 WinPE 內嵌 endpoint。
 
 歷史 ISO 驗證 VM：
 
@@ -145,26 +174,26 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 實體筆電 iPXE 版 WinPE 使用的 Windows 11 ESD 來源：
 
 ```text
-\\192.168.100.100\OSDCloudiPXE\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
+\\<service-ip>\OSDCloudiPXE\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
 ```
 
 ## 實體筆電 iPXE 流程
 
-這條流程的重點是：實體筆電不需要 USB 或 ISO，直接用 UEFI PXE 啟動 iPXE，再由 iPXE 用 HTTP 載入 OSDCloud WinPE。WinPE 進入後掛載 `\\192.168.100.100\OSDCloudiPXE`，直接用該 SMB share 上的 Windows 11 ESD 套用 `Index 6`，避免每台機器再把 5GB ESD 下載到 WinPE 暫存目錄。
+這條流程的重點是：實體筆電不需要 USB 或 ISO，直接用 UEFI PXE 啟動 iPXE，再由 iPXE 用 HTTP 載入 OSDCloud WinPE。WinPE 進入後掛載 `\\<service-ip>\OSDCloudiPXE`，直接用該 SMB share 上的 Windows 11 ESD 套用 `Index 6`，避免每台機器再把 5GB ESD 下載到 WinPE 暫存目錄。
 
 端到端流程：
 
 1. 確認真實環境 DHCP server 已暫時關閉，避免和本機 PXE DHCP responder 衝突。
-2. Host 有線網卡 `乙太網路 3` 使用 `192.168.100.100/24`；需要時用 `.\tools\Set-IpxePhysicalNic.ps1` 設定。
+2. Host service IP 必須存在於一張已啟用的 IPv4 介面上；介面名稱和 IP 每次以 TUI 選取結果為準。
 3. Host 啟動 PXE helper：PowerShell DHCP、PowerShell TFTP、Node HTTP server。
 4. 實體筆電從 UEFI IPv4 PXE 開機，不使用 USB/ISO。
-5. UEFI PXE client 透過 DHCP 拿到 `192.168.100.200-192.168.100.250` 範圍內的 lease、gateway `192.168.100.1`、DNS `1.1.1.1` / `8.8.8.8` 與第一階段 boot file `ipxeboot/x86_64-sb/snponly.efi`。
+5. UEFI PXE client 透過 DHCP 拿到目前 TUI config 範圍內的 lease、設定中的 gateway/router、DNS 與第一階段 boot file `ipxeboot/x86_64-sb/snponly.efi`。若測試目標需要走 upstream gateway，先在 endpoint/config 中設定清楚並重新同步。
 6. UEFI PXE client 透過 TFTP 下載 `snponly.efi`，進入 iPXE。
-7. iPXE 再次 DHCP，DHCP helper 偵測到 iPXE client 後改回傳 `http://192.168.100.100/osdcloud/boot.ipxe`。
+7. iPXE 再次 DHCP，DHCP helper 偵測到 iPXE client 後改回傳 `http://<service-ip>/osdcloud/boot.ipxe`。
 8. iPXE 透過 HTTP 下載 `boot.ipxe`，再載入 `wimboot`、`bootmgr`、`bootx64.efi`、`BCD`、`boot.sdi`、`boot.wim`。
 9. OSDCloud WinPE 啟動，`Startnet.cmd` 執行 `Initialize-OSDCloudStartnet`，再呼叫 iPXE 專用 `Start-OSDCloud-iPXE.ps1`。
-10. `Start-OSDCloud-iPXE.ps1` 啟動 `Report-OSDCloudProgress.ps1`，定期 POST 部署狀態到 `http://192.168.100.100/osdcloud/status`，並在關鍵階段 best-effort 上傳 PNG 截圖到 `/osdcloud/screenshot`。
-11. `Start-OSDCloud-iPXE.ps1` 用 `net use Z: \\192.168.100.100\OSDCloudiPXE` 掛載 read-only SMB share。
+10. `Start-OSDCloud-iPXE.ps1` 啟動 `Report-OSDCloudProgress.ps1`，定期 POST 部署狀態到 `http://<service-ip>/osdcloud/status`，並在關鍵階段 best-effort 上傳 PNG 截圖到 `/osdcloud/screenshot`。
+11. `Start-OSDCloud-iPXE.ps1` 用 `net use Z: \\<service-ip>\OSDCloudiPXE` 掛載 read-only SMB share。
 12. 腳本把 `$Global:StartOSDCloud.ImageFileDestination` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`，並固定 `OSImageIndex=6` 後呼叫 `Invoke-OSDCloud`。
 13. OSDCloud 直接用 SMB 上的 ESD 執行 DISM 套用 Windows 11 Pro，不再執行 `Download Operating System` 的 HTTP ESD 下載。
 14. WinPE Shutdown script `Invoke-DavisOobe.ps1` 對新 Windows 離線注入：
@@ -189,13 +218,13 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 若目前 endpoint 留在 VM 測試狀態，先切回實體筆電：
 
 ```powershell
-.\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '乙太網路 3' -ServerIp '192.168.100.100' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts
+.\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts
 ```
 
 設定實體網卡並啟動 PXE helper：
 
 ```powershell
-.\tools\Set-IpxePhysicalNic.ps1
+.\tools\Set-IpxePhysicalNic.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1'
 ```
 
 ```powershell
@@ -232,7 +261,7 @@ VM 回歸注意事項：
 - 成功條件仍是 `windows-desktop-ready`、`davis` 桌面、OOBE registry 正確、HTTP log 沒有 zh-TW ESD `HEAD` / `GET`
 - `osdcloud-finished` 後不要強制關機，讓 WinPE 自然 `wpeutil reboot`
 - 測試結束後停止 headless/TUI services，避免 DHCP responder 留著
-- 回到實體筆電前必須切回 `乙太網路 3` / `192.168.100.100`
+- 回到實體筆電前必須切回 TUI 選定的實體 service interface / service IP
 
 OSDCloud 進度回報會由 Node HTTP server 接收，並寫入：
 
@@ -272,7 +301,7 @@ windows-desktop-ready
 `windows-driverpack-cache-request` 只帶 driver pack metadata，不帶 driver pack 本體。host 端收到後會在背景處理 cache backfill；即使下載失敗，也不會阻斷 `windows-setupcomplete-finished` 或 `windows-desktop-ready`。
 
 `windows-desktop-ready` 代表已看到 Explorer、桌面 ready marker，且沒有 `CloudExperienceHost` / `msoobe`。
-Desktop-ready reporter 會等到 `windows-desktop-ready` 成功 POST 到 host 後才移除 scheduled task；如果 Windows 桌面先出現但網路尚未連上 `192.168.100.100`，它會每 `5` 秒重試，最多 `30` 分鐘，避免 TUI 永遠停在 `awaiting-windows`。`Send-Status` 必須在 HTTP POST 或 WebClient fallback 成功後回傳 `$true`，否則 reporter 會把 HTTP `204` 當成未完成並每 5 秒重送相同 `windows-desktop-ready`，直到 30 分鐘 deadline。
+Desktop-ready reporter 會等到 `windows-desktop-ready` 成功 POST 到 host 後才移除 scheduled task；如果 Windows 桌面先出現但網路尚未連上目前 host status endpoint，它會每 `5` 秒重試，最多 `30` 分鐘，避免 TUI 永遠停在 `awaiting-windows`。`Send-Status` 必須在 HTTP POST 或 WebClient fallback 成功後回傳 `$true`，否則 reporter 會把 HTTP `204` 當成未完成並每 5 秒重送相同 `windows-desktop-ready`，直到 30 分鐘 deadline。
 
 若已部署 client 還在使用舊 reporter 並持續重送 `windows-desktop-ready`，可在 client 端以系統管理員執行：
 
@@ -312,7 +341,7 @@ HTTP ESD    : 0 HEAD/GET matches during this run
 Internet    : ping 1.1.1.1, DNS, and msftconnecttest all passed
 ```
 
-目前 `config\osdcloud-tui.json` 與 live iPXE WinPE endpoint 已切到 `Ethernet` / `192.168.100.1` 以支援 VM 回歸測試。若要回到實體筆電路徑，先用 `.\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '乙太網路 3' -ServerIp '192.168.100.100' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts` 切回真實有線網卡，再啟動 TUI。
+`config\osdcloud-tui.json` 與 live iPXE WinPE endpoint 會隨 TUI `Select service interface` 或 `Set-OsdCloudIpxeEndpoint.ps1` 改變。下一次實體筆電驗證前，先確認 service IP、DHCP router、HTTP base、SMB share、live `boot.ipxe` 與 `boot.wim` 內嵌 endpoint 都指向同一個本次要使用的 service IP。
 
 可用下列方式即時監看：
 
@@ -354,7 +383,7 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 - 若要改服務監聽介面，使用 `Select service interface`；它會列出目前啟用、具 IPv4、非 APIPA 的介面，選定後寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、published `boot.wim` 與 `osdcloud-assets`
 - 選擇新介面時，HTTP/TFTP/DHCP 任一服務若正在 running，TUI 會先要求停止服務再更新 endpoint
 - 切換介面後 DHCP responder 必須使用新 endpoint 的 lease pool；若 log 顯示服務在 `192.168.100.x` 但仍 OFFER/ACK `192.168.100.x`，代表正在跑舊 TUI process，停止服務並重新啟動 `npm run tui`
-- `dhcp.reservations` 可針對已知實體 client MAC 固定派發 IP；目前 `AA-BB-CC-DD-EE-FF` 固定為 `192.168.100.115`。這只保證 TUI DHCP 回答時派同一個 IP，不能保證 client 一定選到這台 DHCP server
+- `dhcp.reservations` 可針對已知實體 client MAC 固定派發 IP；切到 `LAN` / `192.168.88.1` 前必須檢查 reservation 是否仍落在 `192.168.88.0/24` 內，避免沿用舊 `192.168.100.x` 位址
 - 只有確認真實 LAN DHCP server 已暫時停用後，才在 TUI 啟動 DHCP
 - `Start HTTP/status`、`Start TFTP`、`Start DHCP` 是個別服務 toggle；服務 running 時同一個 action 會顯示為 `Stop ...` 並可關閉服務
 - TUI 不再提供 `Configure physical NIC` 動作；如需改 Windows 網卡 IP，請在 TUI 外手動執行 `.\tools\Set-IpxePhysicalNic.ps1`
@@ -375,7 +404,7 @@ npm run smoke
 
 歷史 VM timing evidence 保留在詳細測試報告；實體筆電驗證不使用 VM timing script。
 
-若安裝後 Start menu 顯示灰色 placeholder，先確認筆電是否能經由真實內網 gateway `192.168.100.1` 出口連網，再重啟 Start menu / Explorer 或清除目前使用者的 icon cache。
+若安裝後 Start menu 顯示灰色 placeholder，先確認筆電是否能經由當次部署設定的 gateway 出口連網，再重啟 Start menu / Explorer 或清除目前使用者的 icon cache。
 
 ## Git 管理
 
@@ -470,7 +499,7 @@ ISO VM 還要確認：
 - HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`，且沒有 zh-TW ESD `HEAD` / `GET`
 - `C:\OSDCloud\Logs\OSDCloud.json` 的 `ImageFileUrl` 為空
 - `ImageFileDestination` / `ExpandWindowsImage.ImagePath` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`
-- `ImageFileDestination.PSDrive.DisplayRoot` 為 `\\192.168.100.100\OSDCloudiPXE`
+- `ImageFileDestination.PSDrive.DisplayRoot` 為目前實體 endpoint 的 SMB share，例如 `\\<service-ip>\OSDCloudiPXE`
 - `OSImageIndex=6`
 - 硬碟第一次開機直接進入 `davis` 桌面，不停在 OOBE
 

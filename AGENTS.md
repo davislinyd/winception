@@ -13,7 +13,8 @@ There are two live-looking but separate paths. Treat them as mutually exclusive 
 Physical-laptop path:
 
 - This is the active production-like validation path.
-- Use host wired adapter `乙太網路 3`, service IP `192.168.100.100`, DHCP leases `192.168.100.200-250`, and SMB share `\\192.168.100.100\OSDCloudiPXE`.
+- Use the TUI-selected service interface and service IP for the current run. Do not hard-code a physical NIC name or a `192.168.100.x` address as the required production path.
+- Read the active service IP, DHCP lease range, router, HTTP base, and SMB share from `config\osdcloud-tui.json`, live `boot.ipxe`, and host adapter state immediately before starting services.
 - Use `npm run tui` unless the user explicitly requests lower-level helper scripts.
 - Do not use VM, `vSwitch`, `192.168.100.1`, VMConnect, PowerShell Direct, or `tools\osdcloud-tui\src\headless.js` as evidence for this path.
 
@@ -27,7 +28,7 @@ VM VM regression path:
 
 Endpoint switching:
 
-- Before physical-laptop validation, switch back with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '乙太網路 3' -ServerIp '192.168.100.100' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- Before physical-laptop validation, select the intended service interface in the TUI or switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '<interface-alias>' -ServerIp '<service-ip>' -PrefixLength <prefix> -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - Before vSwitch VM regression, switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'Ethernet' -ServerIp '192.168.100.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - After either switch, keep `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, and `osdcloud-assets` aligned with the live endpoint state.
 - Document physical results under physical-laptop sections and VM results under VM/VM regression sections. Do not mix VM timings, vSwitch IPs, or PowerShell Direct validation into the physical-laptop evidence block.
@@ -41,7 +42,15 @@ Previously validated VM paths:
 Current active path:
 
 - Physical laptop boots from UEFI PXE/iPXE on the real wired LAN, loads WinPE over HTTP, and applies the Windows ESD directly from the host SMB share. No VM vSwitch or VM is required for this path.
-- Current repo/live endpoint may be left on `Ethernet` / `192.168.100.1` after VM regression. Before physical-laptop validation, switch back with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '乙太網路 3' -ServerIp '192.168.100.100' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- Current repo/live endpoint for the physical-laptop path is whatever service interface/IP the TUI selected and synced most recently. It may be left on `Ethernet` / `192.168.100.1` after VM regression; before physical-laptop validation, switch back to the intended physical service interface/IP and resync `boot.wim` / `osdcloud-assets`.
+
+Current host WAN/LAN topology:
+
+- `WAN` is the host default internet NIC. Current observed host IP is `192.168.100.1/24`, gateway `192.168.100.1`, metric `5`.
+- `LAN` is the physical client / PXE lab NIC. Current planned host IP is `192.168.88.1/24`, no gateway, metric `500`, IP forwarding enabled.
+- Windows NAT `OSDCloud-PhysicalClient-NAT` maps `192.168.88.0/24` out through the host WAN path.
+- The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-tui.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the TUI or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- If `config\osdcloud-tui.json` still references `乙太網路 2`, `乙太網路 3`, or `192.168.100.x` after the rename, treat it as a stale endpoint until it is deliberately resynced.
 
 Local account:
 
@@ -113,10 +122,10 @@ C:\Users\Davis\Documents\New project\tools\osdcloud-tui\src\headless.js
 Physical-laptop iPXE SMB image source:
 
 ```text
-Share: \\192.168.100.100\OSDCloudiPXE
-Path : \\192.168.100.100\OSDCloudiPXE\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
+Share: \\<service-ip>\OSDCloudiPXE
+Path : \\<service-ip>\OSDCloudiPXE\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
 User : pxeinstall
-Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.168.100.100
+Mode : read-only SMB, firewall limited to the selected service subnet on the selected service IP
 ```
 
 ## Critical Lessons
@@ -127,7 +136,7 @@ Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.
 - The ISO should set `LaunchUserOOBE=0`, `SkipMachineOOBE=1`, `SkipUserOOBE=1`, and `NoAutoUpdate=1` to avoid the first-boot OOBE update screen.
 - `wuauserv` may later show as Running even with `NoAutoUpdate=1`; this is not by itself a failure. Failure is seeing `CloudExperienceHost`, `msoobe`, or an OOBE update screen after the desktop should be ready.
 - For iPXE custom image deployment, do not combine `-ImageFileUrl` / `-OSImageIndex` with `-OSName`, `-OSLanguage`, `-OSEdition`, or `-OSActivation`. `Start-OSDCloud` treats custom image as a separate parameter set.
-- For iPXE no-redownload deployment, do not use `-ImageFileUrl`. It always triggers OSDCloud's `Download Operating System` step and copies the ESD into WinPE. The current WinPE maps `\\192.168.100.100\OSDCloudiPXE` as `Z:`, sets `$Global:StartOSDCloud.ImageFileDestination` to the ESD `FileInfo`, sets `OSImageIndex=6`, then calls `Invoke-OSDCloud`.
+- For iPXE no-redownload deployment, do not use `-ImageFileUrl`. It always triggers OSDCloud's `Download Operating System` step and copies the ESD into WinPE. The current WinPE maps `\\<service-ip>\OSDCloudiPXE` as `Z:`, sets `$Global:StartOSDCloud.ImageFileDestination` to the ESD `FileInfo`, sets `OSImageIndex=6`, then calls `Invoke-OSDCloud`.
 - For isolated or restricted networks, remove or bypass `Initialize-OSDCloudStartnetUpdate` in the iPXE WinPE. It tries external PowerShell Gallery / Microsoft update endpoints and can stall before `Start-OSDCloud`.
 - For iPXE WinPE, `Invoke-DavisOobe.ps1` must first look for SetupComplete scripts at `$PSScriptRoot\..\SetupComplete`, then fall back to scanning non-`C:` / non-`X:` drives. iPXE loads only `boot.wim`; it does not provide the ISO media path.
 - When changing iPXE `SetupComplete`, update both `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete` and the embedded `X:\OSDCloud\Config\Scripts\SetupComplete` inside `boot.wim`. If the embedded copy is stale, the laptop can reach the Windows desktop while the TUI remains at `awaiting-windows` / `rebooting` because no `windows-setupcomplete-*` or `windows-desktop-ready` callback exists.
@@ -137,7 +146,7 @@ Mode : read-only SMB, firewall limited to 192.168.100.0/24 on local address 192.
 - Screenshot progress evidence is best-effort only. Keep JSON deployment status as the source of truth; screenshot upload failures must not block OSDCloud, SetupComplete, reboot, or desktop-ready reporting.
 - Do not install a desktop screenshot Startup helper from `SetupComplete`. The earlier interactive screenshot helper combined screen capture, upload, and hidden PowerShell startup execution, and Defender/AMSI blocked the whole `SetupComplete.ps1` with `ScriptContainedMaliciousContent`. Keep `OSDCloudDesktopReadyReport` as the SYSTEM scheduled task for final status; Windows desktop PNG evidence must remain a separate, explicitly retested best-effort helper if reintroduced later.
 - The working iPXE `boot.ipxe` explicitly loads `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim` over HTTP.
-- The working DHCP path returns addresses from `192.168.100.200` through `192.168.100.250`, gateway `192.168.100.1`, DNS `1.1.1.1` / `8.8.8.8`, `snponly.efi` for UEFI PXE first stage, and `http://192.168.100.100/osdcloud/boot.ipxe` once the client identifies as iPXE. Keep `autoexec.ipxe` disabled unless you intentionally retest the TFTP script path.
+- The working DHCP path returns addresses from the current `dhcp.leaseStartIp` through `dhcp.leaseEndIp`, DNS from the current config, `snponly.efi` for UEFI PXE first stage, and `http://<service-ip>/osdcloud/boot.ipxe` once the client identifies as iPXE. Confirm the intended client gateway before final physical validation instead of assuming a fixed router IP.
 - Historical VM note: VM blocks changing the Secure Boot template after vTPM initialization. If a VM was initialized with the PXE template and must hard-boot Windows with `MicrosoftWindows`, preserve the VHDX and recreate the VM configuration before enabling vTPM.
 - The live deployment files are under `C:\OSDCloud`, not only in this repo. After changing deployment behavior, run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts` so `osdcloud-assets` contains the current scripts, embedded WinPE `Config\Scripts`, WinPE startup files, and large-artifact manifest before committing.
 
@@ -148,14 +157,16 @@ Use this runbook for the physical-laptop network-install validation path. The go
 Expected host network:
 
 ```text
-Host wired adapter: 乙太網路 3
-Host adapter IP: 192.168.100.100/24
-DHCP range: 192.168.100.200-192.168.100.250
-Gateway: 192.168.100.1
+Host service interface: LAN
+Host service IP: 192.168.88.1/24
+DHCP range: 192.168.88.200-192.168.88.250
+DHCP router: 192.168.88.1
 DNS: 1.1.1.1, 8.8.8.8
-HTTP base: http://192.168.100.100/osdcloud
-SMB image share: \\192.168.100.100\OSDCloudiPXE
+HTTP base: http://192.168.88.1/osdcloud
+SMB image share: \\192.168.88.1\OSDCloudiPXE
 ```
+
+These are the current planned physical-client LAN values. If the user intentionally selects a different service interface/IP in the TUI, verify and document that live endpoint instead of forcing these values.
 
 Expected HTTP root:
 
@@ -178,9 +189,9 @@ boot.wim
 OSDCloud progress status is collected by the same Node HTTP server:
 
 ```text
-POST/GET: http://192.168.100.100/osdcloud/status
-Events : http://192.168.100.100/osdcloud/status/events
-Shots  : POST image/png to http://192.168.100.100/osdcloud/screenshot
+POST/GET: http://<service-ip>/osdcloud/status
+Events : http://<service-ip>/osdcloud/status/events
+Shots  : POST image/png to http://<service-ip>/osdcloud/screenshot
 Files  : C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
          C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-summary.json
@@ -196,17 +207,17 @@ Cadence: check logs every 3 seconds; send heartbeat at least every 15 seconds
 Run sequence:
 
 1. Confirm the real network DHCP server is temporarily disabled.
-2. Confirm the host wired adapter `乙太網路 3` has `192.168.100.100/24`; use `.\tools\Set-IpxePhysicalNic.ps1` if it needs to be configured.
+2. Confirm the selected service IP exists on an enabled IPv4 adapter with the intended prefix; use `.\tools\Set-IpxePhysicalNic.ps1 -InterfaceAlias '<interface-alias>' -ServerIp '<service-ip>'` only when Windows adapter IP assignment itself needs to be changed.
 3. Start the host-side PXE helpers: DHCP/TFTP for first-stage boot and HTTP for OSDCloud content.
 4. Keep the working unsigned PXE path on `snponly.efi` unless the task is specifically to retest signed shim Secure Boot.
 5. Boot the physical laptop from UEFI IPv4 PXE, with no USB or ISO media involved.
-6. Confirm DHCP returns a `192.168.100.200-250` lease, router `192.168.100.1`, DNS `1.1.1.1` / `8.8.8.8`, `snponly.efi` for UEFI PXE, and `http://192.168.100.100/osdcloud/boot.ipxe` after the client identifies as iPXE.
-7. Confirm the iPXE WinPE maps `\\192.168.100.100\OSDCloudiPXE` to `Z:` and sets `$Global:StartOSDCloud.ImageFileDestination` to `Z:\OSDCloud\OS\...zh-tw.esd`.
+6. Confirm DHCP returns a lease from the current configured range, the intended router, configured DNS, `snponly.efi` for UEFI PXE, and `http://<service-ip>/osdcloud/boot.ipxe` after the client identifies as iPXE.
+7. Confirm the iPXE WinPE maps `\\<service-ip>\OSDCloudiPXE` to `Z:` and sets `$Global:StartOSDCloud.ImageFileDestination` to `Z:\OSDCloud\OS\...zh-tw.esd`.
 8. Watch the HTTP access log for `boot.ipxe`, `wimboot`, and `boot.wim`. A valid no-redownload run must not show zh-TW ESD `HEAD` or `GET`.
 9. Watch `C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl` for WinPE status events such as `winpe-start`, `smb-mounted`, `osdcloud-start`, `apply-image`, `osdcloud-finished`, and `rebooting`; use `latest-screenshot.json` / `<runId>.screenshots.jsonl` only as supporting visual evidence.
 10. After WinPE finishes, it should post final status and reboot itself with `wpeutil reboot`; the laptop should then boot from the internal disk if PXE was selected through a one-time boot menu.
 11. During first Windows boot, SetupComplete should post `windows-setupcomplete-start` and `windows-setupcomplete-finished`; after `davis` logs on, the SYSTEM desktop-ready scheduled task should post `windows-logon-start` and final `windows-desktop-ready`.
-12. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\...zh-tw.esd`, `ImageFileDestination.PSDrive.DisplayRoot = \\192.168.100.100\OSDCloudiPXE`, and `OSImageIndex : 6`.
+12. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\...zh-tw.esd`, `ImageFileDestination.PSDrive.DisplayRoot = \\<service-ip>\OSDCloudiPXE`, and `OSImageIndex : 6`.
 
 Legacy VM timing runs are historical regression tools only; do not use them for the physical-laptop path unless the user explicitly asks for VM validation:
 
@@ -251,18 +262,18 @@ ImageFileDestinationDisplayRoot: \\192.168.100.1\OSDCloudiPXE
 Final guest: DESKTOP-LTK4NLM\davis, ExplorerRunning=True, DesktopReadyFile=True
 ```
 
-This timing evidence used the earlier isolated `192.168.100.0/24` lab. Current physical-network defaults use `192.168.100.100` as the PXE/SMB host and `192.168.100.200-250` for DHCP leases.
+This timing evidence used the earlier isolated `192.168.100.0/24` lab. Current physical-network values are selected at runtime by the TUI and must be verified from live config before each physical run.
 
 Post-deploy network lesson:
 
-- If a deployed laptop has no internet and still shows a `192.168.100.x` address, first verify the real gateway `192.168.100.1` is reachable and that the upstream DHCP server is still intentionally disabled only for the test window.
-- The deployed system should use `192.168.100.1` as gateway and working DNS such as `1.1.1.1` / `8.8.8.8`.
+- If a deployed laptop has no internet and still shows a `192.168.100.x` address, first verify the intended gateway from TUI DHCP config is reachable and that the upstream DHCP server is still intentionally disabled only for the test window.
+- Do not assume the client gateway from an older run. Before final physical validation, choose the intended client gateway deliberately and confirm working DNS such as `1.1.1.1` / `8.8.8.8`.
 - If Start menu pins show gray placeholders after the first offline boot, refresh StartMenuExperienceHost / Explorer and rebuild the current user's icon cache after internet is available.
 
 Failure triage:
 
 - No HTTP `boot.ipxe`: debug UEFI PXE, TFTP, or first-stage iPXE.
-- `boot.ipxe` / `boot.wim` appears but Windows is not applied to disk: debug WinPE startup, SMB mapping to `\\192.168.100.100\OSDCloudiPXE`, `$Global:StartOSDCloud.ImageFileDestination`, and physical-network addressing.
+- `boot.ipxe` / `boot.wim` appears but Windows is not applied to disk: debug WinPE startup, SMB mapping to `\\<service-ip>\OSDCloudiPXE`, `$Global:StartOSDCloud.ImageFileDestination`, and physical-network addressing.
 - `Start-OSDCloud` returns to `X:\>` immediately: check for mixed parameter sets.
 - `Expand-WindowsImage failed` with `Insufficient memory`: check physical RAM. Use a laptop with at least 8GB RAM for the first physical validation.
 - Disk remains effectively empty or unbootable: Windows was not applied.
@@ -358,7 +369,7 @@ For the iPXE path, also verify:
 ```text
 ImageFileUrl                    : <empty>
 ImageFileDestination            : Z:\OSDCloud\OS\...zh-tw.esd
-ImageFileDestinationDisplayRoot : \\192.168.100.100\OSDCloudiPXE
+ImageFileDestinationDisplayRoot : \\<service-ip>\OSDCloudiPXE
 OSImageIndex                    : 6
 ```
 
@@ -482,7 +493,7 @@ At the start of every new conversation in this workspace, before planning or edi
 
 ```powershell
 git status --short --branch
-git log --all --notes --decorate --date=iso --max-count=20 --format=fuller
+git log --all --notes --decorate --date=iso --max-count=10 --format=fuller
 ```
 
 Treat the recent commit subjects, commit bodies, and Git notes as multi-agent handoff material. If any recent commit mentions active work, deployment state, failing validation, endpoint changes, dirty worktree expectations, or files that should not be touched, summarize that context before acting and keep it in the plan. If the task is narrow and the recent log is unrelated, say that no relevant handoff note was found.
