@@ -1,6 +1,6 @@
 import blessed from 'blessed';
 import fs from 'node:fs';
-import { applyServiceEndpoint, loadConfig, saveConfig } from './config.js';
+import { applyServiceEndpoint, loadConfig, mediaHttpServerConfig, saveConfig } from './config.js';
 import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
@@ -21,7 +21,7 @@ const appVersion = packageInfo.version ?? 'unknown';
 const config = loadConfig();
 const dhcp = new DhcpResponder(config.dhcp);
 const tftp = new TftpResponder(config.tftp);
-const http = new MediaHttpServer(config.http);
+const http = new MediaHttpServer(mediaHttpServerConfig(config));
 const runtimeLog = new RingBuffer(500);
 let preflightResults = [];
 let dialogOpen = false;

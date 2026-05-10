@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { mediaHttpServerConfig } from './config.js';
 import { MediaHttpServer } from './httpServer.js';
 import { TftpResponder } from './tftp.js';
 
@@ -33,18 +34,22 @@ async function waitFor(condition, timeoutMs = 2000) {
   assert.fail('Timed out waiting for smoke condition');
 }
 
-const httpServer = new MediaHttpServer({
-  root: httpRoot,
-  host: '127.0.0.1',
-  port: 0,
-  logPath: path.join(root, 'http.log'),
-  statusRoot,
+const config = {
+  http: {
+    root: httpRoot,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+  },
   driverPackCache: {
     enabled: true,
     root: driverPackCacheRoot,
     allowedHosts: ['127.0.0.1'],
   },
-});
+};
+
+const httpServer = new MediaHttpServer(mediaHttpServerConfig(config));
 
 const tftpServer = new TftpResponder({
   root: tftpRoot,

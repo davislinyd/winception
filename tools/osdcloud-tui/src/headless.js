@@ -1,4 +1,4 @@
-import { loadConfig } from './config.js';
+import { loadConfig, mediaHttpServerConfig } from './config.js';
 import { DhcpResponder } from './dhcp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { TftpResponder } from './tftp.js';
@@ -6,7 +6,7 @@ import { TftpResponder } from './tftp.js';
 const config = loadConfig();
 const dhcp = new DhcpResponder(config.dhcp);
 const tftp = new TftpResponder(config.tftp);
-const http = new MediaHttpServer(config.http);
+const http = new MediaHttpServer(mediaHttpServerConfig(config));
 
 async function stop() {
   await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);

@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { applyServiceEndpoint, saveConfig, validateConfig } from '../src/config.js';
+import {
+  applyServiceEndpoint,
+  mediaHttpServerConfig,
+  saveConfig,
+  validateConfig,
+} from '../src/config.js';
 
 test('rejects incomplete config', () => {
   assert.throws(() => validateConfig({}), /Missing required config values/);
@@ -34,6 +39,28 @@ test('accepts minimum config shape', () => {
   };
 
   assert.equal(validateConfig(config), config);
+});
+
+test('builds HTTP server config with root driver pack cache settings', () => {
+  const config = {
+    http: {
+      root: 'C:\\PXE-HttpRoot',
+      host: '192.168.100.1',
+      port: 80,
+      logPath: 'C:\\PXE-HttpRoot\\host-http.log',
+      statusRoot: 'C:\\PXE-HttpRoot\\status',
+    },
+    driverPackCache: {
+      enabled: true,
+      root: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\DriverPacks',
+      allowedHosts: ['downloads.dell.com'],
+    },
+  };
+
+  const httpConfig = mediaHttpServerConfig(config);
+  assert.equal(httpConfig.host, '192.168.100.1');
+  assert.equal(httpConfig.statusRoot, 'C:\\PXE-HttpRoot\\status');
+  assert.deepEqual(httpConfig.driverPackCache, config.driverPackCache);
 });
 
 test('applies service endpoint to every network-facing config value', () => {

@@ -29,6 +29,13 @@ export function saveConfig(config, configPath = config.__configPath || defaultCo
   return resolved;
 }
 
+export function mediaHttpServerConfig(config) {
+  return {
+    ...config.http,
+    driverPackCache: config.driverPackCache,
+  };
+}
+
 function smbShareName(config) {
   const share = String(config.smb?.share ?? '');
   const match = /^\\\\[^\\]+\\([^\\]+)$/u.exec(share);
