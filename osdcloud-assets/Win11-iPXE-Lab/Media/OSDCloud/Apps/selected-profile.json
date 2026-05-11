@@ -1,14 +1,19 @@
 {
-  "profileId": "default",
-  "profileName": "Default",
-  "publishedAt": "2026-05-10T17:58:37.500Z",
+  "profileId": "default-chrome",
+  "profileName": "Default + Chrome",
+  "publishedAt": "2026-05-11T00:25:33.229Z",
   "selectedSoftware": [
-    "7zip"
+    "7zip",
+    "chrome"
   ],
   "software": [
     {
       "id": "7zip",
       "name": "7-Zip 26.01 x64"
+    },
+    {
+      "id": "chrome",
+      "name": "Google Chrome Enterprise 64-bit"
     }
   ]
 }

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(process.argv[2] ?? 'C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot');
-const host = process.argv[3] ?? '192.168.88.1';
+const host = process.argv[3] ?? '192.168.100.1';
 const port = Number.parseInt(process.argv[4] ?? '80', 10);
 const logPath = process.argv[5] ?? 'C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\host-http.log';
 const statusRoot = path.resolve(process.argv[6] ?? path.join(root, 'status'));

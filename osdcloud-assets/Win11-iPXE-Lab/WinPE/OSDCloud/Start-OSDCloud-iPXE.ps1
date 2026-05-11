@@ -12,7 +12,7 @@ catch {
 }
 
 Write-Host "[$(Get-Date -Format G)] Start-OSDCloud iPXE custom image deployment"
-$server = '192.168.88.1'
+$server = '192.168.100.1'
 $share = "\\$server\OSDCloudiPXE"
 $statusUrl = "http://$server/osdcloud/status"
 $screenshotUrl = "http://$server/osdcloud/screenshot"
