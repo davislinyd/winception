@@ -31,9 +31,8 @@ import {
   orderedSoftwareSelection,
   validateProfileTextInput,
 } from './profileEditor.js';
+import { appVersion } from './version.js';
 
-const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
-const appVersion = packageInfo.version ?? 'unknown';
 const config = loadConfig();
 const dhcp = new DhcpResponder(config.dhcp);
 const tftp = new TftpResponder(config.tftp);

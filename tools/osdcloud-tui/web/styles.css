@@ -64,9 +64,19 @@ button.danger {
 }
 
 .topbar h1 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
   margin: 0;
   font-size: 20px;
   font-weight: 650;
+}
+
+.version-label {
+  color: #b8c8dc;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .topbar p {

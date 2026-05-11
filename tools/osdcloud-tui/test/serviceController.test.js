@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { ServiceController } from '../src/serviceController.js';
+import { appVersion } from '../src/version.js';
 
 class FakeService extends EventEmitter {
   constructor(config = {}) {
@@ -119,6 +120,7 @@ test('state reads do not create live status roots', () => {
     const statusRoot = config.http.statusRoot;
     assert.equal(fs.existsSync(statusRoot), false);
     const state = controller.getState();
+    assert.equal(state.app.version, appVersion);
     assert.equal(state.services.http.running, false);
     assert.equal(state.profile.activeProfile.id, 'default');
     assert.equal(fs.existsSync(statusRoot), false);

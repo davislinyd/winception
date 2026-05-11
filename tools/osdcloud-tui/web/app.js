@@ -6,6 +6,7 @@ const state = {
 
 const elements = {
   endpointLine: document.querySelector('#endpoint-line'),
+  appVersion: document.querySelector('#app-version'),
   operationBadge: document.querySelector('#operation-badge'),
   refreshButton: document.querySelector('#refresh-button'),
   updatedAt: document.querySelector('#updated-at'),
@@ -242,6 +243,7 @@ function render() {
   if (!appState) {
     return;
   }
+  elements.appVersion.textContent = appState.app?.version ? `v${appState.app.version}` : '';
   elements.updatedAt.textContent = localTime(appState.generatedAt);
   renderOperation(appState);
   renderServices(appState);

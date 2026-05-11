@@ -25,6 +25,7 @@ import {
   summarizeValidation,
 } from './status.js';
 import { formatDisplayLogLine } from './timeFormat.js';
+import { appVersion } from './version.js';
 
 function errorWithStatus(message, statusCode = 500) {
   const error = new Error(message);
@@ -297,6 +298,9 @@ export class ServiceController extends EventEmitter {
 
     return {
       generatedAt: new Date().toISOString(),
+      app: {
+        version: appVersion,
+      },
       web: webServerConfig(this.config),
       config: {
         adapter: this.config.adapter,

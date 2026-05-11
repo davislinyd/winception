@@ -6,6 +6,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { ServiceController } from '../src/serviceController.js';
 import { WebManagementServer } from '../src/webServer.js';
+import { appVersion } from '../src/version.js';
 
 class FakeService extends EventEmitter {
   constructor(config = {}) {
@@ -105,6 +106,7 @@ test('serves static UI and read-only state', async () => {
     assert.equal(response.status, 200);
     const payload = await response.json();
     assert.equal(payload.ok, true);
+    assert.equal(payload.state.app.version, appVersion);
     assert.equal(payload.state.fleet.total, 1);
     assert.equal(fs.existsSync(path.join(root, 'status')), false);
   } finally {
