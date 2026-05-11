@@ -68,13 +68,13 @@ C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso
 Primary report:
 
 ```text
-C:\Users\Davis\Documents\New project\OSDCloud-Win11-Automated-Deployment-Test-Report.md
+<repo-root>\OSDCloud-Win11-Automated-Deployment-Test-Report.md
 ```
 
 Versioned asset mirror:
 
 ```text
-C:\Users\Davis\Documents\New project\osdcloud-assets
+<repo-root>\osdcloud-assets
 ```
 
 ## Important Paths
@@ -114,9 +114,9 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\wimboot
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeDhcp.ps1
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs
-C:\Users\Davis\Documents\New project\tools\Set-IpxePhysicalNic.ps1
-C:\Users\Davis\Documents\New project\tools\Set-OsdCloudIpxeEndpoint.ps1
-C:\Users\Davis\Documents\New project\tools\osdcloud-tui\src\headless.js
+<repo-root>\tools\Set-IpxePhysicalNic.ps1
+<repo-root>\tools\Set-OsdCloudIpxeEndpoint.ps1
+<repo-root>\tools\osdcloud-tui\src\headless.js
 ```
 
 Physical-laptop iPXE SMB image source:

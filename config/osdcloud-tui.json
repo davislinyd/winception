@@ -39,9 +39,7 @@
     "statusRoot": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status"
   },
   "paths": {
-    "repoRoot": "C:\\Users\\Davis\\Documents\\New project",
     "osdCloudRoot": "C:\\OSDCloud",
-    "endpointSyncScript": "C:\\Users\\Davis\\Documents\\New project\\tools\\Set-OsdCloudIpxeEndpoint.ps1",
     "expectedHttpFiles": [
       "osdcloud\\boot.ipxe",
       "osdcloud\\wimboot",

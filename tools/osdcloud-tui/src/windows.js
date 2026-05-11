@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import dgram from 'node:dgram';
 import path from 'node:path';
-import { resolveHttpFile } from './config.js';
+import { defaultRepoRoot, resolveHttpFile } from './config.js';
 import { ipv4ToUInt32 } from './dhcp.js';
 import { evaluateDeploymentProfilePayload } from './deploymentProfiles.js';
 
@@ -267,12 +267,22 @@ $addresses = foreach ($targetIp in $targetIps) {
   return asArray(JSON.parse(result.stdout || '[]'));
 }
 
-function defaultEndpointSyncScript(config) {
-  return path.join(config.paths.repoRoot, 'tools', 'Set-OsdCloudIpxeEndpoint.ps1');
+export function resolveRepoRoot(config = {}) {
+  return path.resolve(config.paths?.repoRoot ?? defaultRepoRoot);
+}
+
+export function resolveEndpointSyncScript(config = {}) {
+  const root = resolveRepoRoot(config);
+  const configured = config.paths?.endpointSyncScript;
+  if (configured) {
+    return path.isAbsolute(configured) ? path.resolve(configured) : path.resolve(root, configured);
+  }
+  return path.join(root, 'tools', 'Set-OsdCloudIpxeEndpoint.ps1');
 }
 
 export async function syncIpxeEndpoint(config, options = {}) {
-  const scriptPath = config.paths.endpointSyncScript || defaultEndpointSyncScript(config);
+  const repoRoot = resolveRepoRoot(config);
+  const scriptPath = resolveEndpointSyncScript(config);
   const shareName = String(config.smb.share).split('\\').filter(Boolean).at(-1) || 'OSDCloudiPXE';
   const args = [
     '-NoProfile',
@@ -309,7 +319,7 @@ export async function syncIpxeEndpoint(config, options = {}) {
   }
 
   const result = await runPowerShell(args, {
-    cwd: config.paths.repoRoot,
+    cwd: repoRoot,
     onStdout: options.onOutput ? (text) => options.onOutput(text, 'stdout') : undefined,
     onStderr: options.onOutput ? (text) => options.onOutput(text, 'stderr') : undefined,
   });

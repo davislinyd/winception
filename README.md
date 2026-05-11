@@ -67,7 +67,7 @@ DNS     : 1.1.1.1 / 8.8.8.8
 操作前先確認：
 
 - Host 以系統管理員身分開啟 PowerShell。
-- 工作目錄是 `C:\Users\Davis\Documents\New project`。
+- 工作目錄是任意 Git clone 後的 `<repo-root>`；以下 repo 指令都假設從 repo root 執行。
 - `WAN` 是 host 上網介面，保留 default route。
 - `LAN` 是接實體 client / PXE switch 的介面，預期為 `192.168.88.1/24`。
 - 要做 PXE 測試的實體 LAN 上，不應同時有另一台 DHCP server 回答同一台 client。
@@ -87,7 +87,7 @@ DNS     : 1.1.1.1 / 8.8.8.8
 Web 版是未來優先開發的 GUI host console，使用相同的 Node DHCP/TFTP/HTTP/status controller。啟動後預設只聽本機：
 
 ```powershell
-cd 'C:\Users\Davis\Documents\New project'
+cd '<repo-root>'
 npm install
 npm run web
 ```
@@ -105,7 +105,7 @@ http://127.0.0.1:8080
 TUI 保留給相容性、備援操作與必要維護：
 
 ```powershell
-cd 'C:\Users\Davis\Documents\New project'
+cd '<repo-root>'
 npm run tui
 ```
 
@@ -330,13 +330,13 @@ HttpConnectTest  : True
 測試報告：
 
 ```text
-C:\Users\Davis\Documents\New project\OSDCloud-Win11-Automated-Deployment-Test-Report.md
+<repo-root>\OSDCloud-Win11-Automated-Deployment-Test-Report.md
 ```
 
 Repo 內的可版本化 OSDCloud 資產鏡像：
 
 ```text
-C:\Users\Davis\Documents\New project\osdcloud-assets
+<repo-root>\osdcloud-assets
 ```
 
 這個目錄保存從 `C:\OSDCloud` 匯出的真實部署腳本、PXE helper、`boot.ipxe`、以及從 iPXE `boot.wim` 抽出的 `Startnet.cmd`、WinPE OSDCloud scripts、WinPE 內嵌 `Config\Scripts`。大型 `ISO/WIM/ESD/VHDX` 和上游 boot binary 不進 Git，只在 `osdcloud-assets\manifest.json` 記錄路徑、大小、時間與 SHA-256。
@@ -430,7 +430,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 1. 在 repo source 建立一個軟體資料夾：
 
 ```text
-C:\Users\Davis\Documents\New project\Softwares\<SoftwareId>\
+<repo-root>\Softwares\<SoftwareId>\
   install.ps1
   installer.msi 或 installer.exe
 ```
@@ -652,7 +652,7 @@ node .\tools\osdcloud-tui\src\headless.js
 TUI 設定檔：
 
 ```text
-C:\Users\Davis\Documents\New project\config\osdcloud-tui.json
+<repo-root>\config\osdcloud-tui.json
 ```
 
 TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/status/runs` fleet API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。v0.2.0 起，`Clients` 區塊會以 scrollable table 顯示多台 client / run 的 status、client、run、stage、percent、last seen 與 elapsed；`Client Detail` 區塊顯示選定 run 的 start / WinPE end / Windows start / final end、最後訊息與最新截圖 metadata。v0.2.7 起，panel label 常態只顯示 Actions、Services、Clients、Client Detail、Preflight、Validation、Logs；按住 `Alt` 時會立即替可用快捷字母加底線，放開 `Alt` 時移除底線。v0.2.9 起，`Select deployment profile` 會發佈 profile 選中的 client software，Services panel 顯示 active profile/software，preflight 會檢查 live payload 是否和 active profile 一致。v0.2.12 起，Actions 也能新增、編輯、刪除 deployment profile；編輯 active profile 存檔後會立即重新發佈 live `Apps` payload。可用 `Alt+A`、`Alt+S`、`Alt+C`、`Alt+D`、`Alt+P`、`Alt+V`、`Alt+L` 直接切換到對應區塊；Caps Lock 開啟時 terminal 可能送出 `M-C` 這類大寫 meta key，TUI 會同樣接受。也可以按 `Tab` / `Shift+Tab` 依序循環 Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs。滑鼠點選任一 panel 會切換焦點；滑鼠停在哪個 panel 上滾輪就會 scroll 哪個 panel。Logs 往上滾會暫停自動跟隨最新 log，滾回底部或按 `End` 後恢復。
@@ -697,7 +697,7 @@ npm run smoke
 
 ## Git 管理
 
-這個資料夾使用 Git 追蹤文件、流程設定，以及從 `C:\OSDCloud` 同步出來的可讀部署資產。實際部署仍以 `C:\OSDCloud` 為執行位置；repo 的作用是保存可審查、可比較、可重建的腳本與 manifest。
+這個 repo 可以 clone 到任意資料夾；Git 追蹤文件、流程設定，以及從 `C:\OSDCloud` 同步出來的可讀部署資產。實際部署仍以 `C:\OSDCloud` 為執行位置；repo 的作用是保存可審查、可比較、可重建的腳本與 manifest。
 
 應納入版本控制：
 

@@ -3,13 +3,43 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { evaluateDhcpSubnet, evaluateServiceIp, getServiceBindIps, normalizeIpv4ServiceInterfaces, preparePowerShellArgs, removeStatusFiles } from '../src/windows.js';
+import {
+  evaluateDhcpSubnet,
+  evaluateServiceIp,
+  getServiceBindIps,
+  normalizeIpv4ServiceInterfaces,
+  preparePowerShellArgs,
+  removeStatusFiles,
+  resolveEndpointSyncScript,
+  resolveRepoRoot,
+} from '../src/windows.js';
 
 test('prepends UTF-8 output settings to PowerShell command calls', () => {
   const args = preparePowerShellArgs(['-NoProfile', '-Command', 'Get-NetAdapter | ConvertTo-Json']);
   assert.match(args[2], /\[Console\]::OutputEncoding/);
   assert.match(args[2], /Get-NetAdapter/);
   assert.deepEqual(preparePowerShellArgs(['-NoProfile', '-File', 'script.ps1']), ['-NoProfile', '-File', 'script.ps1']);
+});
+
+test('resolves endpoint sync paths from derived repo root by default', () => {
+  assert.equal(resolveRepoRoot({ paths: {} }), path.resolve('.'));
+  assert.equal(
+    resolveEndpointSyncScript({ paths: {} }),
+    path.join(path.resolve('.'), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'),
+  );
+});
+
+test('resolves endpoint sync paths with optional overrides', () => {
+  const root = path.join(os.tmpdir(), 'portable-repo-root');
+  assert.equal(resolveRepoRoot({ paths: { repoRoot: root } }), path.resolve(root));
+  assert.equal(
+    resolveEndpointSyncScript({ paths: { repoRoot: root, endpointSyncScript: 'scripts\\sync.ps1' } }),
+    path.resolve(root, 'scripts\\sync.ps1'),
+  );
+  assert.equal(
+    resolveEndpointSyncScript({ paths: { repoRoot: root, endpointSyncScript: 'C:\\custom\\sync.ps1' } }),
+    path.resolve('C:\\custom\\sync.ps1'),
+  );
 });
 
 test('clears status metadata and screenshot directory', () => {
