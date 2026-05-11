@@ -9,6 +9,7 @@ import {
   deleteDeploymentProfile,
   deploymentProfileOptions,
   evaluateDeploymentProfilePayload,
+  generateDeploymentProfileId,
   loadDeploymentProfiles,
   loadSoftwareCatalog,
   publishDeploymentProfile,
@@ -188,15 +189,16 @@ test('creates a deployment profile by copying active profile software', () => {
     writeBaseFiles(root);
 
     const created = createDeploymentProfile(configFor(root), {
-      id: 'field-tech',
       name: 'Field Tech',
+    }, {
+      randomInt: () => 12345678,
     });
 
-    assert.equal(created.profile.id, 'field-tech');
+    assert.equal(created.profile.id, '12345678');
     assert.deepEqual(created.profile.softwareIds, ['one']);
-    const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'field-tech.json'), 'utf8'));
+    const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', '12345678.json'), 'utf8'));
     assert.deepEqual(raw, {
-      id: 'field-tech',
+      id: '12345678',
       name: 'Field Tech',
       software: ['one'],
     });
@@ -207,22 +209,52 @@ test('creates a deployment profile by copying active profile software', () => {
   }
 });
 
-test('create deployment profile rejects duplicate and unsafe ids', () => {
+test('create deployment profile generates non-colliding 8 digit ids', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    writeJson(path.join(root, 'profiles', '00000000.json'), {
+      id: '00000000',
+      name: 'Reserved zero',
+      software: [],
+    });
+    writeJson(path.join(root, 'profiles', '12345678.json'), {
+      id: '12345678',
+      name: 'Reserved random',
+      software: [],
+    });
+
+    const created = createDeploymentProfile(configFor(root), { name: 'Collision safe' }, {
+      maxAttempts: 1,
+      randomInt: () => 12345678,
+    });
+
+    assert.equal(created.profile.id, '00000001');
+    assert.match(created.profile.id, /^\d{8}$/u);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('generate deployment profile id reports exhausted id space', () => {
+  assert.throws(
+    () => generateDeploymentProfileId(['00000000', '00000001'], {
+      idSpaceSize: 2,
+      maxAttempts: 0,
+      randomInt: () => 0,
+    }),
+    /No available deployment profile ids remain/,
+  );
+});
+
+test('create deployment profile rejects missing names', () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root);
 
     assert.throws(
-      () => createDeploymentProfile(configFor(root), { id: 'default', name: 'Duplicate' }),
-      /already exists/,
-    );
-    assert.throws(
-      () => createDeploymentProfile(configFor(root), { id: '..\\outside', name: 'Unsafe' }),
-      /Invalid profile id/,
-    );
-    assert.throws(
-      () => createDeploymentProfile(configFor(root), { id: '../outside', name: 'Traversal' }),
-      /Invalid profile id/,
+      () => createDeploymentProfile(configFor(root), { name: '   ' }),
+      /Deployment profile name is required/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

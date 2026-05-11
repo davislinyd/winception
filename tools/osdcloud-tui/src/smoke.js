@@ -128,9 +128,10 @@ const publishedProfile = publishDeploymentProfile(config);
 assert.equal(publishedProfile.profile.id, 'default');
 assert.equal(fs.existsSync(path.join(appsRoot, 'selected-profile.json')), true);
 assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-app', 'install.ps1')), true);
-const createdProfile = createDeploymentProfile(config, { id: 'smoke-copy', name: 'Smoke Copy' });
+const createdProfile = createDeploymentProfile(config, { name: 'Smoke Copy' });
+assert.match(createdProfile.profile.id, /^\d{8}$/u);
 assert.deepEqual(createdProfile.profile.softwareIds, ['smoke-app']);
-assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-copy')), false);
+assert.equal(fs.existsSync(path.join(appsRoot, createdProfile.profile.id)), false);
 updateDeploymentProfileSoftware(config, 'default', ['smoke-extra']);
 const republishedProfile = publishDeploymentProfile(config);
 assert.equal(republishedProfile.profile.id, 'default');
@@ -138,8 +139,8 @@ const selectedProfile = JSON.parse(fs.readFileSync(path.join(appsRoot, 'selected
 assert.deepEqual(selectedProfile.selectedSoftware, ['smoke-extra']);
 assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-extra', 'install.ps1')), true);
 assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-app')), false);
-deleteDeploymentProfile(config, 'smoke-copy');
-assert.equal(fs.existsSync(path.join(profilesRoot, 'smoke-copy.json')), false);
+deleteDeploymentProfile(config, createdProfile.profile.id);
+assert.equal(fs.existsSync(path.join(profilesRoot, `${createdProfile.profile.id}.json`)), false);
 
 const httpServer = new MediaHttpServer(mediaHttpServerConfig(config));
 

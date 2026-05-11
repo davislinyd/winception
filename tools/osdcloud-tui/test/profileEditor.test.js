@@ -46,13 +46,10 @@ test('formats deployment profile list choices', () => {
 });
 
 test('validates profile text input', () => {
-  assert.deepEqual(validateProfileTextInput({ id: 'ops_01', name: 'Ops 01' }, ['default']), {
+  assert.deepEqual(validateProfileTextInput({ name: 'Ops 01' }), {
     ok: true,
-    id: 'ops_01',
     name: 'Ops 01',
   });
-  assert.equal(validateProfileTextInput({ id: '', name: 'Missing' }).ok, false);
-  assert.equal(validateProfileTextInput({ id: '..\\outside', name: 'Unsafe' }).ok, false);
-  assert.equal(validateProfileTextInput({ id: 'default', name: 'Duplicate' }, ['default']).ok, false);
-  assert.equal(validateProfileTextInput({ id: 'empty-name', name: '' }).ok, false);
+  assert.equal(validateProfileTextInput({ name: '' }).ok, false);
+  assert.equal(validateProfileTextInput({ name: '   ' }).ok, false);
 });

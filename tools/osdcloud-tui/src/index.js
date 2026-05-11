@@ -1442,34 +1442,15 @@ async function runAction(index) {
       break;
     case 3:
       {
-        let profileState = null;
-        await withBusy('Loading deployment profiles', async () => {
-          profileState = resolveDeploymentProfileState(config);
-        });
-        if (!profileState) {
-          break;
-        }
-        const idValue = await textInputPrompt({
-          titleText: 'Add Profile',
-          promptText: 'Profile id',
-        });
-        if (idValue === null) {
-          addLog('Deployment profile creation cancelled');
-          break;
-        }
         const nameValue = await textInputPrompt({
           titleText: 'Add Profile',
           promptText: 'Profile name',
-          initialValue: String(idValue).trim(),
         });
         if (nameValue === null) {
           addLog('Deployment profile creation cancelled');
           break;
         }
-        const validation = validateProfileTextInput(
-          { id: idValue, name: nameValue },
-          profileState.profiles.map((profile) => profile.id),
-        );
+        const validation = validateProfileTextInput({ name: nameValue });
         if (!validation.ok) {
           addLog(`Deployment profile not created: ${validation.message}`);
           break;

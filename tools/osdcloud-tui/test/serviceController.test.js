@@ -148,8 +148,8 @@ test('deployment profile management actions create, update active software, and 
         createDeploymentProfile(_config, input) {
           createdInput = input;
           return {
-            profile: { id: input.id, name: input.name, description: '', softwareIds: ['7zip'] },
-            filePath: path.join(root, `${input.id}.json`),
+            profile: { id: '12345678', name: input.name, description: '', softwareIds: ['7zip'] },
+            filePath: path.join(root, '12345678.json'),
           };
         },
         updateDeploymentProfile(_config, profileId, input) {
@@ -179,9 +179,9 @@ test('deployment profile management actions create, update active software, and 
       },
     });
 
-    const created = await controller.addDeploymentProfile({ id: 'field', name: 'Field' });
-    assert.deepEqual(createdInput, { id: 'field', name: 'Field' });
-    assert.equal(created.profile.id, 'field');
+    const created = await controller.addDeploymentProfile({ name: 'Field' });
+    assert.deepEqual(createdInput, { name: 'Field' });
+    assert.equal(created.profile.id, '12345678');
 
     await controller.startAll();
     const updated = await controller.updateActiveDeploymentProfile({ name: 'Renamed', softwareIds: ['chrome'] });

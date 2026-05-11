@@ -1,9 +1,12 @@
 import fs from 'node:fs';
+import { randomInt } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..', '..');
+const generatedProfileIdSpace = 100_000_000;
+const defaultGeneratedProfileIdAttempts = 256;
 
 export const selectedProfileFileName = 'selected-profile.json';
 
@@ -32,6 +35,33 @@ function normalizeId(value, label) {
     throw new Error(`Invalid ${label} id: ${value}`);
   }
   return id;
+}
+
+function formatGeneratedProfileId(value) {
+  return String(value).padStart(8, '0');
+}
+
+export function generateDeploymentProfileId(existingIds = [], options = {}) {
+  const reserved = new Set(Array.from(existingIds ?? [], (id) => String(id)));
+  const nextRandomInt = options.randomInt ?? randomInt;
+  const idSpaceSize = options.idSpaceSize ?? generatedProfileIdSpace;
+  const maxAttempts = options.maxAttempts ?? defaultGeneratedProfileIdAttempts;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const id = formatGeneratedProfileId(nextRandomInt(idSpaceSize));
+    if (!reserved.has(id)) {
+      return id;
+    }
+  }
+
+  for (let value = 0; value < idSpaceSize; value += 1) {
+    const id = formatGeneratedProfileId(value);
+    if (!reserved.has(id)) {
+      return id;
+    }
+  }
+
+  throw new Error('No available deployment profile ids remain');
 }
 
 function normalizeProfileName(value, label = 'Deployment profile name') {
@@ -235,20 +265,29 @@ function profileFilePath(profileOptions, profileId) {
   );
 }
 
+function reservedDeploymentProfileIds(profileOptions, profiles) {
+  const reserved = new Set(profiles.map((profile) => profile.id));
+  if (fs.existsSync(profileOptions.profilesRoot)) {
+    for (const fileName of fs.readdirSync(profileOptions.profilesRoot)) {
+      if (fileName.toLowerCase().endsWith('.json')) {
+        reserved.add(path.basename(fileName, '.json'));
+      }
+    }
+  }
+  return reserved;
+}
+
 export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
-  const id = normalizeId(input.id, 'profile');
   const name = normalizeProfileName(input.name);
 
   const state = resolveDeploymentProfileState(config, null, options);
-  if (state.profiles.some((profile) => profile.id === id)) {
-    throw new Error(`Deployment profile already exists: ${id}`);
-  }
 
   if (!fs.existsSync(profileOptions.profilesRoot)) {
     throw new Error(`Deployment profile folder not found: ${profileOptions.profilesRoot}`);
   }
 
+  const id = generateDeploymentProfileId(reservedDeploymentProfileIds(profileOptions, state.profiles), options);
   const filePath = profileFilePath(profileOptions, id);
   if (fs.existsSync(filePath)) {
     throw new Error(`Deployment profile file already exists: ${filePath}`);

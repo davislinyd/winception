@@ -23,7 +23,6 @@ const elements = {
   pickerList: document.querySelector('#picker-list'),
   profileDialog: document.querySelector('#profile-dialog'),
   profileForm: document.querySelector('#profile-form'),
-  profileId: document.querySelector('#profile-id'),
   profileName: document.querySelector('#profile-name'),
   profileCancel: document.querySelector('#profile-cancel'),
   profileError: document.querySelector('#profile-error'),
@@ -37,8 +36,6 @@ const elements = {
   softwareList: document.querySelector('#software-list'),
   softwareError: document.querySelector('#software-error'),
 };
-
-const profileIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 
 function text(value) {
   return value === undefined || value === null || value === '' ? '-' : String(value);
@@ -300,25 +297,15 @@ async function showPicker(title, rows, onPick, buttonLabel = 'Select') {
   elements.pickerDialog.showModal();
 }
 
-function validateProfileInput(id, name, existingProfileIds) {
-  if (!id) {
-    return 'Profile ID is required.';
-  }
-  if (!profileIdPattern.test(id)) {
-    return 'Profile ID must start with a letter or number and use only letters, numbers, ".", "_", or "-".';
-  }
-  if (existingProfileIds.includes(id)) {
-    return `Profile ID already exists: ${id}`;
-  }
+function validateProfileInput(name) {
   if (!name) {
     return 'Name is required.';
   }
   return '';
 }
 
-function showAddProfileDialog(profiles) {
+function showAddProfileDialog() {
   return new Promise((resolve) => {
-    const existingProfileIds = profiles.map((profile) => profile.id);
     elements.profileForm.reset();
     elements.profileError.textContent = '';
 
@@ -342,21 +329,20 @@ function showAddProfileDialog(profiles) {
     };
     const submit = (event) => {
       event.preventDefault();
-      const id = elements.profileId.value.trim();
       const name = elements.profileName.value.trim();
-      const error = validateProfileInput(id, name, existingProfileIds);
+      const error = validateProfileInput(name);
       if (error) {
         elements.profileError.textContent = error;
         return;
       }
-      done({ id, name });
+      done({ name });
     };
 
     elements.profileForm.addEventListener('submit', submit);
     elements.profileCancel.addEventListener('click', cancel);
     elements.profileDialog.addEventListener('cancel', cancel);
     elements.profileDialog.showModal();
-    elements.profileId.focus();
+    elements.profileName.focus();
   });
 }
 
@@ -462,8 +448,7 @@ async function handleAction(action) {
       }
     });
   } else if (action === 'profile-add') {
-    const payload = await api('/api/profiles');
-    const input = await showAddProfileDialog(payload.profile.profiles);
+    const input = await showAddProfileDialog();
     if (input) {
       await mutate('/api/profiles/create', input);
     }
