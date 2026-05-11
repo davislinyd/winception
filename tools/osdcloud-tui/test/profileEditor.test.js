@@ -36,13 +36,13 @@ test('select all and select none checkbox shortcuts', () => {
 
 test('formats deployment profile list choices', () => {
   const profile = {
-    id: 'default-chrome',
-    name: 'Default + Chrome',
+    id: 'IZVZO7PU',
+    name: 'All in One',
     softwareIds: ['7zip', 'chrome'],
   };
 
-  assert.equal(formatDeploymentProfileListChoice(profile), 'Default + Chrome (default-chrome) software=7zip,chrome');
-  assert.equal(formatDeploymentProfileDeleteChoice(profile), 'Default + Chrome (default-chrome)');
+  assert.equal(formatDeploymentProfileListChoice(profile), 'All in One (IZVZO7PU) software=7zip,chrome');
+  assert.equal(formatDeploymentProfileDeleteChoice(profile), 'All in One (IZVZO7PU)');
 });
 
 test('validates profile text input', () => {

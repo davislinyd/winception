@@ -5,14 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..', '..');
-const generatedProfileIdSpace = 100_000_000;
+const generatedProfileIdAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const generatedProfileIdLength = 8;
+const generatedProfileIdSpace = generatedProfileIdAlphabet.length ** generatedProfileIdLength;
 const defaultGeneratedProfileIdAttempts = 256;
 
 export const selectedProfileFileName = 'selected-profile.json';
 
 function deploymentProfileDefaults(root) {
   return {
-    activeProfile: 'default',
+    activeProfile: 'I20HRVF5',
     profilesRoot: path.join(root, 'config', 'deployment-profiles'),
     softwareCatalogPath: path.join(root, 'config', 'software-catalog.json'),
     softwareSourceRoot: path.join(root, 'Softwares'),
@@ -37,26 +39,41 @@ function normalizeId(value, label) {
   return id;
 }
 
-function formatGeneratedProfileId(value) {
-  return String(value).padStart(8, '0');
+function formatGeneratedProfileId(value, alphabet = generatedProfileIdAlphabet, idLength = generatedProfileIdLength) {
+  const chars = Array.from({ length: idLength }, () => alphabet[0]);
+  let remaining = value;
+  for (let index = idLength - 1; index >= 0; index -= 1) {
+    chars[index] = alphabet[remaining % alphabet.length];
+    remaining = Math.floor(remaining / alphabet.length);
+  }
+  return chars.join('');
+}
+
+function isMixedAlphanumericProfileId(id, alphabet = generatedProfileIdAlphabet, idLength = generatedProfileIdLength) {
+  return id.length === idLength
+    && [...id].every((char) => alphabet.includes(char))
+    && /[A-Z]/u.test(id)
+    && /\d/u.test(id);
 }
 
 export function generateDeploymentProfileId(existingIds = [], options = {}) {
   const reserved = new Set(Array.from(existingIds ?? [], (id) => String(id)));
   const nextRandomInt = options.randomInt ?? randomInt;
-  const idSpaceSize = options.idSpaceSize ?? generatedProfileIdSpace;
+  const alphabet = options.alphabet ?? generatedProfileIdAlphabet;
+  const idLength = options.idLength ?? generatedProfileIdLength;
+  const idSpaceSize = options.idSpaceSize ?? alphabet.length ** idLength;
   const maxAttempts = options.maxAttempts ?? defaultGeneratedProfileIdAttempts;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const id = formatGeneratedProfileId(nextRandomInt(idSpaceSize));
-    if (!reserved.has(id)) {
+    const id = formatGeneratedProfileId(nextRandomInt(idSpaceSize), alphabet, idLength);
+    if (isMixedAlphanumericProfileId(id, alphabet, idLength) && !reserved.has(id)) {
       return id;
     }
   }
 
   for (let value = 0; value < idSpaceSize; value += 1) {
-    const id = formatGeneratedProfileId(value);
-    if (!reserved.has(id)) {
+    const id = formatGeneratedProfileId(value, alphabet, idLength);
+    if (isMixedAlphanumericProfileId(id, alphabet, idLength) && !reserved.has(id)) {
       return id;
     }
   }

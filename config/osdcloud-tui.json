@@ -65,7 +65,7 @@
     ]
   },
   "deploymentProfiles": {
-    "activeProfile": "default",
+    "activeProfile": "IZVZO7PU",
     "profilesRoot": "config\\deployment-profiles",
     "softwareCatalogPath": "config\\software-catalog.json",
     "softwareSourceRoot": "Softwares",

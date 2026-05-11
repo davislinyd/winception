@@ -150,7 +150,7 @@ TUI 主要區塊：
 1. 如需變更服務網卡，先選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
 2. TUI 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
 3. 在 Preflight panel 看 endpoint update 進度；在 Logs panel 看同步腳本輸出。
-4. 選 `Select deployment profile`，發佈這次要使用的 profile。`default` 會發佈 7-Zip，`default-chrome` 會發佈 7-Zip + Google Chrome Enterprise，`minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單，先用 `Edit deployment profile` 勾選軟體並存檔，TUI 會立即重新發佈 live `Apps` payload。
+4. 選 `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單，先用 `Edit deployment profile` 勾選軟體並存檔，TUI 會立即重新發佈 live `Apps` payload。
 5. 在 TUI 選 `Run preflight`。
 6. 如果 service IP、DHCP pool、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
 7. 確認真實 LAN DHCP server 已暫時關閉。
@@ -420,7 +420,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 - iPXE no-redownload 模式不能使用 `-ImageFileUrl`，因為 OSDCloud 會先把 ESD 下載到 WinPE 暫存位置。現在改由 WinPE 掛載 SMB share，設定 `$Global:StartOSDCloud.ImageFileDestination` 為 ESD `FileInfo` 後呼叫 `Invoke-OSDCloud`。
 - Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host TUI 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
 - Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
-- Client app payload 由 TUI deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 只安裝被選中的軟體。目前 `default` profile 發佈 `7zip\7z2601-x64.msi`，`default-chrome` profile 發佈 7-Zip 與 `chrome\googlechromestandaloneenterprise64.msi`，`minimal` profile 不安裝 client software。
+- Client app payload 由 TUI deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 只安裝被選中的軟體。目前 `Default` profile 發佈 `7zip\7z2601-x64.msi`，`All in One` profile 發佈 7-Zip 與 `chrome\googlechromestandaloneenterprise64.msi`，`Minimal` profile 不安裝 client software。
 - 測試時真實環境 DHCP server 必須暫時關閉，避免和本機 PXE DHCP responder 衝突。
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
@@ -655,7 +655,7 @@ TUI 設定檔：
 <repo-root>\config\osdcloud-tui.json
 ```
 
-TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/status/runs` fleet API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。v0.2.0 起，`Clients` 區塊會以 scrollable table 顯示多台 client / run 的 status、client、run、stage、percent、last seen 與 elapsed；`Client Detail` 區塊顯示選定 run 的 start / WinPE end / Windows start / final end、最後訊息與最新截圖 metadata。v0.2.7 起，panel label 常態只顯示 Actions、Services、Clients、Client Detail、Preflight、Validation、Logs；按住 `Alt` 時會立即替可用快捷字母加底線，放開 `Alt` 時移除底線。v0.2.9 起，`Select deployment profile` 會發佈 profile 選中的 client software，Services panel 顯示 active profile/software，preflight 會檢查 live payload 是否和 active profile 一致。v0.2.12 起，Actions 也能新增、編輯、刪除 deployment profile；編輯 active profile 存檔後會立即重新發佈 live `Apps` payload。v0.2.13 起，新增 profile 的 id 由主控端產生 8 位數字並避開既有 profile id / JSON 檔名碰撞；profile name 是可編輯顯示名稱，profile id 維持服務識別鍵。可用 `Alt+A`、`Alt+S`、`Alt+C`、`Alt+D`、`Alt+P`、`Alt+V`、`Alt+L` 直接切換到對應區塊；Caps Lock 開啟時 terminal 可能送出 `M-C` 這類大寫 meta key，TUI 會同樣接受。也可以按 `Tab` / `Shift+Tab` 依序循環 Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs。滑鼠點選任一 panel 會切換焦點；滑鼠停在哪個 panel 上滾輪就會 scroll 哪個 panel。Logs 往上滾會暫停自動跟隨最新 log，滾回底部或按 `End` 後恢復。
+TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` status API、`/osdcloud/status/runs` fleet API、`/osdcloud/screenshot` screenshot API、live log 與 validation 摘要。v0.2.0 起，`Clients` 區塊會以 scrollable table 顯示多台 client / run 的 status、client、run、stage、percent、last seen 與 elapsed；`Client Detail` 區塊顯示選定 run 的 start / WinPE end / Windows start / final end、最後訊息與最新截圖 metadata。v0.2.7 起，panel label 常態只顯示 Actions、Services、Clients、Client Detail、Preflight、Validation、Logs；按住 `Alt` 時會立即替可用快捷字母加底線，放開 `Alt` 時移除底線。v0.2.9 起，`Select deployment profile` 會發佈 profile 選中的 client software，Services panel 顯示 active profile/software，preflight 會檢查 live payload 是否和 active profile 一致。v0.2.12 起，Actions 也能新增、編輯、刪除 deployment profile；編輯 active profile 存檔後會立即重新發佈 live `Apps` payload。v0.2.14 起，新增 profile 的 id 由主控端產生 8 碼大寫英數組合，至少包含一個字母與一個數字，並避開既有 profile id / JSON 檔名碰撞；profile name 是可編輯顯示名稱，profile id 維持服務識別鍵。可用 `Alt+A`、`Alt+S`、`Alt+C`、`Alt+D`、`Alt+P`、`Alt+V`、`Alt+L` 直接切換到對應區塊；Caps Lock 開啟時 terminal 可能送出 `M-C` 這類大寫 meta key，TUI 會同樣接受。也可以按 `Tab` / `Shift+Tab` 依序循環 Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs。滑鼠點選任一 panel 會切換焦點；滑鼠停在哪個 panel 上滾輪就會 scroll 哪個 panel。Logs 往上滾會暫停自動跟隨最新 log，滾回底部或按 `End` 後恢復。
 舊部署殘留的 status 只會當作 previous run 顯示，不會被標為 running；開始新的 PXE 部署後，新的 `winpe-start` 會加入 Clients 清單，不會覆蓋其他 client 的 run summary。
 
 使用原則：
@@ -770,7 +770,7 @@ New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
 - `C:\OSDCloud\Logs\DavisOobeInjected.txt` 存在
 - `C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt` 存在
 - `C:\Program Files\7-Zip\7z.exe` 存在
-- 若選 `default-chrome` profile，`C:\Program Files\Google\Chrome\Application\chrome.exe` 存在
+- 若選 Chrome-enabled profile，`C:\Program Files\Google\Chrome\Application\chrome.exe` 存在
 - `ExplorerRunning=True`
 - `OobeProcesses` 為空
 - `LaunchUserOOBE=0`

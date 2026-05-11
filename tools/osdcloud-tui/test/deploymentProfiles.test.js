@@ -191,14 +191,14 @@ test('creates a deployment profile by copying active profile software', () => {
     const created = createDeploymentProfile(configFor(root), {
       name: 'Field Tech',
     }, {
-      randomInt: () => 12345678,
+      randomInt: () => 26,
     });
 
-    assert.equal(created.profile.id, '12345678');
+    assert.equal(created.profile.id, 'AAAAAAA0');
     assert.deepEqual(created.profile.softwareIds, ['one']);
-    const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', '12345678.json'), 'utf8'));
+    const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'AAAAAAA0.json'), 'utf8'));
     assert.deepEqual(raw, {
-      id: '12345678',
+      id: 'AAAAAAA0',
       name: 'Field Tech',
       software: ['one'],
     });
@@ -218,19 +218,19 @@ test('create deployment profile generates non-colliding 8 digit ids', () => {
       name: 'Reserved zero',
       software: [],
     });
-    writeJson(path.join(root, 'profiles', '12345678.json'), {
-      id: '12345678',
+    writeJson(path.join(root, 'profiles', 'AAAAAAA0.json'), {
+      id: 'AAAAAAA0',
       name: 'Reserved random',
       software: [],
     });
 
     const created = createDeploymentProfile(configFor(root), { name: 'Collision safe' }, {
       maxAttempts: 1,
-      randomInt: () => 12345678,
+      randomInt: () => 26,
     });
 
-    assert.equal(created.profile.id, '00000001');
-    assert.match(created.profile.id, /^\d{8}$/u);
+    assert.equal(created.profile.id, 'AAAAAAA1');
+    assert.match(created.profile.id, /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{8}$/u);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -238,7 +238,9 @@ test('create deployment profile generates non-colliding 8 digit ids', () => {
 
 test('generate deployment profile id reports exhausted id space', () => {
   assert.throws(
-    () => generateDeploymentProfileId(['00000000', '00000001'], {
+    () => generateDeploymentProfileId(['A1'], {
+      alphabet: 'A1',
+      idLength: 2,
       idSpaceSize: 2,
       maxAttempts: 0,
       randomInt: () => 0,

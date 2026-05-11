@@ -89,8 +89,8 @@ async function makeServer(root) {
         ],
       }),
       createDeploymentProfile: (_config, input) => ({
-        profile: { id: '12345678', name: input.name, description: '', softwareIds: [] },
-        filePath: path.join(root, '12345678.json'),
+        profile: { id: 'AAAAAAA0', name: input.name, description: '', softwareIds: [] },
+        filePath: path.join(root, 'AAAAAAA0.json'),
       }),
       updateDeploymentProfile: (_config, profileId, input) => ({
         profile: { id: profileId, name: input.name ?? 'Default', description: '', softwareIds: input.softwareIds },
@@ -168,7 +168,7 @@ test('runs mutating API actions through the controller', async () => {
     });
     assert.equal(response.status, 200);
     payload = await response.json();
-    assert.equal(payload.result.profile.id, '12345678');
+    assert.equal(payload.result.profile.id, 'AAAAAAA0');
     assert.equal(payload.result.profile.name, 'Field');
 
     response = await fetch(`${base}/api/profile/software`, {

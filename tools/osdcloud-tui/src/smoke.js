@@ -129,7 +129,7 @@ assert.equal(publishedProfile.profile.id, 'default');
 assert.equal(fs.existsSync(path.join(appsRoot, 'selected-profile.json')), true);
 assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-app', 'install.ps1')), true);
 const createdProfile = createDeploymentProfile(config, { name: 'Smoke Copy' });
-assert.match(createdProfile.profile.id, /^\d{8}$/u);
+assert.match(createdProfile.profile.id, /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{8}$/u);
 assert.deepEqual(createdProfile.profile.softwareIds, ['smoke-app']);
 assert.equal(fs.existsSync(path.join(appsRoot, createdProfile.profile.id)), false);
 updateDeploymentProfileSoftware(config, 'default', ['smoke-extra']);
