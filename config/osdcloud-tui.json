@@ -73,5 +73,9 @@
     "softwareSourceRoot": "Softwares",
     "appsRoot": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps",
     "installerScript": "Softwares\\Install-Apps.ps1"
+  },
+  "web": {
+    "host": "127.0.0.1",
+    "port": 8080
   }
 }

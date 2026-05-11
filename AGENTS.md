@@ -13,9 +13,9 @@ There are two live-looking but separate paths. Treat them as mutually exclusive 
 Physical-laptop path:
 
 - This is the active production-like validation path.
-- Use the TUI-selected service interface and service IP for the current run. Do not hard-code a physical NIC name or a `192.168.100.x` address as the required production path.
+- Use the Web/TUI-selected service interface and service IP for the current run. Do not hard-code a physical NIC name or a `192.168.100.x` address as the required production path.
 - Read the active service IP, DHCP lease range, router, HTTP base, and SMB share from `config\osdcloud-tui.json`, live `boot.ipxe`, and host adapter state immediately before starting services.
-- Use `npm run tui` unless the user explicitly requests lower-level helper scripts.
+- Use `npm run web` as the primary host console going forward. Keep `npm run tui` as the secondary compatibility console unless the user explicitly requests lower-level helper scripts.
 - Do not use VM, `vSwitch`, `192.168.100.1`, VMConnect, PowerShell Direct, or `tools\osdcloud-tui\src\headless.js` as evidence for this path.
 
 VM VM regression path:
@@ -28,7 +28,7 @@ VM VM regression path:
 
 Endpoint switching:
 
-- Before physical-laptop validation, select the intended service interface in the TUI or switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '<interface-alias>' -ServerIp '<service-ip>' -PrefixLength <prefix> -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- Before physical-laptop validation, select the intended service interface in the Web/TUI console or switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '<interface-alias>' -ServerIp '<service-ip>' -PrefixLength <prefix> -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - Before vSwitch VM regression, switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'Ethernet' -ServerIp '192.168.100.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - After either switch, keep `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, and `osdcloud-assets` aligned with the live endpoint state.
 - Document physical results under physical-laptop sections and VM results under VM/VM regression sections. Do not mix VM timings, vSwitch IPs, or PowerShell Direct validation into the physical-laptop evidence block.
@@ -42,14 +42,14 @@ Previously validated VM paths:
 Current active path:
 
 - Physical laptop boots from UEFI PXE/iPXE on the real wired LAN, loads WinPE over HTTP, and applies the Windows ESD directly from the host SMB share. No VM vSwitch or VM is required for this path.
-- Current repo/live endpoint for the physical-laptop path is whatever service interface/IP the TUI selected and synced most recently. It may be left on `Ethernet` / `192.168.100.1` after VM regression; before physical-laptop validation, switch back to the intended physical service interface/IP and resync `boot.wim` / `osdcloud-assets`.
+- Current repo/live endpoint for the physical-laptop path is whatever service interface/IP the Web/TUI console selected and synced most recently. It may be left on `Ethernet` / `192.168.100.1` after VM regression; before physical-laptop validation, switch back to the intended physical service interface/IP and resync `boot.wim` / `osdcloud-assets`.
 
 Current host WAN/LAN topology:
 
 - `WAN` is the host default internet NIC. Current observed host IP is `192.168.100.1/24`, gateway `192.168.100.1`, metric `5`.
 - `LAN` is the physical client / PXE lab NIC. Current planned host IP is `192.168.88.1/24`, no gateway, metric `500`, IP forwarding enabled.
 - Windows NAT `OSDCloud-PhysicalClient-NAT` maps `192.168.88.0/24` out through the host WAN path.
-- The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-tui.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the TUI or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-tui.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the Web/TUI console or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - If `config\osdcloud-tui.json` still references `乙太網路 2`, `乙太網路 3`, or `192.168.100.x` after the rename, treat it as a stale endpoint until it is deliberately resynced.
 
 Local account:
@@ -376,26 +376,49 @@ OSImageIndex                    : 6
 
 The HTTP access log must show `boot.ipxe`, `wimboot`, and `boot.wim`, and must not show zh-TW ESD `HEAD` or `GET`. The laptop must not use USB or ISO media as the deployment source.
 
-## Node TUI Host Console
+## Host Console Direction
 
-The primary host-side entrypoint is now:
+The primary host-side entrypoint is now the Web/GUI console:
+
+```powershell
+npm run web
+```
+
+By default it listens on:
+
+```text
+http://127.0.0.1:8080
+```
+
+The Node TUI remains as a secondary compatibility console:
 
 ```powershell
 npm run tui
 ```
 
-The TUI lives under:
+The host console code lives under:
 
 ```text
 tools\osdcloud-tui
 config\osdcloud-tui.json
 ```
 
-Use the TUI for the active physical-laptop path unless the user explicitly asks to run the legacy helper scripts. It owns the host-side DHCP responder, TFTP responder, HTTP media/status server, live status display, log tailing, and validation summary.
+Use the Web console first for the active physical-laptop path unless the user explicitly requests TUI or lower-level helper scripts. Web and TUI own the host-side DHCP responder, TFTP responder, HTTP media/status server, live status display, log tailing, and validation summary.
+
+Future host-console development priority:
+
+- Build new operator-facing functionality in the Web/GUI first.
+- Put shared service behavior in `serviceController.js` or other shared modules before wiring either UI.
+- Keep the TUI as secondary: maintain compatibility, critical fixes, and parity only when needed for fallback operation.
 
 Safety contract:
 
-- Start the TUI from elevated PowerShell.
+- Start the Web console from elevated PowerShell when it will control services. The Web console is served by `tools\osdcloud-tui\src\webServer.js` and uses the shared `serviceController.js`.
+- Start the TUI from elevated PowerShell only when using the secondary console.
+- Web management config defaults to `web.host=127.0.0.1` and `web.port=8080`; if `config\osdcloud-tui.json` omits `web`, the defaults apply.
+- Starting `npm run web`, opening the browser UI, and reading state/status/logs/validation must not modify `C:\OSDCloud`.
+- Web mutating actions are equivalent to the TUI actions: endpoint sync can modify live `boot.ipxe`, WinPE endpoint files, `boot.wim`, SMB firewall, and `osdcloud-assets`; deployment profile publish can replace live `Media\OSDCloud\Apps`; clear status deletes configured status JSON/JSONL/screenshot metadata; service start/stop changes live network responders.
+- Do not run TUI and Web console at the same time to control services. They are separate Node processes and can conflict on ports 67/69/80.
 - Keep the repo `.npmrc` foreground/silent behavior for `npm run tui`; the TUI is interactive and depends on foreground stdio rather than npm script banner output.
 - Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter.
 - Use `Select service interface` when the service bind interface/IP must change. It must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist `config\osdcloud-tui.json`, recalculate DHCP lease pool / subnet mask / router for the selected prefix, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, update the SMB firewall, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
@@ -429,7 +452,8 @@ Safety contract:
 Validation contract:
 
 - `npm test` must pass for TUI code changes.
-- `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN.
+- `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN or live `C:\OSDCloud`.
+- Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
 - A live deployment remains the final hardware validation when TUI networking behavior changes.
 - Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.
@@ -472,7 +496,7 @@ OSDCloud-Win11-vSwitch-04
 Historical iPXE VM notes:
 
 - Earlier VM validation used `PXE-Lab`; the active physical-laptop path uses the host wired adapter directly.
-- Legacy host-side PXE helper scripts used PowerShell DHCP/TFTP plus Node HTTP. The Node TUI is now the primary host-side console; keep the legacy helper scripts as fallback until a real physical deployment has validated the TUI path. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
+- Legacy host-side PXE helper scripts used PowerShell DHCP/TFTP plus Node HTTP. The Web/GUI console is now the primary host-side console; keep the Node TUI as secondary compatibility and keep the legacy helper scripts as lower-level fallback. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
 - Use static memory for iPXE timing VMs. `Timing-04` failed in WinPE DISM apply when Dynamic Memory assigned only about 1.5GB even though startup memory was configured higher.
 - Full iPXE deployment succeeded with PXE-stage Secure Boot temporarily off. Hard-disk boot was verified with Secure Boot `MicrosoftWindows` and vTPM.
 - For VM first-stage TFTP, do not disable `.efi` OACK/options handling. VM can send paired RRQs where one transfer logs `OACK not acknowledged` and the other succeeds with `SENT snponly.efi`; success is confirmed by later HTTP `boot.ipxe`. If the VM stays at `Downloading NBP file...`, debug TFTP service state before changing WinPE or OSDCloud.

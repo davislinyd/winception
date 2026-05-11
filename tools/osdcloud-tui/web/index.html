@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSDCloud Host Console</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>OSDCloud Host Console</h1>
+      <p id="endpoint-line">Loading endpoint...</p>
+    </div>
+    <div class="topbar-actions">
+      <span id="operation-badge" class="badge">Idle</span>
+      <button id="refresh-button" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="panel services-panel">
+      <div class="panel-header">
+        <h2>Services</h2>
+        <span id="updated-at"></span>
+      </div>
+      <div id="services-grid" class="services-grid"></div>
+      <dl id="endpoint-details" class="details-grid"></dl>
+    </section>
+
+    <section class="panel actions-panel">
+      <div class="panel-header">
+        <h2>Actions</h2>
+      </div>
+      <div class="action-grid">
+        <button data-action="preflight" type="button">Run preflight</button>
+        <button data-action="interfaces" type="button">Select service interface</button>
+        <button data-action="profiles" type="button">Select deployment profile</button>
+        <button data-action="http-toggle" type="button">HTTP/status</button>
+        <button data-action="tftp-toggle" type="button">TFTP</button>
+        <button data-action="dhcp-toggle" class="danger" type="button">DHCP</button>
+        <button data-action="start-all" class="danger" type="button">Start all services</button>
+        <button data-action="stop-all" type="button">Stop all services</button>
+        <button data-action="clear-status" class="danger" type="button">Clear status files</button>
+      </div>
+    </section>
+
+    <section class="panel clients-panel">
+      <div class="panel-header">
+        <h2>Clients</h2>
+        <span id="fleet-counts"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Client</th>
+              <th>Run</th>
+              <th>Stage</th>
+              <th>Percent</th>
+              <th>Last seen</th>
+              <th>Elapsed</th>
+            </tr>
+          </thead>
+          <tbody id="clients-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel detail-panel">
+      <div class="panel-header">
+        <h2>Client Detail</h2>
+      </div>
+      <dl id="client-detail" class="details-grid"></dl>
+    </section>
+
+    <section class="panel preflight-panel">
+      <div class="panel-header">
+        <h2>Preflight</h2>
+      </div>
+      <div id="preflight-list" class="check-list"></div>
+    </section>
+
+    <section class="panel validation-panel">
+      <div class="panel-header">
+        <h2>Validation</h2>
+      </div>
+      <div id="validation-list" class="check-list"></div>
+    </section>
+
+    <section class="panel logs-panel">
+      <div class="panel-header">
+        <h2>Logs</h2>
+      </div>
+      <pre id="logs"></pre>
+    </section>
+  </main>
+
+  <dialog id="picker-dialog">
+    <form method="dialog">
+      <div class="panel-header">
+        <h2 id="picker-title">Select</h2>
+        <button value="cancel" type="submit">Close</button>
+      </div>
+      <div id="picker-list" class="picker-list"></div>
+    </form>
+  </dialog>
+
+  <script src="./app.js" type="module"></script>
+</body>
+</html>
