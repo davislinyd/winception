@@ -28,6 +28,31 @@ function Write-Utf8NoBom {
     [System.IO.File]::WriteAllText($Path, $Content, $Utf8NoBom)
 }
 
+function Get-Sha256Hash {
+    param([Parameter(Mandatory)][string] $LiteralPath)
+
+    $resolvedPath = (Resolve-Path -LiteralPath $LiteralPath -ErrorAction Stop).ProviderPath
+    $hashCommand = Get-Command -Name Get-FileHash -ErrorAction SilentlyContinue
+    if ($hashCommand) {
+        return (& $hashCommand -LiteralPath $resolvedPath -Algorithm SHA256).Hash
+    }
+
+    $stream = [System.IO.File]::OpenRead($resolvedPath)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $hashBytes = $sha256.ComputeHash($stream)
+            return (-join ($hashBytes | ForEach-Object { $_.ToString('x2') })).ToUpperInvariant()
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 function Set-Property {
     param(
         [Parameter(Mandatory)]
@@ -520,11 +545,11 @@ if ($CommitWinPe) {
     }
 
     if (Test-Path -LiteralPath $publishedBootWim -PathType Leaf) {
-        $sourceHash = (Get-FileHash -LiteralPath $bootWim -Algorithm SHA256).Hash
-        $publishedHash = (Get-FileHash -LiteralPath $publishedBootWim -Algorithm SHA256).Hash
+        $sourceHash = Get-Sha256Hash -LiteralPath $bootWim
+        $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
         if ($sourceHash -ne $publishedHash) {
             Copy-Item -LiteralPath $bootWim -Destination $publishedBootWim -Force
-            $publishedHash = (Get-FileHash -LiteralPath $publishedBootWim -Algorithm SHA256).Hash
+            $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
         }
         if ($sourceHash -ne $publishedHash) {
             throw "Published boot.wim hash still differs after copy"
