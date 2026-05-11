@@ -92,8 +92,8 @@ async function makeServer(root) {
         profile: { id: input.id, name: input.name, description: '', softwareIds: [] },
         filePath: path.join(root, `${input.id}.json`),
       }),
-      updateDeploymentProfileSoftware: (_config, profileId, softwareIds) => ({
-        profile: { id: profileId, name: 'Default', description: '', softwareIds },
+      updateDeploymentProfile: (_config, profileId, input) => ({
+        profile: { id: profileId, name: input.name ?? 'Default', description: '', softwareIds: input.softwareIds },
         filePath: path.join(root, `${profileId}.json`),
       }),
       publishDeploymentProfile: (_config, profileId) => ({
@@ -173,10 +173,11 @@ test('runs mutating API actions through the controller', async () => {
     response = await fetch(`${base}/api/profile/software`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ softwareIds: ['chrome'] }),
+      body: JSON.stringify({ name: 'Renamed Default', softwareIds: ['chrome'] }),
     });
     assert.equal(response.status, 200);
     payload = await response.json();
+    assert.equal(payload.result.profile.name, 'Renamed Default');
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome']);
 
     response = await fetch(`${base}/api/profiles/delete`, {

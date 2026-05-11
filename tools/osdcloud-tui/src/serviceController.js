@@ -15,7 +15,7 @@ import {
   formatSoftwareList,
   publishDeploymentProfile,
   resolveDeploymentProfileState,
-  updateDeploymentProfileSoftware,
+  updateDeploymentProfile,
 } from './deploymentProfiles.js';
 import { formatLogLine, RingBuffer, tailFile } from './logger.js';
 import {
@@ -118,7 +118,7 @@ export class ServiceController extends EventEmitter {
       summarizeValidation,
       syncIpxeEndpoint,
       tailFile,
-      updateDeploymentProfileSoftware,
+      updateDeploymentProfile,
       ...options.dependencies,
     };
     this.config = options.config ?? loadConfig(options.configPath);
@@ -487,11 +487,18 @@ export class ServiceController extends EventEmitter {
   }
 
   async updateActiveDeploymentProfileSoftware(softwareIds) {
+    return this.updateActiveDeploymentProfile({ softwareIds });
+  }
+
+  async updateActiveDeploymentProfile(input = {}) {
     return this.runOperation('Saving deployment profile', async () => {
       await this.stopAllServices();
       this.preflightResults = [];
       const state = this.dependencies.resolveDeploymentProfileState(this.config);
-      const updated = this.dependencies.updateDeploymentProfileSoftware(this.config, state.activeProfile.id, softwareIds);
+      const updated = this.dependencies.updateDeploymentProfile(this.config, state.activeProfile.id, {
+        name: input.name,
+        softwareIds: input.softwareIds ?? input.software,
+      });
       const result = this.dependencies.publishDeploymentProfile(this.config, updated.profile.id);
       this.addLog(`Saved deployment profile ${updated.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
       this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);

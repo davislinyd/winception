@@ -31,6 +31,7 @@ const elements = {
   softwareForm: document.querySelector('#software-form'),
   softwareCancel: document.querySelector('#software-cancel'),
   softwareProfileSummary: document.querySelector('#software-profile-summary'),
+  softwareProfileName: document.querySelector('#software-profile-name'),
   softwareSelectAll: document.querySelector('#software-select-all'),
   softwareSelectNone: document.querySelector('#software-select-none'),
   softwareList: document.querySelector('#software-list'),
@@ -371,9 +372,8 @@ function showSoftwareDialog(profile) {
     const software = profile.softwareCatalog ?? [];
     const selectedIds = new Set(activeProfile?.softwareIds ?? []);
     elements.softwareError.textContent = '';
-    elements.softwareProfileSummary.textContent = activeProfile
-      ? `${activeProfile.name} (${activeProfile.id})`
-      : '';
+    elements.softwareProfileSummary.textContent = activeProfile ? `Profile ID: ${activeProfile.id}` : '';
+    elements.softwareProfileName.value = activeProfile?.name ?? '';
     elements.softwareList.replaceChildren();
 
     for (const item of software) {
@@ -411,8 +411,16 @@ function showSoftwareDialog(profile) {
     };
     const submit = (event) => {
       event.preventDefault();
+      const name = elements.softwareProfileName.value.trim();
+      if (!name) {
+        elements.softwareError.textContent = 'Profile name is required.';
+        return;
+      }
       const checked = new Set([...elements.softwareList.querySelectorAll('input:checked')].map((input) => input.value));
-      done(software.map((item) => item.id).filter((id) => checked.has(id)));
+      done({
+        name,
+        softwareIds: software.map((item) => item.id).filter((id) => checked.has(id)),
+      });
     };
     const selectAll = () => setSoftwareCheckboxes(true);
     const selectNone = () => setSoftwareCheckboxes(false);
@@ -461,10 +469,10 @@ async function handleAction(action) {
     }
   } else if (action === 'profile-edit') {
     const payload = await api('/api/profiles');
-    const softwareIds = await showSoftwareDialog(payload.profile);
-    if (softwareIds) {
-      if (confirmAction('This will stop services, update the active profile software, replace the live Apps payload, and run preflight. Continue?')) {
-        await mutate('/api/profile/software', { softwareIds });
+    const profileUpdate = await showSoftwareDialog(payload.profile);
+    if (profileUpdate) {
+      if (confirmAction('This will stop services, update the active profile, replace the live Apps payload, and run preflight. Continue?')) {
+        await mutate('/api/profile/software', profileUpdate);
       }
     }
   } else if (action === 'profile-delete') {

@@ -185,7 +185,12 @@ export class WebManagementServer {
     }
     if (pathname === '/api/profile/software') {
       const body = await readJsonBody(req);
-      const result = await this.controller.updateActiveDeploymentProfileSoftware(body.softwareIds ?? body.software ?? []);
+      const hasSoftware = Object.prototype.hasOwnProperty.call(body, 'softwareIds')
+        || Object.prototype.hasOwnProperty.call(body, 'software');
+      const result = await this.controller.updateActiveDeploymentProfile({
+        name: body.name,
+        softwareIds: hasSoftware ? (body.softwareIds ?? body.software) : undefined,
+      });
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }

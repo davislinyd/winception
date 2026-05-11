@@ -34,6 +34,14 @@ function normalizeId(value, label) {
   return id;
 }
 
+function normalizeProfileName(value, label = 'Deployment profile name') {
+  const name = String(value ?? '').trim();
+  if (!name) {
+    throw new Error(`${label} is required`);
+  }
+  return name;
+}
+
 function resolveConfiguredPath(root, value) {
   if (!value) {
     return value;
@@ -230,10 +238,7 @@ function profileFilePath(profileOptions, profileId) {
 export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const id = normalizeId(input.id, 'profile');
-  const name = String(input.name ?? '').trim();
-  if (!name) {
-    throw new Error('Deployment profile name is required');
-  }
+  const name = normalizeProfileName(input.name);
 
   const state = resolveDeploymentProfileState(config, null, options);
   if (state.profiles.some((profile) => profile.id === id)) {
@@ -269,7 +274,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   };
 }
 
-export function updateDeploymentProfileSoftware(config = {}, profileId, softwareIds, options = {}) {
+export function updateDeploymentProfile(config = {}, profileId, input = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const catalog = loadSoftwareCatalog(config, options);
   const profiles = loadDeploymentProfiles(config, { ...options, catalog });
@@ -279,19 +284,35 @@ export function updateDeploymentProfileSoftware(config = {}, profileId, software
     throw new Error(`Deployment profile not found: ${id}`);
   }
 
-  const selectedIds = normalizeSoftwareSelection(softwareIds, catalog, `deployment profile ${id} software`);
+  if (input.id !== undefined && normalizeId(input.id, 'profile') !== id) {
+    throw new Error('Deployment profile id cannot be changed');
+  }
+
+  const selectedIds = input.softwareIds === undefined
+    ? profile.softwareIds
+    : normalizeSoftwareSelection(input.softwareIds, catalog, `deployment profile ${id} software`);
+  const name = input.name === undefined
+    ? profile.name
+    : normalizeProfileName(input.name);
   const filePath = assertInside(profileOptions.profilesRoot, profile.filePath, 'Deployment profile path');
   const raw = readJson(filePath, 'deployment profile');
+  raw.id = id;
+  raw.name = name;
   raw.software = selectedIds;
   writeJson(filePath, raw);
 
   return {
     profile: {
       ...profile,
+      name,
       softwareIds: selectedIds,
     },
     filePath,
   };
+}
+
+export function updateDeploymentProfileSoftware(config = {}, profileId, softwareIds, options = {}) {
+  return updateDeploymentProfile(config, profileId, { softwareIds }, options);
 }
 
 export function deleteDeploymentProfile(config = {}, profileId, options = {}) {

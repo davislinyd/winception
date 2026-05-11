@@ -336,6 +336,10 @@ dialog::backdrop {
   padding: 12px;
 }
 
+.form-grid.compact {
+  padding-bottom: 0;
+}
+
 .form-grid label {
   display: grid;
   gap: 5px;

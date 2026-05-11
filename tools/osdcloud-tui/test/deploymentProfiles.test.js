@@ -13,6 +13,7 @@ import {
   loadSoftwareCatalog,
   publishDeploymentProfile,
   resolveDeploymentProfileState,
+  updateDeploymentProfile,
   updateDeploymentProfileSoftware,
 } from '../src/deploymentProfiles.js';
 
@@ -252,6 +253,66 @@ test('updates deployment profile software while preserving other fields', () => 
       software: ['two'],
       owner: 'ops',
     });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('updates deployment profile name and software without changing its id', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        description: 'Keep me',
+        software: ['one'],
+        owner: 'ops',
+      },
+    });
+
+    const updated = updateDeploymentProfile(configFor(root), 'default', {
+      name: 'Renamed Default',
+      softwareIds: ['two'],
+    });
+
+    assert.equal(updated.profile.id, 'default');
+    assert.equal(updated.profile.name, 'Renamed Default');
+    assert.deepEqual(updated.profile.softwareIds, ['two']);
+    const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
+    assert.deepEqual(raw, {
+      id: 'default',
+      name: 'Renamed Default',
+      description: 'Keep me',
+      software: ['two'],
+      owner: 'ops',
+    });
+    assert.equal(resolveDeploymentProfileState(configFor(root)).activeProfile.id, 'default');
+
+    const renamedOnly = updateDeploymentProfile(configFor(root), 'default', {
+      name: 'Display Name Only',
+    });
+    assert.equal(renamedOnly.profile.id, 'default');
+    assert.equal(renamedOnly.profile.name, 'Display Name Only');
+    assert.deepEqual(renamedOnly.profile.softwareIds, ['two']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('update deployment profile rejects id changes and empty names', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+
+    assert.throws(
+      () => updateDeploymentProfile(configFor(root), 'default', { id: 'renamed', name: 'Renamed' }),
+      /id cannot be changed/,
+    );
+    assert.throws(
+      () => updateDeploymentProfile(configFor(root), 'default', { name: '   ' }),
+      /name is required/,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

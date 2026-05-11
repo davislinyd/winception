@@ -21,7 +21,7 @@ import {
   formatSoftwareList,
   publishDeploymentProfile,
   resolveDeploymentProfileState,
-  updateDeploymentProfileSoftware,
+  updateDeploymentProfile,
 } from './deploymentProfiles.js';
 import {
   applySoftwareCheckboxKey,
@@ -1489,6 +1489,20 @@ async function runAction(index) {
         if (!profileState) {
           break;
         }
+        const nameValue = await textInputPrompt({
+          titleText: 'Edit Profile',
+          promptText: 'Profile name',
+          initialValue: profileState.activeProfile.name,
+        });
+        if (nameValue === null) {
+          addLog('Deployment profile edit cancelled');
+          break;
+        }
+        const profileName = String(nameValue).trim();
+        if (!profileName) {
+          addLog('Deployment profile not saved: Profile name is required');
+          break;
+        }
         const selectedSoftwareIds = await editDeploymentProfilePrompt(profileState);
         if (!selectedSoftwareIds) {
           addLog('Deployment profile edit cancelled');
@@ -1499,7 +1513,10 @@ async function runAction(index) {
         }
         preflightResults = [];
         await withBusy('Saving deployment profile', async () => {
-          const updated = updateDeploymentProfileSoftware(config, profileState.activeProfile.id, selectedSoftwareIds);
+          const updated = updateDeploymentProfile(config, profileState.activeProfile.id, {
+            name: profileName,
+            softwareIds: selectedSoftwareIds,
+          });
           const result = publishDeploymentProfile(config, updated.profile.id);
           addLog(`Saved deployment profile ${updated.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
           preflightResults = await runPreflight(config, { dhcp, tftp, http });

@@ -141,6 +141,7 @@ test('deployment profile management actions create, update active software, and 
   try {
     let createdInput = null;
     let updatedSoftwareIds = [];
+    let updatedName = null;
     let deletedProfileId = null;
     const { controller, services } = makeController(root, {
       dependencies: {
@@ -151,10 +152,13 @@ test('deployment profile management actions create, update active software, and 
             filePath: path.join(root, `${input.id}.json`),
           };
         },
-        updateDeploymentProfileSoftware(_config, profileId, softwareIds) {
-          updatedSoftwareIds = softwareIds;
+        updateDeploymentProfile(_config, profileId, input) {
+          updatedName = input.name;
+          if (input.softwareIds !== undefined) {
+            updatedSoftwareIds = input.softwareIds;
+          }
           return {
-            profile: { id: profileId, name: 'Default', description: '', softwareIds },
+            profile: { id: profileId, name: input.name ?? 'Default', description: '', softwareIds: updatedSoftwareIds },
             filePath: path.join(root, `${profileId}.json`),
           };
         },
@@ -180,13 +184,20 @@ test('deployment profile management actions create, update active software, and 
     assert.equal(created.profile.id, 'field');
 
     await controller.startAll();
-    const updated = await controller.updateActiveDeploymentProfileSoftware(['chrome']);
+    const updated = await controller.updateActiveDeploymentProfile({ name: 'Renamed', softwareIds: ['chrome'] });
+    assert.equal(updatedName, 'Renamed');
     assert.deepEqual(updatedSoftwareIds, ['chrome']);
     assert.equal(updated.profile.id, 'default');
+    assert.equal(updated.profile.name, 'Renamed');
     assert.equal(updated.preflight[0].ok, true);
     assert.equal(services.http.running, false);
     assert.equal(services.tftp.running, false);
     assert.equal(services.dhcp.running, false);
+
+    const renamedOnly = await controller.updateActiveDeploymentProfile({ name: 'Display Name Only' });
+    assert.equal(updatedName, 'Display Name Only');
+    assert.deepEqual(updatedSoftwareIds, ['chrome']);
+    assert.deepEqual(renamedOnly.profile.softwareIds, ['chrome']);
 
     const deleted = await controller.removeDeploymentProfile('minimal');
     assert.equal(deletedProfileId, 'minimal');
