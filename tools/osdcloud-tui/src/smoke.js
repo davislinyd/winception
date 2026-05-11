@@ -3,7 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { mediaHttpServerConfig } from './config.js';
-import { publishDeploymentProfile } from './deploymentProfiles.js';
+import {
+  createDeploymentProfile,
+  deleteDeploymentProfile,
+  publishDeploymentProfile,
+  updateDeploymentProfileSoftware,
+} from './deploymentProfiles.js';
 import { MediaHttpServer } from './httpServer.js';
 import { TftpResponder } from './tftp.js';
 
@@ -27,11 +32,16 @@ fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.wim'), 'boot-image');
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'driverpack.exe'), 'driver-pack-smoke');
 fs.writeFileSync(path.join(tftpRoot, 'snponly.efi'), 'efi');
 fs.mkdirSync(path.join(softwareRoot, 'smoke-app'), { recursive: true });
+fs.mkdirSync(path.join(softwareRoot, 'smoke-extra'), { recursive: true });
 fs.mkdirSync(profilesRoot, { recursive: true });
 fs.writeFileSync(path.join(root, 'Install-Apps.ps1'), "Write-Host 'smoke installer'\n", 'utf8');
 fs.writeFileSync(path.join(softwareRoot, 'smoke-app', 'install.ps1'), "Write-Host 'smoke app'\n", 'utf8');
+fs.writeFileSync(path.join(softwareRoot, 'smoke-extra', 'install.ps1'), "Write-Host 'smoke extra'\n", 'utf8');
 fs.writeFileSync(path.join(root, 'software-catalog.json'), JSON.stringify({
-  software: [{ id: 'smoke-app', name: 'Smoke App', source: 'smoke-app' }],
+  software: [
+    { id: 'smoke-app', name: 'Smoke App', source: 'smoke-app' },
+    { id: 'smoke-extra', name: 'Smoke Extra', source: 'smoke-extra' },
+  ],
 }, null, 2));
 fs.writeFileSync(path.join(profilesRoot, 'default.json'), JSON.stringify({
   id: 'default',
@@ -80,6 +90,18 @@ const publishedProfile = publishDeploymentProfile(config);
 assert.equal(publishedProfile.profile.id, 'default');
 assert.equal(fs.existsSync(path.join(appsRoot, 'selected-profile.json')), true);
 assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-app', 'install.ps1')), true);
+const createdProfile = createDeploymentProfile(config, { id: 'smoke-copy', name: 'Smoke Copy' });
+assert.deepEqual(createdProfile.profile.softwareIds, ['smoke-app']);
+assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-copy')), false);
+updateDeploymentProfileSoftware(config, 'default', ['smoke-extra']);
+const republishedProfile = publishDeploymentProfile(config);
+assert.equal(republishedProfile.profile.id, 'default');
+const selectedProfile = JSON.parse(fs.readFileSync(path.join(appsRoot, 'selected-profile.json'), 'utf8'));
+assert.deepEqual(selectedProfile.selectedSoftware, ['smoke-extra']);
+assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-extra', 'install.ps1')), true);
+assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-app')), false);
+deleteDeploymentProfile(config, 'smoke-copy');
+assert.equal(fs.existsSync(path.join(profilesRoot, 'smoke-copy.json')), false);
 
 const httpServer = new MediaHttpServer(mediaHttpServerConfig(config));
 

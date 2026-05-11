@@ -15,7 +15,22 @@ import { focusOrder, focusShortcutKeyNames, formatPanelLabel, resolveFocusShortc
 import { startWindowsAltKeyWatcher } from './altKeyWatcher.js';
 import { nextLogAutoFollowState, resolveMouseFocusTarget, wheelDeltaForAction } from './mouseInteractions.js';
 import { bindFallbackKeyboardInput, ensureKeyboardInput } from './keyboardInput.js';
-import { formatSoftwareList, publishDeploymentProfile, resolveDeploymentProfileState } from './deploymentProfiles.js';
+import {
+  createDeploymentProfile,
+  deleteDeploymentProfile,
+  formatSoftwareList,
+  publishDeploymentProfile,
+  resolveDeploymentProfileState,
+  updateDeploymentProfileSoftware,
+} from './deploymentProfiles.js';
+import {
+  applySoftwareCheckboxKey,
+  formatDeploymentProfileDeleteChoice,
+  formatDeploymentProfileListChoice,
+  formatSoftwareCheckboxRows,
+  orderedSoftwareSelection,
+  validateProfileTextInput,
+} from './profileEditor.js';
 
 const packageInfo = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 const appVersion = packageInfo.version ?? 'unknown';
@@ -58,6 +73,9 @@ function getActionItems() {
     'Run preflight',
     'Select service interface',
     'Select deployment profile',
+    'Add deployment profile',
+    'Edit deployment profile',
+    'Delete deployment profile',
     serviceActionLabel(http, 'HTTP/status'),
     serviceActionLabel(tftp, 'TFTP'),
     serviceActionLabel(dhcp, 'DHCP'),
@@ -816,8 +834,7 @@ function formatInterfaceChoice(choice) {
 }
 
 function formatDeploymentProfileChoice(profile) {
-  const software = profile.softwareIds.length ? profile.softwareIds.join(',') : 'none';
-  return `${profile.name} (${profile.id}) software=${software}`;
+  return formatDeploymentProfileListChoice(profile);
 }
 
 function selectInterfacePrompt(choices) {
@@ -986,6 +1003,293 @@ function selectDeploymentProfilePrompt(choices) {
   });
 }
 
+function textInputPrompt({ titleText, promptText, initialValue = '' }) {
+  return new Promise((resolve) => {
+    dialogOpen = true;
+    clearShortcutHints();
+    const previousFocus = screen.focused;
+    const modal = blessed.box({
+      parent: screen,
+      border: 'line',
+      padding: horizontalPanelPadding,
+      height: 10,
+      width: '70%',
+      top: 'center',
+      left: 'center',
+      label: panelLabel(titleText),
+      tags: true,
+      keys: true,
+      mouse: true,
+      focusable: true,
+      style: {
+        fg: 'white',
+        bg: 'black',
+        border: { fg: 'yellow' },
+      },
+    });
+    pinPanelLabel(modal);
+
+    blessed.box({
+      parent: modal,
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: 2,
+      tags: false,
+      content: promptText,
+    });
+    const input = blessed.textbox({
+      parent: modal,
+      top: 2,
+      left: 0,
+      width: '100%',
+      height: 3,
+      border: 'line',
+      inputOnFocus: true,
+      keys: true,
+      mouse: true,
+      focusable: true,
+      value: initialValue,
+      style: {
+        fg: 'white',
+        bg: 'black',
+        border: { fg: 'cyan' },
+        focus: { border: { fg: 'yellow' } },
+      },
+    });
+    blessed.box({
+      parent: modal,
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: 2,
+      tags: true,
+      content: '{bold}Enter{/bold}: continue    {bold}Esc{/bold}: cancel',
+    });
+
+    let settled = false;
+    const done = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      modal.destroy();
+      if (previousFocus?.focus) {
+        previousFocus.focus();
+      } else {
+        menu.focus();
+      }
+      screen.render();
+      setTimeout(() => {
+        dialogOpen = false;
+      }, 0);
+      resolve(value);
+    };
+
+    input.on('submit', (value) => done(String(value ?? input.getValue() ?? '')));
+    input.on('cancel', () => done(null));
+    input.key(['escape'], () => done(null));
+    modal.key(['escape'], () => done(null));
+
+    input.focus();
+    input.readInput();
+    screen.render();
+  });
+}
+
+function editDeploymentProfilePrompt(profileState) {
+  return new Promise((resolve) => {
+    dialogOpen = true;
+    clearShortcutHints();
+    const previousFocus = screen.focused;
+    const software = profileState.catalog.software;
+    let selectedIds = [...profileState.activeProfile.softwareIds];
+    const modal = blessed.box({
+      parent: screen,
+      border: 'line',
+      padding: horizontalPanelPadding,
+      height: Math.min(Math.max(software.length + 7, 11), 20),
+      width: '82%',
+      top: 'center',
+      left: 'center',
+      label: panelLabel('Edit Profile'),
+      tags: true,
+      keys: true,
+      mouse: true,
+      focusable: true,
+      style: {
+        fg: 'white',
+        bg: 'black',
+        border: { fg: 'yellow' },
+      },
+    });
+    pinPanelLabel(modal);
+
+    blessed.box({
+      parent: modal,
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: 2,
+      tags: false,
+      content: `${profileState.activeProfile.name} (${profileState.activeProfile.id})`,
+    });
+    const list = blessed.list({
+      parent: modal,
+      top: 2,
+      left: 0,
+      width: '100%',
+      height: '100%-5',
+      keys: true,
+      mouse: true,
+      vi: true,
+      tags: false,
+      items: formatSoftwareCheckboxRows(software, selectedIds),
+      style: {
+        selected: { bg: 'blue', fg: 'white' },
+        item: { fg: 'white' },
+      },
+    });
+    blessed.box({
+      parent: modal,
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: 2,
+      tags: true,
+      content: '{bold}Space{/bold}: toggle    {bold}A{/bold}: all    {bold}N{/bold}: none    {bold}Enter{/bold}: save    {bold}Esc{/bold}: cancel',
+    });
+
+    const refresh = () => {
+      const selectedIndex = Math.min(Math.max(list.selected ?? 0, 0), Math.max(software.length - 1, 0));
+      list.setItems(formatSoftwareCheckboxRows(software, selectedIds));
+      if (software.length > 0) {
+        list.select(selectedIndex);
+      }
+      screen.render();
+    };
+
+    let settled = false;
+    const done = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      modal.destroy();
+      if (previousFocus?.focus) {
+        previousFocus.focus();
+      } else {
+        menu.focus();
+      }
+      screen.render();
+      setTimeout(() => {
+        dialogOpen = false;
+      }, 0);
+      resolve(value);
+    };
+
+    const save = () => done(orderedSoftwareSelection(software, selectedIds));
+    const applyKey = (keyName) => {
+      const currentSoftwareId = software[list.selected]?.id ?? null;
+      const nextIds = applySoftwareCheckboxKey(software, selectedIds, keyName, currentSoftwareId);
+      if (nextIds !== selectedIds) {
+        selectedIds = nextIds;
+        refresh();
+      }
+    };
+
+    list.key(['space'], () => applyKey('space'));
+    list.key(['a', 'A'], () => applyKey('a'));
+    list.key(['n', 'N'], () => applyKey('n'));
+    list.key(['enter'], save);
+    list.key(['escape'], () => done(null));
+    modal.key(['escape'], () => done(null));
+
+    list.focus();
+    screen.render();
+  });
+}
+
+function deleteDeploymentProfilePrompt(choices) {
+  return new Promise((resolve) => {
+    dialogOpen = true;
+    clearShortcutHints();
+    const previousFocus = screen.focused;
+    const modal = blessed.box({
+      parent: screen,
+      border: 'line',
+      padding: horizontalPanelPadding,
+      height: Math.min(Math.max(choices.length + 6, 10), 18),
+      width: '70%',
+      top: 'center',
+      left: 'center',
+      label: panelLabel('Delete Profile'),
+      tags: true,
+      keys: true,
+      mouse: true,
+      focusable: true,
+      style: {
+        fg: 'white',
+        bg: 'black',
+        border: { fg: 'yellow' },
+      },
+    });
+    pinPanelLabel(modal);
+
+    const list = blessed.list({
+      parent: modal,
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%-3',
+      keys: true,
+      mouse: true,
+      vi: true,
+      tags: false,
+      items: choices.map(formatDeploymentProfileDeleteChoice),
+      style: {
+        selected: { bg: 'blue', fg: 'white' },
+        item: { fg: 'white' },
+      },
+    });
+    blessed.box({
+      parent: modal,
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: 2,
+      tags: true,
+      content: '{bold}Enter{/bold}: choose    {bold}Esc{/bold}: cancel',
+    });
+
+    let settled = false;
+    const done = (choice) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      modal.destroy();
+      if (previousFocus?.focus) {
+        previousFocus.focus();
+      } else {
+        menu.focus();
+      }
+      screen.render();
+      setTimeout(() => {
+        dialogOpen = false;
+      }, 0);
+      resolve(choice);
+    };
+
+    list.key(['enter'], () => done(choices[list.selected] ?? null));
+    list.key(['escape'], () => done(null));
+    modal.key(['escape'], () => done(null));
+
+    list.focus();
+    screen.render();
+  });
+}
+
 async function withBusy(label, action) {
   addLog(label);
   try {
@@ -1138,6 +1442,101 @@ async function runAction(index) {
       }
       break;
     case 3:
+      {
+        let profileState = null;
+        await withBusy('Loading deployment profiles', async () => {
+          profileState = resolveDeploymentProfileState(config);
+        });
+        if (!profileState) {
+          break;
+        }
+        const idValue = await textInputPrompt({
+          titleText: 'Add Profile',
+          promptText: 'Profile id',
+        });
+        if (idValue === null) {
+          addLog('Deployment profile creation cancelled');
+          break;
+        }
+        const nameValue = await textInputPrompt({
+          titleText: 'Add Profile',
+          promptText: 'Profile name',
+          initialValue: String(idValue).trim(),
+        });
+        if (nameValue === null) {
+          addLog('Deployment profile creation cancelled');
+          break;
+        }
+        const validation = validateProfileTextInput(
+          { id: idValue, name: nameValue },
+          profileState.profiles.map((profile) => profile.id),
+        );
+        if (!validation.ok) {
+          addLog(`Deployment profile not created: ${validation.message}`);
+          break;
+        }
+        await withBusy('Creating deployment profile', async () => {
+          const created = createDeploymentProfile(config, validation);
+          addLog(`Created deployment profile ${created.profile.id}: ${created.profile.softwareIds.join(', ') || 'none'}`);
+        });
+      }
+      break;
+    case 4:
+      {
+        let profileState = null;
+        await withBusy('Loading deployment profile editor', async () => {
+          profileState = resolveDeploymentProfileState(config);
+        });
+        if (!profileState) {
+          break;
+        }
+        const selectedSoftwareIds = await editDeploymentProfilePrompt(profileState);
+        if (!selectedSoftwareIds) {
+          addLog('Deployment profile edit cancelled');
+          break;
+        }
+        if (!(await stopServicesForDeploymentProfileChange())) {
+          break;
+        }
+        preflightResults = [];
+        await withBusy('Saving deployment profile', async () => {
+          const updated = updateDeploymentProfileSoftware(config, profileState.activeProfile.id, selectedSoftwareIds);
+          const result = publishDeploymentProfile(config, updated.profile.id);
+          addLog(`Saved deployment profile ${updated.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+          preflightResults = await runPreflight(config, { dhcp, tftp, http });
+        });
+      }
+      break;
+    case 5:
+      {
+        let profileState = null;
+        await withBusy('Loading deployment profiles', async () => {
+          profileState = resolveDeploymentProfileState(config);
+        });
+        if (!profileState) {
+          break;
+        }
+        const candidates = profileState.profiles.filter((profile) => profile.id !== profileState.activeProfile.id);
+        if (candidates.length === 0) {
+          addLog('No inactive deployment profiles can be deleted');
+          break;
+        }
+        const selected = await deleteDeploymentProfilePrompt(candidates);
+        if (!selected) {
+          addLog('Deployment profile deletion cancelled');
+          break;
+        }
+        if (!(await confirmPrompt(`Delete deployment profile ${selected.name} (${selected.id})?`))) {
+          addLog('Deployment profile deletion cancelled');
+          break;
+        }
+        await withBusy('Deleting deployment profile', async () => {
+          const deleted = deleteDeploymentProfile(config, selected.id);
+          addLog(`Deleted deployment profile ${deleted.profile.id}`);
+        });
+      }
+      break;
+    case 6:
       await toggleService({
         service: http,
         startPrompt: `Start HTTP/status server on ${config.http.host}:${config.http.port}?`,
@@ -1146,7 +1545,7 @@ async function runAction(index) {
         stopLabel: 'Stopping HTTP/status server',
       });
       break;
-    case 4:
+    case 7:
       await toggleService({
         service: tftp,
         startPrompt: `Start TFTP responder on ${config.tftp.listenIp}:${config.tftp.port}?`,
@@ -1155,7 +1554,7 @@ async function runAction(index) {
         stopLabel: 'Stopping TFTP responder',
       });
       break;
-    case 5:
+    case 8:
       await toggleService({
         service: dhcp,
         startPrompt: `Start DHCP responder on ${config.dhcp.listenIp}:${config.dhcp.listenPort}? Confirm the real DHCP server is disabled first.`,
@@ -1164,7 +1563,7 @@ async function runAction(index) {
         stopLabel: 'Stopping DHCP responder',
       });
       break;
-    case 6:
+    case 9:
       if (await confirmPrompt('Start HTTP, TFTP, and DHCP services? Confirm the real DHCP server is disabled first.')) {
         await withBusy('Starting all services', async () => {
           await http.start();
@@ -1173,12 +1572,12 @@ async function runAction(index) {
         });
       }
       break;
-    case 7:
+    case 10:
       await withBusy('Stopping all services', async () => {
         await Promise.allSettled([dhcp.stop(), tftp.stop(), http.stop()]);
       });
       break;
-    case 8:
+    case 11:
       if (await confirmPrompt(`Delete status .json/.jsonl files under ${config.http.statusRoot}?`)) {
         await withBusy('Clearing status files', async () => {
           const removed = removeStatusFiles(config);
@@ -1186,11 +1585,11 @@ async function runAction(index) {
         });
       }
       break;
-    case 9:
+    case 12:
       addLog('Refreshing validation');
       renderAll();
       break;
-    case 10:
+    case 13:
       await quit();
       break;
     default:

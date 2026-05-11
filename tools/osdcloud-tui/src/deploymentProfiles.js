@@ -22,6 +22,10 @@ function isSafeId(value) {
   return /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u.test(String(value ?? ''));
 }
 
+export function isSafeDeploymentProfileId(value) {
+  return isSafeId(value);
+}
+
 function normalizeId(value, label) {
   const id = String(value ?? '').trim();
   if (!isSafeId(id)) {
@@ -53,6 +57,10 @@ function readJson(filePath, label) {
   } catch (error) {
     throw new Error(`Unable to read ${label} ${filePath}: ${error.message}`);
   }
+}
+
+function writeJson(filePath, value) {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
 function arrayFrom(value, label) {
@@ -192,6 +200,120 @@ export function resolveDeploymentProfileState(config = {}, profileId = null, opt
     profiles,
     activeProfile,
     selectedSoftware,
+  };
+}
+
+function normalizeSoftwareSelection(softwareIds, catalog, label) {
+  const selectedIds = arrayFrom(softwareIds, label)
+    .map((softwareId) => normalizeId(softwareId, label));
+  const seen = new Set();
+  for (const softwareId of selectedIds) {
+    if (seen.has(softwareId)) {
+      throw new Error(`Duplicate software id ${softwareId} in ${label}`);
+    }
+    seen.add(softwareId);
+    if (!catalog.byId.has(softwareId)) {
+      throw new Error(`${label} references unknown software: ${softwareId}`);
+    }
+  }
+  return selectedIds;
+}
+
+function profileFilePath(profileOptions, profileId) {
+  return assertInside(
+    profileOptions.profilesRoot,
+    path.join(profileOptions.profilesRoot, `${profileId}.json`),
+    'Deployment profile path',
+  );
+}
+
+export function createDeploymentProfile(config = {}, input = {}, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  const id = normalizeId(input.id, 'profile');
+  const name = String(input.name ?? '').trim();
+  if (!name) {
+    throw new Error('Deployment profile name is required');
+  }
+
+  const state = resolveDeploymentProfileState(config, null, options);
+  if (state.profiles.some((profile) => profile.id === id)) {
+    throw new Error(`Deployment profile already exists: ${id}`);
+  }
+
+  if (!fs.existsSync(profileOptions.profilesRoot)) {
+    throw new Error(`Deployment profile folder not found: ${profileOptions.profilesRoot}`);
+  }
+
+  const filePath = profileFilePath(profileOptions, id);
+  if (fs.existsSync(filePath)) {
+    throw new Error(`Deployment profile file already exists: ${filePath}`);
+  }
+
+  const softwareIds = [...state.activeProfile.softwareIds];
+  const raw = {
+    id,
+    name,
+    software: softwareIds,
+  };
+  writeJson(filePath, raw);
+
+  return {
+    profile: {
+      id,
+      name,
+      description: '',
+      softwareIds,
+      filePath,
+    },
+    filePath,
+  };
+}
+
+export function updateDeploymentProfileSoftware(config = {}, profileId, softwareIds, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  const catalog = loadSoftwareCatalog(config, options);
+  const profiles = loadDeploymentProfiles(config, { ...options, catalog });
+  const id = normalizeId(profileId, 'profile');
+  const profile = profiles.find((candidate) => candidate.id === id);
+  if (!profile) {
+    throw new Error(`Deployment profile not found: ${id}`);
+  }
+
+  const selectedIds = normalizeSoftwareSelection(softwareIds, catalog, `deployment profile ${id} software`);
+  const filePath = assertInside(profileOptions.profilesRoot, profile.filePath, 'Deployment profile path');
+  const raw = readJson(filePath, 'deployment profile');
+  raw.software = selectedIds;
+  writeJson(filePath, raw);
+
+  return {
+    profile: {
+      ...profile,
+      softwareIds: selectedIds,
+    },
+    filePath,
+  };
+}
+
+export function deleteDeploymentProfile(config = {}, profileId, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  const id = normalizeId(profileId, 'profile');
+  const activeProfileId = normalizeId(profileOptions.activeProfile, 'active profile');
+  if (id === activeProfileId) {
+    throw new Error(`Cannot delete active deployment profile: ${id}`);
+  }
+
+  const catalog = loadSoftwareCatalog(config, options);
+  const profiles = loadDeploymentProfiles(config, { ...options, catalog });
+  const profile = profiles.find((candidate) => candidate.id === id);
+  if (!profile) {
+    throw new Error(`Deployment profile not found: ${id}`);
+  }
+
+  const filePath = assertInside(profileOptions.profilesRoot, profile.filePath, 'Deployment profile path');
+  fs.rmSync(filePath, { force: true });
+  return {
+    profile,
+    filePath,
   };
 }
 

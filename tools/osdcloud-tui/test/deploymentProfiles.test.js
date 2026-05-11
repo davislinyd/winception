@@ -5,11 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
+  createDeploymentProfile,
+  deleteDeploymentProfile,
   evaluateDeploymentProfilePayload,
   loadDeploymentProfiles,
   loadSoftwareCatalog,
   publishDeploymentProfile,
   resolveDeploymentProfileState,
+  updateDeploymentProfileSoftware,
 } from '../src/deploymentProfiles.js';
 
 function makeRoot(prefix = 'osdcloud-profile-test-') {
@@ -154,6 +157,149 @@ test('accepts empty software profile', () => {
 
     const state = resolveDeploymentProfileState(configFor(root));
     assert.deepEqual(state.selectedSoftware, []);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('creates a deployment profile by copying active profile software', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+
+    const created = createDeploymentProfile(configFor(root), {
+      id: 'field-tech',
+      name: 'Field Tech',
+    });
+
+    assert.equal(created.profile.id, 'field-tech');
+    assert.deepEqual(created.profile.softwareIds, ['one']);
+    const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'field-tech.json'), 'utf8'));
+    assert.deepEqual(raw, {
+      id: 'field-tech',
+      name: 'Field Tech',
+      software: ['one'],
+    });
+    assert.equal(resolveDeploymentProfileState(configFor(root)).activeProfile.id, 'default');
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('create deployment profile rejects duplicate and unsafe ids', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+
+    assert.throws(
+      () => createDeploymentProfile(configFor(root), { id: 'default', name: 'Duplicate' }),
+      /already exists/,
+    );
+    assert.throws(
+      () => createDeploymentProfile(configFor(root), { id: '..\\outside', name: 'Unsafe' }),
+      /Invalid profile id/,
+    );
+    assert.throws(
+      () => createDeploymentProfile(configFor(root), { id: '../outside', name: 'Traversal' }),
+      /Invalid profile id/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('updates deployment profile software while preserving other fields', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        description: 'Keep me',
+        software: ['one'],
+        owner: 'ops',
+      },
+    });
+
+    const updated = updateDeploymentProfileSoftware(configFor(root), 'default', ['two']);
+
+    assert.deepEqual(updated.profile.softwareIds, ['two']);
+    const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
+    assert.deepEqual(raw, {
+      id: 'default',
+      name: 'Default',
+      description: 'Keep me',
+      software: ['two'],
+      owner: 'ops',
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('updates deployment profile software to an empty list', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+
+    updateDeploymentProfileSoftware(configFor(root), 'default', []);
+    const state = resolveDeploymentProfileState(configFor(root));
+
+    assert.deepEqual(state.activeProfile.softwareIds, []);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('update deployment profile software rejects unknown and duplicate software', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+
+    assert.throws(
+      () => updateDeploymentProfileSoftware(configFor(root), 'default', ['one', 'one']),
+      /Duplicate software id one/,
+    );
+    assert.throws(
+      () => updateDeploymentProfileSoftware(configFor(root), 'default', ['missing']),
+      /unknown software/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('deletes inactive deployment profile', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    writeJson(path.join(root, 'profiles', 'inactive.json'), {
+      id: 'inactive',
+      name: 'Inactive',
+      software: ['two'],
+    });
+
+    const deleted = deleteDeploymentProfile(configFor(root), 'inactive');
+
+    assert.equal(deleted.profile.id, 'inactive');
+    assert.equal(fs.existsSync(path.join(root, 'profiles', 'inactive.json')), false);
+    assert.equal(resolveDeploymentProfileState(configFor(root)).activeProfile.id, 'default');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('delete deployment profile rejects active profile', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+
+    assert.throws(
+      () => deleteDeploymentProfile(configFor(root), 'default'),
+      /Cannot delete active deployment profile/,
+    );
+    assert.equal(fs.existsSync(path.join(root, 'profiles', 'default.json')), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
