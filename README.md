@@ -23,13 +23,13 @@
 
 | 路徑 | 用途 | Host endpoint | 入口 | 驗證意義 |
 | --- | --- | --- | --- | --- |
-| 實體筆電 iPXE | Active path，用來驗證真實大量部署 | TUI 選定的 service interface / service IP | `npm run tui` | 可作為實體部署證據 |
+| 實體筆電 iPXE | Active path，用來驗證真實大量部署 | TUI/Web 選定的 service interface / service IP | `npm run tui` 或 `npm run web` | 可作為實體部署證據 |
 | VM VM iPXE | Regression path，用來快速驗證 WinPE、OOBE、status callback | `Ethernet` / `192.168.100.1` | `node .\tools\osdcloud-tui\src\headless.js` 或 TUI | 只證明 VM regression，不代表實體筆電路徑已準備好 |
 | ISO VM | Historical path，用來驗證 ISO zero-touch | `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso` | VM DVD/ISO boot | 只保留為歷史證據 |
 
 切換路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-tui.json` 與 `osdcloud-assets`。不要把 VM 的 `192.168.100.1` endpoint 當成實體筆電設定，也不要把某一次實體筆電測試使用的 service IP 當成永久設定。
 
-實體筆電 endpoint 每次以 TUI 選定的 service interface / service IP 為準。下一次實體筆電測試前，先確認 `config\osdcloud-tui.json`、live `boot.ipxe`、published `boot.wim` 內嵌 endpoint 與 host 網卡狀態一致。
+實體筆電 endpoint 每次以 TUI/Web 選定的 service interface / service IP 為準。下一次實體筆電測試前，先確認 `config\osdcloud-tui.json`、live `boot.ipxe`、published `boot.wim` 內嵌 endpoint 與 host 網卡狀態一致。
 
 ## 目前主機網路拓樸
 
@@ -60,7 +60,7 @@ DNS     : 1.1.1.1 / 8.8.8.8
 
 ## 使用手冊
 
-本節是給實際操作人員看的流程。除非要做 VM regression，日常部署都走「實體筆電 iPXE」路徑，入口是 TUI。
+本節是給實際操作人員看的流程。除非要做 VM regression，日常部署都走「實體筆電 iPXE」路徑。Host console 可用 TUI 或 Web 版；目前 TUI 仍是既有入口，Web 版是並存的瀏覽器操作介面。
 
 ### 操作前檢查
 
@@ -93,6 +93,37 @@ npm run tui
 ```
 
 `npm install` 只需要在第一次或 `package-lock.json` 改變後執行。平常直接 `npm run tui`。
+
+### 啟動 Web 管理介面
+
+Web 版與 TUI 並存，使用相同的 Node DHCP/TFTP/HTTP/status controller。啟動後預設只聽本機：
+
+```powershell
+cd 'C:\Users\Davis\Documents\New project'
+npm run web
+```
+
+瀏覽器開：
+
+```text
+http://127.0.0.1:8080
+```
+
+`config\osdcloud-tui.json` 可加入下列設定覆蓋預設管理介面 bind：
+
+```json
+"web": {
+  "host": "127.0.0.1",
+  "port": 8080
+}
+```
+
+單純啟動 Web 版、打開頁面、刷新 Services / Clients / Client Detail / Validation / Logs 不會修改 `C:\OSDCloud`。會改 live deployment 狀態的按鈕會要求確認：
+
+- `Select service interface` 會停止 running services、更新 `config\osdcloud-tui.json`、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
+- `Select deployment profile` 會停止 running services，重建 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps` payload。
+- `Clear status files` 會清除 configured status root 內的 JSON/JSONL/screenshot metadata。
+- `Start DHCP` / `Start all services` 不改檔案，但會讓 host DHCP responder 開始回答 client；只有確認真實 LAN DHCP server 已停用後才執行。
 
 TUI 主要區塊：
 
@@ -592,12 +623,20 @@ Get-Content -Wait 'C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
 
 ## Node TUI 操作台
 
-現在 host 端主要操作入口是 Node TUI：
+現在 host 端主要操作入口仍可用 Node TUI：
 
 ```powershell
 npm install
 npm run tui
 ```
+
+Web 管理介面可用：
+
+```powershell
+npm run web
+```
+
+預設 URL 是 `http://127.0.0.1:8080`。Web 版只替換 operator console，不改 PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議，也不改 WinPE / OSDCloud deployment scripts。
 
 VM 回歸測試若不需要 blessed TUI 畫面，可用 headless host services：
 
@@ -619,6 +658,9 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 使用原則：
 
 - 用 elevated PowerShell 啟動 `npm run tui`
+- 若使用 Web 版，先用 elevated PowerShell 啟動 `npm run web`，再從瀏覽器開 `http://127.0.0.1:8080`
+- Web 版和 TUI 共用同一套 service controller；同一時間只開一個 host console 來操作服務，避免兩個 Node process 同時嘗試控制 HTTP/TFTP/DHCP
+- Web 版 read-only state/status/logs/validation 不會寫入 `C:\OSDCloud`；endpoint sync、profile publish、clear status、service start/stop 是明確的 mutating 操作
 - Repo `.npmrc` 會讓 npm scripts 以前景 stdio 並靜默 banner 執行，避免 `npm run tui` 的 script header 干擾 TUI 啟動與鍵盤輸入
 - 先執行 `Run preflight`；preflight 會檢查服務綁定 IP 是否存在於任一張啟用中的 IPv4 介面，不要求固定 NIC alias
 - 若要改服務監聽介面，使用 `Select service interface`；它會列出目前啟用、具 IPv4、非 APIPA 的介面，選定後寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、SMB firewall、published `boot.wim` 與 `osdcloud-assets`

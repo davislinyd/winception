@@ -36,6 +36,16 @@ export function mediaHttpServerConfig(config) {
   };
 }
 
+export function webServerConfig(config) {
+  const section = config.web ?? {};
+  const host = section.host ?? '127.0.0.1';
+  const port = section.port ?? 8080;
+  return {
+    host,
+    port: Number(port),
+  };
+}
+
 function smbShareName(config) {
   const share = String(config.smb?.share ?? '');
   const match = /^\\\\[^\\]+\\([^\\]+)$/u.exec(share);
@@ -223,6 +233,18 @@ export function validateConfig(config) {
   if (!Array.isArray(config.paths.expectedHttpFiles) || config.paths.expectedHttpFiles.length === 0) {
     throw new Error('paths.expectedHttpFiles must be a non-empty array');
   }
+
+  config.web ??= {};
+  config.web.host ??= '127.0.0.1';
+  config.web.port ??= 8080;
+  if (typeof config.web.host !== 'string' || config.web.host.trim() === '') {
+    throw new Error('web.host must be a non-empty string');
+  }
+  const webPort = Number(config.web.port);
+  if (!Number.isInteger(webPort) || webPort < 0 || webPort > 65535) {
+    throw new Error(`Invalid web.port: ${config.web.port}`);
+  }
+  config.web.port = webPort;
 
   if (config.dhcp.reservations !== undefined) {
     if (!Array.isArray(config.dhcp.reservations)) {

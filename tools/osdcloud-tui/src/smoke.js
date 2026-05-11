@@ -5,7 +5,9 @@ import path from 'node:path';
 import { mediaHttpServerConfig } from './config.js';
 import { publishDeploymentProfile } from './deploymentProfiles.js';
 import { MediaHttpServer } from './httpServer.js';
+import { ServiceController } from './serviceController.js';
 import { TftpResponder } from './tftp.js';
+import { WebManagementServer } from './webServer.js';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-tui-smoke-'));
 const httpRoot = path.join(root, 'http');
@@ -51,8 +53,34 @@ async function waitFor(condition, timeoutMs = 2000) {
 }
 
 const config = {
+  adapter: {
+    interfaceAlias: 'Loopback',
+    serverIp: '127.0.0.1',
+    prefixLength: 8,
+  },
+  dhcp: {
+    listenIp: '127.0.0.1',
+    listenPort: 0,
+    replyPort: 0,
+    leaseStartIp: '127.0.0.200',
+    leaseEndIp: '127.0.0.250',
+    subnetMask: '255.0.0.0',
+    router: '127.0.0.1',
+    bootFile: 'snponly.efi',
+    ipxeBootUrl: 'http://127.0.0.1/osdcloud/boot.ipxe',
+  },
+  tftp: {
+    root: tftpRoot,
+    listenIp: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'tftp.log'),
+  },
   paths: {
     repoRoot: root,
+    expectedHttpFiles: ['osdcloud\\boot.ipxe', 'osdcloud\\boot.wim'],
+    statusLatest: path.join(statusRoot, 'latest.json'),
+    statusEvents: path.join(statusRoot, 'progress.jsonl'),
+    imageNamePattern: 'install.esd',
   },
   http: {
     root: httpRoot,
@@ -60,6 +88,10 @@ const config = {
     port: 0,
     logPath: path.join(root, 'http.log'),
     statusRoot,
+  },
+  smb: {
+    share: '\\\\127.0.0.1\\OSDCloudiPXE',
+    imagePath: path.join(root, 'install.esd'),
   },
   driverPackCache: {
     enabled: true,
@@ -74,7 +106,13 @@ const config = {
     appsRoot,
     installerScript: path.join(root, 'Install-Apps.ps1'),
   },
+  web: {
+    host: '127.0.0.1',
+    port: 0,
+  },
+  __configPath: path.join(root, 'osdcloud-tui.json'),
 };
+fs.writeFileSync(config.smb.imagePath, 'install image');
 
 const publishedProfile = publishDeploymentProfile(config);
 assert.equal(publishedProfile.profile.id, 'default');
@@ -187,6 +225,31 @@ try {
   });
   assert.equal(response.status, 206);
   assert.equal(await response.text(), 'boot');
+
+  const webController = new ServiceController({ config });
+  const webServer = new WebManagementServer({ controller: webController });
+  await webServer.start({ host: '127.0.0.1', port: 0 });
+  const webBase = `http://127.0.0.1:${webServer.address.port}`;
+  try {
+    response = await fetch(`${webBase}/api/state`);
+    assert.equal(response.status, 200);
+    const webState = await response.json();
+    assert.equal(webState.ok, true);
+    assert.equal(webState.state.web.host, '127.0.0.1');
+
+    response = await fetch(`${webBase}/api/preflight`, { method: 'POST' });
+    assert.equal(response.status, 200);
+
+    response = await fetch(`${webBase}/api/profile`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profileId: 'default' }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(JSON.parse(fs.readFileSync(config.__configPath, 'utf8')).deploymentProfiles.activeProfile, 'default');
+  } finally {
+    await webServer.stop();
+  }
 
   assert.ok(tftpServer.running);
   console.log(`Smoke test passed: ${root}`);

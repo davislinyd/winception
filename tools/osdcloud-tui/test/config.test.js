@@ -8,6 +8,7 @@ import {
   mediaHttpServerConfig,
   saveConfig,
   validateConfig,
+  webServerConfig,
 } from '../src/config.js';
 
 test('rejects incomplete config', () => {
@@ -39,6 +40,36 @@ test('accepts minimum config shape', () => {
   };
 
   assert.equal(validateConfig(config), config);
+  assert.deepEqual(config.web, { host: '127.0.0.1', port: 8080 });
+});
+
+test('validates Web management server config', () => {
+  const base = {
+    adapter: { interfaceAlias: 'Ethernet', serverIp: '192.168.100.100' },
+    dhcp: {
+      listenIp: '192.168.100.100',
+      leaseStartIp: '192.168.100.200',
+      leaseEndIp: '192.168.100.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.100.1',
+      bootFile: 'snponly.efi',
+      ipxeBootUrl: 'http://192.168.100.100/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\PXE-TFTP' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.100', statusRoot: 'C:\\status' },
+    paths: { expectedHttpFiles: ['osdcloud\\boot.ipxe'] },
+    smb: {
+      share: '\\\\192.168.100.100\\OSDCloudiPXE',
+      imagePath: '\\\\192.168.100.100\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+    },
+    web: { host: '0.0.0.0', port: '8088' },
+  };
+
+  validateConfig(base);
+  assert.deepEqual(webServerConfig(base), { host: '0.0.0.0', port: 8088 });
+
+  assert.throws(() => validateConfig({ ...base, web: { host: '', port: 8080 } }), /web\.host/);
+  assert.throws(() => validateConfig({ ...base, web: { host: '127.0.0.1', port: 70000 } }), /Invalid web\.port/);
 });
 
 test('builds HTTP server config with root driver pack cache settings', () => {

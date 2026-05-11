@@ -1,0 +1,347 @@
+const state = {
+  current: null,
+  selectedRunId: null,
+  busy: false,
+};
+
+const elements = {
+  endpointLine: document.querySelector('#endpoint-line'),
+  operationBadge: document.querySelector('#operation-badge'),
+  refreshButton: document.querySelector('#refresh-button'),
+  updatedAt: document.querySelector('#updated-at'),
+  servicesGrid: document.querySelector('#services-grid'),
+  endpointDetails: document.querySelector('#endpoint-details'),
+  clientsBody: document.querySelector('#clients-body'),
+  fleetCounts: document.querySelector('#fleet-counts'),
+  clientDetail: document.querySelector('#client-detail'),
+  preflightList: document.querySelector('#preflight-list'),
+  validationList: document.querySelector('#validation-list'),
+  logs: document.querySelector('#logs'),
+  pickerDialog: document.querySelector('#picker-dialog'),
+  pickerTitle: document.querySelector('#picker-title'),
+  pickerList: document.querySelector('#picker-list'),
+};
+
+function text(value) {
+  return value === undefined || value === null || value === '' ? '-' : String(value);
+}
+
+function elapsed(seconds) {
+  if (!Number.isFinite(seconds)) {
+    return '';
+  }
+  if (seconds < 60) {
+    return `${Math.round(seconds)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.round(seconds % 60);
+  return `${minutes}m ${String(remainder).padStart(2, '0')}s`;
+}
+
+function localTime(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    headers: options.body ? { 'content-type': 'application/json' } : undefined,
+    ...options,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.error || `HTTP ${response.status}`);
+  }
+  return payload;
+}
+
+async function refresh() {
+  const query = state.selectedRunId ? `?runId=${encodeURIComponent(state.selectedRunId)}` : '';
+  const payload = await api(`/api/state${query}`);
+  state.current = payload.state;
+  render();
+}
+
+async function mutate(path, body = null) {
+  if (state.busy) {
+    return;
+  }
+  state.busy = true;
+  setButtonsDisabled(true);
+  try {
+    const payload = await api(path, {
+      method: 'POST',
+      body: body ? JSON.stringify(body) : '',
+    });
+    state.current = payload.state;
+    render();
+  } catch (error) {
+    window.alert(error.message);
+  } finally {
+    state.busy = false;
+    setButtonsDisabled(false);
+  }
+}
+
+function setButtonsDisabled(disabled) {
+  document.querySelectorAll('button').forEach((button) => {
+    button.disabled = disabled;
+  });
+}
+
+function setDefinitionList(element, rows) {
+  element.replaceChildren();
+  for (const [label, value] of rows) {
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    dd.textContent = text(value);
+    element.append(dt, dd);
+  }
+}
+
+function renderServices(appState) {
+  const rows = [
+    ['HTTP', appState.services.http, `${appState.services.http.host}:${appState.services.http.port}`],
+    ['TFTP', appState.services.tftp, `${appState.services.tftp.listenIp}:${appState.services.tftp.port}`],
+    ['DHCP', appState.services.dhcp, `${appState.services.dhcp.listenIp}:${appState.services.dhcp.listenPort}`],
+  ];
+  elements.servicesGrid.replaceChildren();
+  for (const [name, service, detail] of rows) {
+    const row = document.createElement('div');
+    row.className = 'service-row';
+    const stateLabel = document.createElement('div');
+    stateLabel.className = `state ${service.running ? 'running' : 'stopped'}`;
+    stateLabel.textContent = service.running ? 'running' : 'stopped';
+    const body = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = name;
+    const breakLine = document.createElement('br');
+    const detailText = document.createTextNode(detail);
+    body.append(title, breakLine, detailText);
+    row.append(stateLabel, body);
+    elements.servicesGrid.append(row);
+  }
+
+  const profile = appState.profile?.error
+    ? `invalid: ${appState.profile.error}`
+    : `${appState.profile?.activeProfile?.name ?? ''} (${appState.profile?.activeProfile?.id ?? ''})`;
+  setDefinitionList(elements.endpointDetails, [
+    ['Service NIC', appState.config.adapter.interfaceAlias],
+    ['Service IP', `${appState.config.adapter.serverIp}/${appState.config.adapter.prefixLength}`],
+    ['DHCP pool', `${appState.config.dhcp.leaseStartIp}-${appState.config.dhcp.leaseEndIp}`],
+    ['DHCP router', appState.config.dhcp.router],
+    ['SMB share', appState.config.smb.share],
+    ['Profile', profile],
+    ['Software', appState.profile?.selectedSoftwareText ?? ''],
+  ]);
+  elements.endpointLine.textContent = `${appState.config.adapter.interfaceAlias} ${appState.config.adapter.serverIp}/${appState.config.adapter.prefixLength}`;
+}
+
+function renderClients(appState) {
+  const counts = appState.fleet.counts ?? {};
+  elements.fleetCounts.textContent = `total=${appState.fleet.total ?? 0} running=${counts.running ?? 0} completed=${counts.completed ?? 0} failed=${counts.failed ?? 0}`;
+  elements.clientsBody.replaceChildren();
+  for (const run of appState.fleet.runs ?? []) {
+    const tr = document.createElement('tr');
+    if (run.runId === appState.selectedRunId) {
+      tr.classList.add('selected');
+    }
+    tr.addEventListener('click', () => {
+      state.selectedRunId = run.runId;
+      refresh().catch((error) => window.alert(error.message));
+    });
+    for (const value of [
+      run.status,
+      run.clientId,
+      run.runId,
+      run.latestStage,
+      Number.isFinite(run.latestPercent) ? `${run.latestPercent}%` : '',
+      localTime(run.lastReceivedAt),
+      elapsed(run.elapsedSeconds),
+    ]) {
+      const td = document.createElement('td');
+      td.textContent = text(value);
+      tr.append(td);
+    }
+    elements.clientsBody.append(tr);
+  }
+  if (!appState.fleet.runs?.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 7;
+    td.textContent = 'No deployment clients yet.';
+    tr.append(td);
+    elements.clientsBody.append(tr);
+  }
+}
+
+function renderClientDetail(appState) {
+  const run = appState.selectedRun;
+  if (!run) {
+    setDefinitionList(elements.clientDetail, [['Status', 'No client selected']]);
+    return;
+  }
+  setDefinitionList(elements.clientDetail, [
+    ['Status', run.status],
+    ['Run', run.runId],
+    ['Client', run.clientId],
+    ['Stage', run.latestStage],
+    ['Percent', Number.isFinite(run.latestPercent) ? `${run.latestPercent}%` : ''],
+    ['Started', run.startedAt],
+    ['WinPE End', run.winpeEndedAt],
+    ['Windows', run.windowsStartedAt],
+    ['Finished', run.completedAt ?? run.failedAt],
+    ['Seen', run.lastReceivedAt],
+    ['Message', run.staleReason ? `${run.staleReason}; ${run.latestMessage ?? ''}` : run.latestMessage],
+    ['Latest Shot', appState.selectedScreenshot?.filePath ?? ''],
+  ]);
+}
+
+function renderChecks(element, checks) {
+  element.replaceChildren();
+  if (!checks?.length) {
+    const empty = document.createElement('div');
+    empty.className = 'check-row';
+    empty.textContent = 'No data yet.';
+    element.append(empty);
+    return;
+  }
+  for (const check of checks) {
+    const row = document.createElement('div');
+    row.className = `check-row ${check.ok ? 'ok' : 'fail'}`;
+    const name = document.createElement('strong');
+    name.textContent = `${check.ok ? 'PASS' : 'FAIL'} ${check.name}`;
+    const detail = document.createElement('span');
+    detail.textContent = check.detail ?? '';
+    row.append(name, detail);
+    element.append(row);
+  }
+}
+
+function renderOperation(appState) {
+  const operation = appState.operation;
+  elements.operationBadge.className = 'badge';
+  if (!operation) {
+    elements.operationBadge.textContent = 'Idle';
+    return;
+  }
+  elements.operationBadge.textContent = operation.running ? operation.label : `${operation.status}: ${operation.label}`;
+  if (operation.running) {
+    elements.operationBadge.classList.add('running');
+  } else if (operation.status === 'failed') {
+    elements.operationBadge.classList.add('failed');
+  }
+}
+
+function render() {
+  const appState = state.current;
+  if (!appState) {
+    return;
+  }
+  elements.updatedAt.textContent = localTime(appState.generatedAt);
+  renderOperation(appState);
+  renderServices(appState);
+  renderClients(appState);
+  renderClientDetail(appState);
+  renderChecks(elements.preflightList, appState.preflight);
+  renderChecks(elements.validationList, appState.validation);
+  elements.logs.textContent = (appState.logs ?? []).join('\n');
+}
+
+function confirmAction(message) {
+  return window.confirm(message);
+}
+
+async function showPicker(title, rows, onPick) {
+  elements.pickerTitle.textContent = title;
+  elements.pickerList.replaceChildren();
+  for (const row of rows) {
+    const item = document.createElement('div');
+    item.className = 'picker-item';
+    const body = document.createElement('div');
+    const strong = document.createElement('strong');
+    strong.textContent = row.title;
+    const span = document.createElement('span');
+    span.textContent = row.detail;
+    body.append(strong, span);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Select';
+    button.addEventListener('click', () => {
+      elements.pickerDialog.close();
+      onPick(row.value);
+    });
+    item.append(body, button);
+    elements.pickerList.append(item);
+  }
+  elements.pickerDialog.showModal();
+}
+
+async function handleAction(action) {
+  const services = state.current?.services ?? {};
+  if (action === 'preflight') {
+    await mutate('/api/preflight');
+  } else if (action === 'interfaces') {
+    const payload = await api('/api/interfaces');
+    await showPicker('Select service interface', payload.interfaces.map((item) => ({
+      title: `${item.interfaceAlias} ${item.ipAddress}/${item.prefixLength}`,
+      detail: `${item.interfaceDescription || item.macAddress || ''} gateway=${item.gateway || '-'}`,
+      value: item,
+    })), (item) => {
+      if (confirmAction('This will stop services, update endpoint files, commit WinPE changes, and refresh osdcloud-assets. Continue?')) {
+        mutate('/api/endpoint', item);
+      }
+    });
+  } else if (action === 'profiles') {
+    const payload = await api('/api/profiles');
+    await showPicker('Select deployment profile', payload.profile.profiles.map((profile) => ({
+      title: `${profile.name} (${profile.id})`,
+      detail: profile.softwareIds.length ? profile.softwareIds.join(', ') : 'no client software',
+      value: profile.id,
+    })), (profileId) => {
+      if (confirmAction('This will stop services and replace the live Apps payload. Continue?')) {
+        mutate('/api/profile', { profileId });
+      }
+    });
+  } else if (action === 'http-toggle') {
+    await mutate(`/api/services/http/${services.http?.running ? 'stop' : 'start'}`);
+  } else if (action === 'tftp-toggle') {
+    await mutate(`/api/services/tftp/${services.tftp?.running ? 'stop' : 'start'}`);
+  } else if (action === 'dhcp-toggle') {
+    const verb = services.dhcp?.running ? 'stop' : 'start';
+    if (verb === 'stop' || confirmAction('Confirm the real LAN DHCP server is disabled before starting DHCP. Continue?')) {
+      await mutate(`/api/services/dhcp/${verb}`);
+    }
+  } else if (action === 'start-all') {
+    if (confirmAction('Confirm the real LAN DHCP server is disabled before starting HTTP, TFTP, and DHCP. Continue?')) {
+      await mutate('/api/services/start-all');
+    }
+  } else if (action === 'stop-all') {
+    await mutate('/api/services/stop-all');
+  } else if (action === 'clear-status') {
+    if (confirmAction('This will delete live status files under the configured status root. Continue?')) {
+      await mutate('/api/status/clear');
+    }
+  }
+}
+
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action]');
+  if (!button) {
+    return;
+  }
+  handleAction(button.dataset.action).catch((error) => window.alert(error.message));
+});
+
+elements.refreshButton.addEventListener('click', () => {
+  refresh().catch((error) => window.alert(error.message));
+});
+
+refresh().catch((error) => window.alert(error.message));
+setInterval(() => {
+  refresh().catch(() => {});
+}, 2500);
