@@ -75,9 +75,35 @@ async function makeServer(root) {
       readRunLatestScreenshot: () => null,
       readStatusEvents: () => [],
       resolveDeploymentProfileState: () => ({
+        catalog: {
+          software: [
+            { id: '7zip', name: '7-Zip' },
+            { id: 'chrome', name: 'Chrome' },
+          ],
+        },
         activeProfile: { id: 'default', name: 'Default' },
         selectedSoftware: [],
-        profiles: [{ id: 'default', name: 'Default', description: '', softwareIds: [] }],
+        profiles: [
+          { id: 'default', name: 'Default', description: '', softwareIds: [] },
+          { id: 'minimal', name: 'Minimal', description: '', softwareIds: [] },
+        ],
+      }),
+      createDeploymentProfile: (_config, input) => ({
+        profile: { id: input.id, name: input.name, description: '', softwareIds: [] },
+        filePath: path.join(root, `${input.id}.json`),
+      }),
+      updateDeploymentProfileSoftware: (_config, profileId, softwareIds) => ({
+        profile: { id: profileId, name: 'Default', description: '', softwareIds },
+        filePath: path.join(root, `${profileId}.json`),
+      }),
+      publishDeploymentProfile: (_config, profileId) => ({
+        profile: { id: profileId, name: 'Default', description: '', softwareIds: [] },
+        selectedSoftware: [],
+        appsRoot: path.join(root, 'Apps'),
+      }),
+      deleteDeploymentProfile: (_config, profileId) => ({
+        profile: { id: profileId, name: 'Minimal', description: '', softwareIds: [] },
+        filePath: path.join(root, `${profileId}.json`),
       }),
       runPreflight: async () => [{ name: 'Smoke', ok: true, detail: 'test' }],
       saveConfig: () => path.join(root, 'config.json'),
@@ -134,6 +160,33 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.interfaces[0].interfaceAlias, 'LAN');
+
+    response = await fetch(`${base}/api/profiles/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'field', name: 'Field' }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.profile.id, 'field');
+
+    response = await fetch(`${base}/api/profile/software`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ softwareIds: ['chrome'] }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.deepEqual(payload.result.profile.softwareIds, ['chrome']);
+
+    response = await fetch(`${base}/api/profiles/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profileId: 'minimal' }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.profile.id, 'minimal');
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

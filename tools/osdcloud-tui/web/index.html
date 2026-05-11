@@ -39,6 +39,9 @@
         <button data-action="preflight" type="button">Run preflight</button>
         <button data-action="interfaces" type="button">Select service interface</button>
         <button data-action="profiles" type="button">Select deployment profile</button>
+        <button data-action="profile-add" type="button">Add deployment profile</button>
+        <button data-action="profile-edit" type="button">Edit deployment profile</button>
+        <button data-action="profile-delete" class="danger" type="button">Delete deployment profile</button>
         <button data-action="http-toggle" type="button">HTTP/status</button>
         <button data-action="tftp-toggle" type="button">TFTP</button>
         <button data-action="dhcp-toggle" class="danger" type="button">DHCP</button>
@@ -107,6 +110,48 @@
         <button value="cancel" type="submit">Close</button>
       </div>
       <div id="picker-list" class="picker-list"></div>
+    </form>
+  </dialog>
+
+  <dialog id="profile-dialog">
+    <form id="profile-form">
+      <div class="panel-header">
+        <h2>Add deployment profile</h2>
+        <button id="profile-cancel" type="button">Close</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          Profile ID
+          <input id="profile-id" name="id" type="text" autocomplete="off" required>
+        </label>
+        <label>
+          Name
+          <input id="profile-name" name="name" type="text" autocomplete="off" required>
+        </label>
+        <p id="profile-error" class="form-error" role="alert"></p>
+      </div>
+      <div class="dialog-actions">
+        <button type="submit">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="software-dialog">
+    <form id="software-form">
+      <div class="panel-header">
+        <h2>Edit deployment profile</h2>
+        <button id="software-cancel" type="button">Close</button>
+      </div>
+      <div class="dialog-summary" id="software-profile-summary"></div>
+      <div class="software-toolbar">
+        <button id="software-select-all" type="button">Select all</button>
+        <button id="software-select-none" type="button">Select none</button>
+      </div>
+      <div id="software-list" class="checkbox-list"></div>
+      <p id="software-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="submit">Save</button>
+      </div>
     </form>
   </dialog>
 

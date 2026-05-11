@@ -9,7 +9,14 @@ import {
 import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
-import { formatSoftwareList, publishDeploymentProfile, resolveDeploymentProfileState } from './deploymentProfiles.js';
+import {
+  createDeploymentProfile,
+  deleteDeploymentProfile,
+  formatSoftwareList,
+  publishDeploymentProfile,
+  resolveDeploymentProfileState,
+  updateDeploymentProfileSoftware,
+} from './deploymentProfiles.js';
 import { formatLogLine, RingBuffer, tailFile } from './logger.js';
 import {
   listIpv4ServiceInterfaces,
@@ -73,6 +80,10 @@ function safeRead(callback, fallback = null) {
 function profileSummary(state) {
   return {
     activeProfile: state.activeProfile,
+    softwareCatalog: (state.catalog?.software ?? []).map((software) => ({
+      id: software.id,
+      name: software.name,
+    })),
     selectedSoftware: state.selectedSoftware.map((software) => ({
       id: software.id,
       name: software.name,
@@ -92,6 +103,8 @@ export class ServiceController extends EventEmitter {
     super();
     this.dependencies = {
       applyServiceEndpoint,
+      createDeploymentProfile,
+      deleteDeploymentProfile,
       listIpv4ServiceInterfaces,
       publishDeploymentProfile,
       readFleetStatus,
@@ -105,6 +118,7 @@ export class ServiceController extends EventEmitter {
       summarizeValidation,
       syncIpxeEndpoint,
       tailFile,
+      updateDeploymentProfileSoftware,
       ...options.dependencies,
     };
     this.config = options.config ?? loadConfig(options.configPath);
@@ -461,6 +475,40 @@ export class ServiceController extends EventEmitter {
         appsRoot: result.appsRoot,
         preflight: this.preflightResults,
       };
+    });
+  }
+
+  async addDeploymentProfile(input) {
+    return this.runOperation('Creating deployment profile', async () => {
+      const created = this.dependencies.createDeploymentProfile(this.config, input);
+      this.addLog(`Created deployment profile ${created.profile.id}: ${created.profile.softwareIds.join(', ') || 'none'}`);
+      return created;
+    });
+  }
+
+  async updateActiveDeploymentProfileSoftware(softwareIds) {
+    return this.runOperation('Saving deployment profile', async () => {
+      await this.stopAllServices();
+      this.preflightResults = [];
+      const state = this.dependencies.resolveDeploymentProfileState(this.config);
+      const updated = this.dependencies.updateDeploymentProfileSoftware(this.config, state.activeProfile.id, softwareIds);
+      const result = this.dependencies.publishDeploymentProfile(this.config, updated.profile.id);
+      this.addLog(`Saved deployment profile ${updated.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      return {
+        profile: updated.profile,
+        selectedSoftware: result.selectedSoftware,
+        appsRoot: result.appsRoot,
+        preflight: this.preflightResults,
+      };
+    });
+  }
+
+  async removeDeploymentProfile(profileId) {
+    return this.runOperation('Deleting deployment profile', async () => {
+      const deleted = this.dependencies.deleteDeploymentProfile(this.config, profileId);
+      this.addLog(`Deleted deployment profile ${deleted.profile.id}`);
+      return deleted;
     });
   }
 

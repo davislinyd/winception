@@ -92,6 +92,12 @@ function makeController(root, overrides = {}) {
     readRunLatestScreenshot: () => null,
     readStatusEvents: () => [],
     resolveDeploymentProfileState: () => ({
+      catalog: {
+        software: [
+          { id: '7zip', name: '7-Zip' },
+          { id: 'chrome', name: 'Chrome' },
+        ],
+      },
       activeProfile: { id: 'default', name: 'Default' },
       selectedSoftware: [{ id: '7zip', name: '7-Zip' }],
       profiles: [{ id: 'default', name: 'Default', description: '', softwareIds: ['7zip'] }],
@@ -123,7 +129,68 @@ test('state reads do not create live status roots', () => {
     assert.equal(state.app.version, appVersion);
     assert.equal(state.services.http.running, false);
     assert.equal(state.profile.activeProfile.id, 'default');
+    assert.deepEqual(state.profile.softwareCatalog.map((software) => software.id), ['7zip', 'chrome']);
     assert.equal(fs.existsSync(statusRoot), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('deployment profile management actions create, update active software, and delete inactive profiles', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-profiles-'));
+  try {
+    let createdInput = null;
+    let updatedSoftwareIds = [];
+    let deletedProfileId = null;
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        createDeploymentProfile(_config, input) {
+          createdInput = input;
+          return {
+            profile: { id: input.id, name: input.name, description: '', softwareIds: ['7zip'] },
+            filePath: path.join(root, `${input.id}.json`),
+          };
+        },
+        updateDeploymentProfileSoftware(_config, profileId, softwareIds) {
+          updatedSoftwareIds = softwareIds;
+          return {
+            profile: { id: profileId, name: 'Default', description: '', softwareIds },
+            filePath: path.join(root, `${profileId}.json`),
+          };
+        },
+        publishDeploymentProfile(_config, profileId) {
+          return {
+            profile: { id: profileId, name: 'Default', description: '', softwareIds: updatedSoftwareIds },
+            selectedSoftware: updatedSoftwareIds.map((id) => ({ id, name: id })),
+            appsRoot: path.join(root, 'Apps'),
+          };
+        },
+        deleteDeploymentProfile(_config, profileId) {
+          deletedProfileId = profileId;
+          return {
+            profile: { id: profileId, name: 'Other', description: '', softwareIds: [] },
+            filePath: path.join(root, `${profileId}.json`),
+          };
+        },
+      },
+    });
+
+    const created = await controller.addDeploymentProfile({ id: 'field', name: 'Field' });
+    assert.deepEqual(createdInput, { id: 'field', name: 'Field' });
+    assert.equal(created.profile.id, 'field');
+
+    await controller.startAll();
+    const updated = await controller.updateActiveDeploymentProfileSoftware(['chrome']);
+    assert.deepEqual(updatedSoftwareIds, ['chrome']);
+    assert.equal(updated.profile.id, 'default');
+    assert.equal(updated.preflight[0].ok, true);
+    assert.equal(services.http.running, false);
+    assert.equal(services.tftp.running, false);
+    assert.equal(services.dhcp.running, false);
+
+    const deleted = await controller.removeDeploymentProfile('minimal');
+    assert.equal(deletedProfileId, 'minimal');
+    assert.equal(deleted.profile.id, 'minimal');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

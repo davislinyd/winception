@@ -21,7 +21,23 @@ const elements = {
   pickerDialog: document.querySelector('#picker-dialog'),
   pickerTitle: document.querySelector('#picker-title'),
   pickerList: document.querySelector('#picker-list'),
+  profileDialog: document.querySelector('#profile-dialog'),
+  profileForm: document.querySelector('#profile-form'),
+  profileId: document.querySelector('#profile-id'),
+  profileName: document.querySelector('#profile-name'),
+  profileCancel: document.querySelector('#profile-cancel'),
+  profileError: document.querySelector('#profile-error'),
+  softwareDialog: document.querySelector('#software-dialog'),
+  softwareForm: document.querySelector('#software-form'),
+  softwareCancel: document.querySelector('#software-cancel'),
+  softwareProfileSummary: document.querySelector('#software-profile-summary'),
+  softwareSelectAll: document.querySelector('#software-select-all'),
+  softwareSelectNone: document.querySelector('#software-select-none'),
+  softwareList: document.querySelector('#software-list'),
+  softwareError: document.querySelector('#software-error'),
 };
+
+const profileIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 
 function text(value) {
   return value === undefined || value === null || value === '' ? '-' : String(value);
@@ -258,7 +274,7 @@ function confirmAction(message) {
   return window.confirm(message);
 }
 
-async function showPicker(title, rows, onPick) {
+async function showPicker(title, rows, onPick, buttonLabel = 'Select') {
   elements.pickerTitle.textContent = title;
   elements.pickerList.replaceChildren();
   for (const row of rows) {
@@ -272,7 +288,7 @@ async function showPicker(title, rows, onPick) {
     body.append(strong, span);
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = 'Select';
+    button.textContent = buttonLabel;
     button.addEventListener('click', () => {
       elements.pickerDialog.close();
       onPick(row.value);
@@ -281,6 +297,134 @@ async function showPicker(title, rows, onPick) {
     elements.pickerList.append(item);
   }
   elements.pickerDialog.showModal();
+}
+
+function validateProfileInput(id, name, existingProfileIds) {
+  if (!id) {
+    return 'Profile ID is required.';
+  }
+  if (!profileIdPattern.test(id)) {
+    return 'Profile ID must start with a letter or number and use only letters, numbers, ".", "_", or "-".';
+  }
+  if (existingProfileIds.includes(id)) {
+    return `Profile ID already exists: ${id}`;
+  }
+  if (!name) {
+    return 'Name is required.';
+  }
+  return '';
+}
+
+function showAddProfileDialog(profiles) {
+  return new Promise((resolve) => {
+    const existingProfileIds = profiles.map((profile) => profile.id);
+    elements.profileForm.reset();
+    elements.profileError.textContent = '';
+
+    let settled = false;
+    const done = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      elements.profileForm.removeEventListener('submit', submit);
+      elements.profileCancel.removeEventListener('click', cancel);
+      elements.profileDialog.removeEventListener('cancel', cancel);
+      if (elements.profileDialog.open) {
+        elements.profileDialog.close();
+      }
+      resolve(value);
+    };
+    const cancel = (event) => {
+      event?.preventDefault();
+      done(null);
+    };
+    const submit = (event) => {
+      event.preventDefault();
+      const id = elements.profileId.value.trim();
+      const name = elements.profileName.value.trim();
+      const error = validateProfileInput(id, name, existingProfileIds);
+      if (error) {
+        elements.profileError.textContent = error;
+        return;
+      }
+      done({ id, name });
+    };
+
+    elements.profileForm.addEventListener('submit', submit);
+    elements.profileCancel.addEventListener('click', cancel);
+    elements.profileDialog.addEventListener('cancel', cancel);
+    elements.profileDialog.showModal();
+    elements.profileId.focus();
+  });
+}
+
+function setSoftwareCheckboxes(checked) {
+  elements.softwareList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    input.checked = checked;
+  });
+}
+
+function showSoftwareDialog(profile) {
+  return new Promise((resolve) => {
+    const activeProfile = profile.activeProfile;
+    const software = profile.softwareCatalog ?? [];
+    const selectedIds = new Set(activeProfile?.softwareIds ?? []);
+    elements.softwareError.textContent = '';
+    elements.softwareProfileSummary.textContent = activeProfile
+      ? `${activeProfile.name} (${activeProfile.id})`
+      : '';
+    elements.softwareList.replaceChildren();
+
+    for (const item of software) {
+      const label = document.createElement('label');
+      label.className = 'checkbox-item';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = item.id;
+      input.checked = selectedIds.has(item.id);
+      const span = document.createElement('span');
+      span.textContent = `${item.id} - ${item.name ?? item.id}`;
+      label.append(input, span);
+      elements.softwareList.append(label);
+    }
+
+    let settled = false;
+    const done = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      elements.softwareForm.removeEventListener('submit', submit);
+      elements.softwareCancel.removeEventListener('click', cancel);
+      elements.softwareDialog.removeEventListener('cancel', cancel);
+      elements.softwareSelectAll.removeEventListener('click', selectAll);
+      elements.softwareSelectNone.removeEventListener('click', selectNone);
+      if (elements.softwareDialog.open) {
+        elements.softwareDialog.close();
+      }
+      resolve(value);
+    };
+    const cancel = (event) => {
+      event?.preventDefault();
+      done(null);
+    };
+    const submit = (event) => {
+      event.preventDefault();
+      const checked = new Set([...elements.softwareList.querySelectorAll('input:checked')].map((input) => input.value));
+      done(software.map((item) => item.id).filter((id) => checked.has(id)));
+    };
+    const selectAll = () => setSoftwareCheckboxes(true);
+    const selectNone = () => setSoftwareCheckboxes(false);
+
+    elements.softwareForm.addEventListener('submit', submit);
+    elements.softwareCancel.addEventListener('click', cancel);
+    elements.softwareDialog.addEventListener('cancel', cancel);
+    elements.softwareSelectAll.addEventListener('click', selectAll);
+    elements.softwareSelectNone.addEventListener('click', selectNone);
+    elements.softwareDialog.showModal();
+    elements.softwareList.querySelector('input')?.focus();
+  });
 }
 
 async function handleAction(action) {
@@ -309,6 +453,38 @@ async function handleAction(action) {
         mutate('/api/profile', { profileId });
       }
     });
+  } else if (action === 'profile-add') {
+    const payload = await api('/api/profiles');
+    const input = await showAddProfileDialog(payload.profile.profiles);
+    if (input) {
+      await mutate('/api/profiles/create', input);
+    }
+  } else if (action === 'profile-edit') {
+    const payload = await api('/api/profiles');
+    const softwareIds = await showSoftwareDialog(payload.profile);
+    if (softwareIds) {
+      if (confirmAction('This will stop services, update the active profile software, replace the live Apps payload, and run preflight. Continue?')) {
+        await mutate('/api/profile/software', { softwareIds });
+      }
+    }
+  } else if (action === 'profile-delete') {
+    const payload = await api('/api/profiles');
+    const activeProfileId = payload.profile.activeProfile?.id;
+    const candidates = payload.profile.profiles.filter((profile) => profile.id !== activeProfileId);
+    if (!candidates.length) {
+      window.alert('No inactive deployment profiles can be deleted.');
+      return;
+    }
+    await showPicker('Delete deployment profile', candidates.map((profile) => ({
+      title: `${profile.name} (${profile.id})`,
+      detail: profile.softwareIds.length ? profile.softwareIds.join(', ') : 'no client software',
+      value: profile.id,
+    })), (profileId) => {
+      const selected = candidates.find((profile) => profile.id === profileId);
+      if (confirmAction(`Delete deployment profile ${selected?.name ?? profileId} (${profileId})?`)) {
+        mutate('/api/profiles/delete', { profileId });
+      }
+    }, 'Delete');
   } else if (action === 'http-toggle') {
     await mutate(`/api/services/http/${services.http?.running ? 'stop' : 'start'}`);
   } else if (action === 'tftp-toggle') {

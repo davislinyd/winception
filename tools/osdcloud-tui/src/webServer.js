@@ -177,6 +177,24 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/profiles/create') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.addDeploymentProfile(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/profile/software') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.updateActiveDeploymentProfileSoftware(body.softwareIds ?? body.software ?? []);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/profiles/delete') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.removeDeploymentProfile(body.profileId ?? body.id);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/status/clear') {
       const result = await this.controller.clearStatusFiles();
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
