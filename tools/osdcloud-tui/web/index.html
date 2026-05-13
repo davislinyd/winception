@@ -146,25 +146,55 @@
 
           <div class="dashboard-side-rail col-span-12 xl:col-span-3 flex flex-col gap-sm">
             <section class="preflight-summary-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
-              <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3>
-              <div id="preflight-list" class="preflight-summary-list bg-surface-container-low border border-outline-variant rounded p-sm font-log-entry text-log-entry flex flex-col gap-xs"></div>
+              <div class="panel-title-row">
+                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3>
+                <span id="preflight-status-badge" class="status-pill neutral">Not run</span>
+              </div>
+              <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
             </section>
 
             <section class="quick-actions-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
               <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Quick Actions</h3>
-              <div class="grid grid-cols-2 gap-sm action-grid">
-                <button data-action="preflight" data-icon="fact_check" type="button">Run preflight</button>
-                <button data-action="interfaces" data-icon="settings_ethernet" type="button">Select interface</button>
-                <button data-action="endpoint-sync" data-icon="sync_alt" type="button">Sync endpoint</button>
-                <button data-action="profiles" data-icon="list_alt" type="button">Profiles</button>
-                <button data-action="profile-add" data-icon="add_box" type="button">Add profile</button>
-                <button data-action="profile-edit" data-icon="edit" type="button">Edit active</button>
-                <button data-action="clear-status" data-icon="delete_sweep" class="danger" type="button">Clear status</button>
-                <button data-action="http-toggle" data-icon="http" type="button">HTTP/status</button>
-                <button data-action="tftp-toggle" data-icon="upload_file" type="button">TFTP</button>
-                <button data-action="dhcp-toggle" data-icon="router" class="danger" type="button">DHCP</button>
-                <button data-action="start-all" data-icon="play_arrow" class="danger" type="button">Start all</button>
-                <button data-action="stop-all" data-icon="stop" type="button">Stop all</button>
+              <div class="quick-actions-stack">
+                <div class="action-group primary-workflow">
+                  <button data-action="preflight" data-icon="fact_check" class="primary-action" type="button">Run preflight</button>
+                  <button data-action="endpoint-sync" data-icon="sync_alt" type="button">Sync endpoint</button>
+                </div>
+
+                <div class="action-group">
+                  <div class="action-group-label">Services</div>
+                  <div class="service-action-row">
+                    <button data-action="http-toggle" data-icon="http" class="service-toggle" type="button">HTTP/status</button>
+                    <button data-action="tftp-toggle" data-icon="upload_file" class="service-toggle" type="button">TFTP</button>
+                    <button data-action="dhcp-toggle" data-icon="router" class="service-toggle dhcp-toggle" type="button">DHCP</button>
+                  </div>
+                </div>
+
+                <div class="action-group batch-controls">
+                  <div class="action-group-label">Batch</div>
+                  <div class="batch-action-row">
+                    <button data-action="start-all" data-icon="play_arrow" class="danger" type="button">Start all</button>
+                    <button data-action="stop-all" data-icon="stop" type="button">Stop all</button>
+                  </div>
+                </div>
+
+                <div class="action-group">
+                  <div class="action-group-label">Manage</div>
+                  <div class="manage-action-row">
+                    <button data-action="interfaces" data-icon="settings_ethernet" type="button">Select interface</button>
+                    <div class="profile-actions-cluster">
+                      <button data-action="profiles" data-icon="list_alt" type="button">Profiles</button>
+                      <div class="profile-subactions">
+                        <button data-action="profile-add" data-icon="add" class="quiet-action" type="button">Add</button>
+                        <button data-action="profile-edit" data-icon="edit" class="quiet-action" type="button">Edit</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="quick-actions-danger">
+                  <button data-action="clear-status" data-icon="delete_sweep" class="danger" type="button">Clear status</button>
+                </div>
               </div>
             </section>
 

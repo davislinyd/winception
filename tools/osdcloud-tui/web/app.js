@@ -19,6 +19,7 @@ const elements = {
   endpointSummary: $('#endpoint-summary'),
   servicesGrid: $('#services-grid'),
   activeProfileDetails: $('#active-profile-details'),
+  preflightStatusBadge: $('#preflight-status-badge'),
   preflightList: $('#preflight-list'),
   clientsBody: $('#clients-body'),
   fleetCounts: $('#fleet-counts'),
@@ -302,14 +303,32 @@ function renderServices(appState) {
     elements.servicesGrid.append(row);
   }
 
-  setActionLabel('http-toggle', `${appState.services.http.running ? 'Stop' : 'Start'} HTTP/status`);
+  setActionLabel('http-toggle', `${appState.services.http.running ? 'Stop' : 'Start'} HTTP`);
   setActionLabel('tftp-toggle', `${appState.services.tftp.running ? 'Stop' : 'Start'} TFTP`);
   setActionLabel('dhcp-toggle', `${appState.services.dhcp.running ? 'Stop' : 'Start'} DHCP`);
+  setActionRunning('http-toggle', appState.services.http.running);
+  setActionRunning('tftp-toggle', appState.services.tftp.running);
+  setActionRunning('dhcp-toggle', appState.services.dhcp.running);
+  setActionDanger('dhcp-toggle', !appState.services.dhcp.running);
+  setActionDanger('start-all', Object.values(appState.services).some((service) => !service.running));
 }
 
 function setActionLabel(action, label) {
   $$(`[data-action="${action}"]`).forEach((button) => {
     button.textContent = label;
+  });
+}
+
+function setActionRunning(action, running) {
+  $$(`[data-action="${action}"]`).forEach((button) => {
+    button.classList.toggle('is-running', running);
+    button.dataset.running = running ? 'true' : 'false';
+  });
+}
+
+function setActionDanger(action, danger) {
+  $$(`[data-action="${action}"]`).forEach((button) => {
+    button.classList.toggle('danger', danger);
   });
 }
 
@@ -412,6 +431,50 @@ function renderChecks(element, checks, emptyText = 'No data observed yet.') {
     row.title = `${name.textContent}${detailText ? `\n${detailText}` : ''}`;
     row.append(name, detail);
     element.append(row);
+  }
+}
+
+function preflightStatus(checks) {
+  if (!checks?.length) {
+    return ['Not run', 'neutral'];
+  }
+  if (checks.some((check) => check.ok === false)) {
+    return ['Blocked', 'fail'];
+  }
+  if (checks.every((check) => check.ok === true)) {
+    return ['Ready', 'ok'];
+  }
+  return ['Review', 'working'];
+}
+
+function renderPreflightSummary(checks) {
+  elements.preflightList.replaceChildren();
+  const [label, status] = preflightStatus(checks);
+  elements.preflightStatusBadge.textContent = label;
+  elements.preflightStatusBadge.className = `status-pill ${status}`;
+  if (!checks?.length) {
+    const empty = document.createElement('div');
+    empty.className = 'preflight-empty';
+    empty.textContent = 'Run preflight to show endpoint readiness.';
+    elements.preflightList.append(empty);
+    return;
+  }
+  for (const check of checks) {
+    const statusName = check.ok === true ? 'ok' : check.ok === false ? 'fail' : 'unknown';
+    const row = document.createElement('div');
+    row.className = `preflight-row ${statusName}`;
+    const dot = document.createElement('span');
+    dot.className = `preflight-dot ${statusName}`;
+    dot.title = check.ok === true ? 'PASS' : check.ok === false ? 'FAIL' : 'REVIEW';
+    const name = document.createElement('strong');
+    name.textContent = text(check.name);
+    const detail = document.createElement('span');
+    const detailText = text(check.detail);
+    detail.textContent = detailText;
+    detail.title = detailText;
+    row.title = `${dot.title} ${name.textContent}${detailText ? `\n${detailText}` : ''}`;
+    row.append(dot, name, detail);
+    elements.preflightList.append(row);
   }
 }
 
@@ -810,7 +873,7 @@ function render() {
   renderEndpointSummary(appState);
   renderServices(appState);
   renderProfileSummary(appState);
-  renderChecks(elements.preflightList, appState.preflight, 'Run preflight to show endpoint readiness.');
+  renderPreflightSummary(appState.preflight);
   renderClients(appState);
   renderInterfaces(appState);
   renderProfiles(appState);
