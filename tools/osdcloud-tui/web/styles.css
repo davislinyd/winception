@@ -115,11 +115,16 @@ body {
 }
 
 .primary-workflow,
-.batch-action-row,
 .manage-action-row {
   display: grid;
   gap: 6px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.batch-action-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .service-action-row {
@@ -227,6 +232,11 @@ button.service-toggle {
 }
 
 button.service-toggle.is-running {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+button.all-services-toggle.is-running {
   border-color: var(--primary);
   color: var(--primary);
 }

@@ -310,12 +310,22 @@ function renderServices(appState) {
   setActionRunning('tftp-toggle', appState.services.tftp.running);
   setActionRunning('dhcp-toggle', appState.services.dhcp.running);
   setActionDanger('dhcp-toggle', !appState.services.dhcp.running);
-  setActionDanger('start-all', Object.values(appState.services).some((service) => !service.running));
+  const allServicesRunning = ['http', 'tftp', 'dhcp'].every((name) => appState.services[name]?.running);
+  setActionLabel('all-services-toggle', allServicesRunning ? 'Stop all services' : 'Start all services');
+  setActionIcon('all-services-toggle', allServicesRunning ? 'stop' : 'play_arrow');
+  setActionRunning('all-services-toggle', allServicesRunning);
+  setActionDanger('all-services-toggle', !allServicesRunning);
 }
 
 function setActionLabel(action, label) {
   $$(`[data-action="${action}"]`).forEach((button) => {
     button.textContent = label;
+  });
+}
+
+function setActionIcon(action, icon) {
+  $$(`[data-action="${action}"]`).forEach((button) => {
+    button.dataset.icon = icon;
   });
 }
 
@@ -1208,18 +1218,21 @@ async function handleAction(action) {
     if (ok) {
       await mutate('/api/services/dhcp/start');
     }
-  } else if (action === 'start-all') {
+  } else if (action === 'all-services-toggle') {
+    const allServicesRunning = ['http', 'tftp', 'dhcp'].every((name) => services[name]?.running);
+    if (allServicesRunning) {
+      await mutate('/api/services/stop-all');
+      return;
+    }
     const ok = await confirmAction({
       title: 'Start all services',
       message: 'Confirm the real LAN DHCP server is disabled before starting HTTP/status, TFTP, and DHCP.',
-      confirmLabel: 'Start all',
+      confirmLabel: 'Start all services',
       danger: true,
     });
     if (ok) {
       await mutate('/api/services/start-all');
     }
-  } else if (action === 'stop-all') {
-    await mutate('/api/services/stop-all');
   } else if (action === 'clear-status') {
     const ok = await confirmAction({
       title: 'Clear status files',

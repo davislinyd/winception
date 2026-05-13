@@ -32,6 +32,18 @@ test('web UI uses confirmation dialog instead of window confirm', () => {
   assert.doesNotMatch(script, /window\.confirm/);
 });
 
+test('web UI uses a single stateful all-services toggle', () => {
+  const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
+  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+
+  assert.match(html, /data-action="all-services-toggle"/);
+  assert.doesNotMatch(html, /data-action="start-all"/);
+  assert.doesNotMatch(html, /data-action="stop-all"/);
+  assert.match(script, /action === 'all-services-toggle'/);
+  assert.match(script, /Stop all services/);
+  assert.match(script, /Start all services/);
+});
+
 test('web UI keeps local Stitch-style component layer', () => {
   const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
   const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
