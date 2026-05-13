@@ -469,7 +469,22 @@ function renderPreflightSummary(checks) {
     elements.preflightList.append(empty);
     return;
   }
-  for (const check of checks) {
+
+  const issues = checks
+    .filter((check) => check.ok !== true)
+    .sort((a, b) => {
+      if (a.ok === false && b.ok !== false) {
+        return -1;
+      }
+      if (a.ok !== false && b.ok === false) {
+        return 1;
+      }
+      return 0;
+    });
+  const passedCount = checks.filter((check) => check.ok === true).length;
+  const rows = issues.length ? issues : [];
+
+  for (const check of rows) {
     const statusName = check.ok === true ? 'ok' : check.ok === false ? 'fail' : 'unknown';
     const row = document.createElement('div');
     row.className = `preflight-row ${statusName}`;
@@ -485,6 +500,18 @@ function renderPreflightSummary(checks) {
     row.title = `${dot.title} ${name.textContent}${detailText ? `\n${detailText}` : ''}`;
     row.append(dot, name, detail);
     elements.preflightList.append(row);
+  }
+
+  if (passedCount > 0 || !issues.length) {
+    const summary = document.createElement('div');
+    summary.className = 'preflight-row summary ok';
+    const dot = document.createElement('span');
+    dot.className = 'preflight-dot ok';
+    dot.title = 'PASS';
+    const detail = document.createElement('span');
+    detail.textContent = issues.length ? `${passedCount} checks passed` : `All ${passedCount} checks passed`;
+    summary.append(dot, detail);
+    elements.preflightList.append(summary);
   }
 }
 
