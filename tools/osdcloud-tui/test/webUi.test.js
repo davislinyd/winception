@@ -7,6 +7,7 @@ const webRoot = path.resolve('tools', 'osdcloud-tui', 'web');
 
 test('web UI exposes dashboard view topology', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
+  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
 
   assert.match(html, /id="tailwind-config"/);
   assert.match(html, /cdn\.tailwindcss\.com\?plugins=forms,container-queries/);
@@ -16,11 +17,23 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /dashboard-status-column/);
   assert.match(html, /dashboard-log-column/);
   assert.match(html, /id="view-dashboard"/);
-  assert.match(html, /id="view-endpoints"/);
-  assert.match(html, /id="view-sync"/);
-  assert.match(html, /id="view-validation"/);
-  assert.match(html, /Client Validation Evidence/);
+  assert.doesNotMatch(html, /id="view-endpoints"/);
+  assert.doesNotMatch(html, /id="view-sync"/);
+  assert.doesNotMatch(html, /id="view-validation"/);
+  assert.doesNotMatch(html, /class="nav-button/);
+  assert.doesNotMatch(html, /data-view=/);
+  assert.match(html, /id="endpoint-settings-dialog"/);
+  assert.match(html, /id="deployment-profiles-dialog"/);
+  assert.match(html, /id="validation-evidence-dialog"/);
+  assert.match(html, /Endpoint Sync Progress/);
+  assert.match(html, /Validation Evidence/);
   assert.match(html, /Refresh Evidence/);
+  assert.doesNotMatch(script, /switchView\(/);
+  assert.match(script, /openDialog\(elements\.endpointSettingsDialog\)/);
+  assert.match(script, /openDialog\(elements\.deploymentProfilesDialog\)/);
+  assert.match(script, /openDialog\(elements\.validationEvidenceDialog\)/);
+  assert.match(script, /dataset\.runAction = 'evidence'/);
+  assert.match(script, /showValidationEvidence/);
   assert.match(html, /Material\+Symbols\+Outlined/);
   assert.match(html, /Inter:wght@400;500;600/);
   assert.match(html, />Operations</);

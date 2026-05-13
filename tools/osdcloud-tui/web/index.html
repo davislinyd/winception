@@ -88,11 +88,6 @@
         <span id="product-title">OSDCloud Host Console</span>
         <span id="app-version"></span>
       </div>
-      <nav class="flex items-end h-full gap-lg" aria-label="Primary">
-        <button class="nav-button active" data-view="dashboard" type="button">Dashboard</button>
-        <button class="nav-button" data-view="endpoints" type="button">Endpoints &amp; Profiles</button>
-        <button class="nav-button" data-view="validation" type="button">Validation</button>
-      </nav>
     </div>
     <div class="flex items-center gap-md">
       <span id="endpoint-line" class="font-technical-string text-technical-string text-on-surface-variant">Loading endpoint...</span>
@@ -128,6 +123,28 @@
 
           <div class="dashboard-status-column col-span-12 xl:col-span-7 flex flex-col gap-sm">
             <section id="endpoint-summary" class="bg-surface-container-lowest border border-outline-variant rounded p-sm flex flex-wrap gap-md items-center font-technical-string text-technical-string" aria-label="Endpoint summary"></section>
+
+            <section class="sync-progress-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
+              <div class="panel-title-row">
+                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Endpoint Sync Progress</h3>
+                <span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span>
+              </div>
+              <div id="sync-action-items" class="sync-action-summary font-log-entry text-log-entry"></div>
+              <details class="sync-output-details">
+                <summary>Sequence and process output</summary>
+                <div class="sync-progress-grid">
+                  <section>
+                    <h4>Target</h4>
+                    <dl id="sync-progress-target" class="stitch-details"></dl>
+                  </section>
+                  <section>
+                    <h4>Sequence</h4>
+                    <div id="sync-progress-steps" class="flex flex-col gap-sm"></div>
+                  </section>
+                </div>
+                <pre id="sync-output" class="font-log-entry text-log-entry text-on-surface-variant"></pre>
+              </details>
+            </section>
 
             <div class="dashboard-status-summary grid grid-cols-4 gap-sm">
               <section class="status-profile-panel col-span-4 lg:col-span-1 bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
@@ -181,189 +198,148 @@
         </div>
       </section>
 
-      <section id="view-endpoints" class="view flex-col gap-md" aria-labelledby="endpoints-title">
-        <div class="flex justify-between items-center">
-          <div>
-            <h1 id="endpoints-title" class="font-h1 text-h1 text-primary">Endpoints &amp; Profiles</h1>
-            <p class="font-body-sm text-body-sm text-on-surface-variant">Service interface selection, endpoint synchronization, deployment profiles, and payload preflight.</p>
-          </div>
-          <button data-action="reload-endpoints" data-icon="refresh" type="button">Refresh endpoints</button>
-        </div>
-
-        <div class="flex flex-col md:flex-row gap-md overflow-hidden">
-          <div class="flex-1 flex flex-col gap-md overflow-y-auto">
-            <section class="bg-surface border border-outline-variant rounded-DEFAULT flex flex-col overflow-hidden">
-              <div class="bg-surface-container-high px-md py-sm border-b border-outline-variant flex justify-between items-center">
-                <h2 class="font-h2 text-h2 text-on-surface">Service Interface Selection</h2>
-                <span id="pending-interface-label" class="font-technical-string text-technical-string text-on-surface-variant"></span>
-              </div>
-              <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                  <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider">
-                    <tr>
-                      <th class="p-table-cell-padding font-medium">Interface</th>
-                      <th class="p-table-cell-padding font-medium">Subnet</th>
-                      <th class="p-table-cell-padding font-medium">Role</th>
-                      <th class="p-table-cell-padding font-medium">Gateway</th>
-                      <th class="p-table-cell-padding font-medium">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody id="interfaces-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
-                </table>
-              </div>
-            </section>
-
-            <section class="bg-surface border border-outline-variant rounded-DEFAULT flex flex-col flex-1 min-h-[300px]">
-              <div class="bg-surface-container-high px-md py-sm border-b border-outline-variant flex justify-between items-center flex-wrap gap-sm">
-                <h2 class="font-h2 text-h2 text-on-surface">Deployment Profile Management</h2>
-                <div class="flex gap-sm">
-                  <button data-action="profile-add" data-icon="add" type="button">Add profile</button>
-                  <button data-action="profile-edit" data-icon="edit" type="button">Edit active</button>
-                  <button data-action="profile-delete" data-icon="delete" class="danger" type="button">Delete inactive</button>
-                </div>
-              </div>
-              <div class="overflow-x-auto flex-1">
-                <table class="w-full text-left border-collapse h-full">
-                  <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider sticky top-0">
-                    <tr>
-                      <th class="p-table-cell-padding font-medium w-12 text-center">Status</th>
-                      <th class="p-table-cell-padding font-medium">ID</th>
-                      <th class="p-table-cell-padding font-medium">Profile Name</th>
-                      <th class="p-table-cell-padding font-medium">Software Payload</th>
-                      <th class="p-table-cell-padding font-medium">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody id="profiles-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
-                </table>
-              </div>
-            </section>
-
-            <section class="bg-surface border border-outline-variant rounded-DEFAULT p-sm flex flex-col gap-xs">
-              <div class="flex items-center gap-xs text-on-surface text-[12px] font-medium mb-unit">
-                <span class="material-symbols-outlined text-[16px] text-primary">fact_check</span> Payload Preflight Summary
-              </div>
-              <dl id="payload-summary" class="stitch-details"></dl>
-              <div id="payload-checks" class="bg-surface-container-lowest border border-outline-variant rounded-[2px] p-unit font-log-entry text-log-entry text-on-surface-variant space-y-1"></div>
-            </section>
-          </div>
-
-          <aside class="w-full md:w-80 flex flex-col gap-md">
-            <section class="bg-surface border border-outline-variant rounded-DEFAULT flex flex-col overflow-hidden">
-              <div class="bg-surface-container-high px-md py-sm border-b border-outline-variant">
-                <h3 class="font-h2 text-h2 text-on-surface leading-tight">Endpoint Sync</h3>
-              </div>
-              <div class="p-md flex flex-col gap-md">
-                <dl id="sync-target" class="stitch-details"></dl>
-                <div id="sync-checklist" class="flex flex-col gap-sm"></div>
-                <button data-action="endpoint-sync" data-icon="sync" type="button">Sync endpoint</button>
-              </div>
-            </section>
-          </aside>
-        </div>
-      </section>
-
-      <section id="view-sync" class="view flex-col gap-lg" aria-labelledby="sync-title">
-        <div class="flex justify-between items-end border-b border-outline-variant pb-md">
-          <div>
-            <h1 id="sync-title" class="font-h1 text-h1 text-primary uppercase">Endpoint Sync Progress</h1>
-            <p id="sync-progress-subtitle" class="font-body-sm text-body-sm text-on-surface-variant">Target endpoint is selected from live configuration.</p>
-          </div>
-          <button data-view="endpoints" data-icon="arrow_back" type="button">Back to Endpoints</button>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-md">
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Target Summary</h2>
-            </div>
-            <div class="p-md"><dl id="sync-progress-target" class="stitch-details"></dl></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col lg:col-span-2">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Sequence Checklist</h2>
-            </div>
-            <div id="sync-progress-steps" class="p-md flex flex-col gap-sm"></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Action Items</h2>
-            </div>
-            <div id="sync-action-items" class="p-md font-log-entry text-log-entry flex flex-col gap-xs"></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col lg:col-span-2">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Process Output</h2>
-            </div>
-            <pre id="sync-output" class="font-log-entry text-log-entry text-on-surface-variant p-md overflow-auto min-h-[240px]"></pre>
-          </section>
-        </div>
-      </section>
-
-      <section id="view-validation" class="view flex-col gap-lg" aria-labelledby="validation-title">
-        <div class="flex justify-between items-end border-b border-outline-variant pb-md">
-          <div>
-            <h1 id="validation-title" class="font-h1 text-h1 text-primary uppercase">Client Validation Evidence</h1>
-            <div class="flex items-center gap-md mt-sm">
-              <span class="font-ui-label text-ui-label text-on-surface-variant">Run ID:</span>
-              <span id="validation-run-id" class="font-technical-string text-technical-string bg-surface-container px-sm py-xs rounded border border-outline-variant">-</span>
-            </div>
-          </div>
-          <button data-action="refresh-evidence" data-icon="refresh" type="button">Refresh Evidence</button>
-        </div>
-
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-md">
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Selected Run</h2>
-            </div>
-            <div class="p-md"><dl id="validation-run-summary" class="stitch-details"></dl></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Target System Evidence</h2>
-            </div>
-            <div class="p-md"><dl id="target-evidence" class="stitch-details"></dl></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Run Timing</h2>
-            </div>
-            <div class="p-md"><dl id="run-timing" class="stitch-details"></dl></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Screenshot Evidence</h2>
-            </div>
-            <div class="p-md"><dl id="screenshot-evidence" class="stitch-details"></dl></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">iPXE Evidence No-Redownload</h2>
-            </div>
-            <div class="p-md"><dl id="ipxe-evidence" class="stitch-details"></dl></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">HTTP Evidence</h2>
-            </div>
-            <div id="http-evidence" class="p-md font-log-entry text-log-entry flex flex-col gap-xs"></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col xl:col-span-2">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Event Timeline</h2>
-            </div>
-            <div id="event-timeline" class="p-md flex flex-col gap-xs max-h-[380px] overflow-auto"></div>
-          </section>
-          <section class="bg-surface border border-outline-variant rounded flex flex-col">
-            <div class="bg-surface-container-highest px-md py-sm border-b border-outline-variant">
-              <h2 class="font-ui-label text-ui-label uppercase text-secondary">Validation Checks</h2>
-            </div>
-            <div id="validation-list" class="p-md font-log-entry text-log-entry flex flex-col gap-xs"></div>
-          </section>
-        </div>
-      </section>
     </main>
   </div>
+
+  <dialog id="endpoint-settings-dialog" class="drawer-dialog">
+    <form method="dialog" class="dialog-card drawer-card">
+      <div class="dialog-header">
+        <h3>Endpoint Settings</h3>
+        <button value="cancel" type="submit">Close</button>
+      </div>
+      <div class="drawer-body">
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Service Interface Selection</h4>
+            <div class="drawer-actions">
+              <span id="pending-interface-label" class="font-technical-string text-technical-string text-on-surface-variant"></span>
+              <button data-action="reload-endpoints" data-icon="refresh" type="button">Refresh endpoints</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th class="p-table-cell-padding font-medium">Interface</th>
+                  <th class="p-table-cell-padding font-medium">Subnet</th>
+                  <th class="p-table-cell-padding font-medium">Role</th>
+                  <th class="p-table-cell-padding font-medium">Gateway</th>
+                  <th class="p-table-cell-padding font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody id="interfaces-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Endpoint Sync</h4>
+            <button data-action="endpoint-sync" data-icon="sync" type="button">Sync endpoint</button>
+          </div>
+          <div class="drawer-two-column">
+            <dl id="sync-target" class="stitch-details"></dl>
+            <div id="sync-checklist" class="flex flex-col gap-sm"></div>
+          </div>
+        </section>
+
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Payload Preflight Summary</h4>
+          </div>
+          <dl id="payload-summary" class="stitch-details"></dl>
+          <div id="payload-checks" class="bg-surface-container-lowest border border-outline-variant rounded-[2px] p-unit font-log-entry text-log-entry text-on-surface-variant space-y-1"></div>
+        </section>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="deployment-profiles-dialog" class="drawer-dialog">
+    <form method="dialog" class="dialog-card drawer-card">
+      <div class="dialog-header">
+        <h3>Deployment Profiles</h3>
+        <button value="cancel" type="submit">Close</button>
+      </div>
+      <div class="drawer-body">
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Profile Management</h4>
+            <div class="drawer-actions">
+              <button data-action="profile-add" data-icon="add" type="button">Add profile</button>
+              <button data-action="profile-edit" data-icon="edit" type="button">Edit active</button>
+              <button data-action="profile-delete" data-icon="delete" class="danger" type="button">Delete inactive</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th class="p-table-cell-padding font-medium w-12 text-center">Status</th>
+                  <th class="p-table-cell-padding font-medium">ID</th>
+                  <th class="p-table-cell-padding font-medium">Profile Name</th>
+                  <th class="p-table-cell-padding font-medium">Software Payload</th>
+                  <th class="p-table-cell-padding font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody id="profiles-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="validation-evidence-dialog" class="drawer-dialog">
+    <form method="dialog" class="dialog-card drawer-card drawer-card-wide">
+      <div class="dialog-header">
+        <div>
+          <h3>Validation Evidence</h3>
+          <div class="drawer-subtitle">
+            <span>Run ID:</span>
+            <span id="validation-run-id" class="font-technical-string text-technical-string bg-surface-container px-sm py-xs rounded border border-outline-variant">-</span>
+          </div>
+        </div>
+        <div class="drawer-actions">
+          <button data-action="refresh-evidence" data-icon="refresh" type="button">Refresh Evidence</button>
+          <button value="cancel" type="submit">Close</button>
+        </div>
+      </div>
+      <div class="drawer-body validation-evidence-grid">
+        <section class="drawer-section">
+          <h4>Selected Run</h4>
+          <dl id="validation-run-summary" class="stitch-details"></dl>
+        </section>
+        <section class="drawer-section">
+          <h4>Target System Evidence</h4>
+          <dl id="target-evidence" class="stitch-details"></dl>
+        </section>
+        <section class="drawer-section">
+          <h4>Run Timing</h4>
+          <dl id="run-timing" class="stitch-details"></dl>
+        </section>
+        <section class="drawer-section">
+          <h4>Screenshot Evidence</h4>
+          <dl id="screenshot-evidence" class="stitch-details"></dl>
+        </section>
+        <section class="drawer-section">
+          <h4>iPXE Evidence No-Redownload</h4>
+          <dl id="ipxe-evidence" class="stitch-details"></dl>
+        </section>
+        <section class="drawer-section">
+          <h4>HTTP Evidence</h4>
+          <div id="http-evidence" class="font-log-entry text-log-entry flex flex-col gap-xs"></div>
+        </section>
+        <section class="drawer-section validation-timeline-section">
+          <h4>Event Timeline</h4>
+          <div id="event-timeline" class="flex flex-col gap-xs max-h-[380px] overflow-auto"></div>
+        </section>
+        <section class="drawer-section">
+          <h4>Validation Checks</h4>
+          <div id="validation-list" class="font-log-entry text-log-entry flex flex-col gap-xs"></div>
+        </section>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="picker-dialog">
     <form method="dialog" class="dialog-card">

@@ -1,10 +1,10 @@
 const state = {
   current: null,
-  view: 'dashboard',
   selectedRunId: null,
   pendingInterface: null,
   interfaces: [],
   busy: false,
+  clientFleetSignature: '',
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -36,6 +36,9 @@ const elements = {
   syncProgressSteps: $('#sync-progress-steps'),
   syncActionItems: $('#sync-action-items'),
   syncOutput: $('#sync-output'),
+  endpointSettingsDialog: $('#endpoint-settings-dialog'),
+  deploymentProfilesDialog: $('#deployment-profiles-dialog'),
+  validationEvidenceDialog: $('#validation-evidence-dialog'),
   validationRunId: $('#validation-run-id'),
   validationRunSummary: $('#validation-run-summary'),
   targetEvidence: $('#target-evidence'),
@@ -188,13 +191,15 @@ function setControlsDisabled(disabled) {
   });
 }
 
-function switchView(view) {
-  state.view = view;
-  $$('.view').forEach((element) => element.classList.toggle('active', element.id === `view-${view}`));
-  $$('.nav-button').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
-  render();
-  if (view === 'endpoints' && state.interfaces.length === 0) {
-    loadInterfaces().catch((error) => window.alert(error.message));
+function openDialog(dialog) {
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+}
+
+function closeDialog(dialog) {
+  if (dialog.open) {
+    dialog.close();
   }
 }
 
@@ -393,25 +398,75 @@ function renderProfileSummary(appState) {
   elements.activeProfileDetails.append(name, description, software);
 }
 
+function showValidationEvidence(runId) {
+  if (!runId) {
+    return;
+  }
+  state.selectedRunId = runId;
+  openDialog(elements.validationEvidenceDialog);
+  refresh().catch((error) => window.alert(error.message));
+}
+
+function openValidationEvidenceFromTarget(target) {
+  const origin = target instanceof Element ? target : target?.parentElement;
+  if (!origin) {
+    return false;
+  }
+  const evidenceTarget = origin.closest('[data-run-action="evidence"]');
+  if (!evidenceTarget) {
+    return false;
+  }
+  const runId = evidenceTarget.dataset.runId ?? evidenceTarget.closest('[data-run-id]')?.dataset.runId;
+  if (!runId) {
+    return false;
+  }
+  showValidationEvidence(runId);
+  return true;
+}
+
 function renderClients(appState) {
   const counts = appState.fleet?.counts ?? {};
   elements.fleetCounts.textContent = `total=${appState.fleet?.total ?? 0} running=${counts.running ?? 0} completed=${counts.completed ?? 0} failed=${counts.failed ?? 0}`;
-  elements.clientsBody.replaceChildren();
   const runs = appState.fleet?.runs ?? [];
+  const fleetSignature = JSON.stringify({
+    selectedRunId: state.selectedRunId,
+    runs: runs.map((run) => [
+      run.status,
+      run.clientId,
+      run.runId,
+      run.latestStage,
+      run.latestPercent,
+      run.lastReceivedAt,
+      run.elapsedSeconds,
+    ]),
+  });
+  if (state.clientFleetSignature === fleetSignature && elements.clientsBody.childElementCount) {
+    return;
+  }
+  state.clientFleetSignature = fleetSignature;
+  elements.clientsBody.replaceChildren();
   for (const run of runs) {
     const tr = document.createElement('tr');
     tr.className = 'clickable';
-    if (run.runId === appState.selectedRunId) {
+    tr.dataset.action = 'run-evidence';
+    tr.dataset.runAction = 'evidence';
+    tr.dataset.runId = run.runId;
+    tr.title = `Open validation evidence for ${run.runId}`;
+    if (run.runId === state.selectedRunId) {
       tr.classList.add('selected');
     }
-    tr.addEventListener('click', () => {
-      state.selectedRunId = run.runId;
-      switchView('validation');
-      refresh().catch((error) => window.alert(error.message));
-    });
 
     const statusCell = document.createElement('td');
+    statusCell.className = 'status-evidence-cell';
     statusCell.append(makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : 'working'));
+    const viewButton = document.createElement('button');
+    viewButton.type = 'button';
+    viewButton.textContent = 'View';
+    viewButton.dataset.action = 'run-evidence';
+    viewButton.dataset.icon = 'fact_check';
+    viewButton.dataset.runAction = 'evidence';
+    viewButton.dataset.runId = run.runId;
+    statusCell.append(viewButton);
     tr.append(statusCell);
     for (const value of [
       run.clientId,
@@ -1156,7 +1211,7 @@ async function confirmEndpointSync(choice) {
     return;
   }
   state.pendingInterface = choice;
-  switchView('sync');
+  closeDialog(elements.endpointSettingsDialog);
   await mutate('/api/endpoint', choice);
 }
 
@@ -1186,13 +1241,16 @@ async function handleProfileSelect(profile) {
   }
 }
 
-async function handleAction(action) {
+async function handleAction(action, source = null) {
   const services = state.current?.services ?? {};
-  if (action === 'preflight') {
+  if (action === 'run-evidence') {
+    const runId = source?.dataset?.runId ?? source?.closest?.('[data-run-id]')?.dataset?.runId;
+    showValidationEvidence(runId);
+  } else if (action === 'preflight') {
     await mutate('/api/preflight');
   } else if (action === 'interfaces') {
-    switchView('endpoints');
     await loadInterfaces();
+    openDialog(elements.endpointSettingsDialog);
   } else if (action === 'reload-endpoints') {
     await Promise.all([refresh(), loadInterfaces()]);
   } else if (action === 'endpoint-sync') {
@@ -1202,12 +1260,12 @@ async function handleAction(action) {
     const choice = state.pendingInterface ?? currentInterfaceChoice();
     if (!choice) {
       window.alert('Select a service interface before syncing the endpoint.');
-      switchView('endpoints');
+      openDialog(elements.endpointSettingsDialog);
       return;
     }
     await confirmEndpointSync(choice);
   } else if (action === 'profiles') {
-    switchView('endpoints');
+    openDialog(elements.deploymentProfilesDialog);
   } else if (action === 'profile-add') {
     const payload = await api('/api/profiles');
     const input = await showAddProfileDialog(payload.profile);
@@ -1295,13 +1353,16 @@ async function handleAction(action) {
 }
 
 document.addEventListener('click', (event) => {
-  const viewButton = event.target.closest('[data-view]');
-  if (viewButton) {
-    switchView(viewButton.dataset.view);
+  const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+  if (!target) {
+    return;
+  }
+  if (openValidationEvidenceFromTarget(target)) {
+    event.preventDefault();
     return;
   }
 
-  const interfaceButton = event.target.closest('[data-interface-action]');
+  const interfaceButton = target.closest('[data-interface-action]');
   if (interfaceButton) {
     const item = state.interfaces[Number(interfaceButton.dataset.interfaceIndex)];
     if (!item) {
@@ -1315,7 +1376,7 @@ document.addEventListener('click', (event) => {
     return;
   }
 
-  const profileButton = event.target.closest('[data-profile-action]');
+  const profileButton = target.closest('[data-profile-action]');
   if (profileButton) {
     const profile = state.current?.profile?.profiles?.find((item) => item.id === profileButton.dataset.profileId);
     if (!profile) {
@@ -1331,9 +1392,9 @@ document.addEventListener('click', (event) => {
     return;
   }
 
-  const actionButton = event.target.closest('[data-action]');
+  const actionButton = target.closest('[data-action]');
   if (actionButton) {
-    handleAction(actionButton.dataset.action).catch((error) => window.alert(error.message));
+    handleAction(actionButton.dataset.action, actionButton).catch((error) => window.alert(error.message));
   }
 });
 
@@ -1341,7 +1402,15 @@ document.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' && event.key !== ' ') {
     return;
   }
-  const serviceCard = event.target.closest('.service-card-action[data-action]');
+  const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+  if (!target) {
+    return;
+  }
+  if (openValidationEvidenceFromTarget(target)) {
+    event.preventDefault();
+    return;
+  }
+  const serviceCard = target.closest('.service-card-action[data-action]');
   if (!serviceCard) {
     return;
   }
