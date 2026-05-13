@@ -304,9 +304,16 @@ function renderServices(appState) {
     const address = document.createElement('code');
     address.className = 'service-address';
     address.textContent = serviceAddress(service);
+    const footer = document.createElement('div');
+    footer.className = 'service-card-footer';
+    const cardAction = document.createElement('span');
+    cardAction.className = 'service-card-cta';
+    cardAction.dataset.icon = service.running ? 'stop' : 'play_arrow';
+    cardAction.textContent = actionLabel;
     const switchVisual = document.createElement('div');
     switchVisual.className = `service-switch${service.running ? ' running' : ''}`;
-    row.append(head, address, switchVisual);
+    footer.append(cardAction, switchVisual);
+    row.append(head, address, footer);
     elements.servicesGrid.append(row);
   }
 

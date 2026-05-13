@@ -62,7 +62,11 @@ test('web UI makes service cards stateful toggles', () => {
   assert.match(script, /'tftp-toggle'/);
   assert.match(script, /'dhcp-toggle'/);
   assert.match(script, /button\[data-action="\$\{action\}"\]/);
+  assert.match(script, /cardAction\.className = 'service-card-cta'/);
+  assert.match(script, /cardAction\.dataset\.icon = service\.running \? 'stop' : 'play_arrow'/);
   assert.match(script, /service-card-action\[data-action\]/);
+  assert.match(styles, /\.service-card-cta/);
+  assert.match(styles, /\.service-card\[data-service-state="stopped"\] \.service-switch/);
   assert.match(styles, /\.service-card-action:hover/);
   assert.match(styles, /\.service-card-action:focus-visible/);
 });

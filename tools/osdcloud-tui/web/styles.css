@@ -329,12 +329,57 @@ button[data-icon]::before {
   margin-top: 12px;
 }
 
+.service-card-footer {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 12px;
+  min-width: 0;
+}
+
+.service-card-cta {
+  align-items: center;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 2px;
+  color: var(--on-primary);
+  display: inline-flex;
+  flex: 1 1 auto;
+  font: 600 12px/16px Inter, sans-serif;
+  gap: 4px;
+  justify-content: center;
+  min-height: 26px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-card-cta::before {
+  content: attr(data-icon);
+  direction: ltr;
+  flex: 0 0 auto;
+  font-family: "Material Symbols Outlined";
+  font-size: 15px;
+  font-weight: normal;
+  line-height: 1;
+  text-transform: none;
+}
+
+.service-card[data-service-state="running"] .service-card-cta {
+  background: var(--surface-container-lowest);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 .service-switch {
-  align-self: flex-end;
+  flex: 0 0 auto;
   background: var(--surface-variant);
+  border: 1px solid transparent;
   border-radius: 9999px;
   height: 16px;
-  margin-top: 12px;
   position: relative;
   width: 32px;
 }
@@ -352,6 +397,11 @@ button[data-icon]::before {
 
 .service-switch.running {
   background: var(--primary);
+}
+
+.service-card[data-service-state="stopped"] .service-switch {
+  background: var(--primary-fixed);
+  border-color: var(--primary);
 }
 
 .service-switch.running::after {
