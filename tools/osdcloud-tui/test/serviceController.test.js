@@ -142,6 +142,7 @@ test('deployment profile management actions create, update active software, and 
     let createdInput = null;
     let updatedSoftwareIds = [];
     let updatedName = null;
+    let updatedDescription = null;
     let deletedProfileId = null;
     const { controller, services } = makeController(root, {
       dependencies: {
@@ -154,11 +155,17 @@ test('deployment profile management actions create, update active software, and 
         },
         updateDeploymentProfile(_config, profileId, input) {
           updatedName = input.name;
+          updatedDescription = input.description;
           if (input.softwareIds !== undefined) {
             updatedSoftwareIds = input.softwareIds;
           }
           return {
-            profile: { id: profileId, name: input.name ?? 'Default', description: '', softwareIds: updatedSoftwareIds },
+            profile: {
+              id: profileId,
+              name: input.name ?? 'Default',
+              description: input.description ?? '',
+              softwareIds: updatedSoftwareIds,
+            },
             filePath: path.join(root, `${profileId}.json`),
           };
         },
@@ -179,16 +186,22 @@ test('deployment profile management actions create, update active software, and 
       },
     });
 
-    const created = await controller.addDeploymentProfile({ name: 'Field' });
-    assert.deepEqual(createdInput, { name: 'Field' });
+    const created = await controller.addDeploymentProfile({ name: 'Field', description: 'Field laptops' });
+    assert.deepEqual(createdInput, { name: 'Field', description: 'Field laptops' });
     assert.equal(created.profile.id, 'AAAAAAA0');
 
     await controller.startAll();
-    const updated = await controller.updateActiveDeploymentProfile({ name: 'Renamed', softwareIds: ['chrome'] });
+    const updated = await controller.updateActiveDeploymentProfile({
+      name: 'Renamed',
+      description: 'Updated active profile',
+      softwareIds: ['chrome'],
+    });
     assert.equal(updatedName, 'Renamed');
+    assert.equal(updatedDescription, 'Updated active profile');
     assert.deepEqual(updatedSoftwareIds, ['chrome']);
     assert.equal(updated.profile.id, 'default');
     assert.equal(updated.profile.name, 'Renamed');
+    assert.equal(updated.profile.description, 'Updated active profile');
     assert.equal(updated.preflight[0].ok, true);
     assert.equal(services.http.running, false);
     assert.equal(services.tftp.running, false);

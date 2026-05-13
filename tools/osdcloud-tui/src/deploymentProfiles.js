@@ -89,6 +89,10 @@ function normalizeProfileName(value, label = 'Deployment profile name') {
   return name;
 }
 
+function normalizeProfileDescription(value) {
+  return String(value ?? '').trim();
+}
+
 function resolveConfiguredPath(root, value) {
   if (!value) {
     return value;
@@ -316,13 +320,16 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
     name,
     software: softwareIds,
   };
+  if (input.description !== undefined) {
+    raw.description = normalizeProfileDescription(input.description);
+  }
   writeJson(filePath, raw);
 
   return {
     profile: {
       id,
       name,
-      description: '',
+      description: raw.description ?? '',
       softwareIds,
       filePath,
     },
@@ -355,12 +362,16 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   raw.id = id;
   raw.name = name;
   raw.software = selectedIds;
+  if (input.description !== undefined) {
+    raw.description = normalizeProfileDescription(input.description);
+  }
   writeJson(filePath, raw);
 
   return {
     profile: {
       ...profile,
       name,
+      description: String(raw.description ?? ''),
       softwareIds: selectedIds,
     },
     filePath,

@@ -89,11 +89,16 @@ async function makeServer(root) {
         ],
       }),
       createDeploymentProfile: (_config, input) => ({
-        profile: { id: 'AAAAAAA0', name: input.name, description: '', softwareIds: [] },
+        profile: { id: 'AAAAAAA0', name: input.name, description: input.description ?? '', softwareIds: [] },
         filePath: path.join(root, 'AAAAAAA0.json'),
       }),
       updateDeploymentProfile: (_config, profileId, input) => ({
-        profile: { id: profileId, name: input.name ?? 'Default', description: '', softwareIds: input.softwareIds },
+        profile: {
+          id: profileId,
+          name: input.name ?? 'Default',
+          description: input.description ?? '',
+          softwareIds: input.softwareIds,
+        },
         filePath: path.join(root, `${profileId}.json`),
       }),
       publishDeploymentProfile: (_config, profileId) => ({
@@ -164,22 +169,34 @@ test('runs mutating API actions through the controller', async () => {
     response = await fetch(`${base}/api/profiles/create`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Field' }),
+      body: JSON.stringify({ name: 'Field', description: 'Field laptops' }),
     });
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.id, 'AAAAAAA0');
     assert.equal(payload.result.profile.name, 'Field');
+    assert.equal(payload.result.profile.description, 'Field laptops');
 
     response = await fetch(`${base}/api/profile/software`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Renamed Default', softwareIds: ['chrome'] }),
+      body: JSON.stringify({ name: 'Renamed Default', description: 'Chrome build', softwareIds: ['chrome'] }),
     });
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.name, 'Renamed Default');
+    assert.equal(payload.result.profile.description, 'Chrome build');
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome']);
+
+    response = await fetch(`${base}/api/profile/software`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Legacy Default', softwareIds: [] }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.profile.name, 'Legacy Default');
+    assert.deepEqual(payload.result.profile.softwareIds, []);
 
     response = await fetch(`${base}/api/profiles/delete`, {
       method: 'POST',

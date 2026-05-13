@@ -405,6 +405,17 @@ config\osdcloud-tui.json
 
 Use the Web console first for the active physical-laptop path unless the user explicitly requests TUI or lower-level helper scripts. Web and TUI own the host-side DHCP responder, TFTP responder, HTTP media/status server, live status display, log tailing, and validation summary.
 
+Current Web layout implementation:
+
+- As of 2026-05-13, the local Web console layout is based on Google Stitch project `8339077576655082414`, not an independently designed local component system.
+- The effective Stitch implementation source is the FINAL screen set: `FINAL - Operations Dashboard`, `FINAL - Endpoints & Profiles`, `FINAL - Endpoint Sync Progress`, `FINAL - Add Deployment Profile Modal`, `FINAL - Edit Active Profile Modal`, and `FINAL - Client Validation Evidence (Optimized)`. The older `FINAL - Client Validation Evidence` screen is superseded reference only.
+- `tools\osdcloud-tui\web\index.html` keeps the Stitch generated HTML/Tailwind utility structure, inline `tailwind-config`, Inter / JetBrains Mono fonts, Material Symbols, top nav, endpoint bar, 12-column dashboard grid, dense cards, tables, dialogs, and validation evidence grouping.
+- `tools\osdcloud-tui\web\styles.css` is only a thin local fallback and interaction layer for dialog behavior, stateful live-rendered nodes, status badges, switches, and no-network visual fallback. Do not rebuild a separate panel/card design system over the Stitch utility DOM.
+- `tools\osdcloud-tui\web\app.js` owns live data binding only. It must fill the Stitch-shaped DOM from `/api/state`, `/api/interfaces`, `/api/profiles`, and existing mutating API routes without hard-coding Stitch sample runs, fake logs, or fake profile rows.
+- The Web console uses Tailwind CDN as a visual enhancement to match Stitch closely. The console must remain functionally usable if the CDN is unavailable, but pixel similarity can degrade to the local fallback CSS in that case.
+- Current local Web behavior verified on 2026-05-13: Dashboard / Endpoints & Profiles / Validation navigation renders, endpoint bar renders live config, service cards render live state, fleet rows render live status, validation evidence renders selected run, confirmation dialog is present, and browser console had no errors during read-only verification.
+- Dashboard right-rail panels must stay usable with long preflight output: `Preflight Summary` should have its own scrollable/clamped content area and must not push `Quick Actions` or `System Log` out of reach.
+
 Future host-console development priority:
 
 - Build new operator-facing functionality in the Web/GUI first.
@@ -413,6 +424,8 @@ Future host-console development priority:
 
 Safety contract:
 
+- Before changing the web layout, create or update Google Stitch planning screens first and provide them to the user for review.
+- Text-only web UI copy changes may proceed directly when they do not change layout, navigation, screen structure, or component behavior.
 - Start the Web console from elevated PowerShell when it will control services. The Web console is served by `tools\osdcloud-tui\src\webServer.js` and uses the shared `serviceController.js`.
 - Start the TUI from elevated PowerShell only when using the secondary console.
 - Web management config defaults to `web.host=127.0.0.1` and `web.port=8080`; if `config\osdcloud-tui.json` omits `web`, the defaults apply.
@@ -455,6 +468,7 @@ Validation contract:
 - `npm test` must pass for TUI code changes.
 - `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN or live `C:\OSDCloud`.
 - Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
+- Web layout or visual changes must also run `node --check tools/osdcloud-tui/web/app.js`, `node --test tools/osdcloud-tui/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/`. The read-only check may fetch `/`, `styles.css`, `app.js`, `/api/state`, `/api/interfaces`, and `/api/profiles`; it must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
 - A live deployment remains the final hardware validation when TUI networking behavior changes.
 - Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.

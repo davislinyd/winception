@@ -118,24 +118,23 @@ npm run tui
 }
 ```
 
-單純啟動 Web 版、打開頁面、刷新 Services / Clients / Client Detail / Validation / Logs 不會修改 `C:\OSDCloud`。會改 live deployment 狀態的按鈕會要求確認：
+單純啟動 Web 版、打開頁面、刷新 Dashboard / Endpoints & Profiles / Validation、讀取 state/status/logs/validation 不會修改 `C:\OSDCloud`。會改 live deployment 狀態的按鈕會要求確認：
 
 - `Select service interface` 會停止 running services、更新 `config\osdcloud-tui.json`、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
 - `Select deployment profile` 會停止 running services，重建 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps` payload。
 - `Clear status files` 會清除 configured status root 內的 JSON/JSONL/screenshot metadata。
 - `Start DHCP` / `Start all services` 不改檔案，但會讓 host DHCP responder 開始回答 client；只有確認真實 LAN DHCP server 已停用後才執行。
 
-TUI 主要區塊：
+Web Dashboard 主要區塊：
 
 | 區塊 | 用途 |
 | --- | --- |
-| `Actions` | 執行 preflight、選 service interface、選/新增/編輯/刪除 deployment profile、啟停服務、清除 status |
-| `Services` | 顯示 HTTP/TFTP/DHCP 是否 running、目前 service IP、DHCP pool/router、active profile/software |
-| `Clients` | 顯示多台 client / 多個 run 的狀態、stage、percent、last seen |
-| `Client Detail` | 顯示選定 run 的詳細階段、時間、訊息與截圖 metadata |
-| `Preflight` | 顯示檢查結果；選 service interface 時也會顯示 endpoint 更新進度 |
-| `Validation` | 顯示 fleet counts、最近截圖、最近 status events |
-| `Logs` | 顯示 TUI、DHCP、TFTP、HTTP、endpoint sync 的即時 log |
+| `Active Profile` | 顯示目前 deployment profile、description 與選中的 client software |
+| `HTTP/TFTP/DHCP` service cards | 顯示各 host-side service 是否 running 與 bind address |
+| `Client Fleet` | 顯示多台 client / 多個 run 的狀態、stage、percent、last seen |
+| `Preflight Summary` | 顯示 preflight 檢查結果；長路徑與錯誤訊息會在此區塊內捲動/截斷，不會把 Quick Actions 或 System Log 往下擠 |
+| `Quick Actions` | 執行 preflight、選 service interface、同步 endpoint、選/新增/編輯 profile、啟停服務、清除 status |
+| `System Log` | 顯示 DHCP、TFTP、HTTP、endpoint sync 與 Web controller log |
 
 鍵盤與滑鼠：
 
@@ -149,14 +148,14 @@ TUI 主要區塊：
 
 1. 如需變更服務網卡，先選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
 2. TUI 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
-3. 在 Preflight panel 看 endpoint update 進度；在 Logs panel 看同步腳本輸出。
-4. 選 `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單，先用 `Edit deployment profile` 勾選軟體並存檔，TUI 會立即重新發佈 live `Apps` payload。
-5. 在 TUI 選 `Run preflight`。
+3. 在 Dashboard 的 Preflight Summary 或 Endpoint Sync Progress 看 endpoint update 進度；在 System Log 看同步腳本輸出。
+4. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單，先用 `Edit active` 勾選軟體並存檔，Web console 會立即重新發佈 live `Apps` payload。
+5. 在 Web console 選 `Run preflight`。
 6. 如果 service IP、DHCP pool、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
 7. 確認真實 LAN DHCP server 已暫時關閉。
-8. 在 TUI 選 `Start all services`，或依序啟動 `Start HTTP/status`、`Start TFTP`、`Start DHCP`。
+8. 在 Web console 選 `Start all`，或依序啟動 `Start HTTP/status`、`Start TFTP`、`Start DHCP`。
 9. 實體筆電從 UEFI IPv4 PXE 開機。
-10. 在 TUI 的 `Clients` / `Client Detail` / `Logs` 觀察流程。
+10. 在 Web console 的 `Client Fleet` / `Validation` / `System Log` 觀察流程。
 11. WinPE 完成後會自動 `wpeutil reboot`；此時 client 應從內部硬碟開機，不要再反覆 PXE 開機。
 12. Windows 第一次開機後應自動登入 `davis` 桌面，TUI 最終應收到 `windows-desktop-ready`。
 13. 完成後在 TUI 停止 DHCP/TFTP/HTTP services，避免 host DHCP 留在網段上。
@@ -632,6 +631,8 @@ npm run web
 ```
 
 預設 URL 是 `http://127.0.0.1:8080`。Web 版只替換 operator console，不改 PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議，也不改 WinPE / OSDCloud deployment scripts。
+
+Web console 目前分成 `Dashboard`、`Endpoints & Profiles`、`Validation` 三個 view。`Dashboard` 是日常操作首頁：上方 endpoint bar 顯示 service interface/IP、HTTP base、SMB share、DHCP pool 與 DNS；主區顯示 active profile、HTTP/TFTP/DHCP service cards 與 Client Fleet；右側 `Preflight Summary`、`Quick Actions`、`System Log` 形成固定操作欄。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把 Quick Actions 或 System Log 擠出可用範圍。
 
 TUI 保留為次要/備援入口：
 

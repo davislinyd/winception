@@ -415,6 +415,7 @@ export class ServiceController extends EventEmitter {
       this.endpointUpdateStatus = [];
       this.addEndpointStatus(`Selected ${choice.interfaceAlias ?? choice.InterfaceAlias} ${choice.ipAddress ?? choice.IPAddress}/${choice.prefixLength ?? choice.PrefixLength}`, 'run');
       await this.stopAllServices();
+      this.addEndpointStatus('Stopped running services before endpoint sync', 'ok');
       const previousEndpoint = `${this.config.adapter.interfaceAlias} ${this.config.adapter.serverIp}/${this.config.adapter.prefixLength}`;
       const previousBootUrl = this.config.dhcp.ipxeBootUrl;
 
@@ -497,6 +498,7 @@ export class ServiceController extends EventEmitter {
       const state = this.dependencies.resolveDeploymentProfileState(this.config);
       const updated = this.dependencies.updateDeploymentProfile(this.config, state.activeProfile.id, {
         name: input.name,
+        description: input.description,
         softwareIds: input.softwareIds ?? input.software,
       });
       const result = this.dependencies.publishDeploymentProfile(this.config, updated.profile.id);

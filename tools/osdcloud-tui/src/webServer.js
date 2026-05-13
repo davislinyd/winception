@@ -189,6 +189,7 @@ export class WebManagementServer {
         || Object.prototype.hasOwnProperty.call(body, 'software');
       const result = await this.controller.updateActiveDeploymentProfile({
         name: body.name,
+        description: body.description,
         softwareIds: hasSoftware ? (body.softwareIds ?? body.software) : undefined,
       });
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });

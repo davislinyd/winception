@@ -209,6 +209,27 @@ test('creates a deployment profile by copying active profile software', () => {
   }
 });
 
+test('creates a deployment profile with optional description', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+
+    const created = createDeploymentProfile(configFor(root), {
+      name: 'Field Tech',
+      description: '  Laptop staging profile  ',
+    }, {
+      randomInt: () => 26,
+    });
+
+    assert.equal(created.profile.description, 'Laptop staging profile');
+    const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'AAAAAAA0.json'), 'utf8'));
+    assert.equal(raw.description, 'Laptop staging profile');
+    assert.deepEqual(raw.software, ['one']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('create deployment profile generates non-colliding 8 digit ids', () => {
   const root = makeRoot();
   try {
@@ -307,17 +328,19 @@ test('updates deployment profile name and software without changing its id', () 
 
     const updated = updateDeploymentProfile(configFor(root), 'default', {
       name: 'Renamed Default',
+      description: 'Updated description',
       softwareIds: ['two'],
     });
 
     assert.equal(updated.profile.id, 'default');
     assert.equal(updated.profile.name, 'Renamed Default');
+    assert.equal(updated.profile.description, 'Updated description');
     assert.deepEqual(updated.profile.softwareIds, ['two']);
     const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
     assert.deepEqual(raw, {
       id: 'default',
       name: 'Renamed Default',
-      description: 'Keep me',
+      description: 'Updated description',
       software: ['two'],
       owner: 'ops',
     });
@@ -328,6 +351,7 @@ test('updates deployment profile name and software without changing its id', () 
     });
     assert.equal(renamedOnly.profile.id, 'default');
     assert.equal(renamedOnly.profile.name, 'Display Name Only');
+    assert.equal(renamedOnly.profile.description, 'Updated description');
     assert.deepEqual(renamedOnly.profile.softwareIds, ['two']);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
