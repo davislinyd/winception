@@ -50,6 +50,32 @@ test('web UI uses a single stateful all-services toggle', () => {
   assert.match(script, /Start all services/);
 });
 
+test('web UI makes service cards stateful toggles', () => {
+  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+  const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
+
+  assert.match(script, /row\.dataset\.action = action/);
+  assert.match(script, /row\.setAttribute\('role', 'button'\)/);
+  assert.match(script, /row\.setAttribute\('aria-label', actionLabel\)/);
+  assert.match(script, /row\.setAttribute\('tabindex', '0'\)/);
+  assert.match(script, /'http-toggle'/);
+  assert.match(script, /'tftp-toggle'/);
+  assert.match(script, /'dhcp-toggle'/);
+  assert.match(script, /button\[data-action="\$\{action\}"\]/);
+  assert.match(script, /service-card-action\[data-action\]/);
+  assert.match(styles, /\.service-card-action:hover/);
+  assert.match(styles, /\.service-card-action:focus-visible/);
+});
+
+test('operations buttons use one text scale', () => {
+  const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
+  const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
+
+  assert.doesNotMatch(html, /quiet-action/);
+  assert.doesNotMatch(styles, /button\.quiet-action/);
+  assert.match(styles, /button \{\s*appearance: none;[\s\S]*font: 500 12px\/16px Inter, sans-serif;/);
+});
+
 test('web UI keeps local component layer', () => {
   const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
   const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');

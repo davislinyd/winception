@@ -277,14 +277,21 @@ function serviceAddress(service) {
 
 function renderServices(appState) {
   const rows = [
-    ['http', 'HTTP Server', appState.services.http],
-    ['upload_file', 'TFTP Server', appState.services.tftp],
-    ['router', 'DHCP Server', appState.services.dhcp],
+    ['http', 'HTTP Server', appState.services.http, 'http-toggle', 'HTTP'],
+    ['upload_file', 'TFTP Server', appState.services.tftp, 'tftp-toggle', 'TFTP'],
+    ['router', 'DHCP Server', appState.services.dhcp, 'dhcp-toggle', 'DHCP'],
   ];
   elements.servicesGrid.replaceChildren();
-  for (const [iconName, name, service] of rows) {
+  for (const [iconName, name, service, action, actionName] of rows) {
     const row = document.createElement('div');
-    row.className = 'service-card service-row';
+    const actionLabel = `${service.running ? 'Stop' : 'Start'} ${actionName}`;
+    row.className = 'service-card service-row service-card-action';
+    row.dataset.action = action;
+    row.dataset.serviceState = service.running ? 'running' : 'stopped';
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('aria-label', actionLabel);
+    row.title = actionLabel;
     const head = document.createElement('div');
     head.className = 'service-row-head';
     const titleWrap = document.createElement('div');
@@ -317,27 +324,31 @@ function renderServices(appState) {
   setActionDanger('all-services-toggle', !allServicesRunning);
 }
 
+function actionButtons(action) {
+  return $$(`button[data-action="${action}"]`);
+}
+
 function setActionLabel(action, label) {
-  $$(`[data-action="${action}"]`).forEach((button) => {
+  actionButtons(action).forEach((button) => {
     button.textContent = label;
   });
 }
 
 function setActionIcon(action, icon) {
-  $$(`[data-action="${action}"]`).forEach((button) => {
+  actionButtons(action).forEach((button) => {
     button.dataset.icon = icon;
   });
 }
 
 function setActionRunning(action, running) {
-  $$(`[data-action="${action}"]`).forEach((button) => {
+  actionButtons(action).forEach((button) => {
     button.classList.toggle('is-running', running);
     button.dataset.running = running ? 'true' : 'false';
   });
 }
 
 function setActionDanger(action, danger) {
-  $$(`[data-action="${action}"]`).forEach((button) => {
+  actionButtons(action).forEach((button) => {
     button.classList.toggle('danger', danger);
   });
 }
@@ -1317,6 +1328,18 @@ document.addEventListener('click', (event) => {
   if (actionButton) {
     handleAction(actionButton.dataset.action).catch((error) => window.alert(error.message));
   }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return;
+  }
+  const serviceCard = event.target.closest('.service-card-action[data-action]');
+  if (!serviceCard) {
+    return;
+  }
+  event.preventDefault();
+  handleAction(serviceCard.dataset.action).catch((error) => window.alert(error.message));
 });
 
 elements.refreshButton.addEventListener('click', () => {
