@@ -178,33 +178,6 @@ async function makeServer(root, overrides = {}) {
         catalogPath: path.join(root, 'os-image-catalog.json'),
         bytes: 10,
       }),
-      inspectLocalOsImage: (sourcePath) => ({
-        sourcePath,
-        sourceType: 'wim',
-        imagePath: sourcePath,
-        indexes: [{
-          imageIndex: 6,
-          name: 'Windows 11 Pro',
-          suggested: {
-            id: 'IMPORTED-WIN11-PRO',
-            name: 'Imported Windows 11 Pro',
-            version: 'Windows 11 Imported',
-            language: 'en-us',
-            edition: 'Pro',
-            imageIndex: 6,
-            fileName: 'imported.wim',
-          },
-        }],
-      }),
-      importLocalOsImage: (_config, input) => ({
-        status: 'imported',
-        image: {
-          id: input.metadata?.id ?? 'IMPORTED-WIN11-PRO',
-          fileName: input.metadata?.fileName ?? 'imported.wim',
-        },
-        bytes: 20,
-        filePath: path.join(root, 'OS', input.metadata?.fileName ?? 'imported.wim'),
-      }),
       uploadOsImageFile: async (_config, input) => {
         let bytes = 0;
         for await (const chunk of input.stream) {
@@ -426,9 +399,7 @@ test('runs mutating API actions through the controller', async () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sourcePath: path.join(root, 'import.wim') }),
     });
-    assert.equal(response.status, 200);
-    payload = await response.json();
-    assert.equal(payload.result.indexes[0].imageIndex, 6);
+    assert.equal(response.status, 404);
 
     response = await fetch(`${base}/api/os-image-import`, {
       method: 'POST',
@@ -439,9 +410,7 @@ test('runs mutating API actions through the controller', async () => {
         metadata: { id: 'IMPORTED-WIN11-PRO', fileName: 'imported.wim' },
       }),
     });
-    assert.equal(response.status, 200);
-    payload = await response.json();
-    assert.equal(payload.result.status, 'imported');
+    assert.equal(response.status, 404);
 
     response = await fetch(`${base}/api/os-image-upload?fileName=upload.wim`, {
       method: 'POST',

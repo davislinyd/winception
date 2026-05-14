@@ -319,33 +319,6 @@ try {
         filePath: path.join(osCacheRoot, 'download.esd'),
         catalogPath: osCatalogPath,
       }),
-      inspectLocalOsImage: async (sourcePath) => ({
-        sourcePath,
-        sourceType: 'wim',
-        imagePath: sourcePath,
-        indexes: [{
-          imageIndex: 6,
-          name: 'Windows 11 Pro',
-          suggested: {
-            id: 'SMOKE-IMPORT-PRO',
-            name: 'Smoke Import Pro',
-            version: 'Windows 11 Smoke',
-            language: 'en-us',
-            edition: 'Pro',
-            imageIndex: 6,
-            fileName: 'imported.wim',
-          },
-        }],
-      }),
-      importLocalOsImage: async () => ({
-        status: 'imported',
-        image: {
-          id: 'SMOKE-IMPORT-PRO',
-          fileName: 'imported.wim',
-        },
-        bytes: 10,
-        filePath: path.join(osCacheRoot, 'imported.wim'),
-      }),
       uploadOsImageFile: async (_config, input) => {
         let bytes = 0;
         for await (const chunk of input.stream) {
@@ -449,8 +422,7 @@ try {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sourcePath: path.join(root, 'import.wim') }),
     });
-    assert.equal(response.status, 200);
-    assert.equal((await response.json()).result.indexes[0].imageIndex, 6);
+    assert.equal(response.status, 404);
 
     response = await fetch(`${webBase}/api/os-image-import`, {
       method: 'POST',
@@ -461,7 +433,7 @@ try {
         metadata: { id: 'SMOKE-IMPORT-PRO', fileName: 'imported.wim' },
       }),
     });
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 404);
 
     response = await fetch(`${webBase}/api/os-image-upload?fileName=upload.wim`, {
       method: 'POST',

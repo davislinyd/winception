@@ -173,18 +173,6 @@ function makeController(root, overrides = {}) {
       catalogPath: path.join(root, 'os-image-catalog.json'),
       bytes: 10,
     }),
-    inspectLocalOsImage: async (sourcePath) => ({
-      sourcePath,
-      sourceType: 'wim',
-      imagePath: sourcePath,
-      indexes: [{ imageIndex: 6, name: 'Windows 11 Pro', suggested: { id: 'IMPORTED-WIN11-PRO', fileName: 'imported.wim' } }],
-    }),
-    importLocalOsImage: async (_config, input) => ({
-      status: 'imported',
-      image: { id: input.metadata?.id ?? 'IMPORTED-WIN11-PRO', fileName: input.metadata?.fileName ?? 'imported.wim' },
-      bytes: 20,
-      filePath: path.join(root, 'OS', input.metadata?.fileName ?? 'imported.wim'),
-    }),
     runPreflight: async () => [{ name: 'Smoke', ok: true, detail: 'test' }],
     saveConfig: () => path.join(root, 'config.json'),
     summarizeValidation: () => [{ name: 'Fleet runs', ok: false, detail: 'no deployment runs' }],
@@ -493,30 +481,13 @@ test('OS image delete runs through controller and waits for active download to f
   }
 });
 
-test('OS image local inspect and import stay cache-only', async () => {
+test('uploaded OS image import stays cache-only', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osimport-'));
   try {
     let importedInput = null;
     const { controller } = makeController(root, {
       dependencies: {
-        inspectLocalOsImage: async (sourcePath) => ({
-          sourcePath,
-          sourceType: 'wim',
-          imagePath: sourcePath,
-          indexes: [{
-            imageIndex: 6,
-            name: 'Windows 11 Pro',
-            suggested: {
-              id: 'IMPORTED-WIN11-PRO',
-              name: 'Imported Windows 11 Pro',
-              language: 'en-us',
-              edition: 'Pro',
-              imageIndex: 6,
-              fileName: 'imported.wim',
-            },
-          }],
-        }),
-        importLocalOsImage: async (_config, input) => {
+        importUploadedOsImage: async (_config, input) => {
           importedInput = input;
           return {
             status: 'imported',
@@ -528,17 +499,14 @@ test('OS image local inspect and import stay cache-only', async () => {
       },
     });
 
-    const inspected = await controller.inspectOsImage(path.join(root, 'source.wim'));
-    assert.equal(inspected.indexes[0].imageIndex, 6);
-    assert.equal(controller.getState().operation.mutating, false);
-
-    const imported = await controller.importOsImage({
-      sourcePath: path.join(root, 'source.wim'),
+    const imported = await controller.importUploadedOsImage({
+      uploadId: 'UPLOAD-WIN11',
       imageIndex: 6,
       metadata: { id: 'IMPORTED-WIN11-PRO', fileName: 'imported.wim' },
     });
     assert.equal(imported.status, 'imported');
     assert.equal(importedInput.imageIndex, 6);
+    assert.equal(importedInput.uploadId, 'UPLOAD-WIN11');
     assert.equal(controller.config.osImage.activeImage, 'SMOKE-WIN11-PRO');
     assert.equal(controller.getState().osImportStatus.status, 'imported');
   } finally {

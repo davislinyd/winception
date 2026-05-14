@@ -41,7 +41,7 @@ test('formats missing deployment status with visible placeholder', () => {
   assert.match(lines.join('\n'), /No deployment status yet/);
 });
 
-test('formats deployment status without blessed tags', () => {
+test('formats deployment status without terminal formatting tags', () => {
   const lines = formatDeploymentStatus({
     runId: '20260509-012719-9VDYLD4',
     clientId: '9VDYLD4',
@@ -204,7 +204,7 @@ test('formats selected fleet run detail and screenshot metadata', () => {
   assert.ok(text.includes(`Latest Shot: winpe-start ${expectedLocalTimestamp('2026-05-09T01:01:00Z')}`));
 });
 
-test('formats long status events into compact TUI lines', () => {
+test('formats long status events into compact host-console lines', () => {
   const line = JSON.stringify({
     receivedAt: '2026-05-09T18:35:42.036Z',
     clientId: '9VDYLD4',

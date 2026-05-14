@@ -13,9 +13,9 @@ There are two live-looking but separate paths. Treat them as mutually exclusive 
 Physical-laptop path:
 
 - This is the active production-like validation path.
-- Use the Web/TUI-selected service interface and service IP for the current run. Do not hard-code a physical NIC name or a `192.168.100.x` address as the required production path.
+- Use the Web-console-selected service interface and service IP for the current run. Do not hard-code a physical NIC name or a `192.168.100.x` address as the required production path.
 - Read the active service IP, DHCP lease range, router, HTTP base, and SMB share from `config\osdcloud-tui.json`, live `boot.ipxe`, and host adapter state immediately before starting services.
-- Use `npm run web` as the primary host console going forward. Keep `npm run tui` as the secondary compatibility console unless the user explicitly requests lower-level helper scripts.
+- Use `npm run web` as the host console. The old Node TUI CLI was retired in version `0.3.0`; do not plan or execute the retired TUI command.
 - Do not use VM, `vSwitch`, `192.168.100.1`, VMConnect, PowerShell Direct, or `tools\osdcloud-tui\src\headless.js` as evidence for this path.
 
 VM VM regression path:
@@ -24,11 +24,11 @@ VM VM regression path:
 - Use `Ethernet`, service IP `192.168.100.1`, DHCP leases `192.168.100.200-250`, and SMB share `\\192.168.100.1\OSDCloudiPXE`.
 - `tools\osdcloud-tui\src\headless.js` is allowed for VM regression automation, but it must be stopped after the test so DHCP does not keep responding.
 - VM success proves the WinPE/OOBE/status workflow still works in VM. It does not prove the physical-laptop path is ready.
-- VM evidence must not overwrite or replace the `Latest physical TUI validation evidence` block.
+- VM evidence must not overwrite or replace the latest physical validation evidence block.
 
 Endpoint switching:
 
-- Before physical-laptop validation, select the intended service interface in the Web/TUI console or switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '<interface-alias>' -ServerIp '<service-ip>' -PrefixLength <prefix> -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- Before physical-laptop validation, select the intended service interface in the Web console or switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '<interface-alias>' -ServerIp '<service-ip>' -PrefixLength <prefix> -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - Before vSwitch VM regression, switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'Ethernet' -ServerIp '192.168.100.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - After either switch, keep `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, and `osdcloud-assets` aligned with the live endpoint state.
 - Document physical results under physical-laptop sections and VM results under VM/VM regression sections. Do not mix VM timings, vSwitch IPs, or PowerShell Direct validation into the physical-laptop evidence block.
@@ -42,14 +42,14 @@ Previously validated VM paths:
 Current active path:
 
 - Physical laptop boots from UEFI PXE/iPXE on the real wired LAN, loads WinPE over HTTP, and applies the Windows ESD directly from the host SMB share. No VM vSwitch or VM is required for this path.
-- Current repo/live endpoint for the physical-laptop path is whatever service interface/IP the Web/TUI console selected and synced most recently. It may be left on `Ethernet` / `192.168.100.1` after VM regression; before physical-laptop validation, switch back to the intended physical service interface/IP and resync `boot.wim` / `osdcloud-assets`.
+- Current repo/live endpoint for the physical-laptop path is whatever service interface/IP the Web console selected and synced most recently. It may be left on `Ethernet` / `192.168.100.1` after VM regression; before physical-laptop validation, switch back to the intended physical service interface/IP and resync `boot.wim` / `osdcloud-assets`.
 
 Current host WAN/LAN topology:
 
 - `WAN` is the host default internet NIC. Current observed host IP is `192.168.100.1/24`, gateway `192.168.100.1`, metric `5`.
 - `LAN` is the physical client / PXE lab NIC. Current planned host IP is `192.168.88.1/24`, no gateway, metric `500`, IP forwarding enabled.
 - Windows NAT `OSDCloud-PhysicalClient-NAT` maps `192.168.88.0/24` out through the host WAN path.
-- The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-tui.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the Web/TUI console or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-tui.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the Web console or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - If `config\osdcloud-tui.json` still references `乙太網路 2`, `乙太網路 3`, or `192.168.100.x` after the rename, treat it as a stale endpoint until it is deliberately resynced.
 
 Fresh-clone / new-host rules:
@@ -146,13 +146,13 @@ Mode : read-only SMB, firewall limited to the selected service subnet on the sel
 - `wuauserv` may later show as Running even with `NoAutoUpdate=1`; this is not by itself a failure. Failure is seeing `CloudExperienceHost`, `msoobe`, or an OOBE update screen after the desktop should be ready.
 - For iPXE custom image deployment, do not combine `-ImageFileUrl` / `-OSImageIndex` with `-OSName`, `-OSLanguage`, `-OSEdition`, or `-OSActivation`. `Start-OSDCloud` treats custom image as a separate parameter set.
 - For iPXE no-redownload deployment, do not use `-ImageFileUrl`. It always triggers OSDCloud's `Download Operating System` step and copies the ESD into WinPE. The current WinPE maps `\\<service-ip>\OSDCloudiPXE` as `Z:`, reads `Z:\OSDCloud\OS\selected-os.json`, sets `$Global:StartOSDCloud.ImageFileDestination` to the selected cached ESD/WIM `FileInfo`, sets the manifest image index / language / edition fields, then calls `Invoke-OSDCloud`.
-- OS image acquisition is host/Admin Console only. Web `OS Image Cache` can download from the official OSD module catalog plus repo-controlled custom entries in `config\os-download-sources.json`, or import a local `.iso` / `.esd` / `.wim` from the host. Downloads/imports stage under `Media\OSDCloud\OS\.downloads`, verify hash/DISM index, then update `config\os-image-catalog.json`; they must not auto-switch active image. Only `Set active` publishes `selected-os.json` and updates the SMB image path.
+- OS image acquisition is host/Admin Console only. Web `OS Image Cache` can download from the official OSD module catalog plus repo-controlled custom entries in `config\os-download-sources.json`, or import a browser-uploaded `.iso` / `.esd` / `.wim`. Downloads/imports stage under `Media\OSDCloud\OS\.downloads`, verify hash/DISM index, then update `config\os-image-catalog.json`; they must not auto-switch active image. Only `Set active` publishes `selected-os.json` and updates the SMB image path. The Web console no longer exposes host-path import for arbitrary `C:\...` image paths.
 - For isolated or restricted networks, remove or bypass `Initialize-OSDCloudStartnetUpdate` in the iPXE WinPE. It tries external PowerShell Gallery / Microsoft update endpoints and can stall before `Start-OSDCloud`.
 - For iPXE WinPE, `Invoke-DavisOobe.ps1` must first look for SetupComplete scripts at `$PSScriptRoot\..\SetupComplete`, then fall back to scanning non-`C:` / non-`X:` drives. iPXE loads only `boot.wim`; it does not provide the ISO media path.
-- When changing iPXE `SetupComplete`, update both `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete` and the embedded `X:\OSDCloud\Config\Scripts\SetupComplete` inside `boot.wim`. If the embedded copy is stale, the laptop can reach the Windows desktop while the TUI remains at `awaiting-windows` / `rebooting` because no `windows-setupcomplete-*` or `windows-desktop-ready` callback exists.
-- Client app payloads are published by TUI deployment profile selection into `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`. WinPE shutdown copies only the published payload into deployed Windows at `C:\ProgramData\OSDCloud\Apps`; `SetupComplete` then runs `Install-Apps.ps1`, which reads `selected-profile.json` and installs only selected software before the desktop-ready marker. Current `Default` profile installs `7zip\7z2601-x64.msi`; `All in One` installs 7-Zip plus `chrome\googlechromestandaloneenterprise64.msi`; `Minimal` installs no client software.
+- When changing iPXE `SetupComplete`, update both `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete` and the embedded `X:\OSDCloud\Config\Scripts\SetupComplete` inside `boot.wim`. If the embedded copy is stale, the laptop can reach the Windows desktop while the Web console remains at `awaiting-windows` / `rebooting` because no `windows-setupcomplete-*` or `windows-desktop-ready` callback exists.
+- Client app payloads are published by Web deployment profile selection into `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`. WinPE shutdown copies only the published payload into deployed Windows at `C:\ProgramData\OSDCloud\Apps`; `SetupComplete` then runs `Install-Apps.ps1`, which reads `selected-profile.json` and installs only selected software before the desktop-ready marker. Current `Default` profile installs `7zip\7z2601-x64.msi`; `All in One` installs 7-Zip plus `chrome\googlechromestandaloneenterprise64.msi`; `Minimal` installs no client software.
 - The desktop-ready scheduled task must use an any-user `New-ScheduledTaskTrigger -AtLogOn` with a SYSTEM principal. Do not set the trigger user to `$env:COMPUTERNAME\davis`; during SetupComplete the computer name / local account SID mapping can be unstable and fail with `HRESULT 0x80070534`.
-- The desktop-ready scheduled task must not unregister until `windows-desktop-ready` is successfully POSTed. Windows networking can lag behind Explorer; if the first POST fails, keep retrying instead of losing the final TUI completion event. The intended retry loop is every 5 seconds for up to 30 minutes from `windows-logon-start`.
+- The desktop-ready scheduled task must not unregister until `windows-desktop-ready` is successfully POSTed. Windows networking can lag behind Explorer; if the first POST fails, keep retrying instead of losing the final Web completion event. The intended retry loop is every 5 seconds for up to 30 minutes from `windows-logon-start`.
 - The desktop-ready reporter's `Send-Status` helper must return `$true` after a successful HTTP POST or WebClient fallback and `$false` only after both fail. If it returns `$null`, the host can show `completed` while the client keeps POSTing identical `windows-desktop-ready` events every 5 seconds until the 30-minute reporter deadline. To stop an already-deployed old client immediately, run `Unregister-ScheduledTask -TaskName OSDCloudDesktopReadyReport -Confirm:$false` on that client.
 - Screenshot progress evidence is best-effort only. Keep JSON deployment status as the source of truth; screenshot upload failures must not block OSDCloud, SetupComplete, reboot, or desktop-ready reporting.
 - Do not install a desktop screenshot Startup helper from `SetupComplete`. The earlier interactive screenshot helper combined screen capture, upload, and hidden PowerShell startup execution, and Defender/AMSI blocked the whole `SetupComplete.ps1` with `ScriptContainedMaliciousContent`. Keep `OSDCloudDesktopReadyReport` as the SYSTEM scheduled task for final status; Windows desktop PNG evidence must remain a separate, explicitly retested best-effort helper if reintroduced later.
@@ -177,7 +177,7 @@ HTTP base: http://192.168.88.1/osdcloud
 SMB image share: \\192.168.88.1\OSDCloudiPXE
 ```
 
-These are the current planned physical-client LAN values. If the user intentionally selects a different service interface/IP in the TUI, verify and document that live endpoint instead of forcing these values.
+These are the current planned physical-client LAN values. If the user intentionally selects a different service interface/IP in the Web console, verify and document that live endpoint instead of forcing these values.
 
 Expected HTTP root:
 
@@ -273,11 +273,11 @@ ImageFileDestinationDisplayRoot: \\192.168.100.1\OSDCloudiPXE
 Final guest: DESKTOP-LTK4NLM\davis, ExplorerRunning=True, DesktopReadyFile=True
 ```
 
-This timing evidence used the earlier isolated `192.168.100.0/24` lab. Current physical-network values are selected at runtime by the TUI and must be verified from live config before each physical run.
+This timing evidence used the earlier isolated `192.168.100.0/24` lab. Current physical-network values are selected at runtime by the Web console and must be verified from live config before each physical run.
 
 Post-deploy network lesson:
 
-- If a deployed laptop has no internet and still shows a `192.168.100.x` address, first verify the intended gateway from TUI DHCP config is reachable and that the upstream DHCP server is still intentionally disabled only for the test window.
+- If a deployed laptop has no internet and still shows a `192.168.100.x` address, first verify the intended gateway from Web/DHCP config is reachable and that the upstream DHCP server is still intentionally disabled only for the test window.
 - Do not assume the client gateway from an older run. Before final physical validation, choose the intended client gateway deliberately and confirm working DNS such as `1.1.1.1` / `8.8.8.8`.
 - If Start menu pins show gray placeholders after the first offline boot, refresh StartMenuExperienceHost / Explorer and rebuild the current user's icon cache after internet is available.
 
@@ -346,7 +346,7 @@ TimeZone         : Taipei Standard Time
 FinalStatusStage : windows-desktop-ready
 ```
 
-Latest physical TUI validation evidence:
+Latest physical validation evidence:
 
 ```text
 RunId            : 20260509-031647-9VDYLD4
@@ -400,12 +400,6 @@ By default it listens on:
 http://127.0.0.1:8080
 ```
 
-The Node TUI remains as a secondary compatibility console:
-
-```powershell
-npm run tui
-```
-
 The host console code lives under:
 
 ```text
@@ -413,7 +407,7 @@ tools\osdcloud-tui
 config\osdcloud-tui.json
 ```
 
-Use the Web console first for the active physical-laptop path unless the user explicitly requests TUI or lower-level helper scripts. Web and TUI own the host-side DHCP responder, TFTP responder, HTTP media/status server, live status display, log tailing, and validation summary.
+Use the Web console for the active physical-laptop path unless the user explicitly requests lower-level helper scripts. Web owns the host-side DHCP responder, TFTP responder, HTTP media/status server, live status display, log tailing, and validation summary.
 
 Current Web layout implementation and references:
 
@@ -423,71 +417,62 @@ Current Web layout implementation and references:
 - `tools\osdcloud-tui\web\styles.css` owns the local fallback and interaction layer for dialog behavior, stateful live-rendered nodes, status badges, switches, no-network visual fallback, and practical layout fixes. Keep the styling consistent with the admin-console direction, but do not force it to remain a thin Stitch-only layer.
 - `tools\osdcloud-tui\web\app.js` owns live data binding. It must fill the local DOM from `/api/state`, `/api/interfaces`, `/api/profiles`, and existing mutating API routes without hard-coding Stitch sample runs, fake logs, or fake profile rows.
 - The Web console uses Tailwind CDN as a visual enhancement. The console must remain functionally usable if the CDN is unavailable; pixel matching against Stitch is not required.
-- Current local Web behavior verified on 2026-05-13: Dashboard / Endpoints & Profiles / Validation navigation renders, endpoint bar renders live config, service cards render live state, fleet rows render live status, validation evidence renders selected run, confirmation dialog is present, and browser console had no errors during read-only verification.
-- Dashboard right-rail panels must stay usable with long preflight output: `Preflight Summary` should have its own scrollable/clamped content area and must not push `Quick Actions` or `System Log` out of reach.
+- Current local Web behavior verified on 2026-05-14: the single Dashboard workbench renders Operations, endpoint summary, Endpoint Sync Progress, active profile, active OS image, service cards, Preflight Summary, Client Fleet, System Log, dialogs/drawers, and selected-run validation evidence from live API state.
+- Operations color semantics are part of the UI contract: `Run preflight` is a neutral diagnostic action, not a blue primary CTA; endpoint sync, profile/OS `Set active`, and OS image download/import are warning actions; DHCP/start-all/clear-status/delete actions are danger actions. Use result colors only for state: ready/running green, blocked/error red, review/working yellow, stopped/idle/not-run neutral.
+- Dashboard panels must stay usable with long preflight output: `Preflight Summary` should have its own scrollable/clamped content area and must not push Operations or `System Log` out of reach. On narrow viewports, service cards should collapse to a single column so service action text does not truncate.
 
 Future host-console development priority:
 
-- Build new operator-facing functionality in the Web/GUI first.
-- Put shared service behavior in `serviceController.js` or other shared modules before wiring either UI.
-- Keep the TUI as secondary: maintain compatibility, critical fixes, and parity only when needed for fallback operation.
+- Build new operator-facing functionality in the Web/GUI.
+- Put shared service behavior in `serviceController.js` or other shared modules before wiring the Web UI or headless automation.
 
 Safety contract:
 
 - Web layout changes may be planned directly in code, a lightweight local mockup, screenshots, or Google Stitch when it is useful. Google Stitch planning screens are optional, not required. For broad or high-risk UI redesigns, provide a concise plan or visual checkpoint for user review before heavy implementation.
 - Text-only web UI copy changes may proceed directly when they do not change layout, navigation, screen structure, or component behavior.
 - Start the Web console from elevated PowerShell when it will control services. The Web console is served by `tools\osdcloud-tui\src\webServer.js` and uses the shared `serviceController.js`.
-- Start the TUI from elevated PowerShell only when using the secondary console.
 - Web management config defaults to `web.host=127.0.0.1` and `web.port=8080`; if `config\osdcloud-tui.json` omits `web`, the defaults apply.
 - Starting `npm run web`, opening the browser UI, and reading state/status/logs/validation must not modify `C:\OSDCloud`.
-- Web mutating actions are equivalent to the TUI actions: endpoint sync can modify live `boot.ipxe`, WinPE endpoint files, `boot.wim`, SMB firewall, and `osdcloud-assets`; OS image cache can download/stage cached Windows images, import local ISO/ESD/WIM sources into cache, switch the active image, publish `selected-os.json`, and update SMB image path; deployment profile publish can replace live `Media\OSDCloud\Apps`; clear status deletes configured status JSON/JSONL/screenshot metadata; service start/stop changes live network responders.
-- Do not run TUI and Web console at the same time to control services. They are separate Node processes and can conflict on ports 67/69/80.
-- Keep the repo `.npmrc` foreground/silent behavior for `npm run tui`; the TUI is interactive and depends on foreground stdio rather than npm script banner output.
+- Web mutating actions can modify live deployment state: endpoint sync can modify live `boot.ipxe`, WinPE endpoint files, `boot.wim`, SMB firewall, and `osdcloud-assets`; OS image cache can download/stage cached Windows images, import browser-uploaded ISO/ESD/WIM sources into cache, switch the active image, publish `selected-os.json`, and update SMB image path; deployment profile publish can replace live `Media\OSDCloud\Apps`; clear status deletes configured status JSON/JSONL/screenshot metadata; service start/stop changes live network responders.
+- Do not run Web console and headless services at the same time to control services. They are separate Node processes and can conflict on ports 67/69/80.
 - Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter.
 - Use `Select service interface` when the service bind interface/IP must change. It must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist `config\osdcloud-tui.json`, recalculate DHCP lease pool / subnet mask / router for the selected prefix, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, update the SMB firewall, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
-- While `Select service interface` is applying an endpoint, the TUI must show human-visible progress in the Preflight panel, stream sync script output into Logs, and automatically run preflight after the sync completes.
-- After changing the selected service interface, preflight must fail if the DHCP lease range or router is outside the selected service IP prefix. Treat this as a stale/manual config guard; the TUI selection path should update DHCP settings automatically.
+- While `Select service interface` is applying an endpoint, the Web console must show human-visible progress, stream sync script output into Logs, and automatically run preflight after the sync completes.
+- After changing the selected service interface, preflight must fail if the DHCP lease range or router is outside the selected service IP prefix. Treat this as a stale/manual config guard; the Web selection path should update DHCP settings automatically.
 - After changing the selected service interface, DHCP must not retain leases from the previous endpoint. If a physical client receives a `192.168.100.x` lease while services are running on `192.168.100.x`, treat it as stale in-memory DHCP lease state and restart on code that rebuilds the lease pool for the current `dhcp.leaseStartIp` / `dhcp.leaseEndIp`.
 - DHCP reservations may pin known physical client MAC addresses to fixed IPs. Endpoint switching must drop reservations outside the newly selected service IP prefix; stale reservations from WAN or vSwitch subnets must not remain in `config\osdcloud-tui.json`.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
-- Do not add a TUI `Configure physical NIC` action. If Windows adapter IP assignment must be changed, keep it as an explicit out-of-TUI script step such as `tools\Set-IpxePhysicalNic.ps1`.
+- Do not add a Web `Configure physical NIC` action. If Windows adapter IP assignment must be changed, keep it as an explicit script step such as `tools\Set-IpxePhysicalNic.ps1`.
 - Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
 - The individual `Start HTTP/status`, `Start TFTP`, and `Start DHCP` actions are service toggles; when a service is running, the same action must become `Stop ...` and shut that service down.
-- TUI v0.2.0 must show multi-client deployment state as a fleet view: `Clients` is a scrollable table of run status/client/run/stage/percent/last seen/elapsed, `Client Detail` shows the selected run, and `Validation` shows fleet counts plus boot evidence.
-- TUI v0.2.3 keyboard navigation must keep `Alt+A` Actions, `Alt+S` Services, `Alt+C` Clients, `Alt+D` Client Detail, `Alt+P` Preflight, `Alt+V` Validation, and `Alt+L` Logs. `Tab` cycles Actions -> Services -> Clients -> Preflight -> Client Detail -> Validation -> Logs, and `Shift+Tab` reverses that order.
-- TUI v0.2.3 labels must normally show only panel names. While Alt hint mode is active, underline the mnemonic letter inside each panel name. Keep label tag parsing enabled for all panel labels, including list panels such as `Clients`.
-- TUI v0.2.4 must detect physical Alt key hold on Windows with a host-side key-state watcher, so underlines appear when Alt alone is held, not only after `Alt+<letter>`. Focus changes and Alt hint visibility should render immediately; status/fleet refresh may stay debounced.
-- TUI v0.2.5 Alt shortcut handling must be Caps Lock tolerant: register and resolve both lowercase and uppercase blessed meta names such as `M-c` and `M-C`, because Caps Lock can change the terminal-reported key name while the intended shortcut remains `Alt+C`.
-- TUI v0.2.6 mouse interaction must allow clicking any visible panel to focus it. Mouse wheel scrolls the hovered panel, not the previously focused panel. Logs pause auto-follow when the user scrolls upward and resume when scrolled back to bottom or `End` is pressed.
-- TUI v0.2.8 / deployment payload includes 7-Zip client app installation during Windows SetupComplete, with `windows-apps-start`, `windows-apps-finished`, and `windows-apps-error` status stages.
-- TUI v0.2.9 deployment profile selection publishes profile-filtered client software payloads. Use `Select deployment profile` before starting services when the software set changes; it must stop running HTTP/TFTP/DHCP services, write the active profile to `config\osdcloud-tui.json`, clear stale live `Apps` content, copy only selected software from `Softwares\<software-id>`, write `selected-profile.json`, and let preflight verify the live payload matches the active profile.
-- TUI v0.2.10 adds optional Google Chrome Enterprise client software through a Chrome-enabled deployment profile. Keep the normal `Default` profile on 7-Zip only unless the user deliberately selects the Chrome profile.
-- TUI v0.2.11 endpoint sync hash verification must tolerate host PowerShell sessions where `Get-FileHash` is unavailable by falling back to .NET SHA256 hashing.
-- TUI v0.2.12 deployment profile management adds `Add deployment profile`, `Edit deployment profile`, and `Delete deployment profile`. Add copies the current active profile software but does not switch or publish. Edit only changes the active profile `software` array, preserves id/name/description/unknown fields, then republishes live `Apps` and reruns preflight. Delete can only remove inactive profile JSON files.
-- TUI v0.2.14 deployment profile creation generates an 8-character uppercase alphanumeric profile id server-side, with at least one letter and one digit, and must avoid collisions with existing profile ids and JSON file names. Operators edit the profile name as display text; profile id remains the stable service key.
-- TUI OS image support is read-only in v1: show the current active OS image/cache preflight state only. Use Web `OS Image Cache` for downloading Windows images, importing local ISO/ESD/WIM sources, or switching the active cached image.
-- TUI label tag parsing must not mutate blessed private line-cache fields such as `_clines`; call normal content parsing instead, because scrollable panels inspect label children during scroll-height calculation.
-- PowerShell `-Command` calls from the TUI must force UTF-8 console output before emitting JSON, otherwise Chinese interface names such as `乙太網路 3` can be decoded as mojibake and written into `config\osdcloud-tui.json`.
+- Stopped service cards must render as neutral status, not as failures. Only actual blocked/error states should use red status treatment.
+- Web console must show multi-client deployment state as a fleet view, selected run details, validation evidence, and log tailing.
+- Deployment payload includes selected client app installation during Windows SetupComplete, with `windows-apps-start`, `windows-apps-finished`, and `windows-apps-error` status stages.
+- Web deployment profile selection publishes profile-filtered client software payloads. Use `Select deployment profile` before starting services when the software set changes; it must stop running HTTP/TFTP/DHCP services, write the active profile to `config\osdcloud-tui.json`, clear stale live `Apps` content, copy only selected software from `Softwares\<software-id>`, write `selected-profile.json`, and let preflight verify the live payload matches the active profile.
+- Keep the normal `Default` profile on 7-Zip only unless the user deliberately selects a Chrome-enabled profile.
+- Endpoint sync hash verification must tolerate host PowerShell sessions where `Get-FileHash` is unavailable by falling back to .NET SHA256 hashing.
+- Deployment profile management supports `Add deployment profile`, `Edit deployment profile`, and `Delete deployment profile`. Add copies the current active profile software but does not switch or publish. Edit preserves id/name/description/unknown fields unless explicitly changed, then republishes live `Apps` and reruns preflight. Delete can only remove inactive profile JSON files.
+- Deployment profile creation generates an 8-character uppercase alphanumeric profile id server-side, with at least one letter and one digit, and must avoid collisions with existing profile ids and JSON file names. Operators edit the profile name as display text; profile id remains the stable service key.
 - Keep `GET /osdcloud/status` backward-compatible as the latest single status event, and use `GET /osdcloud/status/runs` plus `runs-index.json` for multi-run fleet status.
-- Driver pack host-first cache is supported through `windows-driverpack-cache-request`: client Windows only reports `C:\Drivers\*.json` metadata, and host TUI downloads official driver packs into `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`. Do not add a client-side custom downloader and do not grant deployed Windows write access to the SMB share.
+- Driver pack host-first cache is supported through `windows-driverpack-cache-request`: client Windows only reports `C:\Drivers\*.json` metadata, and the host console downloads official driver packs into `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`. Do not add a client-side custom downloader and do not grant deployed Windows write access to the SMB share.
 - Driver pack cache safety rules: `fileName` must be a plain file name with no path separators or `..`; allowed extensions are `.exe`, `.cab`, `.zip`, and `.msi`; v1 allowed download host is `downloads.dell.com`; resolved destinations must remain under the cache root; never overwrite an existing non-empty cache file.
 - `Clear status files` must also remove `runs-index.json`, `*.summary.json`, `*.latest.json`, `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
-- Do not rewrite WinPE OSDCloud/SetupComplete behavior for TUI work unless the user explicitly expands scope.
+- Do not rewrite WinPE OSDCloud/SetupComplete behavior for Web console work unless the user explicitly expands scope.
 
 Validation contract:
 
-- `npm test` must pass for TUI code changes.
+- `npm test` must pass for host console code changes.
 - `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN or live `C:\OSDCloud`.
 - Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
 - Web layout or visual changes must also run `node --check tools/osdcloud-tui/web/app.js`, `node --test tools/osdcloud-tui/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/`. The read-only check may fetch `/`, `styles.css`, `app.js`, `/api/state`, `/api/interfaces`, and `/api/profiles`; it must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
-- A live deployment remains the final hardware validation when TUI networking behavior changes.
+- A live deployment remains the final hardware validation when host-console networking behavior changes.
 - Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.
 - Deployment profile changes must test catalog/profile validation, profile add/edit/delete validation, safe publish roots, selected-only payload publishing, empty profiles, and `Install-Apps.ps1` selected-only / missing-selected-app behavior.
-- Multi-client TUI changes must include synthetic tests for at least two interleaved runs and must verify that one client does not overwrite another client's summary.
+- Multi-client host-console changes must include synthetic tests for at least two interleaved runs and must verify that one client does not overwrite another client's summary.
 - Screenshot behavior must preserve the status contract: `/osdcloud/status` stays JSON-only, `/osdcloud/screenshot` accepts PNG-only uploads capped at 5 MB, and PNG files remain local evidence rather than Git artifacts.
 - Driver pack cache changes must test validation failures, disallowed hosts, cache hits, download success/failure, and confirm status events still persist when cache backfill fails.
-- OS image source/cache changes must test official/custom catalog merging, custom host allowlist and required SHA256, local ISO/ESD/WIM inspect/import, staging cleanup, cache-hit hash validation, and that download/import never changes the active image until `Set active`.
+- OS image source/cache changes must test official/custom catalog merging, custom host allowlist and required SHA256, browser-uploaded ISO/ESD/WIM inspect/import, staging cleanup, cache-hit hash validation, removed host-path API behavior, and that download/import never changes the active image until `Set active`.
 - If deployment behavior changes inside `C:\OSDCloud` or WinPE, update the live files first, mount/commit `boot.wim` when needed, then run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts`.
 
 ## VM VM Regression Notes
@@ -523,12 +508,12 @@ OSDCloud-Win11-vSwitch-04
 Historical iPXE VM notes:
 
 - Earlier VM validation used `PXE-Lab`; the active physical-laptop path uses the host wired adapter directly.
-- Legacy host-side PXE helper scripts used PowerShell DHCP/TFTP plus Node HTTP. The Web/GUI console is now the primary host-side console; keep the Node TUI as secondary compatibility and keep the legacy helper scripts as lower-level fallback. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
+- Legacy host-side PXE helper scripts used PowerShell DHCP/TFTP plus Node HTTP. The Web/GUI console is now the host-side console; keep the legacy helper scripts as lower-level fallback. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
 - Use static memory for iPXE timing VMs. `Timing-04` failed in WinPE DISM apply when Dynamic Memory assigned only about 1.5GB even though startup memory was configured higher.
 - Full iPXE deployment succeeded with PXE-stage Secure Boot temporarily off. Hard-disk boot was verified with Secure Boot `MicrosoftWindows` and vTPM.
 - For VM first-stage TFTP, do not disable `.efi` OACK/options handling. VM can send paired RRQs where one transfer logs `OACK not acknowledged` and the other succeeds with `SENT snponly.efi`; success is confirmed by later HTTP `boot.ipxe`. If the VM stays at `Downloading NBP file...`, debug TFTP service state before changing WinPE or OSDCloud.
 - After `osdcloud-finished`, do not force power off the VM. Let WinPE run `wpeutil reboot`; premature power-off can leave `Unattend.xml` or `SetupComplete.ps1` NUL-filled and cause Windows Setup unattend parse errors.
-- `tools\osdcloud-tui\src\headless.js` starts the same HTTP/status, TFTP, and DHCP services without the blessed UI. Use it only for VM regression or automation, and stop the owning `node.exe` after the test so DHCP does not keep responding.
+- `tools\osdcloud-tui\src\headless.js` starts the same HTTP/status, TFTP, and DHCP services without Web UI. Use it only for VM regression or automation, and stop the owning `node.exe` after the test so DHCP does not keep responding.
 - Record VM runs under VM / VM regression documentation only. Keep VM names, vSwitch IPs, VHDX details, VMConnect screenshots, and PowerShell Direct results out of the physical-laptop runbook.
 - Signed shim PXE remains a caveat: `snponly-shim.efi` and `ipxe-shim.efi` were both tested with `MicrosoftUEFICertificateAuthority`, but the probe did not reach HTTP and stopped during TFTP shim transfer.
 
@@ -545,7 +530,7 @@ osdcloud-assets
 
 Keep `README.md` concise and user-facing. Keep the report detailed and evidence-oriented. Keep `AGENTS.md` as the operational contract for future agents.
 
-`README.md` is also the human user manual. When changing deployment flow, TUI behavior, service-interface selection, endpoint synchronization, network topology, validation criteria, or failure triage, update the `README.md` `使用手冊` section in the same change so a human operator can still run the workflow without reading `AGENTS.md` or the detailed test report.
+`README.md` is also the human user manual. When changing deployment flow, Web console behavior, service-interface selection, endpoint synchronization, network topology, validation criteria, or failure triage, update the `README.md` `使用手冊` section in the same change so a human operator can still run the workflow without reading `AGENTS.md` or the detailed test report.
 
 For portability/setup changes, also update the README `新主機 Clone 後啟動流程`, `osdcloud-assets\README.md`, and the report's fresh-clone readiness note. The docs must make clear that the repo can live anywhere, but `C:\OSDCloud` must be restored or rebuilt before deployment because large runtime artifacts are excluded from Git.
 

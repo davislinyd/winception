@@ -107,9 +107,9 @@
             <section class="operations-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
               <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Operations</h3>
               <div class="operations-stack">
-                <button data-action="preflight" data-icon="fact_check" class="primary-action" type="button">Run preflight</button>
+                <button data-action="preflight" data-icon="fact_check" type="button">Run preflight</button>
                 <button data-action="all-services-toggle" data-icon="play_arrow" class="danger all-services-toggle" type="button">Start all services</button>
-                <button data-action="endpoint-sync" data-icon="sync_alt" type="button">Sync endpoint</button>
+                <button data-action="endpoint-sync" data-icon="sync_alt" class="warning" type="button">Sync endpoint</button>
               </div>
               <div class="operations-secondary">
                 <button data-action="interfaces" data-icon="settings_ethernet" type="button">Select interface</button>
@@ -164,7 +164,7 @@
             <section class="preflight-summary-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
               <div class="panel-title-row">
                 <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3>
-                <span id="preflight-status-badge" class="status-pill neutral">Not run</span>
+                <span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span>
               </div>
               <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
             </section>
@@ -241,7 +241,7 @@
         <section class="drawer-section">
           <div class="drawer-section-header">
             <h4>Endpoint Sync</h4>
-            <button data-action="endpoint-sync" data-icon="sync" type="button">Sync endpoint</button>
+            <button data-action="endpoint-sync" data-icon="sync" class="warning" type="button">Sync endpoint</button>
           </div>
           <div class="drawer-two-column">
             <dl id="sync-target" class="stitch-details"></dl>
@@ -403,7 +403,7 @@
         <section class="drawer-section">
           <div class="drawer-section-header">
             <h4>Local Import</h4>
-            <span id="os-import-status" class="font-technical-string text-technical-string text-on-surface-variant">Upload or host local ISO/ESD/WIM only.</span>
+            <span id="os-import-status" class="font-technical-string text-technical-string text-on-surface-variant">Upload local ISO/ESD/WIM only.</span>
           </div>
           <div class="local-import-grid mb-sm">
             <section class="local-import-card">
@@ -411,13 +411,6 @@
               <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-sm">
                 <input id="os-upload-file" class="field-input font-technical-string text-technical-string" type="file" accept=".iso,.esd,.wim">
                 <button data-action="os-upload-inspect" data-icon="upload_file" type="button">Upload & inspect</button>
-              </div>
-            </section>
-            <section class="local-import-card">
-              <div class="field-label">Host path</div>
-              <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-sm">
-                <input id="os-import-source" class="field-input font-technical-string text-technical-string" type="text" placeholder="C:\Images\Windows.iso">
-                <button data-action="os-import-inspect" data-icon="search" type="button">Inspect</button>
               </div>
             </section>
           </div>

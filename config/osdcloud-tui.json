@@ -74,7 +74,7 @@
     "validateDismOnPublish": true
   },
   "deploymentProfiles": {
-    "activeProfile": "074RMJU3",
+    "activeProfile": "IZVZO7PU",
     "profilesRoot": "config\\deployment-profiles",
     "softwareCatalogPath": "config\\software-catalog.json",
     "softwareSourceRoot": "Softwares",

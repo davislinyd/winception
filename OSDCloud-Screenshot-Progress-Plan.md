@@ -1,10 +1,12 @@
 # OSDCloud 狀態事件 + 關鍵階段截圖規劃
 
+> Current status as of 2026-05-14: this is a historical implementation plan. The screenshot/status pieces have been implemented and are consumed by the shared host console stack; Web/GUI is now the interactive operator console, and the old TUI fallback was retired in version `0.3.0`. Fresh-clone setup and deployment startup instructions live in `README.md`.
+
 ## 摘要
 
-這份規劃定義下一階段的部署可視化能力：保留現有狀態事件機制，不做影片串流，只在關鍵階段由 client 擷取 still screenshot 並回傳 host server。目標是讓 TUI 能看到即時部署進度、明確的開始/結束記錄，以及 WinPE / Windows 重要階段的畫面證據。
+這份規劃定義下一階段的部署可視化能力：保留現有狀態事件機制，不做影片串流，只在關鍵階段由 client 擷取 still screenshot 並回傳 host server。原目標是讓 TUI 能看到即時部署進度、明確的開始/結束記錄，以及 WinPE / Windows 重要階段的畫面證據；目前這些能力由 Web console 承接。
 
-截至 2026-05-09，host screenshot API、TUI screenshot metadata 顯示、WinPE screenshot reporter、status cleanup、tests、live `C:\OSDCloud` 與 `osdcloud-assets` 同步都已完成。Windows completion 仍以 JSON status 為唯一完成判定；Windows desktop PNG helper 不由 SetupComplete 安裝，因為先前的互動截圖 Startup helper 被 Defender/AMSI 擋成 `ScriptContainedMaliciousContent`，會阻止整個 SetupComplete 執行。
+截至 2026-05-09，host screenshot API、host console screenshot metadata 顯示、WinPE screenshot reporter、status cleanup、tests、live `C:\OSDCloud` 與 `osdcloud-assets` 同步都已完成。後續 Web console 成為 operator UI，但完成判定仍以 JSON status 為唯一來源；Windows desktop PNG helper 不由 SetupComplete 安裝，因為先前的互動截圖 Startup helper 被 Defender/AMSI 擋成 `ScriptContainedMaliciousContent`，會阻止整個 SetupComplete 執行。
 
 ## 設計原則
 
@@ -63,7 +65,7 @@ metadata 至少包含：
 - `*.screenshots.jsonl`
 - `status\screenshots\`
 
-## TUI 變更
+## Historical TUI 變更
 
 Deployment 區塊新增最新截圖摘要：
 
@@ -74,7 +76,7 @@ Shot File  : C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\screenshots\...\appl
 
 Validation 或 Logs 區塊顯示最近幾筆 screenshot metadata，讓使用者確認 WinPE / Windows 是否仍在回傳畫面證據。
 
-TUI 不需要在 terminal 內直接渲染 PNG。若要加操作項目，建議新增 `Open latest screenshot`，用 Windows 預設圖片檢視器開啟最新檔案。
+TUI 當時不需要在 terminal 內直接渲染 PNG。現在 Web console 負責顯示 screenshot metadata；若要新增開圖功能，應做在 Web console。
 
 ## Client 端截圖策略
 
@@ -108,7 +110,7 @@ Windows completion path 維持：
 - `OSDCloudDesktopReadyReport` SYSTEM scheduled task 在登入後 POST `windows-logon-start`
 - `OSDCloudDesktopReadyReport` 在 Explorer ready、desktop marker 存在且沒有 OOBE process 時 POST `windows-desktop-ready`
 
-Desktop-ready reporter 每 5 秒重試一次，最多從 `windows-logon-start` 起算 30 分鐘。`Send-Status` 必須在 HTTP POST 或 WebClient fallback 成功時回傳 `$true`，成功後 unregister `OSDCloudDesktopReadyReport`；若回傳 `$null`，TUI 會已顯示 `completed`，但 client 會每 5 秒重送相同 `windows-desktop-ready` 到 30 分鐘 deadline。
+Desktop-ready reporter 每 5 秒重試一次，最多從 `windows-logon-start` 起算 30 分鐘。`Send-Status` 必須在 HTTP POST 或 WebClient fallback 成功時回傳 `$true`，成功後 unregister `OSDCloudDesktopReadyReport`；若回傳 `$null`，host console 會已顯示 `completed`，但 client 會每 5 秒重送相同 `windows-desktop-ready` 到 30 分鐘 deadline。
 
 如果未來要重新導入 Windows desktop PNG evidence，必須獨立設計、明確重測 Defender/AMSI 行為，且不得影響 `windows-setupcomplete-*` 或 `windows-desktop-ready` JSON status。
 
@@ -131,7 +133,7 @@ WinPE screenshot 上傳 timeout 10 秒。失敗時只記錄 warning 或送出 `s
 ## 實作步驟
 
 1. 新增 host screenshot API 與 metadata writer。
-2. 新增 screenshot metadata reader，讓 TUI 能顯示 latest screenshot。
+2. 新增 screenshot metadata reader，讓 host console 能顯示 latest screenshot。
 3. 更新 `Clear status files` 清理 screenshot metadata 與目錄。
 4. 在 smoke test 加入 1x1 PNG 上傳驗證。
 5. 在 WinPE reporter 加入 `Capture-Screenshot` 與 `Send-Screenshot`。
@@ -157,11 +159,11 @@ WinPE screenshot 上傳 timeout 10 秒。失敗時只記錄 warning 或送出 `s
 - PowerShell syntax check：檢查 WinPE reporter 與 SetupComplete / desktop-ready reporter。
 - 實機測試：physical laptop iPXE 部署時至少收到 `winpe-start`、`apply-image`、`rebooting` 等 WinPE 截圖，且最終 JSON status 收到 `windows-desktop-ready`。
 - Regression test：desktop-ready reporter 的 `Send-Status` 成功 POST 後必須回傳 `$true`，避免完成後持續重送相同 status。
-- 清理測試：TUI `Clear status files` 後，舊截圖與 metadata 不再出現在 TUI。
+- 清理測試：Web `Clear status files` 後，舊截圖與 metadata 不再出現在 host console。
 
 ## 驗收標準
 
-- TUI Deployment 區塊能顯示目前 status event 與最新 screenshot metadata。
+- Host console 能顯示目前 status event 與最新 screenshot metadata。
 - Host status 目錄能按 run 保存截圖與 JSONL metadata。
 - WinPE 截圖失敗不會讓部署失敗。
 - 完成部署後，run summary 仍以 `windows-desktop-ready` 作為完成狀態。

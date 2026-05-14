@@ -57,7 +57,6 @@ const elements = {
   osFilterRelease: $('#os-filter-release'),
   osFilterLanguage: $('#os-filter-language'),
   osUploadFile: $('#os-upload-file'),
-  osImportSource: $('#os-import-source'),
   osImportLanguage: $('#os-import-language'),
   osImportRelease: $('#os-import-release'),
   osImportTimeZone: $('#os-import-timezone'),
@@ -389,14 +388,14 @@ function renderServices(appState) {
     const title = document.createElement('strong');
     title.textContent = name;
     titleWrap.append(title);
-    head.append(titleWrap, makeStatusPill(service.running ? 'Running' : 'Stopped', service.running ? 'ok' : 'fail'));
+    head.append(titleWrap, makeStatusPill(service.running ? 'Running' : 'Stopped', service.running ? 'ok' : 'neutral'));
     const address = document.createElement('code');
     address.className = 'service-address';
     address.textContent = serviceAddress(service);
     const footer = document.createElement('div');
     footer.className = 'service-card-footer';
     const cardAction = document.createElement('span');
-    cardAction.className = 'service-card-cta';
+    cardAction.className = `service-card-cta${action === 'dhcp-toggle' && !service.running ? ' danger' : ''}`;
     cardAction.dataset.icon = service.running ? 'stop' : 'play_arrow';
     cardAction.textContent = actionLabel;
     const switchVisual = document.createElement('div');
@@ -684,13 +683,11 @@ function renderOsImportStatus(appState) {
     return;
   }
   if (state.osImportInspection) {
-    const source = state.osImportInspection.uploadId
-      ? `upload ${state.osImportInspection.originalFileName ?? state.osImportInspection.uploadId}`
-      : text(state.osImportInspection.sourceType);
+    const source = `upload ${state.osImportInspection.originalFileName ?? state.osImportInspection.uploadId}`;
     elements.osImportStatus.textContent = `${state.osImportInspection.indexes?.length ?? 0} image index(es) found in ${source}`;
     return;
   }
-  elements.osImportStatus.textContent = 'Upload or host local ISO/ESD/WIM only.';
+  elements.osImportStatus.textContent = 'Upload local ISO/ESD/WIM only.';
 }
 
 function importMetadataFromInputs(suggested = {}) {
@@ -718,7 +715,7 @@ function renderOsImportIndexes(appState) {
   const indexes = state.osImportInspection?.indexes ?? [];
   if (!indexes.length) {
     const tr = document.createElement('tr');
-    const td = appendTextCell(tr, 'Upload or inspect a local ISO/ESD/WIM source before importing.');
+    const td = appendTextCell(tr, 'Upload a local ISO/ESD/WIM source before importing.');
     td.colSpan = 6;
     elements.osImportIndexesBody.append(tr);
     return;
@@ -735,6 +732,7 @@ function renderOsImportIndexes(appState) {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = 'Import';
+    button.className = 'warning';
     button.dataset.icon = 'file_upload';
     button.dataset.osImportAction = 'import';
     button.dataset.osImportIndex = String(row.imageIndex);
@@ -779,6 +777,7 @@ function renderOsImages(appState) {
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = active ? 'Active' : 'Set active';
+      button.className = active ? '' : 'warning';
       button.dataset.icon = active ? 'check' : 'published_with_changes';
       button.dataset.osImageAction = 'select';
       button.dataset.osImageId = image.id;
@@ -848,6 +847,7 @@ function renderOsImages(appState) {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = 'Download';
+    button.className = 'warning';
     button.dataset.icon = 'download';
     button.dataset.osDownloadAction = 'download';
     button.dataset.osDownloadId = image.id;
@@ -1149,6 +1149,7 @@ function renderInterfaces(appState) {
     const sync = document.createElement('button');
     sync.type = 'button';
     sync.textContent = 'Sync';
+    sync.className = 'warning';
     sync.dataset.icon = 'sync';
     sync.dataset.interfaceAction = 'sync';
     sync.dataset.interfaceIndex = String(index);
@@ -1202,6 +1203,7 @@ function renderProfiles(appState) {
       const select = document.createElement('button');
       select.type = 'button';
       select.textContent = 'Set active';
+      select.className = 'warning';
       select.dataset.icon = 'done';
       select.dataset.profileAction = 'select';
       select.dataset.profileId = profile.id;
@@ -1635,12 +1637,14 @@ function showSoftwareDialog(profile) {
   });
 }
 
-function confirmAction({ title, message, details = [], confirmLabel = 'Continue', danger = false }) {
+function confirmAction({ title, message, details = [], confirmLabel = 'Continue', danger = false, severity = null }) {
   return new Promise((resolve) => {
     elements.confirmTitle.textContent = title;
     elements.confirmMessage.textContent = message;
     elements.confirmSubmit.textContent = confirmLabel;
-    elements.confirmSubmit.classList.toggle('danger', danger);
+    const resolvedSeverity = severity ?? (danger ? 'danger' : 'neutral');
+    elements.confirmSubmit.classList.toggle('danger', resolvedSeverity === 'danger');
+    elements.confirmSubmit.classList.toggle('warning', resolvedSeverity === 'warning');
     elements.confirmDetails.replaceChildren();
     for (const detail of details) {
       const item = document.createElement('li');
@@ -1672,6 +1676,7 @@ async function showPicker(title, rows, onPick, buttonLabel = 'Select') {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = buttonLabel;
+    button.className = buttonLabel.toLowerCase() === 'delete' ? 'danger' : '';
     button.dataset.icon = buttonLabel.toLowerCase() === 'delete' ? 'delete' : 'check';
     button.addEventListener('click', () => {
       elements.pickerDialog.close();
@@ -1689,7 +1694,7 @@ async function confirmEndpointSync(choice) {
     message: 'This will stop services, persist config, update boot files, commit WinPE changes, refresh osdcloud-assets, and rerun preflight.',
     details: [`Target: ${choice.interfaceAlias} ${choice.ipAddress}/${choice.prefixLength}`],
     confirmLabel: 'Sync endpoint',
-    danger: true,
+    severity: 'warning',
   });
   if (!ok) {
     return;
@@ -1718,7 +1723,7 @@ async function handleProfileSelect(profile) {
     message: 'This stops services, writes the active profile, replaces the live Apps payload, and reruns preflight.',
     details: [`Profile: ${profile.name} (${profile.id})`, `Software: ${profile.softwareIds?.join(', ') || 'none'}`],
     confirmLabel: 'Set active',
-    danger: true,
+    severity: 'warning',
   });
   if (ok) {
     await mutate('/api/profile', { profileId: profile.id });
@@ -1731,7 +1736,7 @@ async function handleOsImageSelect(image) {
     message: 'This stops services, publishes selected-os.json, updates the SMB image path, saves config, and reruns preflight.',
     details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
     confirmLabel: 'Set active',
-    danger: true,
+    severity: 'warning',
   });
   if (ok) {
     await mutate('/api/os-image', { imageId: image.id });
@@ -1757,7 +1762,7 @@ async function handleOsImageDownload(image) {
     message: 'This downloads on the host into a staging file and will not replace the active deployment image unless validation succeeds.',
     details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
     confirmLabel: 'Download',
-    danger: true,
+    severity: 'warning',
   });
   if (ok) {
     if (state.osDownloadStarting || state.current?.osDownloadStatus?.running) {
@@ -1779,34 +1784,6 @@ async function handleOsImageDownload(image) {
       state.osDownloadStarting = false;
       render();
     }
-  }
-}
-
-async function handleOsImageInspect() {
-  const sourcePath = elements.osImportSource.value.trim();
-  if (!sourcePath) {
-    window.alert('Enter a host local ISO/ESD/WIM path first.');
-    return;
-  }
-  if (state.busy) {
-    return;
-  }
-  state.busy = true;
-  setControlsDisabled(true);
-  try {
-    const payload = await api('/api/os-image-inspect', {
-      method: 'POST',
-      body: JSON.stringify({ sourcePath }),
-    });
-    state.current = payload.state;
-    state.osImportInspection = payload.result;
-    fillImportMetadataDefaults(payload.result?.indexes?.[0]?.suggested ?? {});
-    render();
-  } catch (error) {
-    window.alert(error.message);
-  } finally {
-    state.busy = false;
-    setControlsDisabled(false);
   }
 }
 
@@ -1840,12 +1817,17 @@ async function handleOsImageUploadInspect() {
 }
 
 async function handleOsImageImport(row) {
+  const uploadId = state.osImportInspection?.uploadId;
+  if (!uploadId) {
+    window.alert('Upload and inspect a local ISO/ESD/WIM file first.');
+    return;
+  }
   const metadata = importMetadataFromInputs(row.suggested ?? {});
   const ok = await confirmAction({
     title: 'Import OS image',
-    message: 'This copies the selected local ISO/ESD/WIM image into the host OS cache. It does not change the active deployment image.',
+    message: 'This copies the selected uploaded ISO/ESD/WIM image into the host OS cache. It does not change the active deployment image.',
     details: [
-      `Source: ${state.osImportInspection.uploadId ? state.osImportInspection.originalFileName : state.osImportInspection.sourcePath}`,
+      `Source: ${state.osImportInspection.originalFileName ?? uploadId}`,
       `Index: ${row.imageIndex}`,
       `Language: ${metadata.language}`,
       `Release: ${metadata.releaseId || '-'}`,
@@ -1853,21 +1835,14 @@ async function handleOsImageImport(row) {
       `File: ${metadata.fileName}`,
     ],
     confirmLabel: 'Import to cache',
-    danger: true,
+    severity: 'warning',
   });
   if (ok) {
-    const uploadId = state.osImportInspection.uploadId;
-    const payload = uploadId
-      ? await mutate('/api/os-image-upload-import', {
-        uploadId,
-        imageIndex: row.imageIndex,
-        metadata,
-      })
-      : await mutate('/api/os-image-import', {
-        sourcePath: state.osImportInspection.sourcePath,
-        imageIndex: row.imageIndex,
-        metadata,
-      });
+    const payload = await mutate('/api/os-image-upload-import', {
+      uploadId,
+      imageIndex: row.imageIndex,
+      metadata,
+    });
     if (payload?.state) {
       state.osImportInspection = null;
       render();
@@ -1906,8 +1881,6 @@ async function handleAction(action, source = null) {
     await loadOsDownloadCatalog();
   } else if (action === 'os-upload-inspect') {
     await handleOsImageUploadInspect();
-  } else if (action === 'os-import-inspect') {
-    await handleOsImageInspect();
   } else if (action === 'profile-add') {
     const payload = await api('/api/profiles');
     const input = await showAddProfileDialog(payload.profile);
@@ -1923,7 +1896,7 @@ async function handleAction(action, source = null) {
         message: 'This stops services, updates the active profile, replaces the live Apps payload, and runs preflight.',
         details: [`Profile: ${profileUpdate.name}`, `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`],
         confirmLabel: 'Save changes',
-        danger: true,
+        severity: 'warning',
       });
       if (ok) {
         await mutate('/api/profile/software', profileUpdate);

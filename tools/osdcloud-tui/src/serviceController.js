@@ -21,9 +21,7 @@ import {
   deleteCachedOsImage,
   downloadOsImageFromCatalog,
   formatOsImageLabel,
-  importLocalOsImage,
   importUploadedOsImage,
-  inspectLocalOsImage,
   listOsDownloadCatalog,
   publishSelectedOsImage,
   resolveOsImageState,
@@ -153,9 +151,7 @@ export class ServiceController extends EventEmitter {
       deleteDeploymentProfile,
       deleteCachedOsImage,
       downloadOsImageFromCatalog,
-      importLocalOsImage,
       importUploadedOsImage,
-      inspectLocalOsImage,
       listOsDownloadCatalog,
       listIpv4ServiceInterfaces,
       publishSelectedOsImage,
@@ -663,14 +659,6 @@ export class ServiceController extends EventEmitter {
     };
   }
 
-  async inspectOsImage(sourcePath) {
-    return this.runOperation(
-      'Inspecting OS image source',
-      async () => this.dependencies.inspectLocalOsImage(sourcePath),
-      { mutating: false },
-    );
-  }
-
   async uploadOsImage(input) {
     return this.runOperation('Uploading OS image source', async () => {
       this.osImportStatus = {
@@ -702,40 +690,6 @@ export class ServiceController extends EventEmitter {
           finishedAt: new Date().toISOString(),
         };
         this.addLog(`OS image uploaded: ${result.uploadId} ${result.originalFileName}`);
-        return result;
-      } catch (error) {
-        this.osImportStatus = {
-          ...this.osImportStatus,
-          status: 'failed',
-          finishedAt: new Date().toISOString(),
-          error: error.message,
-        };
-        throw error;
-      }
-    });
-  }
-
-  async importOsImage(input) {
-    return this.runOperation('Importing OS image', async () => {
-      this.osImportStatus = {
-        sourcePath: input?.sourcePath,
-        imageIndex: input?.imageIndex ?? input?.index,
-        status: 'starting',
-        startedAt: new Date().toISOString(),
-        finishedAt: null,
-        error: null,
-      };
-      try {
-        const result = await this.dependencies.importLocalOsImage(this.config, input);
-        this.osImportStatus = {
-          ...this.osImportStatus,
-          status: result.status,
-          bytes: result.bytes,
-          fileName: result.image.fileName,
-          imageId: result.image.id,
-          finishedAt: new Date().toISOString(),
-        };
-        this.addLog(`OS image ${result.status}: ${result.image.id} ${result.image.fileName}`);
         return result;
       } catch (error) {
         this.osImportStatus = {

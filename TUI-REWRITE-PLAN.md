@@ -1,22 +1,24 @@
 # Node TUI 重寫計畫
 
+> Current status as of 2026-05-14: this is a historical implementation plan. The primary and only interactive operator console is now the Web/GUI console started with `npm run web`; the old blessed Node TUI CLI was retired in version `0.3.0`. Fresh-host setup and active deployment instructions live in `README.md` under `新主機 Clone 後啟動流程` and `使用手冊`.
+
 ## 目前狀態
 
-TUI 已進入 `0.1.1`，並成為實體筆電 iPXE path 的主要 host console。除原本 DHCP/TFTP/HTTP/status/live log/validation 外，現在也包含 `/osdcloud/screenshot` PNG endpoint、screenshot metadata 顯示、status cleanup 的 screenshot 清理，以及 run lifecycle summary。
+TUI 後續曾演進到 `0.2.x`，後來由 Web/GUI console 取代。實體筆電 iPXE path 的互動入口是 Web/GUI console；`serviceController.js` 保留為 Web 服務控制層，負責 DHCP/TFTP/HTTP/status/preflight/endpoint sync/profile publish。除原本 DHCP/TFTP/HTTP/status/live log/validation 外，現在也包含 `/osdcloud/screenshot` PNG endpoint、screenshot metadata 顯示、status cleanup 的 screenshot 清理、fleet/run lifecycle summary、deployment profile publish、OS image cache 互動與 endpoint sync progress。
 
 Windows completion 仍以 JSON status 為準。`OSDCloudDesktopReadyReport` 在登入後每 5 秒重試，最多 30 分鐘；成功 POST `windows-desktop-ready` 後必須 unregister 自己。Windows desktop screenshot Startup helper 目前不啟用，因為先前的 hidden PowerShell + screenshot + upload 行為被 Defender/AMSI 擋成 `ScriptContainedMaliciousContent`，會讓 SetupComplete 完全不執行。
 
 ## 摘要
 
-這個計畫把目前的 OSDCloud / iPXE 實體筆電部署流程改成 host 端 Node TUI 操作台。TUI 接管 host 端的 DHCP、TFTP、HTTP media server、status API、log 監看與部署流程控制。v1 不改 WinPE 內已驗證的 OSDCloud、SMB no-redownload、OOBE 注入與 SetupComplete 部署核心。
+這個計畫當時的目標是把 OSDCloud / iPXE 實體筆電部署流程改成 host 端 Node TUI 操作台。此目標已完成並被後續 Web/GUI console 取代；現在日常部署應使用 Web console，TUI 入口與 blessed UI 程式碼已移除。WinPE 內已驗證的 OSDCloud、SMB no-redownload、OOBE 注入與 SetupComplete 部署核心仍不應為 UI 工作任意重寫。
 
-啟動方式：
+目前主要啟動方式：
 
 ```powershell
-npm run tui
+npm run web
 ```
 
-任何會影響真實 LAN 的動作都要在 TUI 內二次確認，尤其是設定實體網卡、啟動 DHCP、啟動 PXE services、清除 status files。
+TUI 沒有備援啟動方式；不要再嘗試執行 retired TUI。任何會影響真實 LAN 的動作都要在 Web console 內二次確認，尤其是選 service interface、啟動 DHCP、啟動 PXE services、切換 deployment profile、清除 status files。新 host clone 後必須先依 README 還原 `C:\OSDCloud` 大型 runtime artifacts、啟動 Web console、`Select service interface`、通過 preflight。
 
 ## 實作步驟
 
@@ -27,12 +29,12 @@ npm run tui
 
 2. 新增 Node 專案骨架
    - 新增 `package.json`、`package-lock.json`。
-   - 加入 scripts：`npm run tui`、`npm test`、`npm run smoke`。
+   - 當時加入 scripts：TUI 啟動、`npm test`、`npm run smoke`；目前僅保留 Web / test / smoke scripts。
    - 更新 `.gitignore`，忽略 `node_modules/` 與本機 TUI runtime 暫存。
 
 3. 建立 TUI 與設定檔
    - 在 `tools/osdcloud-tui/` 建立 ESM Node app。
-   - 使用 `blessed` 建立文字操作介面。
+   - 當時使用 terminal UI library 建立文字操作介面；目前該介面已退役。
    - 新增 `config/osdcloud-tui.json`，保存 host IP、實體網卡、DHCP range、gateway、DNS、TFTP root、HTTP root、SMB share 與 status path。
 
 4. 重寫 host 端服務
@@ -52,7 +54,7 @@ npm run tui
 
 - `npm test`：測 DHCP packet parsing、iPXE detection、lease allocation、TFTP path resolution、HTTP range/status API、config validation。
 - `npm run smoke`：用暫存 root 與高位測試 port，不碰真實 LAN。
-- 實機驗收：用 elevated PowerShell 執行 `npm run tui`，通過 preflight，啟動 services，讓實體筆電 PXE boot，確認 no-redownload、status events、最後進入 `davis` desktop。
+- 歷史實機驗收：當時用 elevated PowerShell 執行 TUI，通過 preflight，啟動 services，讓實體筆電 PXE boot，確認 no-redownload、status events、最後進入 `davis` desktop。現在同等驗收應從 Web console 執行。
 - 若改到 `C:\OSDCloud` 內的部署腳本或 WinPE 內容，才執行 `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts` 同步 repo mirror。
 
 ## 假設

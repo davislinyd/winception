@@ -35,7 +35,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /Upload file/);
   assert.match(html, /id="os-filter-release"/);
   assert.match(html, /id="os-upload-file"/);
-  assert.match(html, /id="os-import-source"/);
+  assert.doesNotMatch(html, /Host path/);
+  assert.doesNotMatch(html, /id="os-import-source"/);
   assert.match(html, /id="os-load-catalog-button"/);
   assert.match(html, /Windows 11 Pro Retail only/);
   assert.doesNotMatch(html, /name="os-catalog-family"/);
@@ -78,6 +79,10 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.os-import-table \{\s*min-width: 960px;/);
   assert.match(styles, /\.local-import-grid/);
   assert.match(html, /Endpoint Sync Progress/);
+  assert.match(html, /data-action="preflight" data-icon="fact_check" type="button">Run preflight/);
+  assert.doesNotMatch(html, /data-action="preflight"[^>]*primary-action/);
+  assert.match(html, /data-action="endpoint-sync" data-icon="sync_alt" class="warning"/);
+  assert.match(html, /id="preflight-status-badge"[^>]*aria-live="polite"/);
   assert.match(html, /Validation Evidence/);
   assert.match(html, /Refresh Evidence/);
   assert.doesNotMatch(script, /switchView\(/);
@@ -96,9 +101,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Starting\.\.\./);
   assert.match(script, /Downloading \$\{bytes\(downloadStatus\.bytes\)\}/);
   assert.doesNotMatch(script, /mutate\('\/api\/os-download'/);
-  assert.match(script, /handleOsImageInspect/);
   assert.match(script, /handleOsImageUploadInspect/);
   assert.match(script, /handleOsImageImport/);
+  assert.doesNotMatch(script, /handleOsImageInspect/);
+  assert.doesNotMatch(script, /\/api\/os-image-inspect/);
+  assert.doesNotMatch(script, /\/api\/os-image-import/);
   assert.match(script, /osDownloadCatalogLoading/);
   assert.match(script, /osDownloadCatalogError/);
   assert.match(script, /selectedOsCatalogFilters/);
@@ -119,6 +126,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /No catalog rows matched the selected filters/);
   assert.match(script, /dataset\.runAction = 'evidence'/);
   assert.match(script, /showValidationEvidence/);
+  assert.match(script, /elements\.confirmSubmit\.classList\.toggle\('warning', resolvedSeverity === 'warning'\)/);
+  assert.match(script, /severity: 'warning'/);
   assert.match(html, /Material\+Symbols\+Outlined/);
   assert.match(html, /Inter:wght@400;500;600/);
   assert.match(html, />Operations</);
@@ -160,22 +169,35 @@ test('web UI makes service cards stateful toggles', () => {
   assert.match(script, /'tftp-toggle'/);
   assert.match(script, /'dhcp-toggle'/);
   assert.match(script, /button\[data-action="\$\{action\}"\]/);
-  assert.match(script, /cardAction\.className = 'service-card-cta'/);
+  assert.match(script, /makeStatusPill\(service\.running \? 'Running' : 'Stopped', service\.running \? 'ok' : 'neutral'\)/);
+  assert.match(script, /cardAction\.className = `service-card-cta\$\{action === 'dhcp-toggle' && !service\.running \? ' danger' : ''\}`/);
   assert.match(script, /cardAction\.dataset\.icon = service\.running \? 'stop' : 'play_arrow'/);
   assert.match(script, /service-card-action\[data-action\]/);
   assert.match(styles, /\.service-card-cta/);
+  assert.match(styles, /\.service-card-cta\.danger/);
   assert.match(styles, /\.service-card\[data-service-state="stopped"\] \.service-switch/);
+  assert.match(styles, /\.service-switch\.running \{\s*background: var\(--ok\);/);
+  assert.match(styles, /\.status-services-grid \{\s*grid-template-columns: minmax\(0, 1fr\) !important;/);
   assert.match(styles, /\.service-card-action:hover/);
   assert.match(styles, /\.service-card-action:focus-visible/);
 });
 
-test('operations buttons use one text scale', () => {
+test('operations buttons use neutral, warning, and danger severity without blue default', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
+  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
   const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
 
   assert.doesNotMatch(html, /quiet-action/);
+  assert.doesNotMatch(html, /primary-action/);
   assert.doesNotMatch(styles, /button\.quiet-action/);
+  assert.doesNotMatch(styles, /button\.primary-action/);
   assert.match(styles, /button \{\s*appearance: none;[\s\S]*font: 500 12px\/16px Inter, sans-serif;/);
+  assert.match(styles, /button\.warning/);
+  assert.match(styles, /button\.all-services-toggle\.is-running \{\s*border-color: var\(--outline\);[\s\S]*color: var\(--on-surface\);/);
+  assert.match(script, /button\.className = active \? '' : 'warning'/);
+  assert.match(script, /select\.className = 'warning'/);
+  assert.match(script, /sync\.className = 'warning'/);
+  assert.match(script, /return \['Blocked', 'fail'\]/);
 });
 
 test('web UI keeps local component layer', () => {
