@@ -538,6 +538,8 @@ For portability/setup changes, also update the README `新主機 Clone 後啟動
 
 Use Git to track docs and process definitions in this workspace.
 
+After every code change, finish by updating the related documentation and Git state in the same workflow. Do not leave a code-only diff unless the user explicitly scoped the task to read-only inspection or a throwaway experiment. Update the applicable docs, such as `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, `osdcloud-assets`, or feature-specific docs; run the relevant verification for the changed surface; and create a local commit whose staged set includes the code, docs, tests, and synchronized assets required by that change. Push only when the user explicitly requests it, the task is a handoff/release, or an existing repo rule requires it.
+
 At the start of every new conversation in this workspace, before planning or editing, check for handoff context that may have been written by other agents:
 
 ```powershell
