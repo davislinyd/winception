@@ -273,7 +273,7 @@ http://127.0.0.1:8080
 
 單純啟動 Web 版、打開頁面、刷新 Dashboard workbench、讀取 state/status/logs/validation 不會修改 `C:\OSDCloud`。會改 live deployment 狀態的按鈕會要求確認：
 
-- `Select service interface` 會停止 running services、更新 `config\osdcloud-tui.json`、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
+- `Select service interface` 會先開啟 endpoint settings drawer 並背景載入 live Windows 介面清單；真正選定並同步 endpoint 時，才會停止 running services、更新 `config\osdcloud-tui.json`、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
 - `Select deployment profile` 會停止 running services，重建 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps` payload。
 - `OS Image Cache` 會下載或匯入 Windows image 到 host cache，但不會自動切換 active；`Set active` 會停止 running services、寫回 active cached OS、發佈 `selected-os.json`、更新 SMB image path，並重新跑 preflight。
 - `Clear status files` 會清除 configured status root 內的 JSON/JSONL/screenshot metadata。
@@ -286,9 +286,9 @@ Web Dashboard 主要區塊：
 | `Operations` | 左側操作欄；`Run preflight` 是中性診斷動作，`Sync endpoint` / `Set active` / OS image download/import 是 warning，`Start DHCP` / `Start all services` / `Clear status` / delete 是 danger |
 | `Endpoint Sync Progress` | 顯示 endpoint sync 目標、主要步驟與同步腳本輸出 |
 | `Active Profile` | 顯示目前 deployment profile、description 與選中的 client software |
-| `Active OS Image` | 顯示目前 active cached Windows 映像、語言、edition、image index 與 cache/preflight 狀態 |
+| `Active OS Image` | 顯示目前 active cached Windows 映像、語言、edition、image index 與 cache/preflight 狀態；長映像檔名會在卡片內換行，不會撐出框線 |
 | `HTTP/TFTP/DHCP` service cards | 顯示各 host-side service 是否 running 與 bind address；stopped 是中性狀態，不代表 failure，只有 blocked/error 才使用紅色狀態 |
-| `Client Fleet` | 顯示多台 client / 多個 run 的狀態、stage、percent、last seen |
+| `Client Fleet` | 顯示多台 client / 多個 run 的狀態、stage、percent、last seen；`Last Seen` 使用本地時間 `yyyy/mm/dd HH:MM` |
 | `Preflight Summary` | 顯示 preflight 檢查結果；`Not run` / `Ready` / `Review` / `Blocked` 是權威狀態來源，長路徑與錯誤訊息會在此區塊內捲動/截斷 |
 | `System Log` | 顯示 DHCP、TFTP、HTTP、endpoint sync 與 Web controller log |
 
@@ -296,6 +296,9 @@ Web Dashboard 主要區塊：
 
 - Web console 使用瀏覽器原生鍵盤焦點與滑鼠操作；`Tab` / `Shift+Tab` 可在 buttons、dialogs、tables 與 form controls 間移動。
 - Tables、Preflight Summary、System Log 與 dialogs 各自保留 scroll area；窄版畫面下 service cards 會改成單欄，避免 `Start HTTP/TFTP/DHCP` 按鈕文字被擠壓。
+- `Select interface` drawer 會立即開啟，不等待 Windows NIC 枚舉完成。介面表格會顯示 `Loading endpoints...` / `Refreshing endpoints...`；若 `/api/interfaces` 失敗，drawer 會保留 inline error 與 `Refresh endpoints` 重試入口。
+- `Validation Evidence`、`OS Image Cache`、`Profiles`、endpoint settings、picker、profile form 與 confirmation dialog 開啟後，點擊灰色背景會立即走 cancel/close；點框內表單、按鈕、表格或捲動區不會關閉。Confirmation dialog 背景點擊只會取消，不會執行 Start、Sync、Delete、Clear 等動作。
+- `Validation Evidence` drawer 由外層 dialog 控制 responsive 寬度，長 Run ID、路徑與 validation/check 內容會在容器內換行；桌面保留雙欄 evidence 版面，窄版會收成單欄，避免右側被 viewport 裁切或產生不必要的水平捲軸。
 - 舊 blessed TUI 的 `Alt+A/S/C/D/P/V/L` panel shortcut 已退役，不適用於 Web console。
 
 ### 每次實體部署流程
@@ -790,7 +793,7 @@ npm run web
 
 預設 URL 是 `http://127.0.0.1:8080`。Web 版是完整 operator console，負責 endpoint、OS image cache、deployment profile、service control、status/log/validation。PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議維持相容；OS image cache 會透過 `selected-os.json` 影響 WinPE deployment script 選用哪個 cached image。
 
-Web console 目前是單一 workbench。左側 `Operations` 放日常操作入口；中間顯示 endpoint summary、Endpoint Sync Progress、active OS image、active profile、HTTP/TFTP/DHCP service cards、Preflight Summary 與 Client Fleet；右側是 `System Log`。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可手動切換 active cached image，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯入 cache。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍。
+Web console 目前是單一 workbench。左側 `Operations` 放日常操作入口；中間顯示 endpoint summary、Endpoint Sync Progress、active OS image、active profile、HTTP/TFTP/DHCP service cards、Preflight Summary 與 Client Fleet；右側是 `System Log`。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可手動切換 active cached image，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯入 cache。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
 
 Operations 的視覺語意固定如下：`Run preflight` 是中性 outline 診斷動作，不使用藍色 primary；`Sync endpoint`、profile/OS `Set active`、OS image download/import 使用 warning，表示會修改 live config/cache 但不是破壞性；`Start DHCP`、`Start all services`、`Clear status files`、delete 類動作使用 danger。狀態色只用於結果：running/ready 用綠色，blocked/error 用紅色，review/working 用黃色，stopped/idle/not run 用中性。
 
@@ -817,8 +820,9 @@ Web console 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/stat
 - 優先用 elevated PowerShell 啟動 `npm run web`，再從瀏覽器開 `http://127.0.0.1:8080`
 - Web 版使用 `serviceController.js` 控制服務；同一時間只開一個 host console 或 headless process 來操作服務，避免兩個 Node process 同時嘗試控制 HTTP/TFTP/DHCP
 - Web 版 read-only state/status/logs/validation 不會寫入 `C:\OSDCloud`；endpoint sync、profile publish、clear status、service start/stop 是明確的 mutating 操作
+- 所有 Web dialog/drawer 的灰色背景點擊都等同 `Cancel` / `Close`，使用 pointer down 立即關閉；點擊內容區不會關閉。Confirmation dialog 背景點擊只會回傳取消，不會執行危險或 warning action。
 - 先執行 `Run preflight`；preflight 會檢查服務綁定 IP 是否存在於任一張啟用中的 IPv4 介面，不要求固定 NIC alias
-- 若要改服務監聽介面，使用 `Select service interface`；它會列出目前啟用、具 IPv4、非 APIPA 的介面，選定後寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、SMB firewall、published `boot.wim` 與 `osdcloud-assets`
+- 若要改服務監聽介面，使用 `Select service interface`；drawer 會立即開啟並背景刷新目前啟用、具 IPv4、非 APIPA 的介面清單。選定並同步後，才會寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、SMB firewall、published `boot.wim` 與 `osdcloud-assets`
 - 若要切換本次要安裝的 client software 組合，使用 `Select deployment profile`；Web console 會停止 running services，寫回 active profile，並只發佈該 profile 選中的 `Apps` payload
 - 若要管理 profile，使用 `Add deployment profile`、`Edit deployment profile`、`Delete deployment profile`。新增 profile 會複製目前 active profile 但不切換/不發佈；編輯只更新 active profile 的 `software` 並在存檔後立即發佈；刪除只允許刪非 active profile
 - `Select service interface` 觸發 endpoint 更新時，Preflight panel 會顯示目前正在更新的項目，Logs 會即時串流同步腳本輸出，完成後會自動針對新 endpoint 跑 preflight

@@ -3,6 +3,8 @@ const state = {
   selectedRunId: null,
   pendingInterface: null,
   interfaces: [],
+  interfacesLoading: false,
+  interfacesError: null,
   osDownloadCatalog: [],
   osDownloadCatalogLoaded: false,
   osDownloadCatalogLoading: false,
@@ -16,6 +18,9 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+let suppressBackdropClickUntil = 0;
+let interfacesLoadPromise = null;
 
 const elements = {
   endpointLine: $('#endpoint-line'),
@@ -165,12 +170,27 @@ function elapsed(seconds) {
   return `${minutes}m ${String(remainder).padStart(2, '0')}s`;
 }
 
+function twoDigit(value) {
+  return String(value).padStart(2, '0');
+}
+
 function localTime(value) {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) {
     return '-';
   }
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function localCompactDateTime(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return '-';
+  }
+  return [
+    `${date.getFullYear()}/${twoDigit(date.getMonth() + 1)}/${twoDigit(date.getDate())}`,
+    `${twoDigit(date.getHours())}:${twoDigit(date.getMinutes())}`,
+  ].join(' ');
 }
 
 function localDateTime(value) {
@@ -211,9 +231,28 @@ async function refresh() {
 }
 
 async function loadInterfaces() {
-  const payload = await api('/api/interfaces');
-  state.interfaces = payload.interfaces ?? [];
+  if (interfacesLoadPromise) {
+    return interfacesLoadPromise;
+  }
+  state.interfacesLoading = true;
+  state.interfacesError = null;
   render();
+  interfacesLoadPromise = api('/api/interfaces')
+    .then((payload) => {
+      state.interfaces = payload.interfaces ?? [];
+      state.interfacesError = null;
+      return state.interfaces;
+    })
+    .catch((error) => {
+      state.interfacesError = error.message;
+      return null;
+    })
+    .finally(() => {
+      state.interfacesLoading = false;
+      interfacesLoadPromise = null;
+      render();
+    });
+  return interfacesLoadPromise;
 }
 
 async function loadOsDownloadCatalog() {
@@ -280,10 +319,48 @@ function openDialog(dialog) {
   }
 }
 
-function closeDialog(dialog) {
+function closeDialog(dialog, returnValue = '') {
   if (dialog.open) {
-    dialog.close();
+    dialog.close(returnValue);
   }
+}
+
+function cancelDialog(dialog) {
+  if (!dialog.open) {
+    return;
+  }
+  const cancelEvent = new Event('cancel', { cancelable: true });
+  const shouldClose = dialog.dispatchEvent(cancelEvent);
+  if (shouldClose && dialog.open) {
+    closeDialog(dialog, 'cancel');
+  }
+}
+
+function enableBackdropClose(dialog) {
+  dialog.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+    if (event.target !== dialog) {
+      return;
+    }
+    event.preventDefault();
+    suppressBackdropClickUntil = performance.now() + 500;
+    cancelDialog(dialog);
+  });
+}
+
+function enableBackdropCloseForDialogs() {
+  $$('dialog').forEach((dialog) => enableBackdropClose(dialog));
+}
+
+function suppressBackdropCloseClickThrough(event) {
+  if (performance.now() > suppressBackdropClickUntil) {
+    return;
+  }
+  suppressBackdropClickUntil = 0;
+  event.preventDefault();
+  event.stopImmediatePropagation();
 }
 
 function setDefinitionList(element, rows) {
@@ -491,6 +568,14 @@ function appendTextCell(row, value, className = '') {
   return cell;
 }
 
+function appendFleetLastSeenCell(row, value) {
+  const cell = document.createElement('td');
+  cell.className = 'fleet-last-seen-cell';
+  cell.textContent = localCompactDateTime(value);
+  row.append(cell);
+  return cell;
+}
+
 function checkedValues(name) {
   return $$(`input[name="${name}"]:checked`).map((input) => input.value);
 }
@@ -588,10 +673,10 @@ function renderOsImageSummary(appState) {
   meta.className = 'profile-meta';
   meta.textContent = active ? osImageLabel(active) : 'No active OS image.';
   const cache = document.createElement('div');
-  cache.className = 'profile-software';
+  cache.className = 'profile-software active-os-cache-line';
   cache.append(makeStatusPill(active?.cached ? 'Cached' : 'Missing', active?.cached ? 'ok' : 'fail'));
   const file = document.createElement('code');
-  file.className = 'service-address';
+  file.className = 'service-address active-os-cache-file';
   file.textContent = active?.fileName ?? '-';
   cache.append(file);
   elements.activeOsDetails.append(title, meta, cache);
@@ -950,13 +1035,11 @@ function renderClients(appState) {
       run.runId,
       run.latestStage,
       percent(run.latestPercent),
-      localTime(run.lastReceivedAt),
-      elapsed(run.elapsedSeconds),
     ]) {
-      const td = document.createElement('td');
-      td.textContent = text(value);
-      tr.append(td);
+      appendTextCell(tr, value);
     }
+    appendFleetLastSeenCell(tr, run.lastReceivedAt);
+    appendTextCell(tr, elapsed(run.elapsedSeconds));
     elements.clientsBody.append(tr);
   }
   if (!runs.length) {
@@ -1106,18 +1189,41 @@ function currentInterfaceChoice() {
   };
 }
 
+function appendInterfaceStatusRow(message, className = '') {
+  const tr = document.createElement('tr');
+  if (className) {
+    tr.className = className;
+  }
+  const td = document.createElement('td');
+  td.colSpan = 5;
+  td.textContent = message;
+  tr.append(td);
+  elements.interfacesBody.append(tr);
+}
+
 function renderInterfaces(appState) {
   elements.interfacesBody.replaceChildren();
-  elements.pendingInterfaceLabel.textContent = state.pendingInterface
-    ? `Selected: ${state.pendingInterface.interfaceAlias} ${state.pendingInterface.ipAddress}/${state.pendingInterface.prefixLength}`
-    : 'No pending endpoint target';
+  let pendingLabel = 'No pending endpoint target';
+  if (state.pendingInterface) {
+    pendingLabel = `Selected: ${state.pendingInterface.interfaceAlias} ${state.pendingInterface.ipAddress}/${state.pendingInterface.prefixLength}`;
+  } else if (state.interfacesLoading) {
+    pendingLabel = 'Refreshing endpoints...';
+  }
+  elements.pendingInterfaceLabel.textContent = pendingLabel;
+  if (state.interfacesLoading) {
+    appendInterfaceStatusRow(state.interfaces.length ? 'Refreshing endpoints...' : 'Loading endpoints...', 'status-row');
+  } else if (state.interfacesError) {
+    appendInterfaceStatusRow(
+      state.interfaces.length
+        ? `Endpoint refresh failed: ${state.interfacesError}. Showing last loaded interface data.`
+        : `Endpoint load failed: ${state.interfacesError}. Use Refresh endpoints to retry.`,
+      'status-row failed',
+    );
+  }
   if (!state.interfaces.length) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = 5;
-    td.textContent = 'No interface data loaded. Use Refresh endpoints.';
-    tr.append(td);
-    elements.interfacesBody.append(tr);
+    if (!state.interfacesLoading && !state.interfacesError) {
+      appendInterfaceStatusRow('No interface data loaded. Use Refresh endpoints.', 'status-row');
+    }
     return;
   }
   state.interfaces.forEach((item, index) => {
@@ -1146,6 +1252,7 @@ function renderInterfaces(appState) {
     select.dataset.icon = 'check_circle';
     select.dataset.interfaceAction = 'select';
     select.dataset.interfaceIndex = String(index);
+    select.disabled = state.interfacesLoading;
     const sync = document.createElement('button');
     sync.type = 'button';
     sync.textContent = 'Sync';
@@ -1153,6 +1260,7 @@ function renderInterfaces(appState) {
     sync.dataset.icon = 'sync';
     sync.dataset.interfaceAction = 'sync';
     sync.dataset.interfaceIndex = String(index);
+    sync.disabled = state.interfacesLoading;
     actionCell.append(select, ' ', sync);
     tr.append(actionCell);
     elements.interfacesBody.append(tr);
@@ -1858,8 +1966,8 @@ async function handleAction(action, source = null) {
   } else if (action === 'preflight') {
     await mutate('/api/preflight');
   } else if (action === 'interfaces') {
-    await loadInterfaces();
     openDialog(elements.endpointSettingsDialog);
+    void loadInterfaces();
   } else if (action === 'reload-endpoints') {
     await Promise.all([refresh(), loadInterfaces()]);
   } else if (action === 'endpoint-sync') {
@@ -2062,6 +2170,8 @@ document.addEventListener('keydown', (event) => {
   handleAction(serviceCard.dataset.action).catch((error) => window.alert(error.message));
 });
 
+document.addEventListener('click', suppressBackdropCloseClickThrough, true);
+
 elements.refreshButton.addEventListener('click', () => {
   refresh().catch((error) => window.alert(error.message));
 });
@@ -2083,6 +2193,8 @@ $$('[data-os-catalog-filter]').forEach((input) => {
     render();
   });
 });
+
+enableBackdropCloseForDialogs();
 
 refresh().catch((error) => window.alert(error.message));
 setInterval(() => {

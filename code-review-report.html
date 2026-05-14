@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code Review 報告</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --text: #172033;
+      --muted: #5d687a;
+      --border: #d8dee9;
+      --accent: #2563eb;
+      --p2-bg: #fff3d6;
+      --p2-text: #7a4a00;
+      --p3-bg: #e8eef8;
+      --p3-text: #31405f;
+      --pass-bg: #e7f7ed;
+      --pass-text: #146c37;
+      --warn-bg: #fff3d6;
+      --warn-text: #7a4a00;
+      --notrun-bg: #eef2f7;
+      --notrun-text: #475569;
+      font-family: "Segoe UI", "Noto Sans TC", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 32px auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(23, 32, 51, 0.08);
+      overflow: hidden;
+    }
+
+    header {
+      padding: 32px 36px 24px;
+      border-bottom: 1px solid var(--border);
+      background: #fbfcff;
+    }
+
+    section {
+      padding: 24px 36px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    section:last-child {
+      border-bottom: 0;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-bottom: 14px;
+      font-size: 21px;
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    ul,
+    ol {
+      margin: 10px 0 0 22px;
+      padding: 0;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #eef2f7;
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.92em;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .meta div,
+    .finding {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .meta div {
+      padding: 12px 14px;
+    }
+
+    .label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .value {
+      display: block;
+      margin-top: 4px;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
+    .summary {
+      border-left: 4px solid var(--accent);
+      padding-left: 16px;
+    }
+
+    .findings {
+      display: grid;
+      gap: 14px;
+    }
+
+    .finding {
+      padding: 18px;
+    }
+
+    .finding-title {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .p2 {
+      background: var(--p2-bg);
+      color: var(--p2-text);
+    }
+
+    .p3 {
+      background: var(--p3-bg);
+      color: var(--p3-text);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow-wrap: anywhere;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f3f6fb;
+      font-weight: 700;
+    }
+
+    .status-pass {
+      color: var(--pass-text);
+      font-weight: 700;
+    }
+
+    .status-warn {
+      color: var(--warn-text);
+      font-weight: 700;
+    }
+
+    .status-notrun {
+      color: var(--notrun-text);
+      font-weight: 700;
+    }
+
+    .note {
+      color: var(--muted);
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: 100%;
+        margin: 0;
+        border-radius: 0;
+      }
+
+      header,
+      section {
+        padding: 22px 18px;
+      }
+
+      .meta {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        font-size: 14px;
+      }
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      main {
+        width: 100%;
+        margin: 0;
+        border: 0;
+        box-shadow: none;
+      }
+
+      header,
+      section {
+        padding: 18px 0;
+      }
+
+      .finding,
+      .meta div {
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Code Review 報告</h1>
+      <div class="meta">
+        <div>
+          <span class="label">產出日期</span>
+          <span class="value">2026-05-14</span>
+        </div>
+        <div>
+          <span class="label">工作目錄</span>
+          <span class="value"><code>C:\Users\Davis\Documents\New project</code></span>
+        </div>
+        <div>
+          <span class="label">範圍</span>
+          <span class="value">Read-only review，不修改既有 code/docs/config/runtime</span>
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <h2>Executive Summary</h2>
+      <div class="summary">
+        <p>本次 review 沒有發現會直接阻止測試通過的語法錯誤或已知 npm dependency vulnerability。<code>npm test</code>、<code>npm run smoke</code>、JavaScript syntax check、PowerShell parser check、<code>git diff --check</code> 與 <code>npm audit</code> 均通過或無阻斷問題。</p>
+        <p>主要風險集中在 Web console / service controller 的 operation lifecycle：<code>Start all services</code> 在局部失敗時不會回滾已啟動服務，以及 OS image background download 沒有納入 controller 的 operation lock。另有一項 Web UI 測試覆蓋不足，屬於回歸測試風險。</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Findings</h2>
+      <div class="findings">
+        <article class="finding">
+          <div class="finding-title">
+            <span class="badge p2">P2</span>
+            <h3>Start all 失敗時未回滾已啟動服務</h3>
+          </div>
+          <p><strong>位置：</strong><code>tools/osdcloud-tui/src/serviceController.js:462</code></p>
+          <p><strong>問題：</strong><code>startAll()</code> 依序啟動 HTTP、TFTP、DHCP，但任一後續服務啟動失敗時，前面已啟動的服務不會自動停止。</p>
+          <p><strong>影響：</strong>operator 看到批次啟動失敗後，仍可能留下部分 responder 或 process running。對 PXE lab 來說，這會造成服務狀態與 UI 操作結果不一致，也可能讓後續 preflight / service start / endpoint sync 判斷變得混亂。</p>
+          <p><strong>驗證：</strong>用 fake services 讓 TFTP 啟動失敗時，HTTP 仍保持 <code>running: true</code>。</p>
+          <p><strong>建議：</strong>在 <code>startAll()</code> 的啟動流程加上 try/catch；若任何服務啟動失敗，呼叫 <code>stopAllServices()</code> 清理已啟動服務後再 rethrow。補測試覆蓋第二個或第三個服務失敗時會清理前面服務。</p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-title">
+            <span class="badge p2">P2</span>
+            <h3>OS image 背景下載未納入 controller operation lock</h3>
+          </div>
+          <p><strong>位置：</strong><code>tools/osdcloud-tui/src/serviceController.js:262</code>、<code>tools/osdcloud-tui/src/serviceController.js:588</code>、<code>tools/osdcloud-tui/web/app.js:1867</code></p>
+          <p><strong>問題：</strong>一般 mutating operation 會透過 <code>runOperation()</code> 做互斥，但 <code>startOsDownload()</code> 只檢查 <code>osDownloadStatus.running</code>，沒有佔用 controller operation lock。前端 download action 也直接呼叫 <code>/api/os-download</code>，未使用一般 <code>mutate()</code> busy gate。</p>
+          <p><strong>影響：</strong>OS image download running 時，其他 mutating actions 仍可能同時執行，例如 endpoint sync、profile publish、OS upload/import、service start/stop。這些操作可能與 OS cache、catalog、runtime endpoint 或 service state 寫入交錯。</p>
+          <p><strong>驗證：</strong>用 fake controller 啟動 download running 狀態後，仍可執行其他 controller operation。</p>
+          <p><strong>建議：</strong>將 OS download/import 納入同一個 operation gate，或在所有會寫 runtime/config/cache/service state 的 mutating action 中明確阻擋 <code>osDownloadStatus.running</code> / <code>osImportStatus.running</code>。</p>
+        </article>
+
+        <article class="finding">
+          <div class="finding-title">
+            <span class="badge p3">P3</span>
+            <h3>Web UI 測試主要是 source regex，互動行為覆蓋不足</h3>
+          </div>
+          <p><strong>位置：</strong><code>tools/osdcloud-tui/test/webUi.test.js:177</code></p>
+          <p><strong>問題：</strong>目前 Web UI 測試大多檢查 HTML/CSS/JS source string、字串存在與順序。新的 interface drawer loading/error/backdrop 行為也主要靠 source-shape assertion。</p>
+          <p><strong>影響：</strong>測試能抓到文字或結構被移除，但無法確認實際 DOM 行為，例如 drawer 是否先打開、<code>/api/interfaces</code> 是否非同步載入、loading/error row 是否真的渲染、backdrop click 是否正確 cancel、dialog 內點擊是否不會穿透關閉。</p>
+          <p><strong>建議：</strong>新增輕量 DOM 或 browser smoke 測試。至少覆蓋 interface drawer 先開再載入、API failure 顯示 inline error、backdrop cancel 關閉 confirm dialog、dialog 內 click 不關閉。</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Verification Results</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>檢查項目</th>
+            <th>結果</th>
+            <th>備註</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>JavaScript / MJS syntax check</td>
+            <td class="status-pass">Pass</td>
+            <td><code>node --check</code> 全部 <code>.js</code> / <code>.mjs</code> 通過</td>
+          </tr>
+          <tr>
+            <td>PowerShell parser check</td>
+            <td class="status-pass">Pass</td>
+            <td>全部 <code>.ps1</code> parser check 通過</td>
+          </tr>
+          <tr>
+            <td>Unit / integration tests</td>
+            <td class="status-pass">Pass</td>
+            <td><code>npm test</code> 通過，108/108 tests passed</td>
+          </tr>
+          <tr>
+            <td>Smoke test</td>
+            <td class="status-pass">Pass</td>
+            <td><code>npm run smoke</code> 通過，使用 temp root</td>
+          </tr>
+          <tr>
+            <td>Whitespace check</td>
+            <td class="status-warn">Pass with warnings</td>
+            <td><code>git diff --check</code> 無 whitespace error，只有 CRLF warning</td>
+          </tr>
+          <tr>
+            <td>npm audit</td>
+            <td class="status-pass">Pass</td>
+            <td><code>npm audit --omit=dev --audit-level=moderate</code> 回報 0 vulnerabilities</td>
+          </tr>
+          <tr>
+            <td>PSScriptAnalyzer</td>
+            <td class="status-notrun">Not run</td>
+            <td><code>Invoke-ScriptAnalyzer</code> 未安裝</td>
+          </tr>
+          <tr>
+            <td>Targeted reproduction</td>
+            <td class="status-pass">Confirmed</td>
+            <td>已用非破壞性 fake services / fake controller 驗證前兩項 findings</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Scope And Repository State</h2>
+      <ul>
+        <li>本次 review 涵蓋 Node backend、Web frontend、Web tests、PowerShell deployment scripts、config/profile/manifest diffs 與 docs alignment。</li>
+        <li>沒有啟動 live Web console、沒有執行 live preflight、沒有修改 <code>C:\OSDCloud</code> deployment runtime。</li>
+        <li>review 完成時 repo 原本已有 9 個 modified files；本報告產出前沒有改動那些既有檔案。</li>
+        <li>這份報告檔本身是後續依要求新增的輸出 artifact。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Additional Observations</h2>
+      <ul>
+        <li>目前 repo snapshot / live config 仍顯示 endpoint 為 <code>Ethernet</code> / <code>192.168.100.1</code>。依 AGENTS 規則，這不是單獨 code defect；但在下一次 physical-laptop validation 前，必須透過 Web console 或 endpoint sync 明確切回目標 physical LAN endpoint 並重新驗證。</li>
+        <li><code>config/osdcloud-tui.json</code> 與 <code>osdcloud-assets/manifest.json</code> 有大量格式、timestamp 或 manifest churn。若不是刻意保存 runtime snapshot，建議後續提交時與功能變更分開處理，降低 review 雜訊。</li>
+        <li>repo 內 lab credentials 與 <code>pxeinstall</code> / <code>davis</code> 設定符合目前私有 lab 文件假設；本次不列為意外漏洞，但仍應維持 repo private 與部署網段限制。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Recommended Next Steps</h2>
+      <ol>
+        <li>先修 <code>startAll()</code> 失敗回滾，因為它直接影響 service lifecycle 與 operator 信任。</li>
+        <li>再統一 OS download/import 與其他 mutating action 的 operation lock policy。</li>
+        <li>補 Web UI interaction smoke 測試，讓後續 layout / drawer / dialog 行為改動有更可靠的回歸保護。</li>
+      </ol>
+      <p class="note">本 HTML 為 self-contained 檔案，不依賴 CDN，並包含基本列印樣式。</p>
+    </section>
+  </main>
+</body>
+</html>

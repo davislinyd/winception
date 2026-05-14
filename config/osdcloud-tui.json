@@ -1,88 +1,90 @@
 {
-  "adapter": {
-    "interfaceAlias": "Ethernet",
-    "serverIp": "192.168.100.1",
-    "prefixLength": 24,
-    "defaultGateway": "192.168.100.1",
-    "interfaceMetric": 5,
-    "remoteSubnet": "192.168.100.0/24"
-  },
-  "dhcp": {
-    "listenIp": "192.168.100.1",
-    "listenPort": 67,
-    "replyPort": 68,
-    "leaseStartIp": "192.168.100.200",
-    "leaseEndIp": "192.168.100.250",
-    "subnetMask": "255.255.255.0",
-    "router": "192.168.100.1",
-    "dnsServers": [
-      "1.1.1.1",
-      "8.8.8.8"
-    ],
-    "reservations": [],
-    "bootFile": "ipxeboot/x86_64-sb/snponly.efi",
-    "ipxeBootUrl": "http://192.168.100.1/osdcloud/boot.ipxe",
-    "leaseSeconds": 3600,
-    "logPath": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP\\pxe-dhcp.log"
-  },
-  "tftp": {
-    "root": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP",
-    "listenIp": "192.168.100.1",
-    "port": 69,
-    "logPath": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP\\pxe-tftp.log"
-  },
-  "http": {
-    "root": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot",
-    "host": "192.168.100.1",
-    "port": 80,
-    "logPath": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\host-http.log",
-    "statusRoot": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status"
-  },
-  "paths": {
-    "osdCloudRoot": "C:\\OSDCloud",
-    "expectedHttpFiles": [
-      "osdcloud\\boot.ipxe",
-      "osdcloud\\wimboot",
-      "osdcloud\\bootmgr",
-      "osdcloud\\bootx64.efi",
-      "osdcloud\\BCD",
-      "osdcloud\\boot.sdi",
-      "osdcloud\\boot.wim"
-    ],
-    "statusLatest": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status\\latest.json",
-    "statusEvents": "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status\\progress.jsonl",
-    "imageNamePattern": "26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
-  },
-  "smb": {
-    "share": "\\\\192.168.100.1\\OSDCloudiPXE",
-    "imagePath": "\\\\192.168.100.1\\OSDCloudiPXE\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
-  },
-  "driverPackCache": {
-    "enabled": true,
-    "root": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\DriverPacks",
-    "allowedHosts": [
-      "downloads.dell.com"
-    ]
-  },
-  "osImage": {
-    "activeImage": "WIN11-25H2-ZHTW-PRO",
-    "catalogPath": "config\\os-image-catalog.json",
-    "downloadSourcesPath": "config\\os-download-sources.json",
-    "cacheRoot": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS",
-    "downloadStagingRoot": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\.downloads",
-    "validateDismOnPreflight": true,
-    "validateDismOnPublish": true
-  },
-  "deploymentProfiles": {
-    "activeProfile": "IZVZO7PU",
-    "profilesRoot": "config\\deployment-profiles",
-    "softwareCatalogPath": "config\\software-catalog.json",
-    "softwareSourceRoot": "Softwares",
-    "appsRoot": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps",
-    "installerScript": "Softwares\\Install-Apps.ps1"
-  },
-  "web": {
-    "host": "127.0.0.1",
-    "port": 8080
-  }
+    "adapter":  {
+                    "interfaceAlias":  "Ethernet",
+                    "serverIp":  "192.168.100.1",
+                    "prefixLength":  24,
+                    "defaultGateway":  "192.168.100.1",
+                    "interfaceMetric":  5,
+                    "remoteSubnet":  "192.168.100.0/24"
+                },
+    "dhcp":  {
+                 "listenIp":  "192.168.100.1",
+                 "listenPort":  67,
+                 "replyPort":  68,
+                 "leaseStartIp":  "192.168.100.200",
+                 "leaseEndIp":  "192.168.100.250",
+                 "subnetMask":  "255.255.255.0",
+                 "router":  "192.168.100.1",
+                 "dnsServers":  [
+                                    "1.1.1.1",
+                                    "8.8.8.8"
+                                ],
+                 "reservations":  [
+
+                                  ],
+                 "bootFile":  "ipxeboot/x86_64-sb/snponly.efi",
+                 "ipxeBootUrl":  "http://192.168.100.1/osdcloud/boot.ipxe",
+                 "leaseSeconds":  3600,
+                 "logPath":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP\\pxe-dhcp.log"
+             },
+    "tftp":  {
+                 "root":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP",
+                 "listenIp":  "192.168.100.1",
+                 "port":  69,
+                 "logPath":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-TFTP\\pxe-tftp.log"
+             },
+    "http":  {
+                 "root":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot",
+                 "host":  "192.168.100.1",
+                 "port":  80,
+                 "logPath":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\host-http.log",
+                 "statusRoot":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status"
+             },
+    "paths":  {
+                  "osdCloudRoot":  "C:\\OSDCloud",
+                  "expectedHttpFiles":  [
+                                            "osdcloud\\boot.ipxe",
+                                            "osdcloud\\wimboot",
+                                            "osdcloud\\bootmgr",
+                                            "osdcloud\\bootx64.efi",
+                                            "osdcloud\\BCD",
+                                            "osdcloud\\boot.sdi",
+                                            "osdcloud\\boot.wim"
+                                        ],
+                  "statusLatest":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status\\latest.json",
+                  "statusEvents":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status\\progress.jsonl",
+                  "imageNamePattern":  "26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
+              },
+    "smb":  {
+                "share":  "\\\\192.168.100.1\\OSDCloudiPXE",
+                "imagePath":  "\\\\192.168.100.1\\OSDCloudiPXE\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
+            },
+    "driverPackCache":  {
+                            "enabled":  true,
+                            "root":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\DriverPacks",
+                            "allowedHosts":  [
+                                                 "downloads.dell.com"
+                                             ]
+                        },
+    "osImage":  {
+                    "activeImage":  "WIN11-25H2-ZHTW-PRO",
+                    "catalogPath":  "config\\os-image-catalog.json",
+                    "downloadSourcesPath":  "config\\os-download-sources.json",
+                    "cacheRoot":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS",
+                    "downloadStagingRoot":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\.downloads",
+                    "validateDismOnPreflight":  true,
+                    "validateDismOnPublish":  true
+                },
+    "deploymentProfiles":  {
+                               "activeProfile":  "IZVZO7PU",
+                               "profilesRoot":  "config\\deployment-profiles",
+                               "softwareCatalogPath":  "config\\software-catalog.json",
+                               "softwareSourceRoot":  "Softwares",
+                               "appsRoot":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps",
+                               "installerScript":  "Softwares\\Install-Apps.ps1"
+                           },
+    "web":  {
+                "host":  "127.0.0.1",
+                "port":  8080
+            }
 }

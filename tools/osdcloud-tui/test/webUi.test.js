@@ -74,6 +74,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /aria-live="polite"/);
   assert.match(styles, /\.os-images-dialog/);
   assert.match(styles, /width: min\(1480px, calc\(100vw - 40px\)\)/);
+  assert.match(styles, /#validation-evidence-dialog \{\s*width: min\(960px, calc\(100vw - 32px\)\);/);
+  assert.match(styles, /\.drawer-card-wide \{\s*max-width: 100%;\s*width: 100%;/);
+  assert.match(styles, /\.validation-evidence-grid > \* \{\s*max-width: 100%;\s*min-width: 0;/);
+  assert.match(styles, /@media \(max-width: 900px\) \{[\s\S]*\.validation-evidence-grid \{[\s\S]*grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(styles, /\.stitch-details dt,[\s\S]*\.stitch-details dd \{[\s\S]*min-width: 0;[\s\S]*overflow-wrap: anywhere;/);
   assert.match(styles, /\.os-cache-table \{\s*min-width: 980px;/);
   assert.match(styles, /\.os-download-catalog-table \{\s*min-width: 1180px;/);
   assert.match(styles, /\.os-import-table \{\s*min-width: 960px;/);
@@ -90,6 +95,18 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /openDialog\(elements\.deploymentProfilesDialog\)/);
   assert.match(script, /openDialog\(elements\.osImagesDialog\)/);
   assert.match(script, /openDialog\(elements\.validationEvidenceDialog\)/);
+  assert.match(script, /function cancelDialog\(dialog\)/);
+  assert.match(script, /new Event\('cancel', \{ cancelable: true \}\)/);
+  assert.match(script, /closeDialog\(dialog, 'cancel'\)/);
+  assert.match(script, /function enableBackdropClose\(dialog\)/);
+  assert.match(script, /dialog\.addEventListener\('pointerdown'/);
+  assert.match(script, /if \(event\.button !== 0\)/);
+  assert.match(script, /if \(event\.target !== dialog\)/);
+  assert.match(script, /suppressBackdropClickUntil = performance\.now\(\) \+ 500/);
+  assert.match(script, /function suppressBackdropCloseClickThrough\(event\)/);
+  assert.match(script, /event\.stopImmediatePropagation\(\)/);
+  assert.match(script, /document\.addEventListener\('click', suppressBackdropCloseClickThrough, true\)/);
+  assert.match(script, /enableBackdropCloseForDialogs\(\)/);
   assert.match(script, /handleOsImageSelect/);
   assert.match(script, /handleOsImageDelete/);
   assert.match(script, /\/api\/os-image-delete/);
@@ -124,6 +141,21 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Loading catalog\.\.\./);
   assert.match(script, /Catalog load failed/);
   assert.match(script, /No catalog rows matched the selected filters/);
+  assert.match(script, /function twoDigit\(value\)/);
+  assert.match(script, /function localCompactDateTime\(value\)/);
+  assert.ok(script.includes('`${date.getFullYear()}/${twoDigit(date.getMonth() + 1)}/${twoDigit(date.getDate())}`,'));
+  assert.ok(script.includes('`${twoDigit(date.getHours())}:${twoDigit(date.getMinutes())}`,'));
+  assert.match(script, /function appendFleetLastSeenCell\(row, value\)/);
+  assert.match(script, /cell\.className = 'fleet-last-seen-cell'/);
+  assert.match(script, /cell\.textContent = localCompactDateTime\(value\)/);
+  assert.match(script, /appendFleetLastSeenCell\(tr, run\.lastReceivedAt\)/);
+  assert.match(styles, /\.fleet-last-seen-cell \{[\s\S]*min-width: 0;[\s\S]*white-space: nowrap;/);
+  assert.match(script, /cache\.className = 'profile-software active-os-cache-line'/);
+  assert.match(script, /file\.className = 'service-address active-os-cache-file'/);
+  assert.match(styles, /#active-os-details,[\s\S]*#active-os-details > \* \{[\s\S]*max-width: 100%;[\s\S]*min-width: 0;/);
+  assert.match(styles, /\.status-os-panel \{[\s\S]*min-width: 0;[\s\S]*overflow: hidden;/);
+  assert.match(styles, /\.active-os-cache-line \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*min-width: 0;/);
+  assert.match(styles, /\.active-os-cache-file \{[\s\S]*display: block;[\s\S]*min-width: 0;[\s\S]*overflow-wrap: anywhere;[\s\S]*white-space: normal;[\s\S]*width: 100%;[\s\S]*word-break: break-word;/);
   assert.match(script, /dataset\.runAction = 'evidence'/);
   assert.match(script, /showValidationEvidence/);
   assert.match(script, /elements\.confirmSubmit\.classList\.toggle\('warning', resolvedSeverity === 'warning'\)/);
@@ -143,6 +175,38 @@ test('web UI uses confirmation dialog instead of window confirm', () => {
 
   assert.match(html, /id="confirm-dialog"/);
   assert.doesNotMatch(script, /window\.confirm/);
+});
+
+test('select interface drawer opens before live interface refresh settles', () => {
+  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+  const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
+
+  const interfacesActionStart = script.indexOf("} else if (action === 'interfaces') {");
+  const reloadActionStart = script.indexOf("} else if (action === 'reload-endpoints') {", interfacesActionStart);
+  assert.notEqual(interfacesActionStart, -1);
+  assert.notEqual(reloadActionStart, -1);
+  const interfacesAction = script.slice(interfacesActionStart, reloadActionStart);
+  assert.ok(
+    interfacesAction.indexOf('openDialog(elements.endpointSettingsDialog)') < interfacesAction.indexOf('void loadInterfaces()'),
+  );
+
+  assert.match(script, /interfacesLoading: false/);
+  assert.match(script, /interfacesError: null/);
+  assert.match(script, /let interfacesLoadPromise = null/);
+  assert.match(script, /if \(interfacesLoadPromise\) \{\s*return interfacesLoadPromise;\s*\}/);
+  assert.match(script, /state\.interfacesLoading = true/);
+  assert.match(script, /state\.interfacesError = null/);
+  assert.match(script, /state\.interfacesError = error\.message/);
+  assert.match(script, /state\.interfacesLoading = false/);
+  assert.match(script, /interfacesLoadPromise = null/);
+  assert.match(script, /Loading endpoints\.\.\./);
+  assert.match(script, /Refreshing endpoints\.\.\./);
+  assert.match(script, /Endpoint load failed: \$\{state\.interfacesError\}\. Use Refresh endpoints to retry\./);
+  assert.match(script, /Endpoint refresh failed: \$\{state\.interfacesError\}\. Showing last loaded interface data\./);
+  assert.match(script, /select\.disabled = state\.interfacesLoading/);
+  assert.match(script, /sync\.disabled = state\.interfacesLoading/);
+  assert.match(styles, /tbody tr\.status-row td \{/);
+  assert.match(styles, /tbody tr\.status-row\.failed td \{/);
 });
 
 test('web UI uses a single stateful all-services toggle', () => {

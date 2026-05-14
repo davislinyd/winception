@@ -1,7 +1,19 @@
 {
-  "profileId": "074RMJU3",
-  "profileName": "Minimal",
-  "publishedAt": "2026-05-13T09:48:51.374Z",
-  "selectedSoftware": [],
-  "software": []
+  "profileId": "IZVZO7PU",
+  "profileName": "All in One",
+  "publishedAt": "2026-05-14T04:10:40.764Z",
+  "selectedSoftware": [
+    "7zip",
+    "chrome"
+  ],
+  "software": [
+    {
+      "id": "7zip",
+      "name": "7-Zip 26.01 x64"
+    },
+    {
+      "id": "chrome",
+      "name": "Google Chrome Enterprise 64-bit"
+    }
+  ]
 }
