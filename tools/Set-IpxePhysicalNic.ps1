@@ -1,12 +1,12 @@
 [CmdletBinding()]
 param(
-    [string] $InterfaceAlias = '乙太網路 3',
-    [string] $ServerIp = '192.168.100.100',
+    [string] $InterfaceAlias = 'LAN',
+    [string] $ServerIp = '192.168.88.1',
     [int] $PrefixLength = 24,
-    [string] $DefaultGateway = '192.168.100.1',
-    [int] $InterfaceMetric = 5,
+    [string] $DefaultGateway = '',
+    [int] $InterfaceMetric = 500,
     [string] $SmbFirewallRuleName = 'PXE-Lab SMB Inbound',
-    [string] $RemoteSubnet = '192.168.100.0/24'
+    [string] $RemoteSubnet = '192.168.88.0/24'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,7 +31,11 @@ Get-NetRoute -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -DestinationPr
     Remove-NetRoute -Confirm:$false -ErrorAction SilentlyContinue
 
 if (-not (Get-NetIPAddress -InterfaceAlias $InterfaceAlias -IPAddress $ServerIp -AddressFamily IPv4 -ErrorAction SilentlyContinue)) {
-    New-NetIPAddress -InterfaceAlias $InterfaceAlias -IPAddress $ServerIp -PrefixLength $PrefixLength -DefaultGateway $DefaultGateway | Out-Null
+    New-NetIPAddress -InterfaceAlias $InterfaceAlias -IPAddress $ServerIp -PrefixLength $PrefixLength | Out-Null
+}
+
+if (-not [string]::IsNullOrWhiteSpace($DefaultGateway)) {
+    New-NetRoute -InterfaceAlias $InterfaceAlias -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -NextHop $DefaultGateway -ErrorAction SilentlyContinue | Out-Null
 }
 
 Set-NetIPInterface -InterfaceAlias $InterfaceAlias -AddressFamily IPv4 -InterfaceMetric $InterfaceMetric

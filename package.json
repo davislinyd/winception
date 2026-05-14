@@ -6,6 +6,7 @@
   "scripts": {
     "tui": "node tools/osdcloud-tui/src/index.js",
     "web": "node tools/osdcloud-tui/src/webServer.js",
+    "server:preflight": "node tools/osdcloud-tui/src/serverPreflight.js",
     "test": "node --test \"tools/osdcloud-tui/test/**/*.test.js\"",
     "smoke": "node tools/osdcloud-tui/src/smoke.js"
   },

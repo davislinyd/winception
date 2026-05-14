@@ -8,6 +8,8 @@
 
 # Local download and cache folders
 downloads/
+deployment-server-bundle/
+*.deployment-server.zip
 node_modules/
 .osdcloud-tui/
 *.tmp

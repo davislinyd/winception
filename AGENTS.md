@@ -52,6 +52,15 @@ Current host WAN/LAN topology:
 - The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-tui.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the Web/TUI console or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - If `config\osdcloud-tui.json` still references `乙太網路 2`, `乙太網路 3`, or `192.168.100.x` after the rename, treat it as a stale endpoint until it is deliberately resynced.
 
+Fresh-clone / new-host rules:
+
+- The repository may be cloned to any folder. Do not reintroduce committed `paths.repoRoot` or `paths.endpointSyncScript` values that point to one operator's clone path.
+- Live deployment still runs from `C:\OSDCloud`; a Git clone alone is not a deployable PXE runtime because large artifacts are intentionally excluded from Git.
+- A new host must restore or rebuild `C:\OSDCloud\Win11-Lab` and `C:\OSDCloud\Win11-iPXE-Lab`, including `boot.wim`, published HTTP boot files, iPXE binaries, Windows boot binaries, and the active Windows ESD/WIM listed in `osdcloud-assets\manifest.json`.
+- Preferred new-host bootstrap is restore-based: export `deployment-server-bundle` with `tools\Export-DeploymentServerBundle.ps1` on a verified host, then run `Deploy-DeploymentServer.cmd` or `tools\Initialize-DeploymentServer.ps1` on the new host. The bootstrap may restore `C:\OSDCloud`, verify artifact hashes, sync endpoint, run preflight, and start the Web console, but it must not auto-start DHCP/TFTP/HTTP deployment services.
+- Treat committed `config\osdcloud-tui.json` as the last synced lab snapshot, not as a guaranteed production endpoint. It may be left on `Ethernet` / `192.168.100.1`; before a physical-laptop deployment on a newly cloned host, use the Web console `Select service interface`, rerun endpoint sync, and pass preflight.
+- When updating setup or deployment docs, keep the README `新主機 Clone 後啟動流程` current so another operator can clone, restore `C:\OSDCloud`, start `npm run web`, select the service endpoint, run preflight, start services, and validate completion without reading prior chats.
+
 Local account:
 
 ```text
@@ -538,6 +547,8 @@ Keep `README.md` concise and user-facing. Keep the report detailed and evidence-
 
 `README.md` is also the human user manual. When changing deployment flow, TUI behavior, service-interface selection, endpoint synchronization, network topology, validation criteria, or failure triage, update the `README.md` `使用手冊` section in the same change so a human operator can still run the workflow without reading `AGENTS.md` or the detailed test report.
 
+For portability/setup changes, also update the README `新主機 Clone 後啟動流程`, `osdcloud-assets\README.md`, and the report's fresh-clone readiness note. The docs must make clear that the repo can live anywhere, but `C:\OSDCloud` must be restored or rebuilt before deployment because large runtime artifacts are excluded from Git.
+
 ## Git Workflow
 
 Use Git to track docs and process definitions in this workspace.
@@ -558,12 +569,20 @@ README.md
 AGENTS.md
 OSDCloud-Win11-Automated-Deployment-Test-Report.md
 tools\Invoke-IpxeTimingRun.ps1
+Deploy-DeploymentServer.cmd
+tools\Initialize-DeploymentServer.ps1
+tools\Export-DeploymentServerBundle.ps1
 tools\Set-IpxePhysicalNic.ps1
 tools\Set-OsdCloudIpxeEndpoint.ps1
 tools\Sync-OsdCloudAssets.ps1
 package.json
 package-lock.json
 config\osdcloud-tui.json
+config\os-image-catalog.json
+config\os-download-sources.json
+config\software-catalog.json
+config\deployment-profiles\...
+Softwares\...
 tools\osdcloud-tui\...
 TUI-REWRITE-PLAN.md
 osdcloud-assets\README.md
