@@ -136,7 +136,8 @@ Mode : read-only SMB, firewall limited to the selected service subnet on the sel
 - The ISO should set `LaunchUserOOBE=0`, `SkipMachineOOBE=1`, `SkipUserOOBE=1`, and `NoAutoUpdate=1` to avoid the first-boot OOBE update screen.
 - `wuauserv` may later show as Running even with `NoAutoUpdate=1`; this is not by itself a failure. Failure is seeing `CloudExperienceHost`, `msoobe`, or an OOBE update screen after the desktop should be ready.
 - For iPXE custom image deployment, do not combine `-ImageFileUrl` / `-OSImageIndex` with `-OSName`, `-OSLanguage`, `-OSEdition`, or `-OSActivation`. `Start-OSDCloud` treats custom image as a separate parameter set.
-- For iPXE no-redownload deployment, do not use `-ImageFileUrl`. It always triggers OSDCloud's `Download Operating System` step and copies the ESD into WinPE. The current WinPE maps `\\<service-ip>\OSDCloudiPXE` as `Z:`, sets `$Global:StartOSDCloud.ImageFileDestination` to the ESD `FileInfo`, sets `OSImageIndex=6`, then calls `Invoke-OSDCloud`.
+- For iPXE no-redownload deployment, do not use `-ImageFileUrl`. It always triggers OSDCloud's `Download Operating System` step and copies the ESD into WinPE. The current WinPE maps `\\<service-ip>\OSDCloudiPXE` as `Z:`, reads `Z:\OSDCloud\OS\selected-os.json`, sets `$Global:StartOSDCloud.ImageFileDestination` to the selected cached ESD/WIM `FileInfo`, sets the manifest image index / language / edition fields, then calls `Invoke-OSDCloud`.
+- OS image acquisition is host/Admin Console only. Web `OS Image Cache` can download from the official OSD module catalog plus repo-controlled custom entries in `config\os-download-sources.json`, or import a local `.iso` / `.esd` / `.wim` from the host. Downloads/imports stage under `Media\OSDCloud\OS\.downloads`, verify hash/DISM index, then update `config\os-image-catalog.json`; they must not auto-switch active image. Only `Set active` publishes `selected-os.json` and updates the SMB image path.
 - For isolated or restricted networks, remove or bypass `Initialize-OSDCloudStartnetUpdate` in the iPXE WinPE. It tries external PowerShell Gallery / Microsoft update endpoints and can stall before `Start-OSDCloud`.
 - For iPXE WinPE, `Invoke-DavisOobe.ps1` must first look for SetupComplete scripts at `$PSScriptRoot\..\SetupComplete`, then fall back to scanning non-`C:` / non-`X:` drives. iPXE loads only `boot.wim`; it does not provide the ISO media path.
 - When changing iPXE `SetupComplete`, update both `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete` and the embedded `X:\OSDCloud\Config\Scripts\SetupComplete` inside `boot.wim`. If the embedded copy is stale, the laptop can reach the Windows desktop while the TUI remains at `awaiting-windows` / `rebooting` because no `windows-setupcomplete-*` or `windows-desktop-ready` callback exists.
@@ -213,12 +214,12 @@ Run sequence:
 4. Keep the working unsigned PXE path on `snponly.efi` unless the task is specifically to retest signed shim Secure Boot.
 5. Boot the physical laptop from UEFI IPv4 PXE, with no USB or ISO media involved.
 6. Confirm DHCP returns a lease from the current configured range, the intended router, configured DNS, `snponly.efi` for UEFI PXE, and `http://<service-ip>/osdcloud/boot.ipxe` after the client identifies as iPXE.
-7. Confirm the iPXE WinPE maps `\\<service-ip>\OSDCloudiPXE` to `Z:` and sets `$Global:StartOSDCloud.ImageFileDestination` to `Z:\OSDCloud\OS\...zh-tw.esd`.
-8. Watch the HTTP access log for `boot.ipxe`, `wimboot`, and `boot.wim`. A valid no-redownload run must not show zh-TW ESD `HEAD` or `GET`.
+7. Confirm the iPXE WinPE maps `\\<service-ip>\OSDCloudiPXE` to `Z:`, reads `Z:\OSDCloud\OS\selected-os.json`, and sets `$Global:StartOSDCloud.ImageFileDestination` to the selected cached image.
+8. Watch the HTTP access log for `boot.ipxe`, `wimboot`, and `boot.wim`. A valid no-redownload run must not show active OS ESD/WIM `HEAD` or `GET`.
 9. Watch `C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl` for WinPE status events such as `winpe-start`, `smb-mounted`, `osdcloud-start`, `apply-image`, `osdcloud-finished`, and `rebooting`; use `latest-screenshot.json` / `<runId>.screenshots.jsonl` only as supporting visual evidence.
 10. After WinPE finishes, it should post final status and reboot itself with `wpeutil reboot`; the laptop should then boot from the internal disk if PXE was selected through a one-time boot menu.
 11. During first Windows boot, SetupComplete should post `windows-setupcomplete-start` and `windows-setupcomplete-finished`; after `davis` logs on, the SYSTEM desktop-ready scheduled task should post `windows-logon-start` and final `windows-desktop-ready`.
-12. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\...zh-tw.esd`, `ImageFileDestination.PSDrive.DisplayRoot = \\<service-ip>\OSDCloudiPXE`, and `OSImageIndex : 6`.
+12. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\<selected image>`, `ImageFileDestination.PSDrive.DisplayRoot = \\<service-ip>\OSDCloudiPXE`, and `OSImageIndex` matching `selected-os.json`.
 
 Legacy VM timing runs are historical regression tools only; do not use them for the physical-laptop path unless the user explicitly asks for VM validation:
 
@@ -369,9 +370,9 @@ For the iPXE path, also verify:
 
 ```text
 ImageFileUrl                    : <empty>
-ImageFileDestination            : Z:\OSDCloud\OS\...zh-tw.esd
+ImageFileDestination            : Z:\OSDCloud\OS\<selected image>.esd
 ImageFileDestinationDisplayRoot : \\<service-ip>\OSDCloudiPXE
-OSImageIndex                    : 6
+OSImageIndex                    : <selected-os.json imageIndex>
 ```
 
 The HTTP access log must show `boot.ipxe`, `wimboot`, and `boot.wim`, and must not show zh-TW ESD `HEAD` or `GET`. The laptop must not use USB or ISO media as the deployment source.
@@ -430,7 +431,7 @@ Safety contract:
 - Start the TUI from elevated PowerShell only when using the secondary console.
 - Web management config defaults to `web.host=127.0.0.1` and `web.port=8080`; if `config\osdcloud-tui.json` omits `web`, the defaults apply.
 - Starting `npm run web`, opening the browser UI, and reading state/status/logs/validation must not modify `C:\OSDCloud`.
-- Web mutating actions are equivalent to the TUI actions: endpoint sync can modify live `boot.ipxe`, WinPE endpoint files, `boot.wim`, SMB firewall, and `osdcloud-assets`; deployment profile publish can replace live `Media\OSDCloud\Apps`; clear status deletes configured status JSON/JSONL/screenshot metadata; service start/stop changes live network responders.
+- Web mutating actions are equivalent to the TUI actions: endpoint sync can modify live `boot.ipxe`, WinPE endpoint files, `boot.wim`, SMB firewall, and `osdcloud-assets`; OS image cache can download/stage cached Windows images, import local ISO/ESD/WIM sources into cache, switch the active image, publish `selected-os.json`, and update SMB image path; deployment profile publish can replace live `Media\OSDCloud\Apps`; clear status deletes configured status JSON/JSONL/screenshot metadata; service start/stop changes live network responders.
 - Do not run TUI and Web console at the same time to control services. They are separate Node processes and can conflict on ports 67/69/80.
 - Keep the repo `.npmrc` foreground/silent behavior for `npm run tui`; the TUI is interactive and depends on foreground stdio rather than npm script banner output.
 - Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter.
@@ -455,6 +456,7 @@ Safety contract:
 - TUI v0.2.11 endpoint sync hash verification must tolerate host PowerShell sessions where `Get-FileHash` is unavailable by falling back to .NET SHA256 hashing.
 - TUI v0.2.12 deployment profile management adds `Add deployment profile`, `Edit deployment profile`, and `Delete deployment profile`. Add copies the current active profile software but does not switch or publish. Edit only changes the active profile `software` array, preserves id/name/description/unknown fields, then republishes live `Apps` and reruns preflight. Delete can only remove inactive profile JSON files.
 - TUI v0.2.14 deployment profile creation generates an 8-character uppercase alphanumeric profile id server-side, with at least one letter and one digit, and must avoid collisions with existing profile ids and JSON file names. Operators edit the profile name as display text; profile id remains the stable service key.
+- TUI OS image support is read-only in v1: show the current active OS image/cache preflight state only. Use Web `OS Image Cache` for downloading Windows images, importing local ISO/ESD/WIM sources, or switching the active cached image.
 - TUI label tag parsing must not mutate blessed private line-cache fields such as `_clines`; call normal content parsing instead, because scrollable panels inspect label children during scroll-height calculation.
 - PowerShell `-Command` calls from the TUI must force UTF-8 console output before emitting JSON, otherwise Chinese interface names such as `乙太網路 3` can be decoded as mojibake and written into `config\osdcloud-tui.json`.
 - Keep `GET /osdcloud/status` backward-compatible as the latest single status event, and use `GET /osdcloud/status/runs` plus `runs-index.json` for multi-run fleet status.
@@ -476,6 +478,7 @@ Validation contract:
 - Multi-client TUI changes must include synthetic tests for at least two interleaved runs and must verify that one client does not overwrite another client's summary.
 - Screenshot behavior must preserve the status contract: `/osdcloud/status` stays JSON-only, `/osdcloud/screenshot` accepts PNG-only uploads capped at 5 MB, and PNG files remain local evidence rather than Git artifacts.
 - Driver pack cache changes must test validation failures, disallowed hosts, cache hits, download success/failure, and confirm status events still persist when cache backfill fails.
+- OS image source/cache changes must test official/custom catalog merging, custom host allowlist and required SHA256, local ISO/ESD/WIM inspect/import, staging cleanup, cache-hit hash validation, and that download/import never changes the active image until `Set active`.
 - If deployment behavior changes inside `C:\OSDCloud` or WinPE, update the live files first, mount/commit `boot.wim` when needed, then run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts`.
 
 ## VM VM Regression Notes

@@ -19,27 +19,77 @@ function Get-TargetWindowsRoot {
     throw 'Unable to locate the deployed Windows volume.'
 }
 
+function Get-DeploymentMetadata {
+    param(
+        [string] $WindowsRoot
+    )
+
+    $metadataPath = Join-Path $WindowsRoot 'ProgramData\OSDCloud\DeploymentStatus.json'
+    if (Test-Path -LiteralPath $metadataPath -PathType Leaf) {
+        try {
+            return Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+        }
+        catch {
+            Write-Warning "Unable to read deployment metadata $metadataPath`: $($_.Exception.Message)"
+        }
+    }
+
+    return $null
+}
+
+function Get-SelectedOsMetadata {
+    param(
+        [object] $DeploymentMetadata
+    )
+
+    if ($DeploymentMetadata -and $DeploymentMetadata.selectedOs) {
+        return $DeploymentMetadata.selectedOs
+    }
+
+    [pscustomobject]@{
+        locale = 'zh-TW'
+        language = 'zh-tw'
+        timeZone = 'Taipei Standard Time'
+    }
+}
+
+function ConvertTo-XmlText {
+    param(
+        [string] $Value
+    )
+
+    [System.Security.SecurityElement]::Escape($Value)
+}
+
 try {
     $windowsRoot = Get-TargetWindowsRoot
     Write-Host "Target Windows root: $windowsRoot"
+    $deploymentMetadata = Get-DeploymentMetadata -WindowsRoot $windowsRoot
+    $selectedOs = Get-SelectedOsMetadata -DeploymentMetadata $deploymentMetadata
+    $locale = if ($selectedOs.locale) { [string] $selectedOs.locale } elseif ($selectedOs.language) { [string] $selectedOs.language } else { 'zh-TW' }
+    $timeZone = if ($selectedOs.timeZone) { [string] $selectedOs.timeZone } else { 'Taipei Standard Time' }
+    $localeXml = ConvertTo-XmlText -Value $locale
+    $timeZoneXml = ConvertTo-XmlText -Value $timeZone
+    Write-Host "OOBE locale: $locale"
+    Write-Host "OOBE time zone: $timeZone"
 
     $panther = Join-Path $windowsRoot 'Windows\Panther'
     $sysprep = Join-Path $windowsRoot 'Windows\System32\Sysprep'
     $setupScripts = Join-Path $windowsRoot 'Windows\Setup\Scripts'
     New-Item -ItemType Directory -Path $panther, $sysprep, $setupScripts -Force | Out-Null
 
-    $unattend = @'
+    $unattend = @"
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-      <InputLocale>zh-TW</InputLocale>
-      <SystemLocale>zh-TW</SystemLocale>
-      <UILanguage>zh-TW</UILanguage>
-      <UserLocale>zh-TW</UserLocale>
+      <InputLocale>$localeXml</InputLocale>
+      <SystemLocale>$localeXml</SystemLocale>
+      <UILanguage>$localeXml</UILanguage>
+      <UserLocale>$localeXml</UserLocale>
     </component>
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-      <TimeZone>Taipei Standard Time</TimeZone>
+      <TimeZone>$timeZoneXml</TimeZone>
       <RegisteredOwner>davis</RegisteredOwner>
       <OOBE>
         <HideEULAPage>true</HideEULAPage>
@@ -77,7 +127,7 @@ try {
     </component>
   </settings>
 </unattend>
-'@
+"@
 
     $unattendPath = Join-Path $panther 'Unattend.xml'
     Set-Content -LiteralPath $unattendPath -Value $unattend -Encoding UTF8 -Force

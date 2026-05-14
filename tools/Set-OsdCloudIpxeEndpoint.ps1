@@ -381,6 +381,23 @@ function Set-LegacyHelperDefaults {
         -Optional | Out-Null
 }
 
+function Copy-IfPresent {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Source,
+        [Parameter(Mandatory)]
+        [string] $Destination
+    )
+
+    if (Test-Path -LiteralPath $Source -PathType Leaf) {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
+        Copy-Item -LiteralPath $Source -Destination $Destination -Force
+        return $true
+    }
+
+    return $false
+}
+
 function Set-SmbFirewallEndpoint {
     param(
         [Parameter(Mandatory)]
@@ -528,6 +545,19 @@ if ($CommitWinPe) {
             throw "DISM failed to mount $bootWim"
         }
         $mounted = $true
+
+        Copy-IfPresent `
+            -Source (Join-Path $repoRoot 'osdcloud-assets\Win11-iPXE-Lab\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') `
+            -Destination (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1') | Out-Null
+        Copy-IfPresent `
+            -Source (Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') `
+            -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') | Out-Null
+        Copy-IfPresent `
+            -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd') `
+            -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd') | Out-Null
+        Copy-IfPresent `
+            -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1') `
+            -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') | Out-Null
 
         Set-StartOsdCloudEndpoint -Path (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1')
         Set-ProgressReporterEndpoint -Path (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1')

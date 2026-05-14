@@ -1,0 +1,21 @@
+{
+  "id": "WIN11-25H2-ZHTW-PRO",
+  "name": "Windows 11 Pro 25H2 zh-TW",
+  "version": "Windows 11 25H2 x64",
+  "releaseId": "25H2",
+  "build": "26200.6584",
+  "architecture": "x64",
+  "language": "zh-tw",
+  "locale": "zh-TW",
+  "timeZone": "Taipei Standard Time",
+  "edition": "Pro",
+  "editionId": "Professional",
+  "activation": "Retail",
+  "imageIndex": 6,
+  "fileName": "26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd",
+  "imagePath": "Z:\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd",
+  "size": 5236476769,
+  "sha256": "7E92E02B2A9BE520004CF20C4941919FF628C04BBD08A1FBFA14356FB39D95DB",
+  "publishedAt": "2026-05-13T10:46:16.578Z",
+  "cacheFilePath": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
+}

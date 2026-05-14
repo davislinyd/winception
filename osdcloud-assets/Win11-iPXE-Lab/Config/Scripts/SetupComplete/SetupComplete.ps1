@@ -26,6 +26,26 @@ function Get-DeploymentMetadata {
 
 $DeploymentMetadata = Get-DeploymentMetadata
 
+function Get-SelectedOsMetadata {
+    if ($DeploymentMetadata.selectedOs) {
+        return $DeploymentMetadata.selectedOs
+    }
+
+    [pscustomobject]@{
+        id = 'WIN11-25H2-ZHTW-PRO'
+        language = 'zh-tw'
+        locale = 'zh-TW'
+        timeZone = 'Taipei Standard Time'
+        edition = 'Pro'
+        editionId = 'Professional'
+        imageIndex = 6
+    }
+}
+
+$SelectedOs = Get-SelectedOsMetadata
+$TargetLocale = if ($SelectedOs.locale) { [string] $SelectedOs.locale } elseif ($SelectedOs.language) { [string] $SelectedOs.language } else { 'zh-TW' }
+$TargetTimeZone = if ($SelectedOs.timeZone) { [string] $SelectedOs.timeZone } else { 'Taipei Standard Time' }
+
 function Send-DeploymentStatus {
     param(
         [string] $Stage,
@@ -44,6 +64,7 @@ function Send-DeploymentStatus {
         percent = $Percent
         source = 'windows'
         computerName = $env:COMPUTERNAME
+        selectedOs = $SelectedOs
     }
 
     foreach ($key in $Extra.Keys) {
@@ -241,6 +262,10 @@ function Send-Status {
         runAs = "$env:USERDOMAIN\$env:USERNAME"
     }
 
+    if ($metadata.selectedOs) {
+        $payload.selectedOs = $metadata.selectedOs
+    }
+
     foreach ($key in $Extra.Keys) {
         $payload[$key] = $Extra[$key]
     }
@@ -344,10 +369,10 @@ try {
         Remove-LocalUser -Name 'defaultuser0' -ErrorAction SilentlyContinue
     }
 
-    Set-WinSystemLocale -SystemLocale zh-TW
-    Set-WinUserLanguageList -LanguageList zh-TW -Force
-    Set-Culture zh-TW
-    Set-TimeZone -Id 'Taipei Standard Time'
+    Set-WinSystemLocale -SystemLocale $TargetLocale
+    Set-WinUserLanguageList -LanguageList $TargetLocale -Force
+    Set-Culture $TargetLocale
+    Set-TimeZone -Id $TargetTimeZone
 
     $Oobe = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE'
     New-Item -Path $Oobe -Force | Out-Null
@@ -390,6 +415,7 @@ try {
         reporterPath = $reporterPath
         clientApps = $clientAppsResult
         driverPackCacheRequestSent = $driverPackCacheRequestSent
+        selectedOs = $SelectedOs
     })
 }
 catch {

@@ -64,6 +64,29 @@ function parseServiceRoute(pathname) {
   return match ? { service: match[1], action: match[2] } : null;
 }
 
+function parseCsvParam(searchParams, name) {
+  return searchParams.getAll(name)
+    .flatMap((value) => String(value).split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function parseOsDownloadCatalogFilters(searchParams) {
+  return {
+    osFamily: parseCsvParam(searchParams, 'osFamily'),
+    language: parseCsvParam(searchParams, 'language'),
+    releaseId: parseCsvParam(searchParams, 'releaseId'),
+    edition: parseCsvParam(searchParams, 'edition'),
+    activation: parseCsvParam(searchParams, 'activation'),
+    sourceType: parseCsvParam(searchParams, 'sourceType'),
+  };
+}
+
+function headerValue(headers, name) {
+  const value = headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export class WebManagementServer {
   constructor(options = {}) {
     this.controller = options.controller ?? new ServiceController(options);
@@ -134,6 +157,14 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, profile: this.controller.getProfiles() });
       return;
     }
+    if (req.method === 'GET' && pathname === '/api/os-images') {
+      sendJson(res, 200, { ok: true, osImage: this.controller.getOsImages() });
+      return;
+    }
+    if (req.method === 'GET' && pathname === '/api/os-download-catalog') {
+      sendJson(res, 200, { ok: true, catalog: await this.controller.getOsDownloadCatalog(parseOsDownloadCatalogFilters(requestUrl.searchParams)) });
+      return;
+    }
 
     if (req.method !== 'POST') {
       res.writeHead(405, { Allow: 'GET, POST' });
@@ -174,6 +205,54 @@ export class WebManagementServer {
     if (pathname === '/api/profile') {
       const body = await readJsonBody(req);
       const result = await this.controller.changeDeploymentProfile(body.profileId ?? body.id);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/os-image') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.changeOsImage(body.imageId ?? body.id);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/os-image-delete') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.deleteOsImage(body.imageId ?? body.id);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/os-download') {
+      const body = await readJsonBody(req);
+      const { promise: _promise, ...result } = this.controller.startOsDownload(body.catalogId ?? body.id);
+      sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/os-image-inspect') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.inspectOsImage(body.sourcePath ?? body.path);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/os-image-import') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.importOsImage(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/os-image-upload') {
+      const fileName = requestUrl.searchParams.get('fileName')
+        ?? headerValue(req.headers, 'x-os-image-file-name');
+      const size = Number(headerValue(req.headers, 'content-length') ?? 0) || null;
+      const result = await this.controller.uploadOsImage({
+        fileName,
+        size,
+        stream: req,
+      });
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/os-image-upload-import') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.importUploadedOsImage(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }

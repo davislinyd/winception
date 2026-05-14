@@ -58,8 +58,9 @@ function makeConfig(root) {
   };
 }
 
-async function makeServer(root) {
+async function makeServer(root, overrides = {}) {
   const config = makeConfig(root);
+  const osCatalogCalls = [];
   const services = {
     dhcp: new FakeService(config.dhcp),
     tftp: new FakeService(config.tftp),
@@ -88,6 +89,51 @@ async function makeServer(root) {
           { id: 'minimal', name: 'Minimal', description: '', softwareIds: [] },
         ],
       }),
+      resolveOsImageState: () => ({
+        activeImageId: 'SMOKE-WIN11-PRO',
+        activeImage: {
+          id: 'SMOKE-WIN11-PRO',
+          name: 'Smoke Windows 11 Pro',
+          version: 'Windows 11 Smoke',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 6,
+          fileName: 'install.esd',
+          cached: true,
+          bytes: 12,
+        },
+        images: [{
+          id: 'SMOKE-WIN11-PRO',
+          name: 'Smoke Windows 11 Pro',
+          version: 'Windows 11 Smoke',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 6,
+          fileName: 'install.esd',
+          cached: true,
+          bytes: 12,
+        }],
+        cachedFiles: [],
+        selectedOs: { id: 'SMOKE-WIN11-PRO', fileName: 'install.esd', imageIndex: 6 },
+        catalogPath: path.join(root, 'os-image-catalog.json'),
+        cacheRoot: path.join(root, 'OS'),
+        downloadStagingRoot: path.join(root, 'OS', '.downloads'),
+        selectedOsPath: path.join(root, 'OS', 'selected-os.json'),
+        cacheLogPath: path.join(root, 'OS', 'os-image-cache.jsonl'),
+      }),
+      listOsDownloadCatalog: async (_config, options = {}) => {
+        osCatalogCalls.push(options.filters ?? {});
+        return [{
+          id: 'SMOKE-DOWNLOAD-PRO',
+          name: 'Smoke Download Pro',
+          version: 'Windows 11 Smoke',
+          osFamily: 'win11',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 6,
+          fileName: 'download.esd',
+        }];
+      },
       createDeploymentProfile: (_config, input) => ({
         profile: { id: 'AAAAAAA0', name: input.name, description: input.description ?? '', softwareIds: [] },
         filePath: path.join(root, 'AAAAAAA0.json'),
@@ -106,6 +152,94 @@ async function makeServer(root) {
         selectedSoftware: [],
         appsRoot: path.join(root, 'Apps'),
       }),
+      publishSelectedOsImage: (_config, imageId) => ({
+        image: {
+          id: imageId,
+          name: 'Smoke Windows 11 Pro',
+          version: 'Windows 11 Smoke',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 6,
+          fileName: 'install.esd',
+        },
+        manifestPath: path.join(root, 'OS', 'selected-os.json'),
+      }),
+      downloadOsImageFromCatalog: (_config, catalogId) => ({
+        status: 'downloaded',
+        image: { id: catalogId, fileName: 'download.esd' },
+        bytes: 10,
+        filePath: path.join(root, 'OS', 'download.esd'),
+      }),
+      deleteCachedOsImage: (_config, imageId) => ({
+        status: 'deleted',
+        image: { id: imageId, fileName: 'download.esd' },
+        fileDeleted: true,
+        filePath: path.join(root, 'OS', 'download.esd'),
+        catalogPath: path.join(root, 'os-image-catalog.json'),
+        bytes: 10,
+      }),
+      inspectLocalOsImage: (sourcePath) => ({
+        sourcePath,
+        sourceType: 'wim',
+        imagePath: sourcePath,
+        indexes: [{
+          imageIndex: 6,
+          name: 'Windows 11 Pro',
+          suggested: {
+            id: 'IMPORTED-WIN11-PRO',
+            name: 'Imported Windows 11 Pro',
+            version: 'Windows 11 Imported',
+            language: 'en-us',
+            edition: 'Pro',
+            imageIndex: 6,
+            fileName: 'imported.wim',
+          },
+        }],
+      }),
+      importLocalOsImage: (_config, input) => ({
+        status: 'imported',
+        image: {
+          id: input.metadata?.id ?? 'IMPORTED-WIN11-PRO',
+          fileName: input.metadata?.fileName ?? 'imported.wim',
+        },
+        bytes: 20,
+        filePath: path.join(root, 'OS', input.metadata?.fileName ?? 'imported.wim'),
+      }),
+      uploadOsImageFile: async (_config, input) => {
+        let bytes = 0;
+        for await (const chunk of input.stream) {
+          bytes += chunk.length;
+        }
+        return {
+          uploadId: 'UPLOAD-WIN11',
+          sourcePath: path.join(root, 'uploads', input.fileName),
+          originalFileName: input.fileName,
+          sourceType: 'wim',
+          bytes,
+          indexes: [{
+            imageIndex: 6,
+            name: 'Windows 11 Pro',
+            suggested: {
+              id: 'UPLOADED-WIN11-PRO',
+              name: 'Uploaded Windows 11 Pro',
+              version: 'Windows 11 Uploaded',
+              language: 'en-us',
+              edition: 'Pro',
+              imageIndex: 6,
+              fileName: 'uploaded.wim',
+            },
+          }],
+        };
+      },
+      importUploadedOsImage: (_config, input) => ({
+        status: 'imported',
+        image: {
+          id: input.metadata?.id ?? 'UPLOADED-WIN11-PRO',
+          fileName: input.metadata?.fileName ?? 'uploaded.wim',
+        },
+        bytes: 30,
+        filePath: path.join(root, 'OS', input.metadata?.fileName ?? 'uploaded.wim'),
+      }),
       deleteDeploymentProfile: (_config, profileId) => ({
         profile: { id: profileId, name: 'Minimal', description: '', softwareIds: [] },
         filePath: path.join(root, `${profileId}.json`),
@@ -114,12 +248,14 @@ async function makeServer(root) {
       saveConfig: () => path.join(root, 'config.json'),
       summarizeValidation: () => [],
       tailFile: () => [],
+      ...(overrides.dependencies ?? {}),
     },
   });
   const staticRoot = path.join(root, 'web');
   fs.mkdirSync(staticRoot, { recursive: true });
   fs.writeFileSync(path.join(staticRoot, 'index.html'), '<!doctype html><title>Smoke</title>');
   const server = new WebManagementServer({ controller, staticRoot });
+  server.osCatalogCalls = osCatalogCalls;
   await server.start({ host: '127.0.0.1', port: 0 });
   return server;
 }
@@ -139,6 +275,7 @@ test('serves static UI and read-only state', async () => {
     assert.equal(payload.ok, true);
     assert.equal(payload.state.app.version, appVersion);
     assert.equal(payload.state.fleet.total, 1);
+    assert.equal(payload.state.osImage.activeImage.id, 'SMOKE-WIN11-PRO');
     assert.equal(fs.existsSync(path.join(root, 'status')), false);
   } finally {
     await server.stop();
@@ -206,6 +343,186 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.id, 'minimal');
+
+    response = await fetch(`${base}/api/os-images`);
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.osImage.activeImage.id, 'SMOKE-WIN11-PRO');
+
+    response = await fetch(`${base}/api/os-download-catalog`);
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.catalog[0].id, 'SMOKE-DOWNLOAD-PRO');
+    assert.deepEqual(server.osCatalogCalls.at(-1), {
+      osFamily: [],
+      edition: [],
+      language: [],
+      releaseId: [],
+      activation: ['Retail'],
+      sourceType: [],
+    });
+
+    response = await fetch(`${base}/api/os-download-catalog?osFamily=win11&edition=Pro&language=en-us,zh-tw&releaseId=25H2`);
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.catalog[0].osFamily, 'win11');
+    assert.deepEqual(server.osCatalogCalls.at(-1), {
+      osFamily: ['win11'],
+      edition: ['Pro'],
+      language: ['en-us', 'zh-tw'],
+      releaseId: ['25H2'],
+      activation: ['Retail'],
+      sourceType: [],
+    });
+
+    response = await fetch(`${base}/api/os-download-catalog?activation=Retail&sourceType=official`);
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.catalog[0].id, 'SMOKE-DOWNLOAD-PRO');
+    assert.deepEqual(server.osCatalogCalls.at(-1), {
+      osFamily: [],
+      edition: [],
+      language: [],
+      releaseId: [],
+      activation: ['Retail'],
+      sourceType: ['official'],
+    });
+
+    response = await fetch(`${base}/api/os-image`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ imageId: 'SMOKE-WIN11-PRO' }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.image.id, 'SMOKE-WIN11-PRO');
+
+    response = await fetch(`${base}/api/os-download`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ catalogId: 'SMOKE-DOWNLOAD-PRO' }),
+    });
+    assert.equal(response.status, 202);
+    payload = await response.json();
+    assert.equal(payload.result.catalogId, 'SMOKE-DOWNLOAD-PRO');
+    assert.equal(payload.result.running, true);
+    assert.match(payload.result.jobId, /^os-download-/);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(server.controller.getState().osDownloadStatus.status, 'downloaded');
+
+    response = await fetch(`${base}/api/os-image-delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ imageId: 'SMOKE-DOWNLOAD-PRO' }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.status, 'deleted');
+    assert.equal(payload.result.image.id, 'SMOKE-DOWNLOAD-PRO');
+
+    response = await fetch(`${base}/api/os-image-inspect`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sourcePath: path.join(root, 'import.wim') }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.indexes[0].imageIndex, 6);
+
+    response = await fetch(`${base}/api/os-image-import`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sourcePath: path.join(root, 'import.wim'),
+        imageIndex: 6,
+        metadata: { id: 'IMPORTED-WIN11-PRO', fileName: 'imported.wim' },
+      }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.status, 'imported');
+
+    response = await fetch(`${base}/api/os-image-upload?fileName=upload.wim`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: 'uploaded bytes',
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.uploadId, 'UPLOAD-WIN11');
+    assert.equal(payload.result.bytes, Buffer.byteLength('uploaded bytes'));
+    assert.equal(payload.result.indexes[0].suggested.id, 'UPLOADED-WIN11-PRO');
+
+    response = await fetch(`${base}/api/os-image-upload-import`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        uploadId: 'UPLOAD-WIN11',
+        imageIndex: 6,
+        metadata: { id: 'UPLOADED-WIN11-PRO', fileName: 'uploaded.wim' },
+      }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.status, 'imported');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('OS image download API starts a background job and rejects concurrent downloads', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-download-job-'));
+  let releaseDownload = null;
+  const server = await makeServer(root, {
+    dependencies: {
+      downloadOsImageFromCatalog: async (_config, catalogId, options = {}) => {
+        options.onProgress?.({
+          status: 'downloading',
+          bytes: 64,
+          totalBytes: 128,
+          fileName: 'download.esd',
+        });
+        await new Promise((resolve) => {
+          releaseDownload = resolve;
+        });
+        return {
+          status: 'downloaded',
+          image: { id: catalogId, fileName: 'download.esd' },
+          bytes: 128,
+          filePath: path.join(root, 'OS', 'download.esd'),
+        };
+      },
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/os-download`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ catalogId: 'SMOKE-DOWNLOAD-PRO' }),
+    });
+    assert.equal(response.status, 202);
+    let payload = await response.json();
+    assert.equal(payload.result.catalogId, 'SMOKE-DOWNLOAD-PRO');
+    assert.equal(payload.result.running, true);
+
+    response = await fetch(`${base}/api/os-download`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ catalogId: 'SECOND-DOWNLOAD' }),
+    });
+    assert.equal(response.status, 409);
+    payload = await response.json();
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Operation already running/);
+
+    assert.equal(server.controller.getState().osDownloadStatus.running, true);
+    await Promise.resolve();
+    releaseDownload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(server.controller.getState().osDownloadStatus.status, 'downloaded');
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

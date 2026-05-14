@@ -180,6 +180,73 @@ function Get-DeployedWindowsRoot {
     return $null
 }
 
+function Get-DefaultSelectedOs {
+    [pscustomobject]@{
+        id = 'WIN11-25H2-ZHTW-PRO'
+        name = 'Windows 11 Pro 25H2 zh-TW'
+        version = 'Windows 11 25H2 x64'
+        releaseId = '25H2'
+        build = '26200.6584'
+        architecture = 'x64'
+        language = 'zh-tw'
+        locale = 'zh-TW'
+        timeZone = 'Taipei Standard Time'
+        edition = 'Pro'
+        editionId = 'Professional'
+        activation = 'Retail'
+        imageIndex = 6
+        fileName = '26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd'
+    }
+}
+
+function Get-SelectedOsManifest {
+    param(
+        [string] $OsRoot
+    )
+
+    $manifestPath = Join-Path $OsRoot 'selected-os.json'
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        try {
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            if ($manifest.fileName -and $manifest.imageIndex) {
+                return $manifest
+            }
+            Write-Warning "selected-os.json is missing fileName or imageIndex: $manifestPath"
+        }
+        catch {
+            Write-Warning "Unable to read selected OS manifest $manifestPath`: $($_.Exception.Message)"
+        }
+    }
+    else {
+        Write-Warning "selected-os.json not found: $manifestPath. Falling back to default Windows 11 zh-TW Pro image."
+    }
+
+    return Get-DefaultSelectedOs
+}
+
+function Get-SelectedOsStatusPayload {
+    param(
+        [object] $SelectedOs
+    )
+
+    [ordered]@{
+        id = [string] $SelectedOs.id
+        name = [string] $SelectedOs.name
+        version = [string] $SelectedOs.version
+        releaseId = [string] $SelectedOs.releaseId
+        build = [string] $SelectedOs.build
+        architecture = [string] $SelectedOs.architecture
+        language = [string] $SelectedOs.language
+        locale = [string] $SelectedOs.locale
+        timeZone = [string] $SelectedOs.timeZone
+        edition = [string] $SelectedOs.edition
+        editionId = [string] $SelectedOs.editionId
+        activation = [string] $SelectedOs.activation
+        imageIndex = [int] $SelectedOs.imageIndex
+        fileName = [string] $SelectedOs.fileName
+    }
+}
+
 function Save-DeploymentStatusMetadata {
     $targetRoot = Get-DeployedWindowsRoot
     if ([string]::IsNullOrWhiteSpace($targetRoot)) {
@@ -199,7 +266,8 @@ function Save-DeploymentStatusMetadata {
             server = $server
             share = $share
             imagePath = $imagePath
-            osImageIndex = 6
+            osImageIndex = [int] $SelectedOs.imageIndex
+            selectedOs = Get-SelectedOsStatusPayload -SelectedOs $SelectedOs
             createdAt = (Get-Date).ToString('o')
         }
 
@@ -246,20 +314,32 @@ else {
     Send-Screenshot -Stage 'reporter-error'
 }
 
-Write-Host "Image source: $share\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
-Write-Host "OSImageIndex: 6"
-
 Import-Module OSD -Force
-
-$imagePath = 'Z:\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd'
 
 cmd.exe /c 'net use Z: /delete /y' | Out-Null
 $netUse = cmd.exe /c "net use Z: $share /user:$server\pxeinstall password /persistent:no"
 $netUse | ForEach-Object { Write-Host $_ }
 
+$osRoot = 'Z:\OSDCloud\OS'
+$SelectedOs = Get-SelectedOsManifest -OsRoot $osRoot
+$selectedOsPayload = Get-SelectedOsStatusPayload -SelectedOs $SelectedOs
+$imagePath = Join-Path $osRoot ([string] $SelectedOs.fileName)
+Write-Host "Selected OS: $($SelectedOs.id) $($SelectedOs.language) $($SelectedOs.edition) index $($SelectedOs.imageIndex)"
+Write-Host "Image source: $share\OSDCloud\OS\$($SelectedOs.fileName)"
+Write-Host "OSImageIndex: $($SelectedOs.imageIndex)"
+Send-DeploymentStatus -Stage 'os-image-selected' -Message "Selected OS image $($SelectedOs.id)." -Extra @{
+    selectedOs = $selectedOsPayload
+    imagePath = $imagePath
+    osImageIndex = [int] $SelectedOs.imageIndex
+}
+
 if (-not (Test-Path -LiteralPath $imagePath)) {
     Write-Warning "Unable to access Windows image at $imagePath"
-    Send-DeploymentStatus -Stage 'image-missing' -Message "Unable to access Windows image at $imagePath"
+    Send-DeploymentStatus -Stage 'image-missing' -Message "Unable to access Windows image at $imagePath" -Extra @{
+        selectedOs = $selectedOsPayload
+        imagePath = $imagePath
+        osImageIndex = [int] $SelectedOs.imageIndex
+    }
     Send-Screenshot -Stage 'image-missing'
     Write-Warning 'Press Ctrl+C to exit OSDCloud'
     Start-Sleep -Seconds 86400
@@ -268,7 +348,11 @@ if (-not (Test-Path -LiteralPath $imagePath)) {
 
 $imageFile = Get-Item -LiteralPath $imagePath
 Write-Host "[$(Get-Date -Format G)] Using mapped SMB image: $($imageFile.FullName)"
-Send-DeploymentStatus -Stage 'smb-mounted' -Message "Using mapped SMB image: $($imageFile.FullName)"
+Send-DeploymentStatus -Stage 'smb-mounted' -Message "Using mapped SMB image: $($imageFile.FullName)" -Extra @{
+    selectedOs = $selectedOsPayload
+    imagePath = $imageFile.FullName
+    osImageIndex = [int] $SelectedOs.imageIndex
+}
 Send-Screenshot -Stage 'smb-mounted'
 
 $Global:StartOSDCloud = [ordered]@{
@@ -276,11 +360,11 @@ $Global:StartOSDCloud = [ordered]@{
     ImageFileDestination = $imageFile
     ImageFileName        = $imageFile.Name
     ImageFileUrl         = $null
-    OSImageIndex         = 6
-    OSEdition            = 'Pro'
-    OSEditionId          = 'Professional'
-    OSLanguage           = 'zh-tw'
-    OSActivation         = 'Retail'
+    OSImageIndex         = [int] $SelectedOs.imageIndex
+    OSEdition            = [string] $SelectedOs.edition
+    OSEditionId          = [string] $SelectedOs.editionId
+    OSLanguage           = [string] $SelectedOs.language
+    OSActivation         = [string] $SelectedOs.activation
     ZTI                  = $true
     SkipAutopilot        = $true
     SkipODT              = $true
@@ -290,12 +374,20 @@ $Global:StartOSDCloud = [ordered]@{
 
 $deploymentSucceeded = $false
 try {
-    Send-DeploymentStatus -Stage 'osdcloud-start' -Message 'Invoke-OSDCloud starting.'
+    Send-DeploymentStatus -Stage 'osdcloud-start' -Message 'Invoke-OSDCloud starting.' -Extra @{
+        selectedOs = $selectedOsPayload
+        imagePath = $imageFile.FullName
+        osImageIndex = [int] $SelectedOs.imageIndex
+    }
     Send-Screenshot -Stage 'osdcloud-start'
     Invoke-OSDCloud
     $deploymentSucceeded = $true
     Save-DeploymentStatusMetadata
-    Send-DeploymentStatus -Stage 'osdcloud-finished' -Message 'Invoke-OSDCloud returned successfully. WinPE will reboot.'
+    Send-DeploymentStatus -Stage 'osdcloud-finished' -Message 'Invoke-OSDCloud returned successfully. WinPE will reboot.' -Extra @{
+        selectedOs = $selectedOsPayload
+        imagePath = $imageFile.FullName
+        osImageIndex = [int] $SelectedOs.imageIndex
+    }
     Send-Screenshot -Stage 'osdcloud-finished'
 }
 catch {

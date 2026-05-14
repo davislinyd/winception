@@ -23,6 +23,7 @@ import {
   resolveDeploymentProfileState,
   updateDeploymentProfile,
 } from './deploymentProfiles.js';
+import { formatOsImageLabel, resolveOsImageState } from './osImages.js';
 import {
   applySoftwareCheckboxKey,
   formatDeploymentProfileDeleteChoice,
@@ -619,6 +620,20 @@ function renderServices() {
       `Software    : ${error.message}`,
     ];
   }
+  let osImageLines = [];
+  try {
+    const osImageState = resolveOsImageState(config);
+    const activeImage = osImageState.activeImage;
+    osImageLines = [
+      `OS image    : ${formatOsImageLabel(activeImage)}`,
+      `OS cache    : ${activeImage?.cached ? 'cached' : '{red-fg}missing{/red-fg}'} ${activeImage?.id ?? osImageState.activeImageId}`,
+    ];
+  } catch (error) {
+    osImageLines = [
+      'OS image    : {red-fg}invalid{/red-fg}',
+      `OS cache    : ${error.message}`,
+    ];
+  }
 
   servicesBox.setContent([
     `Version     : ${appVersion}`,
@@ -630,6 +645,8 @@ function renderServices() {
     `Service NIC : ${config.adapter.interfaceAlias}`,
     `DHCP pool   : ${config.dhcp.leaseStartIp}-${config.dhcp.leaseEndIp}`,
     `DHCP router : ${config.dhcp.router}`,
+    '',
+    ...osImageLines,
     '',
     ...profileLines,
   ].join('\n'));

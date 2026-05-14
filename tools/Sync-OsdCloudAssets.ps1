@@ -137,6 +137,16 @@ if (Test-Path -LiteralPath $appsRoot -PathType Container) {
         }
     })
 }
+$osRoot = Join-Path $ipxeLab 'Media\OSDCloud\OS'
+$osManifestExports = @()
+if (Test-Path -LiteralPath (Join-Path $osRoot 'selected-os.json') -PathType Leaf) {
+    $osManifestExports = @(
+        @{
+            Source = Join-Path $osRoot 'selected-os.json'
+            Target = 'Win11-iPXE-Lab\Media\OSDCloud\OS\selected-os.json'
+        }
+    )
+}
 
 if ($MountWinPe -and -not (Test-Path -LiteralPath (Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1') -PathType Leaf)) {
     New-Item -ItemType Directory -Path $winPeMount -Force | Out-Null
@@ -155,7 +165,7 @@ try {
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1' }
-    ) + $appExports + @(
+    ) + $appExports + $osManifestExports + @(
         @{ Source = Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe'; Target = 'Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.ipxe' },
         @{ Source = Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled'; Target = 'Win11-iPXE-Lab\PXE-TFTP\autoexec.ipxe.disabled' },
         @{ Source = Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled'; Target = 'Win11-iPXE-Lab\PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled' },
@@ -176,9 +186,21 @@ try {
         Copy-VersionedAsset -Source $entry.Source -Target $entry.Target -SourceKind $sourceKind
     }
 
+    $osImageExclusions = @()
+    foreach ($osImageRoot in @(
+        (Join-Path $win11Lab 'Media\OSDCloud\OS'),
+        (Join-Path $ipxeLab 'Media\OSDCloud\OS')
+    )) {
+        if (Test-Path -LiteralPath $osImageRoot -PathType Container) {
+            $osImageExclusions += @(Get-ChildItem -LiteralPath $osImageRoot -File -Include '*.esd', '*.wim' -Recurse | Sort-Object FullName | ForEach-Object {
+                Add-ExcludedArtifact -Path $_.FullName -Reason 'cached Windows image, too large for Git'
+            })
+        }
+    }
+
     $excluded = @(
         Add-ExcludedArtifact -Path (Join-Path $win11Lab 'OSDCloud_NoPrompt.iso') -Reason 'generated ISO, too large for Git'
-        Add-ExcludedArtifact -Path (Join-Path $win11Lab 'Media\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd') -Reason 'cached Windows ESD, too large for Git'
+        $osImageExclusions
         Add-ExcludedArtifact -Path $bootWim -Reason 'generated WinPE boot image, rebuilt from versioned scripts'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.wim') -Reason 'published WinPE boot image hardlink/copy'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\BCD') -Reason 'generated Windows boot binary'

@@ -10,6 +10,7 @@ import {
   updateDeploymentProfileSoftware,
 } from './deploymentProfiles.js';
 import { MediaHttpServer } from './httpServer.js';
+import { publishSelectedOsImage } from './osImages.js';
 import { ServiceController } from './serviceController.js';
 import { TftpResponder } from './tftp.js';
 import { WebManagementServer } from './webServer.js';
@@ -19,6 +20,9 @@ const httpRoot = path.join(root, 'http');
 const tftpRoot = path.join(root, 'tftp');
 const statusRoot = path.join(httpRoot, 'status');
 const driverPackCacheRoot = path.join(root, 'driverpacks');
+const osCacheRoot = path.join(root, 'OS');
+const osDownloadStagingRoot = path.join(osCacheRoot, '.downloads');
+const osCatalogPath = path.join(root, 'os-image-catalog.json');
 const appsRoot = path.join(root, 'Apps');
 const softwareRoot = path.join(root, 'Softwares');
 const profilesRoot = path.join(root, 'profiles');
@@ -29,10 +33,12 @@ const onePixelPng = Buffer.from(
 );
 fs.mkdirSync(path.join(httpRoot, 'osdcloud'), { recursive: true });
 fs.mkdirSync(tftpRoot, { recursive: true });
+fs.mkdirSync(osCacheRoot, { recursive: true });
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.ipxe'), '#!ipxe\n');
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.wim'), 'boot-image');
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'driverpack.exe'), 'driver-pack-smoke');
 fs.writeFileSync(path.join(tftpRoot, 'snponly.efi'), 'efi');
+fs.writeFileSync(path.join(osCacheRoot, 'install.esd'), 'install image');
 fs.mkdirSync(path.join(softwareRoot, 'smoke-app'), { recursive: true });
 fs.mkdirSync(path.join(softwareRoot, 'smoke-extra'), { recursive: true });
 fs.mkdirSync(profilesRoot, { recursive: true });
@@ -50,11 +56,27 @@ fs.writeFileSync(path.join(profilesRoot, 'default.json'), JSON.stringify({
   name: 'Default',
   software: ['smoke-app'],
 }, null, 2));
+fs.writeFileSync(osCatalogPath, JSON.stringify({
+  images: [{
+    id: 'SMOKE-WIN11-PRO',
+    name: 'Smoke Windows 11 Pro',
+    version: 'Windows 11 Smoke',
+    language: 'en-us',
+    locale: 'en-US',
+    timeZone: 'UTC',
+    edition: 'Pro',
+    editionId: 'Professional',
+    activation: 'Retail',
+    imageIndex: 6,
+    fileName: 'install.esd',
+    size: 'install image'.length,
+  }],
+}, null, 2));
 
 async function waitFor(condition, timeoutMs = 2000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (condition()) {
+    if (await condition()) {
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -101,12 +123,21 @@ const config = {
   },
   smb: {
     share: '\\\\127.0.0.1\\OSDCloudiPXE',
-    imagePath: path.join(root, 'install.esd'),
+    imagePath: path.join(osCacheRoot, 'install.esd'),
   },
   driverPackCache: {
     enabled: true,
     root: driverPackCacheRoot,
     allowedHosts: ['127.0.0.1'],
+  },
+  osImage: {
+    activeImage: 'SMOKE-WIN11-PRO',
+    catalogPath: osCatalogPath,
+    downloadSourcesPath: path.join(root, 'os-download-sources.json'),
+    cacheRoot: osCacheRoot,
+    downloadStagingRoot: osDownloadStagingRoot,
+    validateDismOnPreflight: false,
+    validateDismOnPublish: false,
   },
   deploymentProfiles: {
     activeProfile: 'default',
@@ -122,8 +153,10 @@ const config = {
   },
   __configPath: path.join(root, 'osdcloud-tui.json'),
 };
-fs.writeFileSync(config.smb.imagePath, 'install image');
 
+const publishedOsImage = await publishSelectedOsImage(config, null, { validateDism: false });
+assert.equal(publishedOsImage.image.id, 'SMOKE-WIN11-PRO');
+assert.equal(fs.existsSync(path.join(osCacheRoot, 'selected-os.json')), true);
 const publishedProfile = publishDeploymentProfile(config);
 assert.equal(publishedProfile.profile.id, 'default');
 assert.equal(fs.existsSync(path.join(appsRoot, 'selected-profile.json')), true);
@@ -249,7 +282,107 @@ try {
   assert.equal(response.status, 206);
   assert.equal(await response.text(), 'boot');
 
-  const webController = new ServiceController({ config });
+  const webController = new ServiceController({
+    config,
+    dependencies: {
+      listOsDownloadCatalog: async () => [{
+        id: 'SMOKE-DOWNLOAD-PRO',
+        name: 'Smoke Download Pro',
+        version: 'Windows 11 Smoke',
+        language: 'en-us',
+        locale: 'en-US',
+        timeZone: 'UTC',
+        edition: 'Pro',
+        editionId: 'Professional',
+        activation: 'Retail',
+        imageIndex: 6,
+        fileName: 'download.esd',
+        url: `${webBase}/osdcloud/boot.wim`,
+      }],
+      downloadOsImageFromCatalog: async () => ({
+        status: 'downloaded',
+        image: {
+          id: 'SMOKE-DOWNLOAD-PRO',
+          fileName: 'download.esd',
+        },
+        bytes: 10,
+        filePath: path.join(osCacheRoot, 'download.esd'),
+      }),
+      deleteCachedOsImage: async (_config, imageId) => ({
+        status: 'deleted',
+        image: {
+          id: imageId,
+          fileName: 'download.esd',
+        },
+        fileDeleted: true,
+        bytes: 10,
+        filePath: path.join(osCacheRoot, 'download.esd'),
+        catalogPath: osCatalogPath,
+      }),
+      inspectLocalOsImage: async (sourcePath) => ({
+        sourcePath,
+        sourceType: 'wim',
+        imagePath: sourcePath,
+        indexes: [{
+          imageIndex: 6,
+          name: 'Windows 11 Pro',
+          suggested: {
+            id: 'SMOKE-IMPORT-PRO',
+            name: 'Smoke Import Pro',
+            version: 'Windows 11 Smoke',
+            language: 'en-us',
+            edition: 'Pro',
+            imageIndex: 6,
+            fileName: 'imported.wim',
+          },
+        }],
+      }),
+      importLocalOsImage: async () => ({
+        status: 'imported',
+        image: {
+          id: 'SMOKE-IMPORT-PRO',
+          fileName: 'imported.wim',
+        },
+        bytes: 10,
+        filePath: path.join(osCacheRoot, 'imported.wim'),
+      }),
+      uploadOsImageFile: async (_config, input) => {
+        let bytes = 0;
+        for await (const chunk of input.stream) {
+          bytes += chunk.length;
+        }
+        return {
+          uploadId: 'SMOKE-UPLOAD',
+          sourcePath: path.join(osDownloadStagingRoot, 'uploads', 'SMOKE-UPLOAD', input.fileName),
+          originalFileName: input.fileName,
+          sourceType: 'wim',
+          bytes,
+          indexes: [{
+            imageIndex: 6,
+            name: 'Windows 11 Pro',
+            suggested: {
+              id: 'SMOKE-UPLOAD-PRO',
+              name: 'Smoke Upload Pro',
+              version: 'Windows 11 Smoke',
+              language: 'en-us',
+              edition: 'Pro',
+              imageIndex: 6,
+              fileName: 'uploaded.wim',
+            },
+          }],
+        };
+      },
+      importUploadedOsImage: async () => ({
+        status: 'imported',
+        image: {
+          id: 'SMOKE-UPLOAD-PRO',
+          fileName: 'uploaded.wim',
+        },
+        bytes: 10,
+        filePath: path.join(osCacheRoot, 'uploaded.wim'),
+      }),
+    },
+  });
   const webServer = new WebManagementServer({ controller: webController });
   await webServer.start({ host: '127.0.0.1', port: 0 });
   const webBase = `http://127.0.0.1:${webServer.address.port}`;
@@ -259,6 +392,15 @@ try {
     const webState = await response.json();
     assert.equal(webState.ok, true);
     assert.equal(webState.state.web.host, '127.0.0.1');
+    assert.equal(webState.state.osImage.activeImage.id, 'SMOKE-WIN11-PRO');
+
+    response = await fetch(`${webBase}/api/os-images`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).osImage.activeImage.id, 'SMOKE-WIN11-PRO');
+
+    response = await fetch(`${webBase}/api/os-download-catalog`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).catalog[0].id, 'SMOKE-DOWNLOAD-PRO');
 
     response = await fetch(`${webBase}/api/preflight`, { method: 'POST' });
     assert.equal(response.status, 200);
@@ -270,6 +412,75 @@ try {
     });
     assert.equal(response.status, 200);
     assert.equal(JSON.parse(fs.readFileSync(config.__configPath, 'utf8')).deploymentProfiles.activeProfile, 'default');
+
+    response = await fetch(`${webBase}/api/os-image`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ imageId: 'SMOKE-WIN11-PRO' }),
+    });
+    assert.equal(response.status, 200);
+
+    response = await fetch(`${webBase}/api/os-download`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ catalogId: 'SMOKE-DOWNLOAD-PRO' }),
+    });
+    assert.equal(response.status, 202);
+    let osDownloadStatus = null;
+    await waitFor(async () => {
+      const stateResponse = await fetch(`${webBase}/api/state`);
+      const statePayload = await stateResponse.json();
+      osDownloadStatus = statePayload.state.osDownloadStatus;
+      return osDownloadStatus?.status === 'downloaded';
+    });
+    assert.equal(osDownloadStatus.running, false);
+    assert.equal(osDownloadStatus.imageId, 'SMOKE-DOWNLOAD-PRO');
+
+    response = await fetch(`${webBase}/api/os-image-delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ imageId: 'SMOKE-DOWNLOAD-PRO' }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).result.status, 'deleted');
+
+    response = await fetch(`${webBase}/api/os-image-inspect`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sourcePath: path.join(root, 'import.wim') }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).result.indexes[0].imageIndex, 6);
+
+    response = await fetch(`${webBase}/api/os-image-import`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sourcePath: path.join(root, 'import.wim'),
+        imageIndex: 6,
+        metadata: { id: 'SMOKE-IMPORT-PRO', fileName: 'imported.wim' },
+      }),
+    });
+    assert.equal(response.status, 200);
+
+    response = await fetch(`${webBase}/api/os-image-upload?fileName=upload.wim`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: 'uploaded bytes',
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).result.uploadId, 'SMOKE-UPLOAD');
+
+    response = await fetch(`${webBase}/api/os-image-upload-import`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        uploadId: 'SMOKE-UPLOAD',
+        imageIndex: 6,
+        metadata: { id: 'SMOKE-UPLOAD-PRO', fileName: 'uploaded.wim' },
+      }),
+    });
+    assert.equal(response.status, 200);
   } finally {
     await webServer.stop();
   }

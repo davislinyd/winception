@@ -114,6 +114,7 @@
               <div class="operations-secondary">
                 <button data-action="interfaces" data-icon="settings_ethernet" type="button">Select interface</button>
                 <button data-action="profiles" data-icon="list_alt" type="button">Profiles</button>
+                <button data-action="os-images" data-icon="deployed_code" type="button">OS images</button>
               </div>
               <div class="operations-danger">
                 <button data-action="clear-status" data-icon="delete_sweep" class="danger" type="button">Clear status</button>
@@ -146,13 +147,18 @@
               </details>
             </section>
 
-            <div class="dashboard-status-summary grid grid-cols-4 gap-sm">
-              <section class="status-profile-panel col-span-4 lg:col-span-1 bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
+            <div class="dashboard-status-summary grid grid-cols-5 gap-sm">
+              <section class="status-profile-panel col-span-5 lg:col-span-1 bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
                 <h3 class="font-ui-label text-ui-label text-on-surface-variant uppercase tracking-wider">Active Profile</h3>
                 <div id="active-profile-details" class="flex flex-col gap-sm"></div>
               </section>
 
-              <section id="services-grid" class="status-services-grid col-span-4 lg:col-span-3 grid grid-cols-3 gap-sm" aria-label="Services"></section>
+              <section class="status-os-panel col-span-5 lg:col-span-1 bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
+                <h3 class="font-ui-label text-ui-label text-on-surface-variant uppercase tracking-wider">Active OS Image</h3>
+                <div id="active-os-details" class="flex flex-col gap-sm"></div>
+              </section>
+
+              <section id="services-grid" class="status-services-grid col-span-5 lg:col-span-3 grid grid-cols-3 gap-sm" aria-label="Services"></section>
             </div>
 
             <section class="preflight-summary-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
@@ -282,6 +288,169 @@
                 </tr>
               </thead>
               <tbody id="profiles-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="os-images-dialog" class="drawer-dialog os-images-dialog">
+    <form method="dialog" class="dialog-card drawer-card drawer-card-wide os-images-card">
+      <div class="dialog-header">
+        <div>
+          <h3>OS Image Cache</h3>
+          <div class="drawer-subtitle">
+            <span>Active:</span>
+            <span id="os-active-label" class="font-technical-string text-technical-string bg-surface-container px-sm py-xs rounded border border-outline-variant">-</span>
+          </div>
+        </div>
+        <div class="drawer-actions">
+          <button id="os-load-catalog-button" data-action="reload-os-download-catalog" data-icon="download" aria-controls="os-download-catalog-body" type="button">Load download catalog</button>
+          <button value="cancel" type="submit">Close</button>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Cached Images</h4>
+            <span id="os-cache-root" class="font-technical-string text-technical-string text-on-surface-variant"></span>
+          </div>
+          <div class="overflow-x-auto os-table-scroll">
+            <table class="w-full text-left border-collapse os-cache-table">
+              <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th class="p-table-cell-padding font-medium">Status</th>
+                  <th class="p-table-cell-padding font-medium">OS Image</th>
+                  <th class="p-table-cell-padding font-medium">Language</th>
+                  <th class="p-table-cell-padding font-medium">Edition</th>
+                  <th class="p-table-cell-padding font-medium">Index</th>
+                  <th class="p-table-cell-padding font-medium">Cache</th>
+                  <th class="p-table-cell-padding font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody id="os-images-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
+            </table>
+          </div>
+        </section>
+        <section id="os-download-catalog-section" class="drawer-section" aria-busy="false">
+          <div class="drawer-section-header">
+            <h4>Microsoft Official Downloads</h4>
+            <span id="os-download-status" class="font-technical-string text-technical-string text-on-surface-variant" aria-live="polite">Host-side downloads only.</span>
+          </div>
+          <div class="catalog-filter-panel" aria-label="Catalog load filters">
+            <section class="catalog-filter-group">
+              <div class="field-label">OS</div>
+              <div class="catalog-static-value">Windows 11 Pro Retail only</div>
+            </section>
+            <section class="catalog-filter-group catalog-filter-group-wide">
+              <div class="field-label">Language <span class="subtle">required</span></div>
+              <div class="catalog-choice-grid">
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="en-us"> English</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="zh-cn"> Simplified Chinese</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="zh-tw"> Traditional Chinese</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="ja-jp"> Japanese</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="ko-kr"> Korean</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="vi-vn"> Vietnamese</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="th-th"> Thai</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="id-id"> Indonesian</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="es-es"> Spanish</label>
+              </div>
+            </section>
+            <section class="catalog-filter-group">
+              <div class="field-label">Release <span class="subtle">required</span></div>
+              <div class="catalog-choice-grid compact">
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-release" type="checkbox" value="25H1"> 25H1</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-release" type="checkbox" value="25H2"> 25H2</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-release" type="checkbox" value="26H1"> 26H1</label>
+                <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-release" type="checkbox" value="26H2"> 26H2</label>
+              </div>
+              <div class="catalog-release-hint subtle">26H1/26H2 may not be available in the Microsoft download catalog yet.</div>
+            </section>
+          </div>
+          <div class="catalog-refine-panel">
+            <div class="field-label">Refine loaded results</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-sm">
+              <label class="field-label">Release
+                <select id="os-filter-release" class="field-input">
+                  <option value="">All loaded releases</option>
+                </select>
+              </label>
+              <label class="field-label">Language
+                <select id="os-filter-language" class="field-input">
+                  <option value="">All loaded languages</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="overflow-x-auto os-table-scroll">
+            <table class="w-full text-left border-collapse os-download-catalog-table">
+              <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th class="p-table-cell-padding font-medium">OS</th>
+                  <th class="p-table-cell-padding font-medium">OS Image</th>
+                  <th class="p-table-cell-padding font-medium">Language</th>
+                  <th class="p-table-cell-padding font-medium">Edition</th>
+                  <th class="p-table-cell-padding font-medium">Index</th>
+                  <th class="p-table-cell-padding font-medium">File</th>
+                  <th class="p-table-cell-padding font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody id="os-download-catalog-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Local Import</h4>
+            <span id="os-import-status" class="font-technical-string text-technical-string text-on-surface-variant">Upload or host local ISO/ESD/WIM only.</span>
+          </div>
+          <div class="local-import-grid mb-sm">
+            <section class="local-import-card">
+              <div class="field-label">Upload file</div>
+              <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-sm">
+                <input id="os-upload-file" class="field-input font-technical-string text-technical-string" type="file" accept=".iso,.esd,.wim">
+                <button data-action="os-upload-inspect" data-icon="upload_file" type="button">Upload & inspect</button>
+              </div>
+            </section>
+            <section class="local-import-card">
+              <div class="field-label">Host path</div>
+              <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-sm">
+                <input id="os-import-source" class="field-input font-technical-string text-technical-string" type="text" placeholder="C:\Images\Windows.iso">
+                <button data-action="os-import-inspect" data-icon="search" type="button">Inspect</button>
+              </div>
+            </section>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-sm mb-sm">
+            <label class="field-label">Language
+              <input id="os-import-language" class="field-input" type="text" placeholder="en-us">
+            </label>
+            <label class="field-label">Release
+              <input id="os-import-release" class="field-input" type="text" placeholder="25H2">
+            </label>
+            <label class="field-label">Time zone
+              <input id="os-import-timezone" class="field-input" type="text" placeholder="Pacific Standard Time">
+            </label>
+            <label class="field-label">Edition
+              <input id="os-import-edition" class="field-input" type="text" placeholder="Pro">
+            </label>
+            <label class="field-label">Activation
+              <input id="os-import-activation" class="field-input" type="text" placeholder="Retail">
+            </label>
+          </div>
+          <div class="overflow-x-auto os-table-scroll">
+            <table class="w-full text-left border-collapse os-import-table">
+              <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th class="p-table-cell-padding font-medium">Index</th>
+                  <th class="p-table-cell-padding font-medium">Image</th>
+                  <th class="p-table-cell-padding font-medium">Language</th>
+                  <th class="p-table-cell-padding font-medium">Release</th>
+                  <th class="p-table-cell-padding font-medium">File</th>
+                  <th class="p-table-cell-padding font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody id="os-import-indexes-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
             </table>
           </div>
         </section>

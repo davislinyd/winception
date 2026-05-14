@@ -122,6 +122,7 @@ npm run tui
 
 - `Select service interface` 會停止 running services、更新 `config\osdcloud-tui.json`、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
 - `Select deployment profile` 會停止 running services，重建 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps` payload。
+- `OS Image Cache` 會下載或匯入 Windows image 到 host cache，但不會自動切換 active；`Set active` 會停止 running services、寫回 active cached OS、發佈 `selected-os.json`、更新 SMB image path，並重新跑 preflight。
 - `Clear status files` 會清除 configured status root 內的 JSON/JSONL/screenshot metadata。
 - `Start DHCP` / `Start all services` 不改檔案，但會讓 host DHCP responder 開始回答 client；只有確認真實 LAN DHCP server 已停用後才執行。
 
@@ -130,10 +131,11 @@ Web Dashboard 主要區塊：
 | 區塊 | 用途 |
 | --- | --- |
 | `Active Profile` | 顯示目前 deployment profile、description 與選中的 client software |
+| `Active OS Image` | 顯示目前 active cached Windows 映像、語言、edition、image index 與 cache/preflight 狀態 |
 | `HTTP/TFTP/DHCP` service cards | 顯示各 host-side service 是否 running 與 bind address |
 | `Client Fleet` | 顯示多台 client / 多個 run 的狀態、stage、percent、last seen |
 | `Preflight Summary` | 顯示 preflight 檢查結果；長路徑與錯誤訊息會在此區塊內捲動/截斷，不會把 Quick Actions 或 System Log 往下擠 |
-| `Quick Actions` | 執行 preflight、選 service interface、同步 endpoint、選/新增/編輯 profile、啟停服務、清除 status |
+| `Quick Actions` | 執行 preflight、選 service interface、同步 endpoint、管理 OS image cache、選/新增/編輯 profile、啟停服務、清除 status |
 | `System Log` | 顯示 DHCP、TFTP、HTTP、endpoint sync 與 Web controller log |
 
 鍵盤與滑鼠：
@@ -149,16 +151,17 @@ Web Dashboard 主要區塊：
 1. 如需變更服務網卡，先選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
 2. TUI 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
 3. 在 Dashboard 的 Preflight Summary 或 Endpoint Sync Progress 看 endpoint update 進度；在 System Log 看同步腳本輸出。
-4. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單，先用 `Edit active` 勾選軟體並存檔，Web console 會立即重新發佈 live `Apps` payload。
-5. 在 Web console 選 `Run preflight`。
-6. 如果 service IP、DHCP pool、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
-7. 確認真實 LAN DHCP server 已暫時關閉。
-8. 在 Web console 選 `Start all`，或依序啟動 `Start HTTP/status`、`Start TFTP`、`Start DHCP`。
-9. 實體筆電從 UEFI IPv4 PXE 開機。
-10. 在 Web console 的 `Client Fleet` / `Validation` / `System Log` 觀察流程。
-11. WinPE 完成後會自動 `wpeutil reboot`；此時 client 應從內部硬碟開機，不要再反覆 PXE 開機。
-12. Windows 第一次開機後應自動登入 `davis` 桌面，TUI 最終應收到 `windows-desktop-ready`。
-13. 完成後在 TUI 停止 DHCP/TFTP/HTTP services，避免 host DHCP 留在網段上。
+4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已 cached 且是 active。需要新版本/語言時，先用 Web download catalog 或 Import Local 在 host 端下載/匯入並驗證；完成後再手動 `Set active`。部署中不讓 WinPE client 下載 Windows。
+5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單，先用 `Edit active` 勾選軟體並存檔，Web console 會立即重新發佈 live `Apps` payload。
+6. 在 Web console 選 `Run preflight`。
+7. 如果 service IP、DHCP pool、active OS image、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
+8. 確認真實 LAN DHCP server 已暫時關閉。
+9. 在 Web console 選 `Start all`，或依序啟動 `Start HTTP/status`、`Start TFTP`、`Start DHCP`。
+10. 實體筆電從 UEFI IPv4 PXE 開機。
+11. 在 Web console 的 `Client Fleet` / `Validation` / `System Log` 觀察流程。
+12. WinPE 完成後會自動 `wpeutil reboot`；此時 client 應從內部硬碟開機，不要再反覆 PXE 開機。
+13. Windows 第一次開機後應自動登入 `davis` 桌面，TUI 最終應收到 `windows-desktop-ready`。
+14. 完成後在 TUI 停止 DHCP/TFTP/HTTP services，避免 host DHCP 留在網段上。
 
 選 `Select service interface` 時，TUI 會同步：
 
@@ -236,11 +239,11 @@ TimeZone         : Taipei Standard Time
 iPXE no-redownload 還要確認：
 
 - HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`。
-- HTTP access log 沒有 zh-TW ESD `HEAD` / `GET`。
+- HTTP access log 沒有 active OS ESD/WIM `HEAD` / `GET`。
 - OSDCloud log 中 `ImageFileUrl` 為空。
-- `ImageFileDestination` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`。
+- `ImageFileDestination` 指向 `selected-os.json` 內的 active image，例如 `Z:\OSDCloud\OS\...zh-tw.esd`。
 - `ImageFileDestination.PSDrive.DisplayRoot` 是當次 service IP 的 SMB share，例如 `\\192.168.88.1\OSDCloudiPXE`。
-- `OSImageIndex` 是 `6`。
+- `OSImageIndex` 符合 active image catalog / `selected-os.json`。
 
 ### 常見問題判斷
 
@@ -378,15 +381,16 @@ iPXE HTTP root：
 C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 ```
 
-實體筆電 iPXE 版 WinPE 使用的 Windows 11 ESD 來源：
+實體筆電 iPXE 版 WinPE 使用的 Windows 映像來源由 active OS catalog 發佈成 `selected-os.json`：
 
 ```text
-\\<service-ip>\OSDCloudiPXE\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
+\\<service-ip>\OSDCloudiPXE\OSDCloud\OS\selected-os.json
+\\<service-ip>\OSDCloudiPXE\OSDCloud\OS\<active-image>.esd
 ```
 
 ## 實體筆電 iPXE 流程
 
-這條流程的重點是：實體筆電不需要 USB 或 ISO，直接用 UEFI PXE 啟動 iPXE，再由 iPXE 用 HTTP 載入 OSDCloud WinPE。WinPE 進入後掛載 `\\<service-ip>\OSDCloudiPXE`，直接用該 SMB share 上的 Windows 11 ESD 套用 `Index 6`，避免每台機器再把 5GB ESD 下載到 WinPE 暫存目錄。
+這條流程的重點是：實體筆電不需要 USB 或 ISO，直接用 UEFI PXE 啟動 iPXE，再由 iPXE 用 HTTP 載入 OSDCloud WinPE。WinPE 進入後掛載 `\\<service-ip>\OSDCloudiPXE`，讀取 `Z:\OSDCloud\OS\selected-os.json`，直接用該 SMB share 上的 active cached Windows ESD/WIM 與 image index 套用系統，避免每台機器再把 5GB 映像下載到 WinPE 暫存目錄。
 
 端到端流程：
 
@@ -401,8 +405,8 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 9. OSDCloud WinPE 啟動，`Startnet.cmd` 執行 `Initialize-OSDCloudStartnet`，再呼叫 iPXE 專用 `Start-OSDCloud-iPXE.ps1`。
 10. `Start-OSDCloud-iPXE.ps1` 啟動 `Report-OSDCloudProgress.ps1`，定期 POST 部署狀態到 `http://<service-ip>/osdcloud/status`，並在關鍵階段 best-effort 上傳 PNG 截圖到 `/osdcloud/screenshot`。
 11. `Start-OSDCloud-iPXE.ps1` 用 `net use Z: \\<service-ip>\OSDCloudiPXE` 掛載 read-only SMB share。
-12. 腳本把 `$Global:StartOSDCloud.ImageFileDestination` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`，並固定 `OSImageIndex=6` 後呼叫 `Invoke-OSDCloud`。
-13. OSDCloud 直接用 SMB 上的 ESD 執行 DISM 套用 Windows 11 Pro，不再執行 `Download Operating System` 的 HTTP ESD 下載。
+12. 腳本讀取 `Z:\OSDCloud\OS\selected-os.json`，把 `$Global:StartOSDCloud.ImageFileDestination` 指向 active cached file，並使用 manifest 內的 image index / language / edition 後呼叫 `Invoke-OSDCloud`。
+13. OSDCloud 直接用 SMB 上的 ESD/WIM 執行 DISM 套用 Windows，不再執行 `Download Operating System` 的 HTTP ESD 下載。
 14. WinPE Shutdown script `Invoke-DavisOobe.ps1` 對新 Windows 離線注入：
     - `Unattend.xml`
     - OOBE skip registry
@@ -411,12 +415,14 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
     - `SetupComplete.cmd/.ps1`
     - client app payload `C:\ProgramData\OSDCloud\Apps`
 15. `Start-OSDCloud-iPXE.ps1` 在 `Invoke-OSDCloud` 返回後送出完成狀態，等待 10 秒並執行 `wpeutil reboot`。
-16. Windows 第一次開機執行 SetupComplete，建立/修正 `davis/password`，設定 zh-TW、Taipei timezone、OOBE registry，靜默安裝 client apps，並寫入桌面 marker。
+16. Windows 第一次開機執行 SetupComplete，建立/修正 `davis/password`，依 selected OS metadata 設定 locale/timezone、OOBE registry，靜默安裝 client apps，並寫入桌面 marker。
 17. 在實體筆電本機或遠端管理通道驗證桌面、版本、語系、時區、OOBE registry、OSDCloud log、HTTP access log。
 
 目前實作中特別重要的限制：
 
 - iPXE no-redownload 模式不能使用 `-ImageFileUrl`，因為 OSDCloud 會先把 ESD 下載到 WinPE 暫存位置。現在改由 WinPE 掛載 SMB share，設定 `$Global:StartOSDCloud.ImageFileDestination` 為 ESD `FileInfo` 後呼叫 `Invoke-OSDCloud`。
+- Windows 映像取得只在 host/Admin Console 執行。Web `OS Image Cache` 可從官方 OSD module catalog、受控自訂 catalog `config\os-download-sources.json`，或本機 `.iso` / `.esd` / `.wim` 匯入。下載/匯入會先寫入 `.downloads\<job-id>.download`，完成 hash/DISM index 驗證後才移入 `Media\OSDCloud\OS` 並更新 catalog；成功後不自動切 active，失敗或取消不會覆蓋既有 active image。
+- 自訂下載來源必須放在 repo 管理的 `config\os-download-sources.json`，且每筆都要有 `id`、版本/語言/edition metadata、`.esd` 或 `.wim` URL、`fileName`、`imageIndex` 與 `sha256`。URL host 必須列在 `allowedHosts`；v1 不接受任意 URL 輸入。
 - Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host TUI 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
 - Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
 - Client app payload 由 TUI deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 只安裝被選中的軟體。目前 `Default` profile 發佈 `7zip\7z2601-x64.msi`，`All in One` profile 發佈 7-Zip 與 `chrome\googlechromestandaloneenterprise64.msi`，`Minimal` profile 不安裝 client software。
@@ -630,9 +636,9 @@ npm install
 npm run web
 ```
 
-預設 URL 是 `http://127.0.0.1:8080`。Web 版只替換 operator console，不改 PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議，也不改 WinPE / OSDCloud deployment scripts。
+預設 URL 是 `http://127.0.0.1:8080`。Web 版是完整 operator console，負責 endpoint、OS image cache、deployment profile、service control、status/log/validation。PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議維持相容；OS image cache 會透過 `selected-os.json` 影響 WinPE deployment script 選用哪個 cached image。
 
-Web console 目前分成 `Dashboard`、`Endpoints & Profiles`、`Validation` 三個 view。`Dashboard` 是日常操作首頁：上方 endpoint bar 顯示 service interface/IP、HTTP base、SMB share、DHCP pool 與 DNS；主區顯示 active profile、HTTP/TFTP/DHCP service cards 與 Client Fleet；右側 `Preflight Summary`、`Quick Actions`、`System Log` 形成固定操作欄。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把 Quick Actions 或 System Log 擠出可用範圍。
+Web console 目前分成 `Dashboard`、`Endpoints & Profiles`、`Validation` 三個 view。`Dashboard` 是日常操作首頁：上方 endpoint bar 顯示 service interface/IP、HTTP base、SMB share、DHCP pool 與 DNS；主區顯示 active OS image、active profile、HTTP/TFTP/DHCP service cards 與 Client Fleet；右側 `Preflight Summary`、`Quick Actions`、`System Log` 形成固定操作欄。`OS Image Cache` dialog 分成 cached images、download catalog、Import Local 三段：可手動切換 active cached image，也可用版本/release/language/activation/source filter 選官方或自訂來源下載，或 inspect 本機 ISO/ESD/WIM 後選 image index 匯入 cache。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把 Quick Actions 或 System Log 擠出可用範圍。
 
 TUI 保留為次要/備援入口：
 
@@ -678,7 +684,8 @@ TUI 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/status` stat
 - `Start HTTP/status`、`Start TFTP`、`Start DHCP` 是個別服務 toggle；服務 running 時同一個 action 會顯示為 `Stop ...` 並可關閉服務
 - TUI 不再提供 `Configure physical NIC` 動作；如需改 Windows 網卡 IP，請在 TUI 外手動執行 `.\tools\Set-IpxePhysicalNic.ps1`
 - 服務啟停、`Start all services`、`Clear status files` 都會要求二次確認；清理 status 時也會刪除 fleet index、本機 screenshot metadata 與 `status\screenshots`
-- `Run preflight` 也會檢查 DHCP lease range / router 是否仍落在選定服務 IP 的 prefix 內，並確認 live `Apps` payload 的 `selected-profile.json` 與 active profile 一致；這是防止手動改 JSON 或舊設定殘留的最後防線
+- `Run preflight` 也會檢查 DHCP lease range / router 是否仍落在選定服務 IP 的 prefix 內、active OS image 是否存在且 manifest/DISM index 合理，並確認 live `Apps` payload 的 `selected-profile.json` 與 active profile 一致；這是防止手動改 JSON 或舊設定殘留的最後防線
+- TUI v1 只顯示目前 active OS image 與 OS preflight 結果；下載與切換 active OS 先用 Web console 操作
 - 實體筆電從 UEFI IPv4 PXE 開機後，在 TUI 內看 Clients、Client Detail、Logs、Validation
 
 驗證與測試：
@@ -712,6 +719,8 @@ npm run smoke
 - `package.json`
 - `package-lock.json`
 - `config\osdcloud-tui.json`
+- `config\os-image-catalog.json`
+- `config\os-download-sources.json`
 - `tools\osdcloud-tui\...`
 - `TUI-REWRITE-PLAN.md`
 - `osdcloud-assets\README.md`
@@ -788,11 +797,11 @@ ISO VM 還要確認：
 實體筆電部署還要確認：
 
 - 測試筆電沒有使用 USB/ISO
-- HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`，且沒有 zh-TW ESD `HEAD` / `GET`
+- HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`，且沒有 active OS ESD/WIM `HEAD` / `GET`
 - `C:\OSDCloud\Logs\OSDCloud.json` 的 `ImageFileUrl` 為空
-- `ImageFileDestination` / `ExpandWindowsImage.ImagePath` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`
+- `ImageFileDestination` / `ExpandWindowsImage.ImagePath` 指向 `selected-os.json` 內的 active cached file，例如 `Z:\OSDCloud\OS\...zh-tw.esd`
 - `ImageFileDestination.PSDrive.DisplayRoot` 為目前實體 endpoint 的 SMB share，例如 `\\<service-ip>\OSDCloudiPXE`
-- `OSImageIndex=6`
+- `OSImageIndex` 符合 active OS catalog / `selected-os.json`
 - 硬碟第一次開機直接進入 `davis` 桌面，不停在 OOBE
 
 ## VM VM 驗證重點

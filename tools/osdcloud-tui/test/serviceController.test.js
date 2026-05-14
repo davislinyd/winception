@@ -74,6 +74,9 @@ function makeConfig(root) {
       share: '\\\\10.10.10.1\\OSDCloudiPXE',
       imagePath: path.join(root, 'install.esd'),
     },
+    osImage: {
+      activeImage: 'SMOKE-WIN11-PRO',
+    },
     deploymentProfiles: { activeProfile: 'default' },
     web: { host: '127.0.0.1', port: 0 },
   };
@@ -101,6 +104,86 @@ function makeController(root, overrides = {}) {
       activeProfile: { id: 'default', name: 'Default' },
       selectedSoftware: [{ id: '7zip', name: '7-Zip' }],
       profiles: [{ id: 'default', name: 'Default', description: '', softwareIds: ['7zip'] }],
+    }),
+    resolveOsImageState: () => ({
+      activeImageId: 'SMOKE-WIN11-PRO',
+      activeImage: {
+        id: 'SMOKE-WIN11-PRO',
+        name: 'Smoke Windows 11 Pro',
+        version: 'Windows 11 Smoke',
+        language: 'en-us',
+        edition: 'Pro',
+        imageIndex: 6,
+        fileName: 'install.esd',
+        cached: true,
+        bytes: 12,
+      },
+      images: [{
+        id: 'SMOKE-WIN11-PRO',
+        name: 'Smoke Windows 11 Pro',
+        version: 'Windows 11 Smoke',
+        language: 'en-us',
+        edition: 'Pro',
+        imageIndex: 6,
+        fileName: 'install.esd',
+        cached: true,
+        bytes: 12,
+      }],
+      cachedFiles: [],
+      selectedOs: { id: 'SMOKE-WIN11-PRO', fileName: 'install.esd', imageIndex: 6 },
+      catalogPath: path.join(root, 'os-image-catalog.json'),
+      downloadSourcesPath: path.join(root, 'os-download-sources.json'),
+      cacheRoot: path.join(root, 'OS'),
+      downloadStagingRoot: path.join(root, 'OS', '.downloads'),
+      selectedOsPath: path.join(root, 'OS', 'selected-os.json'),
+      cacheLogPath: path.join(root, 'OS', 'os-image-cache.jsonl'),
+    }),
+    listOsDownloadCatalog: async () => [{
+      id: 'SMOKE-DOWNLOAD-PRO',
+      name: 'Smoke Download Pro',
+      version: 'Windows 11 Smoke',
+      language: 'en-us',
+      edition: 'Pro',
+      imageIndex: 6,
+      fileName: 'download.esd',
+    }],
+    publishSelectedOsImage: async (_config, imageId) => ({
+      image: {
+        id: imageId,
+        name: 'Smoke Windows 11 Pro',
+        version: 'Windows 11 Smoke',
+        language: 'en-us',
+        edition: 'Pro',
+        imageIndex: 6,
+        fileName: 'install.esd',
+      },
+      manifestPath: path.join(root, 'OS', 'selected-os.json'),
+    }),
+    downloadOsImageFromCatalog: async (_config, catalogId) => ({
+      status: 'downloaded',
+      image: { id: catalogId, fileName: 'download.esd' },
+      bytes: 10,
+      filePath: path.join(root, 'OS', 'download.esd'),
+    }),
+    deleteCachedOsImage: (_config, imageId) => ({
+      status: 'deleted',
+      image: { id: imageId, fileName: 'download.esd' },
+      fileDeleted: true,
+      filePath: path.join(root, 'OS', 'download.esd'),
+      catalogPath: path.join(root, 'os-image-catalog.json'),
+      bytes: 10,
+    }),
+    inspectLocalOsImage: async (sourcePath) => ({
+      sourcePath,
+      sourceType: 'wim',
+      imagePath: sourcePath,
+      indexes: [{ imageIndex: 6, name: 'Windows 11 Pro', suggested: { id: 'IMPORTED-WIN11-PRO', fileName: 'imported.wim' } }],
+    }),
+    importLocalOsImage: async (_config, input) => ({
+      status: 'imported',
+      image: { id: input.metadata?.id ?? 'IMPORTED-WIN11-PRO', fileName: input.metadata?.fileName ?? 'imported.wim' },
+      bytes: 20,
+      filePath: path.join(root, 'OS', input.metadata?.fileName ?? 'imported.wim'),
     }),
     runPreflight: async () => [{ name: 'Smoke', ok: true, detail: 'test' }],
     saveConfig: () => path.join(root, 'config.json'),
@@ -215,6 +298,249 @@ test('deployment profile management actions create, update active software, and 
     const deleted = await controller.removeDeploymentProfile('minimal');
     assert.equal(deletedProfileId, 'minimal');
     assert.equal(deleted.profile.id, 'minimal');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('OS image actions publish active image and download through host catalog', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osimage-'));
+  try {
+    let publishedImageId = null;
+    let downloadedCatalogId = null;
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        publishSelectedOsImage: async (_config, imageId) => {
+          publishedImageId = imageId;
+          return {
+            image: {
+              id: imageId,
+              name: 'Smoke Windows 11 Pro',
+              version: 'Windows 11 Smoke',
+              language: 'en-us',
+              edition: 'Pro',
+              imageIndex: 6,
+              fileName: 'install.esd',
+            },
+            manifestPath: path.join(root, 'OS', 'selected-os.json'),
+          };
+        },
+        downloadOsImageFromCatalog: async (_config, catalogId) => {
+          downloadedCatalogId = catalogId;
+          return {
+            status: 'downloaded',
+            image: { id: catalogId, fileName: 'download.esd' },
+            bytes: 42,
+            filePath: path.join(root, 'OS', 'download.esd'),
+          };
+        },
+      },
+    });
+
+    await controller.startAll();
+    const published = await controller.changeOsImage('SMOKE-WIN11-PRO');
+    assert.equal(publishedImageId, 'SMOKE-WIN11-PRO');
+    assert.equal(published.image.id, 'SMOKE-WIN11-PRO');
+    assert.equal(published.preflight[0].ok, true);
+    assert.equal(services.http.running, false);
+    assert.equal(services.tftp.running, false);
+    assert.equal(services.dhcp.running, false);
+
+    const catalog = await controller.getOsDownloadCatalog();
+    assert.equal(catalog[0].id, 'SMOKE-DOWNLOAD-PRO');
+
+    const downloaded = await controller.downloadOsImage('SMOKE-DOWNLOAD-PRO');
+    assert.equal(downloadedCatalogId, 'SMOKE-DOWNLOAD-PRO');
+    assert.equal(downloaded.status, 'downloaded');
+    assert.equal(controller.getState().osDownloadStatus.status, 'downloaded');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('OS image download runs as a recoverable background job', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osdownload-job-'));
+  try {
+    let releaseDownload = null;
+    let downloadedCatalogId = null;
+    const { controller } = makeController(root, {
+      dependencies: {
+        downloadOsImageFromCatalog: async (_config, catalogId, options = {}) => {
+          downloadedCatalogId = catalogId;
+          options.onProgress?.({
+            status: 'downloading',
+            bytes: 12,
+            totalBytes: 100,
+            fileName: 'download.esd',
+          });
+          await new Promise((resolve) => {
+            releaseDownload = resolve;
+          });
+          return {
+            status: 'downloaded',
+            image: { id: catalogId, fileName: 'download.esd' },
+            bytes: 100,
+            filePath: path.join(root, 'OS', 'download.esd'),
+          };
+        },
+      },
+    });
+
+    const job = controller.startOsDownload('SMOKE-DOWNLOAD-PRO');
+    assert.equal(job.catalogId, 'SMOKE-DOWNLOAD-PRO');
+    assert.equal(job.running, true);
+    assert.match(job.jobId, /^os-download-/);
+
+    await Promise.resolve();
+    let downloadStatus = controller.getState().osDownloadStatus;
+    assert.equal(downloadedCatalogId, 'SMOKE-DOWNLOAD-PRO');
+    assert.equal(downloadStatus.status, 'downloading');
+    assert.equal(downloadStatus.bytes, 12);
+    assert.equal(downloadStatus.totalBytes, 100);
+    assert.equal(downloadStatus.running, true);
+    assert.throws(
+      () => controller.startOsDownload('SECOND-DOWNLOAD'),
+      /Operation already running/,
+    );
+
+    releaseDownload();
+    const downloaded = await job.promise;
+    assert.equal(downloaded.status, 'downloaded');
+    downloadStatus = controller.getState().osDownloadStatus;
+    assert.equal(downloadStatus.status, 'downloaded');
+    assert.equal(downloadStatus.running, false);
+    assert.equal(downloadStatus.imageId, 'SMOKE-DOWNLOAD-PRO');
+    assert.equal(downloadStatus.fileName, 'download.esd');
+    assert.equal(downloadStatus.bytes, 100);
+    assert.equal(downloadStatus.error, null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('OS image background download failure records state without changing active image', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osdownload-fail-'));
+  try {
+    const { controller } = makeController(root, {
+      dependencies: {
+        downloadOsImageFromCatalog: async () => {
+          throw new Error('download exploded');
+        },
+      },
+    });
+    const before = controller.getState().osImage.activeImage?.id;
+
+    const job = controller.startOsDownload('BROKEN-DOWNLOAD');
+    await assert.rejects(job.promise, /download exploded/);
+
+    const downloadStatus = controller.getState().osDownloadStatus;
+    assert.equal(downloadStatus.status, 'failed');
+    assert.equal(downloadStatus.running, false);
+    assert.equal(downloadStatus.error, 'download exploded');
+    assert.equal(controller.getState().osImage.activeImage?.id, before);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('OS image delete runs through controller and waits for active download to finish', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osdelete-'));
+  try {
+    let deletedImageId = null;
+    let releaseDownload = null;
+    const { controller } = makeController(root, {
+      dependencies: {
+        deleteCachedOsImage: (_config, imageId) => {
+          deletedImageId = imageId;
+          return {
+            status: 'deleted',
+            image: { id: imageId, fileName: 'download.esd' },
+            fileDeleted: true,
+            filePath: path.join(root, 'OS', 'download.esd'),
+            catalogPath: path.join(root, 'os-image-catalog.json'),
+            bytes: 10,
+          };
+        },
+        downloadOsImageFromCatalog: async () => {
+          await new Promise((resolve) => {
+            releaseDownload = resolve;
+          });
+          return {
+            status: 'downloaded',
+            image: { id: 'SMOKE-DOWNLOAD-PRO', fileName: 'download.esd' },
+            bytes: 10,
+            filePath: path.join(root, 'OS', 'download.esd'),
+          };
+        },
+      },
+    });
+
+    const job = controller.startOsDownload('SMOKE-DOWNLOAD-PRO');
+    assert.equal(controller.getState().osDownloadStatus.running, true);
+    await assert.rejects(
+      () => controller.deleteOsImage('SMOKE-DOWNLOAD-PRO'),
+      /Operation already running/,
+    );
+    releaseDownload();
+    await job.promise;
+
+    const deleted = await controller.deleteOsImage('SMOKE-DOWNLOAD-PRO');
+    assert.equal(deleted.status, 'deleted');
+    assert.equal(deletedImageId, 'SMOKE-DOWNLOAD-PRO');
+    assert.equal(controller.getState().osDownloadStatus.running, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('OS image local inspect and import stay cache-only', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osimport-'));
+  try {
+    let importedInput = null;
+    const { controller } = makeController(root, {
+      dependencies: {
+        inspectLocalOsImage: async (sourcePath) => ({
+          sourcePath,
+          sourceType: 'wim',
+          imagePath: sourcePath,
+          indexes: [{
+            imageIndex: 6,
+            name: 'Windows 11 Pro',
+            suggested: {
+              id: 'IMPORTED-WIN11-PRO',
+              name: 'Imported Windows 11 Pro',
+              language: 'en-us',
+              edition: 'Pro',
+              imageIndex: 6,
+              fileName: 'imported.wim',
+            },
+          }],
+        }),
+        importLocalOsImage: async (_config, input) => {
+          importedInput = input;
+          return {
+            status: 'imported',
+            image: { id: input.metadata.id, fileName: input.metadata.fileName },
+            bytes: 20,
+            filePath: path.join(root, 'OS', input.metadata.fileName),
+          };
+        },
+      },
+    });
+
+    const inspected = await controller.inspectOsImage(path.join(root, 'source.wim'));
+    assert.equal(inspected.indexes[0].imageIndex, 6);
+    assert.equal(controller.getState().operation.mutating, false);
+
+    const imported = await controller.importOsImage({
+      sourcePath: path.join(root, 'source.wim'),
+      imageIndex: 6,
+      metadata: { id: 'IMPORTED-WIN11-PRO', fileName: 'imported.wim' },
+    });
+    assert.equal(imported.status, 'imported');
+    assert.equal(importedInput.imageIndex, 6);
+    assert.equal(controller.config.osImage.activeImage, 'SMOKE-WIN11-PRO');
+    assert.equal(controller.getState().osImportStatus.status, 'imported');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

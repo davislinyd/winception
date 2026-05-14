@@ -3,6 +3,13 @@ const state = {
   selectedRunId: null,
   pendingInterface: null,
   interfaces: [],
+  osDownloadCatalog: [],
+  osDownloadCatalogLoaded: false,
+  osDownloadCatalogLoading: false,
+  osDownloadCatalogError: null,
+  osDownloadCatalogFilters: null,
+  osDownloadStarting: false,
+  osImportInspection: null,
   busy: false,
   clientFleetSignature: '',
 };
@@ -19,6 +26,7 @@ const elements = {
   endpointSummary: $('#endpoint-summary'),
   servicesGrid: $('#services-grid'),
   activeProfileDetails: $('#active-profile-details'),
+  activeOsDetails: $('#active-os-details'),
   preflightStatusBadge: $('#preflight-status-badge'),
   preflightList: $('#preflight-list'),
   clientsBody: $('#clients-body'),
@@ -38,6 +46,25 @@ const elements = {
   syncOutput: $('#sync-output'),
   endpointSettingsDialog: $('#endpoint-settings-dialog'),
   deploymentProfilesDialog: $('#deployment-profiles-dialog'),
+  osImagesDialog: $('#os-images-dialog'),
+  osActiveLabel: $('#os-active-label'),
+  osCacheRoot: $('#os-cache-root'),
+  osImagesBody: $('#os-images-body'),
+  osDownloadCatalogSection: $('#os-download-catalog-section'),
+  osDownloadCatalogButton: $('#os-load-catalog-button'),
+  osDownloadCatalogBody: $('#os-download-catalog-body'),
+  osDownloadStatus: $('#os-download-status'),
+  osFilterRelease: $('#os-filter-release'),
+  osFilterLanguage: $('#os-filter-language'),
+  osUploadFile: $('#os-upload-file'),
+  osImportSource: $('#os-import-source'),
+  osImportLanguage: $('#os-import-language'),
+  osImportRelease: $('#os-import-release'),
+  osImportTimeZone: $('#os-import-timezone'),
+  osImportEdition: $('#os-import-edition'),
+  osImportActivation: $('#os-import-activation'),
+  osImportStatus: $('#os-import-status'),
+  osImportIndexesBody: $('#os-import-indexes-body'),
   validationEvidenceDialog: $('#validation-evidence-dialog'),
   validationRunId: $('#validation-run-id'),
   validationRunSummary: $('#validation-run-summary'),
@@ -92,12 +119,39 @@ const syncSteps = [
   ['Rerun preflight', ['preflight passed', 'preflight completed'], ['running preflight']],
 ];
 
+const osFamilyLabels = new Map([
+  ['win11', 'Windows 11'],
+]);
+
 function text(value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : String(value);
 }
 
 function percent(value) {
   return Number.isFinite(value) ? `${value}%` : '-';
+}
+
+function bytes(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) {
+    return '-';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let current = number;
+  let index = 0;
+  while (current >= 1024 && index < units.length - 1) {
+    current /= 1024;
+    index += 1;
+  }
+  return `${current.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function osImageLabel(image) {
+  if (!image) {
+    return '-';
+  }
+  const version = image.version || image.releaseId || image.build || 'Windows';
+  return `${version} ${text(image.language)} ${text(image.edition)} index ${text(image.imageIndex)}`;
 }
 
 function elapsed(seconds) {
@@ -163,6 +217,34 @@ async function loadInterfaces() {
   render();
 }
 
+async function loadOsDownloadCatalog() {
+  if (state.osDownloadCatalogLoading) {
+    return;
+  }
+  const filters = selectedOsCatalogFilters();
+  if (!osCatalogFiltersReady(filters).ready) {
+    render();
+    return;
+  }
+  state.osDownloadCatalogLoading = true;
+  state.osDownloadCatalogError = null;
+  state.osDownloadCatalogLoaded = false;
+  state.osDownloadCatalog = [];
+  state.osDownloadCatalogFilters = filters;
+  clearRefineFilters();
+  render();
+  try {
+    const payload = await api(`/api/os-download-catalog?${catalogFilterQuery(filters)}`);
+    state.osDownloadCatalog = payload.catalog ?? [];
+    state.osDownloadCatalogLoaded = true;
+  } catch (error) {
+    state.osDownloadCatalogError = error.message;
+  } finally {
+    state.osDownloadCatalogLoading = false;
+    render();
+  }
+}
+
 async function mutate(path, body = null) {
   if (state.busy) {
     return;
@@ -177,8 +259,10 @@ async function mutate(path, body = null) {
     state.current = payload.state;
     state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
     render();
+    return payload;
   } catch (error) {
     window.alert(error.message);
+    return null;
   } finally {
     state.busy = false;
     setControlsDisabled(false);
@@ -396,6 +480,399 @@ function renderProfileSummary(appState) {
     software.textContent = 'No client software selected.';
   }
   elements.activeProfileDetails.append(name, description, software);
+}
+
+function appendTextCell(row, value, className = '') {
+  const cell = document.createElement('td');
+  cell.textContent = text(value);
+  if (className) {
+    cell.className = className;
+  }
+  row.append(cell);
+  return cell;
+}
+
+function checkedValues(name) {
+  return $$(`input[name="${name}"]:checked`).map((input) => input.value);
+}
+
+function selectedOsCatalogFilters() {
+  return {
+    osFamily: ['win11'],
+    edition: ['Pro'],
+    activation: ['Retail'],
+    language: checkedValues('os-catalog-language'),
+    releaseId: checkedValues('os-catalog-release'),
+  };
+}
+
+function osCatalogFiltersReady(filters = selectedOsCatalogFilters()) {
+  const missing = [];
+  if (!filters.language.length) {
+    missing.push('language');
+  }
+  if (!filters.releaseId.length) {
+    missing.push('release');
+  }
+  return {
+    ready: missing.length === 0,
+    missing,
+  };
+}
+
+function catalogReadinessMessage(readiness) {
+  const missing = readiness?.missing ?? [];
+  if (missing.includes('language') && missing.includes('release')) {
+    return 'Select language and at least one release before loading the catalog.';
+  }
+  if (missing.includes('release')) {
+    return 'Select at least one release before loading the catalog.';
+  }
+  if (missing.includes('language')) {
+    return 'Select language before loading the catalog.';
+  }
+  return '';
+}
+
+function catalogFilterQuery(filters) {
+  const params = new URLSearchParams();
+  for (const [key, values] of Object.entries(filters)) {
+    if (values.length) {
+      params.set(key, values.join(','));
+    }
+  }
+  return params.toString();
+}
+
+function clearRefineFilters() {
+  [
+    elements.osFilterRelease,
+    elements.osFilterLanguage,
+  ].forEach((select) => {
+    if (select) {
+      select.value = '';
+    }
+  });
+}
+
+function formatOsFamily(value) {
+  return osFamilyLabels.get(String(value ?? '').toLowerCase()) ?? text(value);
+}
+
+function formatCatalogFilterSummary(filters = state.osDownloadCatalogFilters) {
+  if (!filters) {
+    return '';
+  }
+  const parts = [
+    'Windows 11 Pro Retail',
+    ...filters.language,
+    ...filters.releaseId,
+  ];
+  return parts.join(', ');
+}
+
+function renderOsImageSummary(appState) {
+  elements.activeOsDetails.replaceChildren();
+  const osState = appState.osImage;
+  if (osState?.error) {
+    const error = document.createElement('div');
+    error.className = 'check-row fail';
+    error.textContent = osState.error;
+    elements.activeOsDetails.append(error);
+    return;
+  }
+  const active = osState?.activeImage;
+  const title = document.createElement('div');
+  title.className = 'profile-name';
+  title.textContent = active ? active.id : '-';
+  const meta = document.createElement('div');
+  meta.className = 'profile-meta';
+  meta.textContent = active ? osImageLabel(active) : 'No active OS image.';
+  const cache = document.createElement('div');
+  cache.className = 'profile-software';
+  cache.append(makeStatusPill(active?.cached ? 'Cached' : 'Missing', active?.cached ? 'ok' : 'fail'));
+  const file = document.createElement('code');
+  file.className = 'service-address';
+  file.textContent = active?.fileName ?? '-';
+  cache.append(file);
+  elements.activeOsDetails.append(title, meta, cache);
+}
+
+function renderOsDownloadStatus(appState) {
+  const readiness = osCatalogFiltersReady();
+  if (elements.osDownloadCatalogSection) {
+    elements.osDownloadCatalogSection.setAttribute('aria-busy', state.osDownloadCatalogLoading ? 'true' : 'false');
+  }
+  if (elements.osDownloadCatalogButton) {
+    elements.osDownloadCatalogButton.disabled = state.osDownloadCatalogLoading || state.busy || !readiness.ready;
+    elements.osDownloadCatalogButton.dataset.icon = state.osDownloadCatalogLoading ? 'hourglass_top' : 'download';
+    elements.osDownloadCatalogButton.textContent = state.osDownloadCatalogLoading ? 'Loading catalog...' : 'Load download catalog';
+  }
+  if (state.osDownloadCatalogLoading) {
+    elements.osDownloadStatus.textContent = 'Loading Microsoft official Windows image catalog...';
+    return;
+  }
+  if (state.osDownloadCatalogError) {
+    elements.osDownloadStatus.textContent = `Catalog load failed: ${state.osDownloadCatalogError}`;
+    return;
+  }
+  const status = appState.osDownloadStatus;
+  if (status) {
+    const total = status.totalBytes ? ` / ${bytes(status.totalBytes)}` : '';
+    elements.osDownloadStatus.textContent = `${text(status.status)} ${text(status.fileName ?? status.catalogId)} ${bytes(status.bytes)}${total}`;
+    return;
+  }
+  if (!readiness.ready) {
+    elements.osDownloadStatus.textContent = catalogReadinessMessage(readiness);
+    return;
+  }
+  const summary = formatCatalogFilterSummary();
+  elements.osDownloadStatus.textContent = state.osDownloadCatalogLoaded
+    ? `${state.osDownloadCatalog.length} downloadable row(s) loaded${summary ? ` for ${summary}` : ''}.`
+    : 'Host-side downloads only.';
+}
+
+function selectOptions(select, values, emptyLabel) {
+  const current = select.value;
+  select.replaceChildren();
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = emptyLabel;
+  select.append(empty);
+  for (const value of values) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    select.append(option);
+  }
+  select.value = values.includes(current) ? current : '';
+}
+
+function renderOsCatalogFilters() {
+  if (!state.osDownloadCatalogLoaded) {
+    selectOptions(elements.osFilterRelease, [], 'All loaded releases');
+    selectOptions(elements.osFilterLanguage, [], 'All loaded languages');
+    [
+      elements.osFilterRelease,
+      elements.osFilterLanguage,
+    ].forEach((select) => { select.disabled = true; });
+    return;
+  }
+  const unique = (field) => [...new Set(state.osDownloadCatalog.map((image) => image[field]).filter(Boolean))]
+    .sort((left, right) => String(left).localeCompare(String(right), undefined, { numeric: true }));
+  selectOptions(elements.osFilterRelease, unique('releaseId'), 'All loaded releases');
+  selectOptions(elements.osFilterLanguage, unique('language'), 'All loaded languages');
+  [
+    elements.osFilterRelease,
+    elements.osFilterLanguage,
+  ].forEach((select) => { select.disabled = state.osDownloadCatalog.length === 0; });
+}
+
+function filteredOsDownloadCatalog() {
+  const release = elements.osFilterRelease.value;
+  const language = elements.osFilterLanguage.value;
+  return state.osDownloadCatalog.filter((image) => (
+    (!release || image.releaseId === release)
+    && (!language || image.language === language)
+  ));
+}
+
+function renderOsImportStatus(appState) {
+  const status = appState.osImportStatus;
+  if (status) {
+    elements.osImportStatus.textContent = `${text(status.status)} ${text(status.fileName ?? status.sourcePath)} ${bytes(status.bytes)}`;
+    return;
+  }
+  if (state.osImportInspection) {
+    const source = state.osImportInspection.uploadId
+      ? `upload ${state.osImportInspection.originalFileName ?? state.osImportInspection.uploadId}`
+      : text(state.osImportInspection.sourceType);
+    elements.osImportStatus.textContent = `${state.osImportInspection.indexes?.length ?? 0} image index(es) found in ${source}`;
+    return;
+  }
+  elements.osImportStatus.textContent = 'Upload or host local ISO/ESD/WIM only.';
+}
+
+function importMetadataFromInputs(suggested = {}) {
+  return {
+    ...suggested,
+    language: elements.osImportLanguage.value.trim() || suggested.language,
+    releaseId: elements.osImportRelease.value.trim() || suggested.releaseId,
+    timeZone: elements.osImportTimeZone.value.trim() || suggested.timeZone,
+    edition: elements.osImportEdition.value.trim() || suggested.edition,
+    activation: elements.osImportActivation.value.trim() || suggested.activation,
+  };
+}
+
+function fillImportMetadataDefaults(suggested = {}) {
+  elements.osImportLanguage.value = suggested.language ?? '';
+  elements.osImportRelease.value = suggested.releaseId ?? '';
+  elements.osImportTimeZone.value = suggested.timeZone ?? '';
+  elements.osImportEdition.value = suggested.edition ?? '';
+  elements.osImportActivation.value = suggested.activation ?? '';
+}
+
+function renderOsImportIndexes(appState) {
+  elements.osImportIndexesBody.replaceChildren();
+  renderOsImportStatus(appState);
+  const indexes = state.osImportInspection?.indexes ?? [];
+  if (!indexes.length) {
+    const tr = document.createElement('tr');
+    const td = appendTextCell(tr, 'Upload or inspect a local ISO/ESD/WIM source before importing.');
+    td.colSpan = 6;
+    elements.osImportIndexesBody.append(tr);
+    return;
+  }
+  for (const row of indexes) {
+    const image = row.suggested ?? {};
+    const tr = document.createElement('tr');
+    appendTextCell(tr, row.imageIndex);
+    appendTextCell(tr, row.name || image.name || '-');
+    appendTextCell(tr, image.language);
+    appendTextCell(tr, image.releaseId || image.build || '-');
+    appendTextCell(tr, image.fileName);
+    const actionCell = document.createElement('td');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Import';
+    button.dataset.icon = 'file_upload';
+    button.dataset.osImportAction = 'import';
+    button.dataset.osImportIndex = String(row.imageIndex);
+    actionCell.append(button);
+    tr.append(actionCell);
+    elements.osImportIndexesBody.append(tr);
+  }
+}
+
+function renderOsImages(appState) {
+  const osState = appState.osImage;
+  elements.osImagesBody.replaceChildren();
+  elements.osDownloadCatalogBody.replaceChildren();
+  elements.osActiveLabel.textContent = osState?.error ? osState.error : osState?.activeLabel ?? '-';
+  elements.osCacheRoot.textContent = osState?.cacheRoot ?? '';
+  renderOsDownloadStatus(appState);
+  renderOsCatalogFilters();
+  renderOsImportIndexes(appState);
+
+  if (osState?.error) {
+    const tr = document.createElement('tr');
+    const td = appendTextCell(tr, osState.error);
+    td.colSpan = 7;
+    elements.osImagesBody.append(tr);
+  } else {
+    const activeId = osState?.activeImageId;
+    for (const image of osState?.images ?? []) {
+      const tr = document.createElement('tr');
+      const active = image.id === activeId;
+      if (active) {
+        tr.classList.add('selected');
+      }
+      const statusCell = document.createElement('td');
+      statusCell.append(makeStatusPill(active ? 'Active' : 'Available', active ? 'ok' : 'neutral'));
+      tr.append(statusCell);
+      appendTextCell(tr, `${image.id} / ${image.name}`);
+      appendTextCell(tr, image.language);
+      appendTextCell(tr, image.edition);
+      appendTextCell(tr, image.imageIndex);
+      appendTextCell(tr, image.cached ? `${bytes(image.bytes)} cached` : 'missing');
+      const actionCell = document.createElement('td');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = active ? 'Active' : 'Set active';
+      button.dataset.icon = active ? 'check' : 'published_with_changes';
+      button.dataset.osImageAction = 'select';
+      button.dataset.osImageId = image.id;
+      button.disabled = active || !image.cached;
+      actionCell.append(button);
+      if (!active) {
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'danger';
+        deleteButton.textContent = 'Delete';
+        deleteButton.dataset.icon = 'delete';
+        deleteButton.dataset.osImageAction = 'delete';
+        deleteButton.dataset.osImageId = image.id;
+        actionCell.append(' ', deleteButton);
+      }
+      tr.append(actionCell);
+      elements.osImagesBody.append(tr);
+    }
+    if (!(osState?.images ?? []).length) {
+      const tr = document.createElement('tr');
+      const td = appendTextCell(tr, 'No OS images are defined in the catalog.');
+      td.colSpan = 7;
+      elements.osImagesBody.append(tr);
+    }
+  }
+
+  if (!state.osDownloadCatalogLoaded) {
+    const tr = document.createElement('tr');
+    const td = appendTextCell(
+      tr,
+      state.osDownloadCatalogLoading
+        ? 'Loading Microsoft official Windows image catalog...'
+          : state.osDownloadCatalogError
+            ? `Catalog load failed: ${state.osDownloadCatalogError}`
+            : 'Select language and release, then load the Microsoft official OSD module catalog.',
+      state.osDownloadCatalogLoading ? 'catalog-loading-cell' : state.osDownloadCatalogError ? 'catalog-error-cell' : '',
+    );
+    td.colSpan = 7;
+    elements.osDownloadCatalogBody.append(tr);
+    return;
+  }
+  if (state.osDownloadCatalogLoading || state.osDownloadCatalogError) {
+    const tr = document.createElement('tr');
+    const td = appendTextCell(
+      tr,
+      state.osDownloadCatalogLoading
+        ? 'Loading Microsoft official Windows image catalog...'
+        : `Catalog load failed: ${state.osDownloadCatalogError}`,
+      state.osDownloadCatalogLoading ? 'catalog-loading-cell' : 'catalog-error-cell',
+    );
+    td.colSpan = 7;
+    elements.osDownloadCatalogBody.append(tr);
+    return;
+  }
+  const catalogRows = filteredOsDownloadCatalog();
+  const downloadStatus = appState.osDownloadStatus;
+  const downloadRunning = Boolean(downloadStatus?.running) || state.osDownloadStarting;
+  for (const image of catalogRows) {
+    const tr = document.createElement('tr');
+    appendTextCell(tr, formatOsFamily(image.osFamily));
+    appendTextCell(tr, `${image.id} / ${image.name}`);
+    appendTextCell(tr, image.language);
+    appendTextCell(tr, image.edition);
+    appendTextCell(tr, image.imageIndex);
+    appendTextCell(tr, image.fileName);
+    const actionCell = document.createElement('td');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Download';
+    button.dataset.icon = 'download';
+    button.dataset.osDownloadAction = 'download';
+    button.dataset.osDownloadId = image.id;
+    if (downloadRunning) {
+      button.disabled = true;
+      if (downloadStatus?.catalogId === image.id) {
+        const total = downloadStatus.totalBytes ? ` / ${bytes(downloadStatus.totalBytes)}` : '';
+        button.textContent = downloadStatus.status === 'starting'
+          ? 'Starting...'
+          : `Downloading ${bytes(downloadStatus.bytes)}${total}`;
+        button.dataset.icon = 'hourglass_top';
+      }
+    }
+    actionCell.append(button);
+    tr.append(actionCell);
+    elements.osDownloadCatalogBody.append(tr);
+  }
+  if (!catalogRows.length) {
+    const tr = document.createElement('tr');
+    const td = appendTextCell(tr, state.osDownloadCatalog.length === 0
+      ? 'No catalog rows matched the selected filters.'
+      : 'No downloadable Windows images match the current refine filters.');
+    td.colSpan = 7;
+    elements.osDownloadCatalogBody.append(tr);
+  }
 }
 
 function showValidationEvidence(runId) {
@@ -744,15 +1221,17 @@ function renderProfiles(appState) {
 
 function payloadChecks(appState) {
   return (appState.preflight ?? []).filter((check) => (
-    /apps|payload|profile|smb/i.test(check.name ?? '') || /apps|payload|profile|smb/i.test(check.detail ?? '')
+    /apps|payload|profile|smb|os image/i.test(check.name ?? '') || /apps|payload|profile|smb|os image/i.test(check.detail ?? '')
   ));
 }
 
 function renderPayload(appState) {
   const active = appState.profile?.activeProfile;
+  const activeOs = appState.osImage?.activeImage;
   setDefinitionList(elements.payloadSummary, [
     ['Active profile', active ? `${active.id} / ${active.name}` : '-'],
     ['Software', appState.profile?.selectedSoftwareText || 'none'],
+    ['Active OS', activeOs ? osImageLabel(activeOs) : appState.osImage?.error ?? '-'],
     ['SMB share', appState.config.smb?.share],
     ['Image path', appState.config.smb?.imagePath],
   ]);
@@ -928,6 +1407,9 @@ function renderValidation(appState) {
     ['ImageFileDestination', evidenceValue(appState, ['ImageFileDestination'])],
     ['ImageFileDestinationDisplayRoot', evidenceValue(appState, ['ImageFileDestinationDisplayRoot', 'DisplayRoot'])],
     ['OSImageIndex', evidenceValue(appState, ['OSImageIndex'])],
+    ['Selected OS', evidenceValue(appState, ['selectedOs.id', 'selectedOsId', 'osImageId'])],
+    ['OS language', evidenceValue(appState, ['selectedOs.language', 'osLanguage'])],
+    ['OS edition', evidenceValue(appState, ['selectedOs.editionId', 'osEditionId'])],
   ]);
 
   const bootIpxe = validationCheck(appState, /HTTP boot\.ipxe/i);
@@ -983,10 +1465,12 @@ function render() {
   renderEndpointSummary(appState);
   renderServices(appState);
   renderProfileSummary(appState);
+  renderOsImageSummary(appState);
   renderPreflightSummary(appState.preflight);
   renderClients(appState);
   renderInterfaces(appState);
   renderProfiles(appState);
+  renderOsImages(appState);
   renderPayload(appState);
   renderSync(appState);
   renderValidation(appState);
@@ -1241,6 +1725,156 @@ async function handleProfileSelect(profile) {
   }
 }
 
+async function handleOsImageSelect(image) {
+  const ok = await confirmAction({
+    title: 'Set active OS image',
+    message: 'This stops services, publishes selected-os.json, updates the SMB image path, saves config, and reruns preflight.',
+    details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
+    confirmLabel: 'Set active',
+    danger: true,
+  });
+  if (ok) {
+    await mutate('/api/os-image', { imageId: image.id });
+  }
+}
+
+async function handleOsImageDelete(image) {
+  const ok = await confirmAction({
+    title: 'Delete cached OS image',
+    message: 'This removes the OS image from the host cache catalog and deletes the ESD/WIM file when no other cached row uses it. It does not change the active deployment image.',
+    details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
+    confirmLabel: 'Delete',
+    danger: true,
+  });
+  if (ok) {
+    await mutate('/api/os-image-delete', { imageId: image.id });
+  }
+}
+
+async function handleOsImageDownload(image) {
+  const ok = await confirmAction({
+    title: 'Download OS image',
+    message: 'This downloads on the host into a staging file and will not replace the active deployment image unless validation succeeds.',
+    details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
+    confirmLabel: 'Download',
+    danger: true,
+  });
+  if (ok) {
+    if (state.osDownloadStarting || state.current?.osDownloadStatus?.running) {
+      return;
+    }
+    state.osDownloadStarting = true;
+    render();
+    try {
+      const payload = await api('/api/os-download', {
+        method: 'POST',
+        body: JSON.stringify({ catalogId: image.id }),
+      });
+      state.current = payload.state;
+      state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
+      render();
+    } catch (error) {
+      window.alert(error.message);
+    } finally {
+      state.osDownloadStarting = false;
+      render();
+    }
+  }
+}
+
+async function handleOsImageInspect() {
+  const sourcePath = elements.osImportSource.value.trim();
+  if (!sourcePath) {
+    window.alert('Enter a host local ISO/ESD/WIM path first.');
+    return;
+  }
+  if (state.busy) {
+    return;
+  }
+  state.busy = true;
+  setControlsDisabled(true);
+  try {
+    const payload = await api('/api/os-image-inspect', {
+      method: 'POST',
+      body: JSON.stringify({ sourcePath }),
+    });
+    state.current = payload.state;
+    state.osImportInspection = payload.result;
+    fillImportMetadataDefaults(payload.result?.indexes?.[0]?.suggested ?? {});
+    render();
+  } catch (error) {
+    window.alert(error.message);
+  } finally {
+    state.busy = false;
+    setControlsDisabled(false);
+  }
+}
+
+async function handleOsImageUploadInspect() {
+  const file = elements.osUploadFile.files?.[0] ?? null;
+  if (!file) {
+    window.alert('Choose a local ISO/ESD/WIM file first.');
+    return;
+  }
+  if (state.busy) {
+    return;
+  }
+  state.busy = true;
+  setControlsDisabled(true);
+  try {
+    const payload = await api(`/api/os-image-upload?fileName=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: file,
+    });
+    state.current = payload.state;
+    state.osImportInspection = payload.result;
+    fillImportMetadataDefaults(payload.result?.indexes?.[0]?.suggested ?? {});
+    render();
+  } catch (error) {
+    window.alert(error.message);
+  } finally {
+    state.busy = false;
+    setControlsDisabled(false);
+  }
+}
+
+async function handleOsImageImport(row) {
+  const metadata = importMetadataFromInputs(row.suggested ?? {});
+  const ok = await confirmAction({
+    title: 'Import OS image',
+    message: 'This copies the selected local ISO/ESD/WIM image into the host OS cache. It does not change the active deployment image.',
+    details: [
+      `Source: ${state.osImportInspection.uploadId ? state.osImportInspection.originalFileName : state.osImportInspection.sourcePath}`,
+      `Index: ${row.imageIndex}`,
+      `Language: ${metadata.language}`,
+      `Release: ${metadata.releaseId || '-'}`,
+      `Edition: ${metadata.edition}`,
+      `File: ${metadata.fileName}`,
+    ],
+    confirmLabel: 'Import to cache',
+    danger: true,
+  });
+  if (ok) {
+    const uploadId = state.osImportInspection.uploadId;
+    const payload = uploadId
+      ? await mutate('/api/os-image-upload-import', {
+        uploadId,
+        imageIndex: row.imageIndex,
+        metadata,
+      })
+      : await mutate('/api/os-image-import', {
+        sourcePath: state.osImportInspection.sourcePath,
+        imageIndex: row.imageIndex,
+        metadata,
+      });
+    if (payload?.state) {
+      state.osImportInspection = null;
+      render();
+    }
+  }
+}
+
 async function handleAction(action, source = null) {
   const services = state.current?.services ?? {};
   if (action === 'run-evidence') {
@@ -1266,6 +1900,14 @@ async function handleAction(action, source = null) {
     await confirmEndpointSync(choice);
   } else if (action === 'profiles') {
     openDialog(elements.deploymentProfilesDialog);
+  } else if (action === 'os-images') {
+    openDialog(elements.osImagesDialog);
+  } else if (action === 'reload-os-download-catalog') {
+    await loadOsDownloadCatalog();
+  } else if (action === 'os-upload-inspect') {
+    await handleOsImageUploadInspect();
+  } else if (action === 'os-import-inspect') {
+    await handleOsImageInspect();
   } else if (action === 'profile-add') {
     const payload = await api('/api/profiles');
     const input = await showAddProfileDialog(payload.profile);
@@ -1392,6 +2034,35 @@ document.addEventListener('click', (event) => {
     return;
   }
 
+  const osImageButton = target.closest('[data-os-image-action]');
+  if (osImageButton) {
+    const image = state.current?.osImage?.images?.find((item) => item.id === osImageButton.dataset.osImageId);
+    if (image && osImageButton.dataset.osImageAction === 'select') {
+      handleOsImageSelect(image).catch((error) => window.alert(error.message));
+    } else if (image && osImageButton.dataset.osImageAction === 'delete') {
+      handleOsImageDelete(image).catch((error) => window.alert(error.message));
+    }
+    return;
+  }
+
+  const osDownloadButton = target.closest('[data-os-download-action]');
+  if (osDownloadButton) {
+    const image = state.osDownloadCatalog.find((item) => item.id === osDownloadButton.dataset.osDownloadId);
+    if (image && osDownloadButton.dataset.osDownloadAction === 'download') {
+      handleOsImageDownload(image).catch((error) => window.alert(error.message));
+    }
+    return;
+  }
+
+  const osImportButton = target.closest('[data-os-import-action]');
+  if (osImportButton) {
+    const row = state.osImportInspection?.indexes?.find((item) => String(item.imageIndex) === osImportButton.dataset.osImportIndex);
+    if (row && osImportButton.dataset.osImportAction === 'import') {
+      handleOsImageImport(row).catch((error) => window.alert(error.message));
+    }
+    return;
+  }
+
   const actionButton = target.closest('[data-action]');
   if (actionButton) {
     handleAction(actionButton.dataset.action, actionButton).catch((error) => window.alert(error.message));
@@ -1420,6 +2091,24 @@ document.addEventListener('keydown', (event) => {
 
 elements.refreshButton.addEventListener('click', () => {
   refresh().catch((error) => window.alert(error.message));
+});
+
+[
+  elements.osFilterRelease,
+  elements.osFilterLanguage,
+].forEach((select) => {
+  select.addEventListener('change', () => render());
+});
+
+$$('[data-os-catalog-filter]').forEach((input) => {
+  input.addEventListener('change', () => {
+    state.osDownloadCatalog = [];
+    state.osDownloadCatalogLoaded = false;
+    state.osDownloadCatalogError = null;
+    state.osDownloadCatalogFilters = null;
+    clearRefineFilters();
+    render();
+  });
 });
 
 refresh().catch((error) => window.alert(error.message));

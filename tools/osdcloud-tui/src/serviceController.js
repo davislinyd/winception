@@ -17,6 +17,18 @@ import {
   resolveDeploymentProfileState,
   updateDeploymentProfile,
 } from './deploymentProfiles.js';
+import {
+  deleteCachedOsImage,
+  downloadOsImageFromCatalog,
+  formatOsImageLabel,
+  importLocalOsImage,
+  importUploadedOsImage,
+  inspectLocalOsImage,
+  listOsDownloadCatalog,
+  publishSelectedOsImage,
+  resolveOsImageState,
+  uploadOsImageFile,
+} from './osImages.js';
 import { formatLogLine, RingBuffer, tailFile } from './logger.js';
 import {
   listIpv4ServiceInterfaces,
@@ -98,6 +110,40 @@ function profileSummary(state) {
   };
 }
 
+function retailOnlyCatalogFilters(filters = {}) {
+  const requestedActivation = Array.isArray(filters.activation) ? filters.activation : [];
+  const requestedRetail = requestedActivation
+    .map((value) => String(value).trim().toLowerCase())
+    .some((value) => value === 'retail');
+  if (requestedActivation.length > 0 && !requestedRetail) {
+    return {
+      ...filters,
+      activation: ['__retail_only_no_match__'],
+    };
+  }
+  return {
+    ...filters,
+    activation: ['Retail'],
+  };
+}
+
+function osImageSummary(state) {
+  return {
+    activeImage: state.activeImage,
+    activeImageId: state.activeImageId,
+    activeLabel: formatOsImageLabel(state.activeImage),
+    catalogPath: state.catalogPath,
+    downloadSourcesPath: state.downloadSourcesPath,
+    cacheRoot: state.cacheRoot,
+    downloadStagingRoot: state.downloadStagingRoot,
+    selectedOsPath: state.selectedOsPath,
+    cacheLogPath: state.cacheLogPath,
+    selectedOs: state.selectedOs,
+    images: state.images,
+    cachedFiles: state.cachedFiles,
+  };
+}
+
 export class ServiceController extends EventEmitter {
   constructor(options = {}) {
     super();
@@ -105,7 +151,14 @@ export class ServiceController extends EventEmitter {
       applyServiceEndpoint,
       createDeploymentProfile,
       deleteDeploymentProfile,
+      deleteCachedOsImage,
+      downloadOsImageFromCatalog,
+      importLocalOsImage,
+      importUploadedOsImage,
+      inspectLocalOsImage,
+      listOsDownloadCatalog,
       listIpv4ServiceInterfaces,
+      publishSelectedOsImage,
       publishDeploymentProfile,
       readFleetStatus,
       readRecentScreenshotMetadata,
@@ -113,12 +166,14 @@ export class ServiceController extends EventEmitter {
       readStatusEvents,
       removeStatusFiles,
       resolveDeploymentProfileState,
+      resolveOsImageState,
       runPreflight,
       saveConfig,
       summarizeValidation,
       syncIpxeEndpoint,
       tailFile,
       updateDeploymentProfile,
+      uploadOsImageFile,
       ...options.dependencies,
     };
     this.config = options.config ?? loadConfig(options.configPath);
@@ -131,6 +186,9 @@ export class ServiceController extends EventEmitter {
     this.preflightResults = [];
     this.endpointUpdateStatus = [];
     this.selectedRunId = null;
+    this.osDownloadStatus = null;
+    this.osDownloadPromise = null;
+    this.osImportStatus = null;
     this.operation = null;
     this.bindServiceEvents();
     for (const line of this.initialLogTail()) {
@@ -282,6 +340,21 @@ export class ServiceController extends EventEmitter {
     return profileSummary(state);
   }
 
+  getOsImages() {
+    const state = this.dependencies.resolveOsImageState(this.config);
+    return osImageSummary(state);
+  }
+
+  async getOsDownloadCatalog(filters = {}) {
+    const rows = await this.dependencies.listOsDownloadCatalog(this.config, {
+      filters: retailOnlyCatalogFilters(filters),
+    });
+    return rows.map((image) => ({
+      ...image,
+      label: formatOsImageLabel(image),
+    }));
+  }
+
   getState(options = {}) {
     if (options.selectedRunId !== undefined) {
       this.selectedRunId = options.selectedRunId || null;
@@ -302,6 +375,7 @@ export class ServiceController extends EventEmitter {
     }
 
     const profileResult = safeRead(() => this.getProfiles(), null);
+    const osImageResult = safeRead(() => this.getOsImages(), null);
     const validationResult = safeRead(() => this.dependencies.summarizeValidation(this.config), []);
     const statusEventsResult = safeRead(() => this.dependencies.readStatusEvents(this.config, 80), []);
     const screenshotsResult = safeRead(() => this.dependencies.readRecentScreenshotMetadata(this.config, 5), []);
@@ -343,6 +417,9 @@ export class ServiceController extends EventEmitter {
       },
       services: this.servicesState(),
       profile: profileResult.error ? { error: profileResult.error } : profileResult.value,
+      osImage: osImageResult.error ? { error: osImageResult.error } : osImageResult.value,
+      osDownloadStatus: this.osDownloadStatus,
+      osImportStatus: this.osImportStatus,
       preflight: this.preflightResults,
       endpointUpdateStatus: this.endpointUpdateStatus,
       operation: this.operation,
@@ -476,6 +553,233 @@ export class ServiceController extends EventEmitter {
         appsRoot: result.appsRoot,
         preflight: this.preflightResults,
       };
+    });
+  }
+
+  async changeOsImage(imageId) {
+    return this.runOperation('Publishing OS image', async () => {
+      await this.stopAllServices();
+      this.preflightResults = [];
+      const result = await this.dependencies.publishSelectedOsImage(this.config, imageId);
+      const savedPath = this.dependencies.saveConfig(this.config);
+      this.addLog(`Published OS image ${result.image.id}: ${formatOsImageLabel(result.image)}`);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      return {
+        configPath: savedPath,
+        image: result.image,
+        manifestPath: result.manifestPath,
+        preflight: this.preflightResults,
+      };
+    });
+  }
+
+  async downloadOsImage(catalogId) {
+    const job = this.startOsDownload(catalogId);
+    return job.promise;
+  }
+
+  async deleteOsImage(imageId) {
+    if (this.osDownloadStatus?.running) {
+      throw errorWithStatus(`Operation already running: Downloading OS image ${this.osDownloadStatus.catalogId}`, 409);
+    }
+    return this.runOperation('Deleting OS image', async () => {
+      const result = await this.dependencies.deleteCachedOsImage(this.config, imageId);
+      this.addLog(`Deleted OS image ${result.image.id}: ${result.fileDeleted ? result.filePath : 'catalog entry only'}`);
+      return result;
+    });
+  }
+
+  startOsDownload(catalogId) {
+    if (this.osDownloadStatus?.running) {
+      throw errorWithStatus(`Operation already running: Downloading OS image ${this.osDownloadStatus.catalogId}`, 409);
+    }
+
+    const jobId = `os-download-${Date.now()}`;
+    this.osDownloadStatus = {
+      jobId,
+      catalogId,
+      status: 'starting',
+      running: true,
+      bytes: 0,
+      totalBytes: null,
+      fileName: null,
+      imageId: null,
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      error: null,
+    };
+    this.addLog(`[WEB] Downloading OS image ${catalogId}`);
+    this.emit('operation', this.operation);
+
+    const promise = Promise.resolve().then(() => this.dependencies.downloadOsImageFromCatalog(this.config, catalogId, {
+      onProgress: (progress) => {
+        this.osDownloadStatus = {
+          ...this.osDownloadStatus,
+          ...progress,
+          jobId,
+          catalogId,
+          running: true,
+          error: null,
+        };
+        this.emit('operation', this.operation);
+      },
+    })).then((result) => {
+      this.osDownloadStatus = {
+        ...this.osDownloadStatus,
+        jobId,
+        catalogId,
+        status: result.status,
+        running: false,
+        bytes: result.bytes,
+        fileName: result.image.fileName,
+        imageId: result.image.id,
+        finishedAt: new Date().toISOString(),
+        error: null,
+      };
+      this.addLog(`OS image ${result.status}: ${result.image.id} ${result.image.fileName}`);
+      return result;
+    }).catch((error) => {
+      this.osDownloadStatus = {
+        ...this.osDownloadStatus,
+        jobId,
+        catalogId,
+        status: 'failed',
+        running: false,
+        finishedAt: new Date().toISOString(),
+        error: error.message,
+      };
+      this.addLog(`[WEB] Downloading OS image failed: ${error.message}`);
+      throw error;
+    }).finally(() => {
+      if (this.osDownloadPromise === promise) {
+        this.osDownloadPromise = null;
+      }
+    });
+    promise.catch(() => {});
+    this.osDownloadPromise = promise;
+    return {
+      ...this.osDownloadStatus,
+      promise,
+    };
+  }
+
+  async inspectOsImage(sourcePath) {
+    return this.runOperation(
+      'Inspecting OS image source',
+      async () => this.dependencies.inspectLocalOsImage(sourcePath),
+      { mutating: false },
+    );
+  }
+
+  async uploadOsImage(input) {
+    return this.runOperation('Uploading OS image source', async () => {
+      this.osImportStatus = {
+        sourcePath: input?.fileName,
+        status: 'uploading',
+        bytes: 0,
+        totalBytes: input?.size ?? null,
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        error: null,
+      };
+      try {
+        const result = await this.dependencies.uploadOsImageFile(this.config, input, {
+          onProgress: (progress) => {
+            this.osImportStatus = {
+              ...this.osImportStatus,
+              ...progress,
+            };
+            this.emit('operation', this.operation);
+          },
+        });
+        this.osImportStatus = {
+          ...this.osImportStatus,
+          status: 'uploaded',
+          bytes: result.bytes,
+          fileName: result.originalFileName,
+          uploadId: result.uploadId,
+          sourcePath: result.sourcePath,
+          finishedAt: new Date().toISOString(),
+        };
+        this.addLog(`OS image uploaded: ${result.uploadId} ${result.originalFileName}`);
+        return result;
+      } catch (error) {
+        this.osImportStatus = {
+          ...this.osImportStatus,
+          status: 'failed',
+          finishedAt: new Date().toISOString(),
+          error: error.message,
+        };
+        throw error;
+      }
+    });
+  }
+
+  async importOsImage(input) {
+    return this.runOperation('Importing OS image', async () => {
+      this.osImportStatus = {
+        sourcePath: input?.sourcePath,
+        imageIndex: input?.imageIndex ?? input?.index,
+        status: 'starting',
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        error: null,
+      };
+      try {
+        const result = await this.dependencies.importLocalOsImage(this.config, input);
+        this.osImportStatus = {
+          ...this.osImportStatus,
+          status: result.status,
+          bytes: result.bytes,
+          fileName: result.image.fileName,
+          imageId: result.image.id,
+          finishedAt: new Date().toISOString(),
+        };
+        this.addLog(`OS image ${result.status}: ${result.image.id} ${result.image.fileName}`);
+        return result;
+      } catch (error) {
+        this.osImportStatus = {
+          ...this.osImportStatus,
+          status: 'failed',
+          finishedAt: new Date().toISOString(),
+          error: error.message,
+        };
+        throw error;
+      }
+    });
+  }
+
+  async importUploadedOsImage(input) {
+    return this.runOperation('Importing uploaded OS image', async () => {
+      this.osImportStatus = {
+        uploadId: input?.uploadId,
+        imageIndex: input?.imageIndex ?? input?.index,
+        status: 'starting',
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        error: null,
+      };
+      try {
+        const result = await this.dependencies.importUploadedOsImage(this.config, input);
+        this.osImportStatus = {
+          ...this.osImportStatus,
+          status: result.status,
+          bytes: result.bytes,
+          fileName: result.image.fileName,
+          imageId: result.image.id,
+          finishedAt: new Date().toISOString(),
+        };
+        this.addLog(`OS image ${result.status}: ${result.image.id} ${result.image.fileName}`);
+        return result;
+      } catch (error) {
+        this.osImportStatus = {
+          ...this.osImportStatus,
+          status: 'failed',
+          finishedAt: new Date().toISOString(),
+          error: error.message,
+        };
+        throw error;
+      }
     });
   }
 
