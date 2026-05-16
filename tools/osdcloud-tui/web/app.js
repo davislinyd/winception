@@ -14,6 +14,7 @@ const state = {
   osImportInspection: null,
   busy: false,
   clientFleetSignature: '',
+  fleetExpanded: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -34,8 +35,11 @@ const elements = {
   activeOsDetails: $('#active-os-details'),
   preflightStatusBadge: $('#preflight-status-badge'),
   preflightList: $('#preflight-list'),
+  clientFleetPanel: $('.client-fleet-panel'),
+  fleetBackdrop: $('#fleet-backdrop'),
   clientsBody: $('#clients-body'),
   fleetCounts: $('#fleet-counts'),
+  fleetExpandToggle: $('#fleet-expand-toggle'),
   logs: $('#logs'),
   interfacesBody: $('#interfaces-body'),
   pendingInterfaceLabel: $('#pending-interface-label'),
@@ -311,6 +315,28 @@ function setControlsDisabled(disabled) {
   $$('button[data-action], dialog button, dialog input, dialog textarea').forEach((control) => {
     control.disabled = disabled;
   });
+}
+
+function renderFleetExpandedState() {
+  document.body.classList.toggle('fleet-expanded', state.fleetExpanded);
+  if (elements.fleetBackdrop) {
+    elements.fleetBackdrop.hidden = !state.fleetExpanded;
+  }
+  if (!elements.fleetExpandToggle) {
+    return;
+  }
+  elements.fleetExpandToggle.setAttribute('aria-expanded', String(state.fleetExpanded));
+  elements.fleetExpandToggle.dataset.icon = state.fleetExpanded ? 'close_fullscreen' : 'open_in_full';
+  elements.fleetExpandToggle.textContent = state.fleetExpanded ? 'Collapse fleet' : 'Expand fleet';
+  elements.fleetExpandToggle.title = state.fleetExpanded ? 'Return to dashboard overview' : 'Expand Client Fleet';
+}
+
+function setFleetExpanded(expanded) {
+  if (state.fleetExpanded === expanded) {
+    return;
+  }
+  state.fleetExpanded = expanded;
+  renderFleetExpandedState();
 }
 
 function openDialog(dialog) {
@@ -974,6 +1000,10 @@ function openValidationEvidenceFromTarget(target) {
   if (!origin) {
     return false;
   }
+  const explicitAction = origin.closest('[data-action]');
+  if (explicitAction && explicitAction.dataset.action !== 'run-evidence') {
+    return false;
+  }
   const evidenceTarget = origin.closest('[data-run-action="evidence"]');
   if (!evidenceTarget) {
     return false;
@@ -1029,6 +1059,14 @@ function renderClients(appState) {
     viewButton.dataset.runAction = 'evidence';
     viewButton.dataset.runId = run.runId;
     statusCell.append(viewButton);
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'danger';
+    deleteButton.textContent = 'Delete';
+    deleteButton.dataset.action = 'status-run-delete';
+    deleteButton.dataset.icon = 'delete';
+    deleteButton.dataset.runId = run.runId;
+    statusCell.append(deleteButton);
     tr.append(statusCell);
     for (const value of [
       run.clientId,
@@ -1568,6 +1606,7 @@ function render() {
   if (!appState) {
     return;
   }
+  renderFleetExpandedState();
   elements.appVersion.textContent = appState.app?.version ? `v${appState.app.version}` : '';
   elements.endpointLine.textContent = endpointLabel(appState.config);
   elements.updatedAt.textContent = `Updated ${localTime(appState.generatedAt)}`;
@@ -1958,6 +1997,39 @@ async function handleOsImageImport(row) {
   }
 }
 
+async function handleStatusRunDelete(runId) {
+  const run = state.current?.fleet?.runs?.find((item) => item.runId === runId);
+  if (!run) {
+    window.alert('Deployment run was not found in the current Client Fleet list.');
+    return;
+  }
+  const ok = await confirmAction({
+    title: 'Delete client run',
+    message: 'This removes only this Client Fleet row and its per-run status artifacts. Other runs for the same client are kept. If the client is still reporting, this run may appear again.',
+    details: [
+      `Run: ${run.runId}`,
+      `Client: ${run.clientId ?? '-'}`,
+      `Status: ${run.status ?? '-'}`,
+      `Stage: ${run.latestStage ?? '-'}`,
+    ],
+    confirmLabel: 'Delete run',
+    danger: true,
+  });
+  if (!ok) {
+    return;
+  }
+  const deletedSelectedRun = state.selectedRunId === run.runId;
+  const payload = await mutate('/api/status/run/delete', { runId: run.runId });
+  if (payload?.state) {
+    state.clientFleetSignature = '';
+    if (deletedSelectedRun) {
+      state.selectedRunId = payload.state.selectedRunId ?? null;
+      closeDialog(elements.validationEvidenceDialog);
+    }
+    render();
+  }
+}
+
 async function handleAction(action, source = null) {
   const services = state.current?.services ?? {};
   if (action === 'run-evidence') {
@@ -2072,12 +2144,21 @@ async function handleAction(action, source = null) {
     }
   } else if (action === 'refresh-evidence') {
     await refresh();
+  } else if (action === 'status-run-delete') {
+    await handleStatusRunDelete(source?.dataset?.runId);
+  } else if (action === 'fleet-expand-toggle') {
+    setFleetExpanded(!state.fleetExpanded);
   }
 }
 
 document.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : event.target?.parentElement;
   if (!target) {
+    return;
+  }
+  if (target === elements.fleetBackdrop) {
+    setFleetExpanded(false);
+    elements.fleetExpandToggle?.focus();
     return;
   }
   if (openValidationEvidenceFromTarget(target)) {
@@ -2151,6 +2232,12 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && state.fleetExpanded && !document.querySelector('dialog[open]')) {
+    event.preventDefault();
+    setFleetExpanded(false);
+    elements.fleetExpandToggle?.focus();
+    return;
+  }
   if (event.key !== 'Enter' && event.key !== ' ') {
     return;
   }

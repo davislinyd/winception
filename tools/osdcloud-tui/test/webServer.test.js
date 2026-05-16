@@ -217,6 +217,14 @@ async function makeServer(root, overrides = {}) {
         profile: { id: profileId, name: 'Minimal', description: '', softwareIds: [] },
         filePath: path.join(root, `${profileId}.json`),
       }),
+      deleteStatusRun: (_config, runId) => {
+        if (!runId) {
+          const error = new Error('Run ID is required.');
+          error.statusCode = 400;
+          throw error;
+        }
+        return { runId, removed: 3 };
+      },
       runPreflight: async () => [{ name: 'Smoke', ok: true, detail: 'test' }],
       saveConfig: () => path.join(root, 'config.json'),
       summarizeValidation: () => [],
@@ -316,6 +324,25 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.id, 'minimal');
+
+    response = await fetch(`${base}/api/status/run/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runId: 'run-1' }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.runId, 'run-1');
+    assert.equal(payload.result.removed, 3);
+
+    response = await fetch(`${base}/api/status/run/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.equal(response.status, 400);
+    payload = await response.json();
+    assert.equal(payload.ok, false);
 
     response = await fetch(`${base}/api/os-images`);
     assert.equal(response.status, 200);

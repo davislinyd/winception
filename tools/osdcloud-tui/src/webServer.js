@@ -273,6 +273,12 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/status/run/delete') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.deleteStatusRun(body.runId ?? body.id);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
 
     sendJson(res, 404, { ok: false, error: `Unknown API path: ${pathname}` });
   }

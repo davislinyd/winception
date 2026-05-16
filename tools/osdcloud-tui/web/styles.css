@@ -49,11 +49,23 @@ body {
   display: flex;
 }
 
+.dashboard-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
 .dashboard-grid,
 .dashboard-operations-column,
 .dashboard-status-column,
 .dashboard-log-column {
   min-height: 0;
+}
+
+.dashboard-status-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .dashboard-grid > * {
@@ -200,6 +212,74 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+}
+
+.client-fleet-header {
+  gap: 8px;
+  min-width: 0;
+}
+
+.client-fleet-header h3 {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.client-fleet-header-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+#fleet-counts {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#fleet-expand-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.client-fleet-panel thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.fleet-backdrop {
+  background: rgba(25, 28, 30, 0.48);
+  inset: 0;
+  position: fixed;
+  z-index: 40;
+}
+
+.fleet-backdrop[hidden] {
+  display: none;
+}
+
+body.fleet-expanded {
+  overflow: hidden;
+}
+
+body.fleet-expanded .client-fleet-panel {
+  bottom: 24px;
+  box-shadow: 0 20px 64px rgba(25, 28, 30, 0.3);
+  left: 50%;
+  max-height: calc(100vh - 100px);
+  min-height: 0;
+  position: fixed;
+  right: auto;
+  top: 76px;
+  transform: translateX(-50%);
+  width: min(1480px, calc(100vw - 32px));
+  z-index: 45;
+}
+
+body.fleet-expanded .client-fleet-panel > .overflow-x-auto {
+  min-height: 0;
 }
 
 button {
@@ -793,7 +873,7 @@ pre {
   word-break: break-word;
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1100px) {
   #view-dashboard.active {
     flex: 1 1 auto;
     min-height: 0;
@@ -801,6 +881,18 @@ pre {
 
   .dashboard-grid {
     flex: 1 1 auto;
+  }
+
+  .dashboard-operations-column {
+    grid-column: span 2 / span 2;
+  }
+
+  .dashboard-status-column {
+    grid-column: span 7 / span 7;
+  }
+
+  .dashboard-log-column {
+    grid-column: span 3 / span 3;
   }
 
   .dashboard-operations-column,
@@ -849,6 +941,26 @@ pre {
 
   .status-services-grid {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body.fleet-expanded .client-fleet-panel {
+    bottom: 8px;
+    left: 8px;
+    max-height: none;
+    right: 8px;
+    top: 8px;
+    transform: none;
+    width: auto;
+  }
+
+  body.fleet-expanded .client-fleet-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body.fleet-expanded .client-fleet-header-actions {
+    justify-content: space-between;
+    width: 100%;
   }
 
   .drawer-section-header,

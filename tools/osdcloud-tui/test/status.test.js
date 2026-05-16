@@ -4,12 +4,23 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  deleteStatusRun,
   formatDeploymentStatus,
   formatFleetClientRows,
   formatFleetRunDetail,
   formatStatusEventLine,
   resolveDeploymentSummary,
 } from '../src/status.js';
+
+function statusConfig(statusRoot) {
+  return {
+    http: { statusRoot },
+    paths: {
+      statusLatest: path.join(statusRoot, 'latest.json'),
+      statusEvents: path.join(statusRoot, 'progress.jsonl'),
+    },
+  };
+}
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -221,4 +232,56 @@ test('formats long status events into compact host-console lines', () => {
   assert.match(formatted, /9VDYLD4/);
   assert.match(formatted, /apply-image/);
   assert.match(formatted, /42%/);
+});
+
+test('deletes a single status run and rebuilds the fleet index', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-delete-'));
+  try {
+    const config = statusConfig(root);
+    fs.mkdirSync(path.join(root, 'screenshots', 'run-a'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'run-a.summary.json'), JSON.stringify({ runId: 'run-a', clientId: 'client-a', status: 'completed' }));
+    fs.writeFileSync(path.join(root, 'run-a.jsonl'), `${JSON.stringify({ runId: 'run-a', stage: 'winpe-start' })}\n`);
+    fs.writeFileSync(path.join(root, 'run-a.latest.json'), JSON.stringify({ runId: 'run-a', stage: 'windows-desktop-ready' }));
+    fs.writeFileSync(path.join(root, 'run-a.screenshots.jsonl'), `${JSON.stringify({ runId: 'run-a', filePath: 'shot.png' })}\n`);
+    fs.writeFileSync(path.join(root, 'screenshots', 'run-a', 'shot.png'), 'png');
+    fs.writeFileSync(path.join(root, 'latest.json'), JSON.stringify({ runId: 'run-a' }));
+    fs.writeFileSync(path.join(root, 'latest-summary.json'), JSON.stringify({ runId: 'run-a' }));
+    fs.writeFileSync(path.join(root, 'latest-screenshot.json'), JSON.stringify({ runId: 'run-a' }));
+
+    fs.writeFileSync(path.join(root, 'run-b.summary.json'), JSON.stringify({ runId: 'run-b', clientId: 'client-a', status: 'completed' }));
+    fs.writeFileSync(path.join(root, 'run-b.jsonl'), `${JSON.stringify({ runId: 'run-b', stage: 'winpe-start' })}\n`);
+
+    const result = deleteStatusRun(config, 'run-a');
+
+    assert.equal(result.runId, 'run-a');
+    assert.equal(fs.existsSync(path.join(root, 'run-a.summary.json')), false);
+    assert.equal(fs.existsSync(path.join(root, 'run-a.jsonl')), false);
+    assert.equal(fs.existsSync(path.join(root, 'run-a.latest.json')), false);
+    assert.equal(fs.existsSync(path.join(root, 'run-a.screenshots.jsonl')), false);
+    assert.equal(fs.existsSync(path.join(root, 'screenshots', 'run-a')), false);
+    assert.equal(fs.existsSync(path.join(root, 'latest.json')), false);
+    assert.equal(fs.existsSync(path.join(root, 'latest-summary.json')), false);
+    assert.equal(fs.existsSync(path.join(root, 'latest-screenshot.json')), false);
+    assert.equal(fs.existsSync(path.join(root, 'run-b.summary.json')), true);
+
+    const index = JSON.parse(fs.readFileSync(path.join(root, 'runs-index.json'), 'utf8'));
+    assert.equal(index.total, 1);
+    assert.equal(index.runs[0].runId, 'run-b');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('delete status run rejects missing and invalid run ids', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-delete-invalid-'));
+  try {
+    const config = statusConfig(root);
+    fs.writeFileSync(path.join(root, 'run-a.summary.json'), JSON.stringify({ runId: 'run-a', status: 'completed' }));
+
+    assert.throws(() => deleteStatusRun(config, 'missing'), /Deployment run not found: missing/);
+    assert.throws(() => deleteStatusRun(config, '..\\run-a'), /Invalid run ID/);
+    assert.equal(fs.existsSync(path.join(root, 'run-a.summary.json')), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

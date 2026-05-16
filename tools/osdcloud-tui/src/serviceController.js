@@ -35,6 +35,7 @@ import {
   syncIpxeEndpoint,
 } from './windows.js';
 import {
+  deleteStatusRun,
   readFleetStatus,
   readRecentScreenshotMetadata,
   readRunLatestScreenshot,
@@ -149,6 +150,7 @@ export class ServiceController extends EventEmitter {
       applyServiceEndpoint,
       createDeploymentProfile,
       deleteDeploymentProfile,
+      deleteStatusRun,
       deleteCachedOsImage,
       downloadOsImageFromCatalog,
       importUploadedOsImage,
@@ -785,6 +787,17 @@ export class ServiceController extends EventEmitter {
       this.selectedRunId = null;
       this.addLog(`Removed ${removed} status files`);
       return { removed };
+    });
+  }
+
+  async deleteStatusRun(runId) {
+    return this.runOperation('Deleting status run', async () => {
+      const deleted = this.dependencies.deleteStatusRun(this.config, runId);
+      if (this.selectedRunId === deleted.runId) {
+        this.selectedRunId = null;
+      }
+      this.addLog(`Deleted deployment run ${deleted.runId}: removed ${deleted.removed} artifacts`);
+      return deleted;
     });
   }
 

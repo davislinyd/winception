@@ -170,9 +170,12 @@
             </section>
 
             <section class="client-fleet-panel bg-surface-container-lowest border border-outline-variant rounded flex flex-col flex-1">
-              <div class="px-md py-sm border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+              <div class="client-fleet-header px-md py-sm border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
                 <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Client Fleet</h3>
-                <span id="fleet-counts" class="font-technical-string text-technical-string text-on-surface-variant"></span>
+                <div class="client-fleet-header-actions">
+                  <span id="fleet-counts" class="font-technical-string text-technical-string text-on-surface-variant"></span>
+                  <button id="fleet-expand-toggle" data-action="fleet-expand-toggle" data-icon="open_in_full" type="button" aria-expanded="false">Expand fleet</button>
+                </div>
               </div>
               <div class="overflow-x-auto">
                 <table class="w-full text-left font-data-tabular text-data-tabular">
@@ -206,6 +209,8 @@
 
     </main>
   </div>
+
+  <div id="fleet-backdrop" class="fleet-backdrop" hidden></div>
 
   <dialog id="endpoint-settings-dialog" class="drawer-dialog">
     <form method="dialog" class="dialog-card drawer-card">

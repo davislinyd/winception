@@ -1,8 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { tailFile } from './logger.js';
-import { buildRunsIndex, failureStages, runEndStages, staleThresholdMs, terminalStatuses, windowsStartStages, winpeEndStages } from './runSummary.js';
+import { buildRunsIndex, failureStages, runEndStages, staleThresholdMs, terminalStatuses, windowsStartStages, winpeEndStages, writeRunsIndex } from './runSummary.js';
 import { formatLocalClock, formatLocalTimestamp, parseTimestamp } from './timeFormat.js';
+
+function statusError(message, statusCode) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
 
 export function readLatestStatus(config) {
   const filePath = config.paths.statusLatest;
@@ -46,6 +52,80 @@ export function readStatusEvents(config, maxLines = 80) {
 
 export function readFleetStatus(config, now = new Date()) {
   return buildRunsIndex(config.http.statusRoot, now);
+}
+
+function normalizeRunIdForDelete(value) {
+  const runId = String(value ?? '').trim();
+  if (!runId) {
+    throw statusError('Run ID is required.', 400);
+  }
+  if (!/^[A-Za-z0-9_.-]{1,120}$/u.test(runId)) {
+    throw statusError(`Invalid run ID: ${runId}`, 400);
+  }
+  return runId;
+}
+
+function safeStatusPath(statusRoot, ...parts) {
+  const root = path.resolve(statusRoot);
+  const candidate = path.resolve(root, ...parts);
+  if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) {
+    throw new Error('Resolved status path is outside the status root.');
+  }
+  return candidate;
+}
+
+function removePathIfExists(targetPath, options = {}) {
+  if (!fs.existsSync(targetPath)) {
+    return 0;
+  }
+  fs.rmSync(targetPath, { force: true, ...options });
+  return 1;
+}
+
+function readJsonFile(filePath) {
+  try {
+    if (fs.existsSync(filePath)) {
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    }
+  } catch {
+  }
+  return null;
+}
+
+function removeLatestIfMatches(filePath, runId) {
+  const value = readJsonFile(filePath);
+  if (value?.runId !== runId) {
+    return 0;
+  }
+  return removePathIfExists(filePath);
+}
+
+export function deleteStatusRun(config, runIdValue) {
+  const runId = normalizeRunIdForDelete(runIdValue);
+  const statusRoot = config.http.statusRoot;
+  const paths = [
+    safeStatusPath(statusRoot, `${runId}.summary.json`),
+    safeStatusPath(statusRoot, `${runId}.jsonl`),
+    safeStatusPath(statusRoot, `${runId}.latest.json`),
+    safeStatusPath(statusRoot, `${runId}.screenshots.jsonl`),
+  ];
+
+  let removed = 0;
+  for (const filePath of paths) {
+    removed += removePathIfExists(filePath);
+  }
+  removed += removePathIfExists(safeStatusPath(statusRoot, 'screenshots', runId), { recursive: true });
+
+  if (removed === 0) {
+    throw statusError(`Deployment run not found: ${runId}`, 404);
+  }
+
+  removed += removeLatestIfMatches(safeStatusPath(statusRoot, 'latest-summary.json'), runId);
+  removed += removeLatestIfMatches(safeStatusPath(statusRoot, 'latest-screenshot.json'), runId);
+  removed += removeLatestIfMatches(safeStatusPath(statusRoot, 'latest.json'), runId);
+  const runsIndex = writeRunsIndex(statusRoot);
+
+  return { runId, removed, runsIndex };
 }
 
 export function readScreenshotMetadata(config, maxLines = 5) {

@@ -207,6 +207,42 @@ test('state reads do not create live status roots', () => {
   }
 });
 
+test('delete status run clears selected run and returns updated fleet', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-run-delete-'));
+  try {
+    let deletedRunId = null;
+    let includeDeleted = true;
+    const { controller } = makeController(root, {
+      dependencies: {
+        readFleetStatus: () => ({
+          total: includeDeleted ? 2 : 1,
+          counts: { completed: includeDeleted ? 2 : 1 },
+          runs: [
+            ...(includeDeleted ? [{ runId: 'run-a', clientId: 'client-a', status: 'completed' }] : []),
+            { runId: 'run-b', clientId: 'client-a', status: 'completed' },
+          ],
+        }),
+        deleteStatusRun: (_config, runId) => {
+          deletedRunId = runId;
+          includeDeleted = false;
+          return { runId, removed: 4 };
+        },
+      },
+    });
+
+    controller.getState({ selectedRunId: 'run-a' });
+    const result = await controller.deleteStatusRun('run-a');
+    const state = controller.getState();
+
+    assert.equal(result.runId, 'run-a');
+    assert.equal(deletedRunId, 'run-a');
+    assert.equal(state.selectedRunId, 'run-b');
+    assert.deepEqual(state.fleet.runs.map((run) => run.runId), ['run-b']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('deployment profile management actions create, update active software, and delete inactive profiles', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-profiles-'));
   try {
