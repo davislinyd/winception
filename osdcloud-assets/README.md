@@ -77,7 +77,7 @@ C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\OS\<active-image>.esd
 
 4. Start the repo Web console with `npm run web`, then use `Select service interface` before physical deployment. The committed config may reflect the last synced lab endpoint, including a VM regression endpoint, so it must not be treated as a new host default.
 
-5. Run preflight. If OS image preflight fails because the active image file is missing, use Web `OS Image Cache` to download/import the image on the host and then `Set active`.
+5. Run preflight. If OS image preflight fails because the active image file is missing, use Web `OS Image Cache` to download/import the image on the host and then `Set active`. If the active image is already correct but preflight reports `selected manifest stale`, use the active row `Republish` action to rewrite `selected-os.json` and refresh the SMB image path.
 
 The `assetsRoot` value inside `manifest.json` is the source machine path used when the mirror was generated. It is evidence, not a required clone path.
 

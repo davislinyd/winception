@@ -275,7 +275,7 @@ http://127.0.0.1:8080
 
 - `Select service interface` 會先開啟 endpoint settings drawer 並背景載入 live Windows 介面清單；真正選定並同步 endpoint 時，才會停止 running services、更新 `config\osdcloud-tui.json`、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
 - `Select deployment profile` 會停止 running services，重建 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps` payload。
-- `OS Image Cache` 會下載或匯入 Windows image 到 host cache，但不會自動切換 active；`Set active` 會停止 running services、寫回 active cached OS、發佈 `selected-os.json`、更新 SMB image path，並重新跑 preflight。
+- `OS Image Cache` 會下載或匯入 Windows image 到 host cache，但不會自動切換 active；非 active cached image 用 `Set active` 切換並發佈，active image 用 `Republish` 重新發佈 `selected-os.json` / SMB image path。兩者都會停止 running services、寫回 config，並重新跑 preflight。
 - `Clear status files` 會清除 configured status root 內的 JSON/JSONL/screenshot metadata。
 - `Start DHCP` / `Start all services` 不改檔案，但會讓 host DHCP responder 開始回答 client；只有確認真實 LAN DHCP server 已停用後才執行。
 
@@ -283,7 +283,7 @@ Web Dashboard 主要區塊：
 
 | 區塊 | 用途 |
 | --- | --- |
-| `Operations` | 左側操作欄；`Run preflight` 是中性診斷動作，`Sync endpoint` / `Set active` / OS image download/import 是 warning，`Start DHCP` / `Start all services` / `Clear status` / delete 是 danger |
+| `Operations` | 左側操作欄；`Run preflight` 是中性診斷動作，`Sync endpoint` / `Set active` / `Republish` / OS image download/import 是 warning，`Start DHCP` / `Start all services` / `Clear status` / delete 是 danger |
 | `Endpoint Sync Progress` | 顯示 endpoint sync 目標、主要步驟與同步腳本輸出 |
 | `Active Profile` | 顯示目前 deployment profile、description 與選中的 client software |
 | `Active OS Image` | 顯示目前 active cached Windows 映像、語言、edition、image index 與 cache/preflight 狀態；長映像檔名會在卡片內換行，不會撐出框線 |
@@ -307,7 +307,7 @@ Web Dashboard 主要區塊：
 1. 如需變更服務網卡，先選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
 2. Web console 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
 3. 在 Dashboard 的 Preflight Summary 或 Endpoint Sync Progress 看 endpoint update 進度；在 System Log 看同步腳本輸出。
-4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已 cached 且是 active。需要新版本/語言時，先用 Web download catalog 或 browser upload 在 host 端下載/匯入並驗證；完成後再手動 `Set active`。部署中不讓 WinPE client 下載 Windows。
+4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已 cached 且是 active。需要新版本/語言時，先用 Web download catalog 或 browser upload 在 host 端下載/匯入並驗證；完成後再手動 `Set active`。若 active image 已正確但 preflight 顯示 `selected manifest stale`，按 active row 的 `Republish` 重新發佈 `selected-os.json`。部署中不讓 WinPE client 下載 Windows。
 5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單，先用 `Edit active` 勾選軟體並存檔，Web console 會立即重新發佈 live `Apps` payload。
 6. 在 Web console 選 `Run preflight`。
 7. 如果 service IP、DHCP pool、active OS image、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
@@ -577,7 +577,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 目前實作中特別重要的限制：
 
 - iPXE no-redownload 模式不能使用 `-ImageFileUrl`，因為 OSDCloud 會先把 ESD 下載到 WinPE 暫存位置。現在改由 WinPE 掛載 SMB share，設定 `$Global:StartOSDCloud.ImageFileDestination` 為 ESD `FileInfo` 後呼叫 `Invoke-OSDCloud`。
-- Windows 映像取得只在 host/Admin Console 執行。Web `OS Image Cache` 可從官方 OSD module catalog、受控自訂 catalog `config\os-download-sources.json`，或 browser upload `.iso` / `.esd` / `.wim` 匯入。下載/匯入會先寫入 `.downloads\<job-id>.download`，完成 hash/DISM index 驗證後才移入 `Media\OSDCloud\OS` 並更新 catalog；成功後不自動切 active，只有 `Set active` 會發布 `selected-os.json` 並更新 SMB image path，失敗或取消不會覆蓋既有 active image。
+- Windows 映像取得只在 host/Admin Console 執行。Web `OS Image Cache` 可從官方 OSD module catalog、受控自訂 catalog `config\os-download-sources.json`，或 browser upload `.iso` / `.esd` / `.wim` 匯入。下載/匯入會先寫入 `.downloads\<job-id>.download`，完成 hash/DISM index 驗證後才移入 `Media\OSDCloud\OS` 並更新 catalog；成功後不自動切 active，只有 `Set active` 或 active row 的 `Republish` 會發布 `selected-os.json` 並更新 SMB image path，失敗或取消不會覆蓋既有 active image。
 - 自訂下載來源必須放在 repo 管理的 `config\os-download-sources.json`，且每筆都要有 `id`、版本/語言/edition metadata、`.esd` 或 `.wim` URL、`fileName`、`imageIndex` 與 `sha256`。URL host 必須列在 `allowedHosts`；v1 不接受任意 URL 輸入。
 - Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host console 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
 - Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
@@ -796,7 +796,7 @@ npm run web
 
 Web console 目前是單一 workbench。左側 `Operations` 放日常操作入口；中間顯示 endpoint summary、Endpoint Sync Progress、active OS image、active profile、HTTP/TFTP/DHCP service cards、Preflight Summary 與 Client Fleet；右側是 `System Log`。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可手動切換 active cached image，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯入 cache。Active cached image row 保留 `Republish` 動作，可在 active image 已正確但 `selected-os.json` / SMB image path stale 時重新發布 manifest；其他 cached image 使用 `Set active` 切換並發布。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍；failed row hover 會用原生 tooltip 顯示 `How to fix:` 建議，例如 `selected manifest stale` 會提示到 `OS images` 對 active image 執行 `Republish`，再重跑 `Run preflight`。`System Log` 只有在 operator 已經停在底部時才會隨新增訊息自動跟到底；如果 operator 往上捲動閱讀舊訊息，refresh 或新 log 不會改變目前閱讀位置。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
 
-Operations 的視覺語意固定如下：`Run preflight` 是中性 outline 診斷動作，不使用藍色 primary；`Sync endpoint`、profile/OS `Set active`、OS image download/import 使用 warning，表示會修改 live config/cache 但不是破壞性；`Start DHCP`、`Start all services`、`Clear status files`、delete 類動作使用 danger。狀態色只用於結果：running/ready 用綠色，blocked/error 用紅色，review/working 用黃色，stopped/idle/not run 用中性。
+Operations 的視覺語意固定如下：`Run preflight` 是中性 outline 診斷動作，不使用藍色 primary；`Sync endpoint`、profile/OS `Set active`、OS image `Republish`、OS image download/import 使用 warning，表示會修改 live config/cache 但不是破壞性；`Start DHCP`、`Start all services`、`Clear status files`、delete 類動作使用 danger。狀態色只用於結果：running/ready 用綠色，blocked/error 用紅色，review/working 用黃色，stopped/idle/not run 用中性。
 
 Node TUI CLI 已在 `0.3.0` 退役並移除；不要再嘗試用 TUI 操作服務。後續新功能優先做在 Web/GUI；共用服務行為放在 `serviceController.js` 或共用模組。
 
