@@ -14,6 +14,7 @@ const state = {
   osImportInspection: null,
   busy: false,
   clientFleetSignature: '',
+  logsText: null,
   fleetExpanded: false,
 };
 
@@ -1645,8 +1646,21 @@ function renderTimeline(appState) {
   }
 }
 
+function isScrolledToBottom(element, tolerance = 2) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= tolerance;
+}
+
 function renderLogs(appState) {
-  elements.logs.textContent = (appState.logs ?? []).length ? appState.logs.join('\n') : 'No operation logs observed yet.';
+  const nextText = (appState.logs ?? []).length ? appState.logs.join('\n') : 'No operation logs observed yet.';
+  const logElement = elements.logs;
+  if (state.logsText === nextText) {
+    return;
+  }
+  const previousScrollTop = logElement.scrollTop;
+  const wasAtBottom = isScrolledToBottom(logElement);
+  logElement.textContent = nextText;
+  state.logsText = nextText;
+  logElement.scrollTop = wasAtBottom ? logElement.scrollHeight : previousScrollTop;
 }
 
 function render() {

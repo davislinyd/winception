@@ -223,6 +223,28 @@ test('preflight failed rows expose hover fix hints', () => {
   assert.doesNotMatch(passedSummaryBlock, /preflightTooltip/);
 });
 
+test('system log follows only when already scrolled to bottom', () => {
+  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+
+  assert.match(script, /logsText: null/);
+  assert.match(script, /function isScrolledToBottom\(element, tolerance = 2\)/);
+  assert.match(script, /element\.scrollHeight - element\.scrollTop - element\.clientHeight <= tolerance/);
+  assert.match(script, /const nextText = \(appState\.logs \?\? \[\]\)\.length \? appState\.logs\.join\('\\n'\) : 'No operation logs observed yet\.'/);
+  assert.match(script, /if \(state\.logsText === nextText\) \{\s*return;\s*\}/);
+  assert.match(script, /const previousScrollTop = logElement\.scrollTop/);
+  assert.match(script, /const wasAtBottom = isScrolledToBottom\(logElement\)/);
+  assert.match(script, /logElement\.textContent = nextText/);
+  assert.match(script, /state\.logsText = nextText/);
+  assert.match(script, /logElement\.scrollTop = wasAtBottom \? logElement\.scrollHeight : previousScrollTop/);
+
+  const renderLogsStart = script.indexOf('function renderLogs(appState) {');
+  const renderLogsEnd = script.indexOf('function render()', renderLogsStart);
+  assert.notEqual(renderLogsStart, -1);
+  assert.notEqual(renderLogsEnd, -1);
+  const renderLogsBlock = script.slice(renderLogsStart, renderLogsEnd);
+  assert.ok(renderLogsBlock.indexOf('const wasAtBottom = isScrolledToBottom(logElement)') < renderLogsBlock.indexOf('logElement.textContent = nextText'));
+});
+
 test('web UI uses confirmation dialog instead of window confirm', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
   const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
