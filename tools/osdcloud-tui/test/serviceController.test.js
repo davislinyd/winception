@@ -207,6 +207,44 @@ test('state reads do not create live status roots', () => {
   }
 });
 
+test('state includes selected run events from per-run history', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-selected-events-'));
+  try {
+    const { controller } = makeController(root, {
+      dependencies: {
+        readFleetStatus: () => ({
+          total: 2,
+          counts: { completed: 2 },
+          runs: [
+            { runId: 'new-run', clientId: 'client-a', status: 'completed' },
+            { runId: 'old-run', clientId: 'client-a', status: 'completed' },
+          ],
+        }),
+        readStatusEvents: () => [
+          { runId: 'new-run', stage: 'windows-desktop-ready', explorerRunning: true },
+        ],
+        readRunStatusEvents: (_config, runId) => runId === 'old-run'
+          ? [
+              { runId: 'old-run', stage: 'smb-mounted', imagePath: 'Z:\\OSDCloud\\OS\\install.esd', osImageIndex: 6 },
+              { runId: 'old-run', stage: 'windows-desktop-ready', desktopReadyFile: true },
+            ]
+          : [],
+      },
+    });
+
+    const state = controller.getState({ selectedRunId: 'old-run' });
+
+    assert.equal(state.selectedRunId, 'old-run');
+    assert.equal(state.statusEvents.length, 1);
+    assert.equal(state.statusEvents[0].runId, 'new-run');
+    assert.equal(state.selectedRunEvents.length, 2);
+    assert.equal(state.selectedRunEvents[0].imagePath, 'Z:\\OSDCloud\\OS\\install.esd');
+    assert.equal(state.selectedRunEvents[1].desktopReadyFile, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('delete status run clears selected run and returns updated fleet', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-run-delete-'));
   try {

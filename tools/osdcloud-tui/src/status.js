@@ -46,8 +46,30 @@ export function readLatestScreenshot(config) {
   }
 }
 
+function parseStatusEventLines(lines) {
+  return lines.flatMap((line) => {
+    try {
+      return [JSON.parse(line)];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export function readStatusEvents(config, maxLines = 80) {
-  return tailFile(config.paths.statusEvents, maxLines);
+  return parseStatusEventLines(tailFile(config.paths.statusEvents, maxLines));
+}
+
+export function readRunStatusEvents(config, runIdValue, maxLines = 2000) {
+  const runId = String(runIdValue ?? '').trim();
+  if (!runId) {
+    return [];
+  }
+  if (!/^[A-Za-z0-9_.-]{1,120}$/u.test(runId)) {
+    throw statusError(`Invalid run ID: ${runId}`, 400);
+  }
+
+  return parseStatusEventLines(tailFile(path.join(config.http.statusRoot, `${runId}.jsonl`), maxLines));
 }
 
 export function readFleetStatus(config, now = new Date()) {

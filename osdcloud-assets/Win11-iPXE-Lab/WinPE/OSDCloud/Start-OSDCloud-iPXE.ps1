@@ -247,6 +247,53 @@ function Get-SelectedOsStatusPayload {
     }
 }
 
+function Get-ImageDestinationDisplayRoot {
+    param(
+        [object] $ImageFile
+    )
+
+    try {
+        if ($ImageFile -and $ImageFile.PSDrive -and -not [string]::IsNullOrWhiteSpace([string] $ImageFile.PSDrive.DisplayRoot)) {
+            return [string] $ImageFile.PSDrive.DisplayRoot
+        }
+
+        $imageFullName = if ($ImageFile -and $ImageFile.FullName) { [string] $ImageFile.FullName } else { [string] $ImageFile }
+        $driveRoot = [System.IO.Path]::GetPathRoot($imageFullName)
+        if (-not [string]::IsNullOrWhiteSpace($driveRoot)) {
+            $driveName = $driveRoot.TrimEnd('\').TrimEnd(':')
+            if (-not [string]::IsNullOrWhiteSpace($driveName)) {
+                $drive = Get-PSDrive -Name $driveName -ErrorAction Stop
+                if ($drive.DisplayRoot) {
+                    return [string] $drive.DisplayRoot
+                }
+            }
+        }
+    }
+    catch {
+    }
+
+    return $share
+}
+
+function New-NoRedownloadEvidence {
+    param(
+        [object] $SelectedOs,
+        [string] $ImagePath,
+        [object] $ImageFile = $null
+    )
+
+    $selectedOsPayload = Get-SelectedOsStatusPayload -SelectedOs $SelectedOs
+    $destination = if ($ImageFile -and $ImageFile.FullName) { [string] $ImageFile.FullName } else { [string] $ImagePath }
+    [ordered]@{
+        selectedOs = $selectedOsPayload
+        imagePath = $destination
+        imageFileUrl = ''
+        imageFileDestination = $destination
+        imageFileDestinationDisplayRoot = Get-ImageDestinationDisplayRoot -ImageFile $ImageFile
+        osImageIndex = [int] $SelectedOs.imageIndex
+    }
+}
+
 function Save-DeploymentStatusMetadata {
     $targetRoot = Get-DeployedWindowsRoot
     if ([string]::IsNullOrWhiteSpace($targetRoot)) {
@@ -266,6 +313,9 @@ function Save-DeploymentStatusMetadata {
             server = $server
             share = $share
             imagePath = $imagePath
+            imageFileUrl = ''
+            imageFileDestination = $imageFile.FullName
+            imageFileDestinationDisplayRoot = Get-ImageDestinationDisplayRoot -ImageFile $imageFile
             osImageIndex = [int] $SelectedOs.imageIndex
             selectedOs = Get-SelectedOsStatusPayload -SelectedOs $SelectedOs
             createdAt = (Get-Date).ToString('o')
@@ -322,24 +372,15 @@ $netUse | ForEach-Object { Write-Host $_ }
 
 $osRoot = 'Z:\OSDCloud\OS'
 $SelectedOs = Get-SelectedOsManifest -OsRoot $osRoot
-$selectedOsPayload = Get-SelectedOsStatusPayload -SelectedOs $SelectedOs
 $imagePath = Join-Path $osRoot ([string] $SelectedOs.fileName)
 Write-Host "Selected OS: $($SelectedOs.id) $($SelectedOs.language) $($SelectedOs.edition) index $($SelectedOs.imageIndex)"
 Write-Host "Image source: $share\OSDCloud\OS\$($SelectedOs.fileName)"
 Write-Host "OSImageIndex: $($SelectedOs.imageIndex)"
-Send-DeploymentStatus -Stage 'os-image-selected' -Message "Selected OS image $($SelectedOs.id)." -Extra @{
-    selectedOs = $selectedOsPayload
-    imagePath = $imagePath
-    osImageIndex = [int] $SelectedOs.imageIndex
-}
+Send-DeploymentStatus -Stage 'os-image-selected' -Message "Selected OS image $($SelectedOs.id)." -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath)
 
 if (-not (Test-Path -LiteralPath $imagePath)) {
     Write-Warning "Unable to access Windows image at $imagePath"
-    Send-DeploymentStatus -Stage 'image-missing' -Message "Unable to access Windows image at $imagePath" -Extra @{
-        selectedOs = $selectedOsPayload
-        imagePath = $imagePath
-        osImageIndex = [int] $SelectedOs.imageIndex
-    }
+    Send-DeploymentStatus -Stage 'image-missing' -Message "Unable to access Windows image at $imagePath" -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath)
     Send-Screenshot -Stage 'image-missing'
     Write-Warning 'Press Ctrl+C to exit OSDCloud'
     Start-Sleep -Seconds 86400
@@ -348,11 +389,7 @@ if (-not (Test-Path -LiteralPath $imagePath)) {
 
 $imageFile = Get-Item -LiteralPath $imagePath
 Write-Host "[$(Get-Date -Format G)] Using mapped SMB image: $($imageFile.FullName)"
-Send-DeploymentStatus -Stage 'smb-mounted' -Message "Using mapped SMB image: $($imageFile.FullName)" -Extra @{
-    selectedOs = $selectedOsPayload
-    imagePath = $imageFile.FullName
-    osImageIndex = [int] $SelectedOs.imageIndex
-}
+Send-DeploymentStatus -Stage 'smb-mounted' -Message "Using mapped SMB image: $($imageFile.FullName)" -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
 Send-Screenshot -Stage 'smb-mounted'
 
 $Global:StartOSDCloud = [ordered]@{
@@ -374,20 +411,12 @@ $Global:StartOSDCloud = [ordered]@{
 
 $deploymentSucceeded = $false
 try {
-    Send-DeploymentStatus -Stage 'osdcloud-start' -Message 'Invoke-OSDCloud starting.' -Extra @{
-        selectedOs = $selectedOsPayload
-        imagePath = $imageFile.FullName
-        osImageIndex = [int] $SelectedOs.imageIndex
-    }
+    Send-DeploymentStatus -Stage 'osdcloud-start' -Message 'Invoke-OSDCloud starting.' -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
     Send-Screenshot -Stage 'osdcloud-start'
     Invoke-OSDCloud
     $deploymentSucceeded = $true
     Save-DeploymentStatusMetadata
-    Send-DeploymentStatus -Stage 'osdcloud-finished' -Message 'Invoke-OSDCloud returned successfully. WinPE will reboot.' -Extra @{
-        selectedOs = $selectedOsPayload
-        imagePath = $imageFile.FullName
-        osImageIndex = [int] $SelectedOs.imageIndex
-    }
+    Send-DeploymentStatus -Stage 'osdcloud-finished' -Message 'Invoke-OSDCloud returned successfully. WinPE will reboot.' -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
     Send-Screenshot -Stage 'osdcloud-finished'
 }
 catch {

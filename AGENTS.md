@@ -449,6 +449,7 @@ Safety contract:
 - The individual `Start HTTP/status`, `Start TFTP`, and `Start DHCP` actions are service toggles; when a service is running, the same action must become `Stop ...` and shut that service down.
 - Stopped service cards must render as neutral status, not as failures. Only actual blocked/error states should use red status treatment.
 - Web console must show multi-client deployment state as a fleet view, selected run details, validation evidence, and log tailing.
+- Validation Evidence must read parsed status events for the selected run, preferring `<runId>.jsonl` over the global `progress.jsonl` tail. Missing evidence should be shown as `Not reported`; explicitly empty no-redownload fields such as `imageFileUrl` should be shown as `<empty>`.
 - Deployment payload includes selected client app installation during Windows SetupComplete, with `windows-apps-start`, `windows-apps-finished`, and `windows-apps-error` status stages.
 - Web deployment profile selection publishes profile-filtered client software payloads. Use `Select deployment profile` before starting services when the software set changes; it must stop running HTTP/TFTP/DHCP services, write the active profile to `config\osdcloud-tui.json`, clear stale live `Apps` content, copy only selected software from `Softwares\<software-id>`, write `selected-profile.json`, and let preflight verify the live payload matches the active profile.
 - Keep the normal `Default` profile on 7-Zip only unless the user deliberately selects a Chrome-enabled profile.

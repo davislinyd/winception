@@ -39,6 +39,7 @@ import {
   readFleetStatus,
   readRecentScreenshotMetadata,
   readRunLatestScreenshot,
+  readRunStatusEvents,
   readStatusEvents,
   summarizeValidation,
 } from './status.js';
@@ -161,6 +162,7 @@ export class ServiceController extends EventEmitter {
       readFleetStatus,
       readRecentScreenshotMetadata,
       readRunLatestScreenshot,
+      readRunStatusEvents,
       readStatusEvents,
       removeStatusFiles,
       resolveDeploymentProfileState,
@@ -376,6 +378,10 @@ export class ServiceController extends EventEmitter {
     const osImageResult = safeRead(() => this.getOsImages(), null);
     const validationResult = safeRead(() => this.dependencies.summarizeValidation(this.config), []);
     const statusEventsResult = safeRead(() => this.dependencies.readStatusEvents(this.config, 80), []);
+    const selectedRunEventsResult = safeRead(
+      () => this.dependencies.readRunStatusEvents(this.config, selectedRun?.runId, 2000),
+      [],
+    );
     const screenshotsResult = safeRead(() => this.dependencies.readRecentScreenshotMetadata(this.config, 5), []);
     const selectedScreenshotResult = safeRead(
       () => this.dependencies.readRunLatestScreenshot(this.config, selectedRun?.runId),
@@ -432,6 +438,8 @@ export class ServiceController extends EventEmitter {
       screenshots: screenshotsResult.value,
       statusEventsError: statusEventsResult.error,
       statusEvents: statusEventsResult.value,
+      selectedRunEventsError: selectedRunEventsResult.error,
+      selectedRunEvents: selectedRunEventsResult.value,
       logs: this.getLogs(options.logLines ?? 160),
     };
   }

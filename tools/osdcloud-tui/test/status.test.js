@@ -9,6 +9,8 @@ import {
   formatFleetClientRows,
   formatFleetRunDetail,
   formatStatusEventLine,
+  readRunStatusEvents,
+  readStatusEvents,
   resolveDeploymentSummary,
 } from '../src/status.js';
 
@@ -232,6 +234,50 @@ test('formats long status events into compact host-console lines', () => {
   assert.match(formatted, /9VDYLD4/);
   assert.match(formatted, /apply-image/);
   assert.match(formatted, /42%/);
+});
+
+test('reads status events as parsed JSON objects and skips malformed lines', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-events-'));
+  try {
+    const config = statusConfig(root);
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(config.paths.statusEvents, [
+      JSON.stringify({ runId: 'run-a', stage: 'winpe-start' }),
+      'not json',
+      JSON.stringify({ runId: 'run-b', stage: 'windows-desktop-ready', explorerRunning: true }),
+    ].join('\n'));
+
+    const events = readStatusEvents(config, 10);
+
+    assert.equal(events.length, 2);
+    assert.deepEqual(events.map((event) => event.runId), ['run-a', 'run-b']);
+    assert.equal(events[1].explorerRunning, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('reads selected run status events from the per-run jsonl', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-run-events-'));
+  try {
+    const config = statusConfig(root);
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(config.paths.statusEvents, `${JSON.stringify({ runId: 'new-run', stage: 'winpe-start' })}\n`);
+    fs.writeFileSync(path.join(root, 'old-run.jsonl'), [
+      JSON.stringify({ runId: 'old-run', stage: 'smb-mounted', imagePath: 'Z:\\OSDCloud\\OS\\install.esd' }),
+      JSON.stringify({ runId: 'old-run', stage: 'windows-desktop-ready', desktopReadyFile: true }),
+    ].join('\n'));
+
+    const events = readRunStatusEvents(config, 'old-run', 20);
+
+    assert.equal(events.length, 2);
+    assert.equal(events[0].imagePath, 'Z:\\OSDCloud\\OS\\install.esd');
+    assert.equal(events[1].desktopReadyFile, true);
+    assert.deepEqual(readRunStatusEvents(config, null), []);
+    assert.throws(() => readRunStatusEvents(config, '..\\old-run'), /Invalid run ID/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('deletes a single status run and rebuilds the fleet index', () => {

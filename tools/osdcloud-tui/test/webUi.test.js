@@ -164,6 +164,10 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.active-os-cache-file \{[\s\S]*display: block;[\s\S]*min-width: 0;[\s\S]*overflow-wrap: anywhere;[\s\S]*white-space: normal;[\s\S]*width: 100%;[\s\S]*word-break: break-word;/);
   assert.match(script, /dataset\.runAction = 'evidence'/);
   assert.match(script, /showValidationEvidence/);
+  assert.match(script, /selectedRunEvents/);
+  assert.match(script, /Not reported/);
+  assert.match(script, /imageFileDestination', 'imagePath/);
+  assert.doesNotMatch(script, /return 'Unknown'/);
   assert.match(script, /status-run-delete/);
   assert.match(script, /Delete client run/);
   assert.match(script, /\/api\/status\/run\/delete/);

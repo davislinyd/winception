@@ -1511,7 +1511,7 @@ function flattenEntries(value, prefix = '') {
       return flattenEntries(entry, nextKey);
     }
     if (Array.isArray(entry)) {
-      return [[nextKey, entry.join(', ')]];
+      return [[nextKey, entry]];
     }
     return [[nextKey, entry]];
   });
@@ -1519,29 +1519,63 @@ function flattenEntries(value, prefix = '') {
 
 function runEvents(appState) {
   const runId = appState.selectedRun?.runId;
+  const selectedEvents = appState.selectedRunEvents ?? [];
+  if (selectedEvents.length) {
+    return selectedEvents;
+  }
   const events = appState.statusEvents ?? [];
   return runId ? events.filter((event) => event.runId === runId) : events;
 }
 
-function evidenceValue(appState, keys) {
+function evidenceKeyMatches(keyNorm, needle) {
+  return keyNorm === needle || keyNorm.endsWith(needle);
+}
+
+function findEvidenceEntry(entries, needle, matchMode) {
+  return entries.find(([key]) => {
+    const keyNorm = normalizedKey(key);
+    return matchMode === 'exact' ? keyNorm === needle : evidenceKeyMatches(keyNorm, needle);
+  });
+}
+
+function evidenceText(value, options = {}) {
+  const emptyValue = options.emptyValue ?? '<empty>';
+  if (Array.isArray(value)) {
+    return value.length ? value.map((entry) => text(entry, emptyValue)).join(', ') : emptyValue;
+  }
+  if (value === null || value === '') {
+    return emptyValue;
+  }
+  if (value && typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  return text(value, options.missingValue ?? 'Not reported');
+}
+
+function evidenceValue(appState, keys, options = {}) {
   const normalized = keys.map(normalizedKey);
   const events = [...runEvents(appState)].reverse();
   for (const event of events) {
-    for (const [key, value] of flattenEntries(event)) {
-      const keyNorm = normalizedKey(key);
-      if (normalized.some((needle) => keyNorm.endsWith(needle) || keyNorm.includes(needle))) {
-        return text(value, 'Unknown');
+    const entries = flattenEntries(event);
+    for (const needle of normalized) {
+      const exact = findEvidenceEntry(entries, needle, 'exact');
+      if (exact) {
+        return evidenceText(exact[1], options);
+      }
+      const fallback = findEvidenceEntry(entries, needle, 'fallback');
+      if (fallback) {
+        return evidenceText(fallback[1], options);
       }
     }
     const message = String(event.message ?? '');
     for (const key of keys) {
-      const match = message.match(new RegExp(`${key}\\s*[:=]\\s*([^;\\n]+)`, 'i'));
+      const match = message.match(new RegExp(`${key}\\s*[:=]\\s*([^;\\n]*)`, 'i'));
       if (match) {
-        return match[1].trim();
+        return evidenceText(match[1].trim(), options);
       }
     }
   }
-  return 'Unknown';
+  return options.missingValue ?? 'Not reported';
 }
 
 function validationCheck(appState, matcher) {
@@ -1600,13 +1634,13 @@ function renderValidation(appState) {
   ]);
 
   setDefinitionList(elements.ipxeEvidence, [
-    ['ImageFileUrl', evidenceValue(appState, ['ImageFileUrl'])],
-    ['ImageFileDestination', evidenceValue(appState, ['ImageFileDestination'])],
-    ['ImageFileDestinationDisplayRoot', evidenceValue(appState, ['ImageFileDestinationDisplayRoot', 'DisplayRoot'])],
-    ['OSImageIndex', evidenceValue(appState, ['OSImageIndex'])],
+    ['ImageFileUrl', evidenceValue(appState, ['imageFileUrl'])],
+    ['ImageFileDestination', evidenceValue(appState, ['imageFileDestination', 'imagePath'])],
+    ['ImageFileDestinationDisplayRoot', evidenceValue(appState, ['imageFileDestinationDisplayRoot', 'displayRoot'])],
+    ['OSImageIndex', evidenceValue(appState, ['osImageIndex', 'selectedOs.imageIndex', 'imageIndex'])],
     ['Selected OS', evidenceValue(appState, ['selectedOs.id', 'selectedOsId', 'osImageId'])],
-    ['OS language', evidenceValue(appState, ['selectedOs.language', 'osLanguage'])],
-    ['OS edition', evidenceValue(appState, ['selectedOs.editionId', 'osEditionId'])],
+    ['OS language', evidenceValue(appState, ['selectedOs.language', 'osLanguage', 'selectedOs.locale'])],
+    ['OS edition', evidenceValue(appState, ['selectedOs.editionId', 'osEditionId', 'selectedOs.edition'])],
   ]);
 
   const bootIpxe = validationCheck(appState, /HTTP boot\.ipxe/i);
