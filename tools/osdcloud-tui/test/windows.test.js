@@ -6,12 +6,16 @@ import path from 'node:path';
 import {
   evaluateDhcpSubnet,
   evaluateServiceIp,
+  evaluateSmbImage,
   getServiceBindIps,
   normalizeIpv4ServiceInterfaces,
+  parseUncPath,
   preparePowerShellArgs,
   removeStatusFiles,
   resolveEndpointSyncScript,
   resolveRepoRoot,
+  smbAccessAllowsRead,
+  smbBackingImagePath,
 } from '../src/windows.js';
 
 test('prepends UTF-8 output settings to PowerShell command calls', () => {
@@ -69,6 +73,96 @@ test('clears status metadata and screenshot directory', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('parses SMB UNC image paths and maps them to the share backing path', () => {
+  assert.deepEqual(parseUncPath('\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd'), {
+    server: '10.10.10.1',
+    shareName: 'OSDCloudiPXE',
+    relativePath: 'OSDCloud\\OS\\install.esd',
+  });
+
+  assert.equal(
+    smbBackingImagePath(
+      '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+      { Path: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media' },
+    ),
+    'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\install.esd',
+  );
+});
+
+test('SMB image preflight uses the share backing file and pxeinstall access', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-smb-preflight-'));
+  const imagePath = path.join(root, 'OSDCloud', 'OS', 'install.esd');
+  fs.mkdirSync(path.dirname(imagePath), { recursive: true });
+  fs.writeFileSync(imagePath, 'image');
+
+  try {
+    const result = await evaluateSmbImage({
+      smb: {
+        share: '\\\\10.10.10.1\\OSDCloudiPXE',
+        imagePath: '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+      },
+    }, {
+      shareInfo: {
+        Name: 'OSDCloudiPXE',
+        Path: root,
+        Access: [{ AccountName: 'DESKTOP-TEST\\pxeinstall', AccessControlType: 'Allow', AccessRight: 'Read' }],
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.detail, /\\\\10\.10\.10\.1\\OSDCloudiPXE/);
+    assert.match(result.detail, /pxeinstall read access/);
+    assert.match(result.detail, /backing=/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('SMB image preflight reports missing share, image, and pxeinstall access clearly', async () => {
+  const config = {
+    smb: {
+      share: '\\\\10.10.10.1\\OSDCloudiPXE',
+      imagePath: '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+    },
+  };
+
+  let result = await evaluateSmbImage(config, { shareInfo: null });
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /SMB share not found: OSDCloudiPXE/);
+
+  result = await evaluateSmbImage(config, {
+    shareInfo: {
+      Name: 'OSDCloudiPXE',
+      Path: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media',
+      Access: [{ AccountName: 'DESKTOP-TEST\\pxeinstall', AccessControlType: 'Allow', AccessRight: 'Read' }],
+    },
+    fileExists: () => false,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /image missing:/);
+  assert.match(result.detail, /from \\\\10\.10\.10\.1\\OSDCloudiPXE/);
+
+  result = await evaluateSmbImage(config, {
+    shareInfo: {
+      Name: 'OSDCloudiPXE',
+      Path: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media',
+      Access: [{ AccountName: 'DESKTOP-TEST\\otheruser', AccessControlType: 'Allow', AccessRight: 'Read' }],
+    },
+    fileExists: () => true,
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /does not grant read access to pxeinstall/);
+});
+
+test('SMB access check accepts numeric PowerShell enum values for read access', () => {
+  assert.equal(smbAccessAllowsRead([
+    { AccountName: 'DESKTOP-TEST\\pxeinstall', AccessControlType: 0, AccessRight: 2 },
+  ]), true);
+  assert.equal(smbAccessAllowsRead([
+    { AccountName: 'DESKTOP-TEST\\pxeinstall', AccessControlType: 'Deny', AccessRight: 'Read' },
+  ]), false);
 });
 
 test('service IP preflight accepts any up interface carrying the service address', () => {

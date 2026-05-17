@@ -103,6 +103,79 @@ function asArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+function escapePowerShellString(value) {
+  return String(value ?? '').replaceAll("'", "''");
+}
+
+export function parseUncPath(value) {
+  const text = String(value ?? '');
+  if (!text.startsWith('\\\\')) {
+    return null;
+  }
+
+  const parts = text.split(/[\\/]+/u).filter(Boolean);
+  if (parts.length < 2) {
+    return null;
+  }
+
+  return {
+    server: parts[0],
+    shareName: parts[1],
+    relativePath: parts.slice(2).join(path.win32.sep),
+  };
+}
+
+function shareNameFromConfig(config = {}) {
+  return parseUncPath(config.smb?.share)?.shareName
+    ?? config.smb?.shareName
+    ?? parseUncPath(config.smb?.imagePath)?.shareName
+    ?? '';
+}
+
+function isAllowAccess(value) {
+  const text = String(value ?? '').toLowerCase();
+  return text === 'allow' || text === '0';
+}
+
+function hasReadRight(value) {
+  const text = String(value ?? '').toLowerCase();
+  return ['read', 'change', 'full', 'fullcontrol', '0', '1', '2'].includes(text);
+}
+
+function accountMatches(accountName, expectedUser) {
+  const account = String(accountName ?? '').toLowerCase();
+  const user = String(expectedUser ?? '').toLowerCase();
+  return account === user || account.endsWith(`\\${user}`);
+}
+
+export function smbAccessAllowsRead(accessEntries, expectedUser = 'pxeinstall') {
+  return asArray(accessEntries).some((entry) => (
+    accountMatches(entry.AccountName ?? entry.accountName, expectedUser)
+    && isAllowAccess(entry.AccessControlType ?? entry.accessControlType)
+    && hasReadRight(entry.AccessRight ?? entry.accessRight)
+  ));
+}
+
+export function smbBackingImagePath(imagePath, shareInfo) {
+  const unc = parseUncPath(imagePath);
+  if (!unc) {
+    return path.resolve(imagePath);
+  }
+
+  if (!shareInfo?.Path) {
+    return null;
+  }
+
+  const root = path.win32.resolve(String(shareInfo.Path));
+  const resolved = path.win32.resolve(root, unc.relativePath);
+  const rootWithSeparator = root.endsWith(path.win32.sep) ? root : `${root}${path.win32.sep}`;
+  if (resolved !== root && !resolved.toLowerCase().startsWith(rootWithSeparator.toLowerCase())) {
+    return null;
+  }
+
+  return resolved;
+}
+
 export function normalizeIpv4ServiceInterfaces(records) {
   return asArray(records)
     .map((record) => ({
@@ -268,6 +341,27 @@ $addresses = foreach ($targetIp in $targetIps) {
   return asArray(JSON.parse(result.stdout || '[]'));
 }
 
+export async function getSmbShareInfo(shareName) {
+  const safeShareName = escapePowerShellString(shareName);
+  const script = `
+$share = Get-SmbShare -Name '${safeShareName}' -ErrorAction Stop
+$access = @(Get-SmbShareAccess -Name '${safeShareName}' -ErrorAction Stop | ForEach-Object {
+  [pscustomobject]@{
+    AccountName = $_.AccountName
+    AccessControlType = $_.AccessControlType.ToString()
+    AccessRight = $_.AccessRight.ToString()
+  }
+})
+[pscustomobject]@{
+  Name = $share.Name
+  Path = $share.Path
+  Access = $access
+} | ConvertTo-Json -Compress -Depth 4
+`;
+  const result = await runPowerShell(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
+  return JSON.parse(result.stdout);
+}
+
 export function resolveRepoRoot(config = {}) {
   return path.resolve(config.paths?.repoRoot ?? defaultRepoRoot);
 }
@@ -355,6 +449,61 @@ function fail(name, detail = '') {
   return { name, ok: false, detail };
 }
 
+export async function evaluateSmbImage(config, options = {}) {
+  const imagePath = String(config.smb?.imagePath ?? '');
+  if (!imagePath) {
+    return fail('SMB image', 'smb.imagePath is not configured');
+  }
+
+  const imageUnc = parseUncPath(imagePath);
+  if (!imageUnc) {
+    return fs.existsSync(imagePath)
+      ? pass('SMB image', `${imagePath} (local image path)`)
+      : fail('SMB image', `image missing: ${imagePath}`);
+  }
+
+  const expectedShareName = shareNameFromConfig(config);
+  if (!expectedShareName) {
+    return fail('SMB image', `SMB share is not configured for ${imagePath}`);
+  }
+  if (imageUnc.shareName.toLowerCase() !== expectedShareName.toLowerCase()) {
+    return fail('SMB image', `image path share ${imageUnc.shareName} does not match configured share ${expectedShareName}`);
+  }
+
+  let shareInfo;
+  try {
+    shareInfo = Object.hasOwn(options, 'shareInfo')
+      ? options.shareInfo
+      : await getSmbShareInfo(expectedShareName);
+  } catch (error) {
+    return fail('SMB image', `SMB share ${expectedShareName} not available: ${error.message}`);
+  }
+
+  if (!shareInfo) {
+    return fail('SMB image', `SMB share not found: ${expectedShareName}`);
+  }
+  if (shareInfo.Name && String(shareInfo.Name).toLowerCase() !== expectedShareName.toLowerCase()) {
+    return fail('SMB image', `SMB share mismatch: expected ${expectedShareName}, found ${shareInfo.Name}`);
+  }
+
+  const backingPath = smbBackingImagePath(imagePath, shareInfo);
+  if (!backingPath) {
+    return fail('SMB image', `unable to map ${imagePath} to SMB backing path ${shareInfo.Path ?? '<missing>'}`);
+  }
+
+  const fileExists = options.fileExists ?? fs.existsSync;
+  if (!fileExists(backingPath)) {
+    return fail('SMB image', `image missing: ${backingPath} from ${imagePath}`);
+  }
+
+  const accessUser = options.accessUser ?? 'pxeinstall';
+  if (!smbAccessAllowsRead(shareInfo.Access ?? shareInfo.access, accessUser)) {
+    return fail('SMB image', `SMB share ${expectedShareName} does not grant read access to ${accessUser}`);
+  }
+
+  return pass('SMB image', `${imagePath} (backing=${backingPath}; ${accessUser} read access)`);
+}
+
 export async function runPreflight(config, services = {}) {
   const checks = [];
 
@@ -387,7 +536,7 @@ export async function runPreflight(config, services = {}) {
   checks.push(fs.existsSync(config.http.root) ? pass('HTTP root', config.http.root) : fail('HTTP root', config.http.root));
 
   try {
-    checks.push(fs.existsSync(config.smb.imagePath) ? pass('SMB image', config.smb.imagePath) : fail('SMB image', config.smb.imagePath));
+    checks.push(await evaluateSmbImage(config));
   } catch (error) {
     checks.push(fail('SMB image', error.message));
   }
