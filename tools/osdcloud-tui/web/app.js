@@ -887,12 +887,15 @@ function renderOsImages(appState) {
       const actionCell = document.createElement('td');
       const button = document.createElement('button');
       button.type = 'button';
-      button.textContent = active ? 'Active' : 'Set active';
-      button.className = active ? '' : 'warning';
-      button.dataset.icon = active ? 'check' : 'published_with_changes';
+      button.textContent = active ? 'Republish' : 'Set active';
+      button.className = 'warning';
+      button.dataset.icon = 'published_with_changes';
       button.dataset.osImageAction = 'select';
       button.dataset.osImageId = image.id;
-      button.disabled = active || !image.cached;
+      button.disabled = !image.cached;
+      button.title = active
+        ? 'Republish selected-os.json and refresh the SMB image path for this active image.'
+        : 'Set this cached image active and publish selected-os.json.';
       actionCell.append(button);
       if (!active) {
         const deleteButton = document.createElement('button');
@@ -1122,10 +1125,10 @@ function preflightResolutionHint(check) {
   const fullText = `${name}\n${detail}`.toLowerCase();
 
   if (nameLower === 'os image' && fullText.includes('selected manifest stale')) {
-    return 'Open OS images, find the current active image, click Set active to republish selected-os.json, then run preflight again.';
+    return 'Open OS images, find the current active image, click Republish to republish selected-os.json, then run preflight again.';
   }
   if (nameLower === 'os image') {
-    return 'Open OS images, confirm the intended image is cached, click Set active to republish the selected manifest, then run preflight again.';
+    return 'Open OS images, confirm the intended image is cached, click Republish for the active image or Set active for another cached image, then run preflight again.';
   }
   if (nameLower === 'smb image') {
     return 'Confirm the OSDCloudiPXE share exists, the backing image file is present, and pxeinstall has read access; republish the active image if the path is stale.';
@@ -1923,11 +1926,14 @@ async function handleProfileSelect(profile) {
 }
 
 async function handleOsImageSelect(image) {
+  const active = image.id === state.current?.osImage?.activeImageId;
   const ok = await confirmAction({
-    title: 'Set active OS image',
-    message: 'This stops services, publishes selected-os.json, updates the SMB image path, saves config, and reruns preflight.',
+    title: active ? 'Republish active OS image' : 'Set active OS image',
+    message: active
+      ? 'This stops services, republishes selected-os.json, refreshes the SMB image path, saves config, and reruns preflight.'
+      : 'This stops services, publishes selected-os.json, updates the SMB image path, saves config, and reruns preflight.',
     details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
-    confirmLabel: 'Set active',
+    confirmLabel: active ? 'Republish' : 'Set active',
     severity: 'warning',
   });
   if (ok) {

@@ -111,6 +111,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /handleOsImageSelect/);
   assert.match(script, /handleOsImageDelete/);
   assert.match(script, /\/api\/os-image-delete/);
+  assert.match(script, /button\.textContent = active \? 'Republish' : 'Set active'/);
+  assert.match(script, /button\.disabled = !image\.cached/);
+  assert.doesNotMatch(script, /button\.disabled = active \|\| !image\.cached/);
+  assert.match(script, /Republish active OS image/);
+  assert.match(script, /republishes selected-os\.json/);
   assert.match(script, /dataset\.osImageAction = 'delete'/);
   assert.match(script, /Delete cached OS image/);
   assert.match(script, /handleOsImageDownload/);
@@ -194,6 +199,7 @@ test('preflight failed rows expose hover fix hints', () => {
   assert.match(script, /selected manifest stale/);
   assert.match(script, /Open OS images/);
   assert.match(script, /current active image/);
+  assert.match(script, /click Republish/);
   assert.match(script, /Set active/);
   assert.match(script, /run preflight again/);
   assert.match(script, /nameLower === 'smb image'/);
@@ -306,7 +312,7 @@ test('operations buttons use neutral, warning, and danger severity without blue 
   assert.match(styles, /button \{\s*appearance: none;[\s\S]*font: 500 12px\/16px Inter, sans-serif;/);
   assert.match(styles, /button\.warning/);
   assert.match(styles, /button\.all-services-toggle\.is-running \{\s*border-color: var\(--outline\);[\s\S]*color: var\(--on-surface\);/);
-  assert.match(script, /button\.className = active \? '' : 'warning'/);
+  assert.match(script, /button\.className = 'warning'/);
   assert.match(script, /select\.className = 'warning'/);
   assert.match(script, /sync\.className = 'warning'/);
   assert.match(script, /return \['Blocked', 'fail'\]/);
