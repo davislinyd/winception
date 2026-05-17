@@ -289,13 +289,13 @@ Web Dashboard 主要區塊：
 | `Active OS Image` | 顯示目前 active cached Windows 映像、語言、edition、image index 與 cache/preflight 狀態；長映像檔名會在卡片內換行，不會撐出框線 |
 | `HTTP/TFTP/DHCP` service cards | 顯示各 host-side service 是否 running 與 bind address；stopped 是中性狀態，不代表 failure，只有 blocked/error 才使用紅色狀態 |
 | `Client Fleet` | 顯示多台 client / 多個 run 的狀態、stage、percent、last seen；可用 `Expand fleet` 以前景 overlay 長時間檢查更多 rows，`View` 開 validation evidence，`Delete` 只刪該列單一 run；`Last Seen` 使用本地時間 `yyyy/mm/dd HH:MM` |
-| `Preflight Summary` | 顯示 preflight 檢查結果；`Not run` / `Ready` / `Review` / `Blocked` 是權威狀態來源，長路徑與錯誤訊息會在此區塊內捲動/截斷 |
+| `Preflight Summary` | 顯示 preflight 檢查結果；`Not run` / `Ready` / `Review` / `Blocked` 是權威狀態來源，長路徑與錯誤訊息會在此區塊內捲動/截斷；failed row 可 hover 查看建議修復動作 |
 | `System Log` | 顯示 DHCP、TFTP、HTTP、endpoint sync 與 Web controller log |
 
 鍵盤與滑鼠：
 
 - Web console 使用瀏覽器原生鍵盤焦點與滑鼠操作；`Tab` / `Shift+Tab` 可在 buttons、dialogs、tables 與 form controls 間移動。
-- Tables、Preflight Summary、System Log 與 dialogs 各自保留 scroll area；窄版畫面下 service cards 會改成單欄，避免 `Start HTTP/TFTP/DHCP` 按鈕文字被擠壓。
+- Tables、Preflight Summary、System Log 與 dialogs 各自保留 scroll area；窄版畫面下 service cards 會改成單欄，避免 `Start HTTP/TFTP/DHCP` 按鈕文字被擠壓。Preflight failed row 的錯誤文字使用 browser-native hover tooltip 顯示 `How to fix:` 建議，不會被 scroll/clamped panel 裁切。
 - `Client Fleet` 標題列的 `Expand fleet` 會把 fleet 表格固定到前景，背景以灰色 backdrop 鎖住點擊；點 backdrop、按 `Escape` 或按 `Collapse fleet` 都會回到 dashboard。
 - `Select interface` drawer 會立即開啟，不等待 Windows NIC 枚舉完成。介面表格會顯示 `Loading endpoints...` / `Refreshing endpoints...`；若 `/api/interfaces` 失敗，drawer 會保留 inline error 與 `Refresh endpoints` 重試入口。
 - `Validation Evidence`、`OS Image Cache`、`Profiles`、endpoint settings、picker、profile form 與 confirmation dialog 開啟後，點擊灰色背景會立即走 cancel/close；點框內表單、按鈕、表格或捲動區不會關閉。Confirmation dialog 背景點擊只會取消，不會執行 Start、Sync、Delete、Clear 等動作。
@@ -794,7 +794,7 @@ npm run web
 
 預設 URL 是 `http://127.0.0.1:8080`。Web 版是完整 operator console，負責 endpoint、OS image cache、deployment profile、service control、status/log/validation。PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議維持相容；OS image cache 會透過 `selected-os.json` 影響 WinPE deployment script 選用哪個 cached image。
 
-Web console 目前是單一 workbench。左側 `Operations` 放日常操作入口；中間顯示 endpoint summary、Endpoint Sync Progress、active OS image、active profile、HTTP/TFTP/DHCP service cards、Preflight Summary 與 Client Fleet；右側是 `System Log`。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可手動切換 active cached image，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯入 cache。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
+Web console 目前是單一 workbench。左側 `Operations` 放日常操作入口；中間顯示 endpoint summary、Endpoint Sync Progress、active OS image、active profile、HTTP/TFTP/DHCP service cards、Preflight Summary 與 Client Fleet；右側是 `System Log`。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可手動切換 active cached image，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯入 cache。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍；failed row hover 會用原生 tooltip 顯示 `How to fix:` 建議，例如 `selected manifest stale` 會提示到 `OS images` 對 active image 執行 `Set active`，再重跑 `Run preflight`。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
 
 Operations 的視覺語意固定如下：`Run preflight` 是中性 outline 診斷動作，不使用藍色 primary；`Sync endpoint`、profile/OS `Set active`、OS image download/import 使用 warning，表示會修改 live config/cache 但不是破壞性；`Start DHCP`、`Start all services`、`Clear status files`、delete 類動作使用 danger。狀態色只用於結果：running/ready 用綠色，blocked/error 用紅色，review/working 用黃色，stopped/idle/not run 用中性。
 

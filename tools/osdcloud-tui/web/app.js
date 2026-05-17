@@ -1115,6 +1115,50 @@ function renderChecks(element, checks, emptyText = 'No data observed yet.') {
   }
 }
 
+function preflightResolutionHint(check) {
+  const name = String(check?.name ?? '');
+  const detail = String(check?.detail ?? '');
+  const nameLower = name.toLowerCase();
+  const fullText = `${name}\n${detail}`.toLowerCase();
+
+  if (nameLower === 'os image' && fullText.includes('selected manifest stale')) {
+    return 'Open OS images, find the current active image, click Set active to republish selected-os.json, then run preflight again.';
+  }
+  if (nameLower === 'os image') {
+    return 'Open OS images, confirm the intended image is cached, click Set active to republish the selected manifest, then run preflight again.';
+  }
+  if (nameLower === 'smb image') {
+    return 'Confirm the OSDCloudiPXE share exists, the backing image file is present, and pxeinstall has read access; republish the active image if the path is stale.';
+  }
+  if (nameLower.startsWith('service ip')) {
+    return 'Open Select interface, choose an enabled adapter that owns the service IP, apply the endpoint sync, then run preflight again.';
+  }
+  if (nameLower === 'dhcp subnet') {
+    return 'Use Select interface or Sync endpoint so the DHCP lease range and router are recalculated inside the selected service subnet.';
+  }
+  if (nameLower.startsWith('http file') || nameLower === 'http root' || nameLower === 'tftp root') {
+    return 'Run Sync endpoint to republish the boot files, or restore the missing C:\\OSDCloud runtime artifact before starting services.';
+  }
+  if (/^(udp 67|udp 69|tcp 80)$/u.test(nameLower)) {
+    return 'Stop the process currently using this port, or stop the old Web/headless console before starting this service again.';
+  }
+  if (nameLower === 'deployment profile') {
+    return 'Open Profiles, set or save the intended active profile to republish the Apps payload, then run preflight again.';
+  }
+  if (nameLower === 'administrator') {
+    return 'Restart the Web console from an elevated PowerShell session, then run preflight again.';
+  }
+  return 'Review the detail and System Log, fix the reported mismatch, then run preflight again.';
+}
+
+function preflightTooltip(check, detailText, statusLabel) {
+  const base = `${statusLabel} ${text(check?.name)}${detailText ? `\n${detailText}` : ''}`;
+  if (check?.ok !== false) {
+    return base;
+  }
+  return `${base}\n\nHow to fix:\n${preflightResolutionHint(check)}`;
+}
+
 function preflightStatus(checks) {
   if (!checks?.length) {
     return ['Not run', 'neutral'];
@@ -1167,8 +1211,9 @@ function renderPreflightSummary(checks) {
     const detail = document.createElement('span');
     const detailText = text(check.detail);
     detail.textContent = detailText;
-    detail.title = detailText;
-    row.title = `${dot.title} ${name.textContent}${detailText ? `\n${detailText}` : ''}`;
+    const tooltip = preflightTooltip(check, detailText, dot.title);
+    detail.title = tooltip;
+    row.title = tooltip;
     row.append(dot, name, detail);
     elements.preflightList.append(row);
   }

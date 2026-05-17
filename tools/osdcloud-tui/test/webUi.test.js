@@ -187,6 +187,36 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /```html/);
 });
 
+test('preflight failed rows expose hover fix hints', () => {
+  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+
+  assert.match(script, /function preflightResolutionHint\(check\)/);
+  assert.match(script, /selected manifest stale/);
+  assert.match(script, /Open OS images/);
+  assert.match(script, /current active image/);
+  assert.match(script, /Set active/);
+  assert.match(script, /run preflight again/);
+  assert.match(script, /nameLower === 'smb image'/);
+  assert.match(script, /nameLower\.startsWith\('service ip'\)/);
+  assert.match(script, /nameLower === 'dhcp subnet'/);
+  assert.match(script, /nameLower\.startsWith\('http file'\)/);
+  assert.match(script, /\^\(udp 67\|udp 69\|tcp 80\)\$/);
+  assert.match(script, /nameLower === 'deployment profile'/);
+  assert.match(script, /nameLower === 'administrator'/);
+  assert.match(script, /Review the detail and System Log/);
+  assert.match(script, /How to fix:/);
+  assert.match(script, /detail\.title = tooltip/);
+  assert.match(script, /row\.title = tooltip/);
+
+  const summaryStart = script.indexOf('if (passedCount > 0 || !issues.length) {');
+  const summaryEnd = script.indexOf('function roleForInterface', summaryStart);
+  assert.notEqual(summaryStart, -1);
+  assert.notEqual(summaryEnd, -1);
+  const passedSummaryBlock = script.slice(summaryStart, summaryEnd);
+  assert.doesNotMatch(passedSummaryBlock, /How to fix:/);
+  assert.doesNotMatch(passedSummaryBlock, /preflightTooltip/);
+});
+
 test('web UI uses confirmation dialog instead of window confirm', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
   const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
