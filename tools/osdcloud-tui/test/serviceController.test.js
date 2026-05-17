@@ -365,6 +365,70 @@ test('deployment profile management actions create, update active software, and 
   }
 });
 
+test('software package actions upload and add catalog entry without publishing', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-software-'));
+  try {
+    let uploadedInput = null;
+    let createInput = null;
+    let publishCalled = false;
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        uploadSoftwareInstaller: async (_config, input) => {
+          uploadedInput = input;
+          return {
+            uploadId: 'upload-tool',
+            fileName: input.fileName,
+            bytes: 8,
+            sha256: 'A'.repeat(64),
+          };
+        },
+        createSoftwarePackage: async (_config, input) => {
+          createInput = input;
+          return {
+            software: {
+              id: 'SW-TOOL001',
+              name: input.name,
+              installerFileName: 'tool.msi',
+            },
+            bytes: 8,
+            sha256: 'B'.repeat(64),
+          };
+        },
+        publishDeploymentProfile() {
+          publishCalled = true;
+          return {
+            profile: { id: 'default', name: 'Default', description: '', softwareIds: ['7zip'] },
+            selectedSoftware: [{ id: '7zip', name: '7-Zip' }],
+            appsRoot: path.join(root, 'Apps'),
+          };
+        },
+      },
+    });
+
+    await controller.startAll();
+    const uploaded = await controller.uploadSoftwareInstaller({
+      fileName: 'tool.msi',
+      size: 8,
+      buffer: Buffer.from('tool msi'),
+    });
+    const created = await controller.addSoftwarePackage({
+      uploadId: uploaded.uploadId,
+      name: 'Tool App',
+      scriptMode: 'template',
+    });
+
+    assert.equal(uploadedInput.fileName, 'tool.msi');
+    assert.equal(Object.prototype.hasOwnProperty.call(createInput, 'id'), false);
+    assert.equal(created.software.id, 'SW-TOOL001');
+    assert.equal(publishCalled, false);
+    assert.equal(services.http.running, true);
+    assert.equal(services.tftp.running, true);
+    assert.equal(services.dhcp.running, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('OS image actions publish active image and download through host catalog', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osimage-'));
   try {

@@ -1001,8 +1001,41 @@ dialog {
   padding: 0;
 }
 
+dialog:not([open]) {
+  display: none;
+}
+
 dialog::backdrop {
   background: rgba(25, 28, 30, 0.36);
+}
+
+body.dialog-fallback-open::before {
+  background: rgba(25, 28, 30, 0.36);
+  content: "";
+  inset: 0;
+  position: fixed;
+  z-index: 900;
+}
+
+dialog.dialog-fallback-open {
+  display: block;
+  left: 50%;
+  margin: 0;
+  max-height: calc(100vh - 32px);
+  max-width: calc(100vw - 32px);
+  overflow: auto;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 901;
+}
+
+dialog.drawer-dialog.dialog-fallback-open {
+  bottom: 16px;
+  left: auto;
+  right: 16px;
+  top: 16px;
+  transform: none;
 }
 
 .dialog-card {
@@ -1072,6 +1105,10 @@ dialog::backdrop {
 
 .os-import-table {
   min-width: 960px;
+}
+
+.software-catalog-table {
+  min-width: 760px;
 }
 
 .catalog-filter-panel {
@@ -1356,6 +1393,10 @@ dialog::backdrop {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.form-grid.compact .span-2 {
+  grid-column: span 2;
+}
+
 label,
 .field-label {
   color: var(--on-surface-variant);
@@ -1363,6 +1404,11 @@ label,
   flex-direction: column;
   font: 500 13px/16px Inter, sans-serif;
   gap: 4px;
+}
+
+.field-hint {
+  color: var(--on-surface-variant);
+  font: 400 12px/16px Inter, sans-serif;
 }
 
 input,
@@ -1456,6 +1502,10 @@ input[readonly] {
 
   .form-grid.compact {
     grid-template-columns: 1fr;
+  }
+
+  .form-grid.compact .span-2 {
+    grid-column: auto;
   }
 
   .catalog-filter-panel {

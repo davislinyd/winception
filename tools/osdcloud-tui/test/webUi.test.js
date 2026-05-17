@@ -25,6 +25,29 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /data-view=/);
   assert.match(html, /id="endpoint-settings-dialog"/);
   assert.match(html, /id="deployment-profiles-dialog"/);
+  const endpointDialogHtml = html.slice(
+    html.indexOf('id="endpoint-settings-dialog"'),
+    html.indexOf('id="deployment-profiles-dialog"'),
+  );
+  const deploymentProfilesDialogHtml = html.slice(
+    html.indexOf('id="deployment-profiles-dialog"'),
+    html.indexOf('id="os-images-dialog"'),
+  );
+  assert.doesNotMatch(endpointDialogHtml, /Software Catalog/);
+  assert.match(deploymentProfilesDialogHtml, /Profile Management[\s\S]*Software Catalog/);
+  assert.match(html, /Software Catalog/);
+  assert.match(html, /id="software-catalog-body"/);
+  assert.match(html, /data-action="software-add" data-icon="upload_file" class="warning"/);
+  assert.match(html, /id="software-add-dialog"/);
+  assert.doesNotMatch(html, /id="software-add-id"/);
+  assert.doesNotMatch(html, /Software ID <input/);
+  assert.match(html, /id="software-add-file"[^>]*accept="\.msi,\.exe"/);
+  assert.match(html, /id="software-add-script-mode"/);
+  assert.match(html, /value="template"/);
+  assert.match(html, /value="raw"/);
+  assert.match(html, /Installed file to verify/);
+  assert.match(html, /After installation, SetupComplete checks this file exists/);
+  assert.match(html, /id="software-add-raw-script"/);
   assert.match(html, /id="os-images-dialog"/);
   assert.match(html, /class="drawer-dialog os-images-dialog"/);
   assert.match(html, /class="dialog-card drawer-card drawer-card-wide os-images-card"/);
@@ -71,7 +94,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /value="23H2"/);
   assert.doesNotMatch(html, /value="24H2"/);
   assert.match(html, /Refine loaded results/);
-  assert.doesNotMatch(html, />Source</);
+  assert.match(html, /Software Catalog[\s\S]*>Source</);
   assert.match(html, /aria-live="polite"/);
   assert.match(styles, /\.os-images-dialog/);
   assert.match(styles, /width: min\(1480px, calc\(100vw - 40px\)\)/);
@@ -96,6 +119,20 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /openDialog\(elements\.deploymentProfilesDialog\)/);
   assert.match(script, /openDialog\(elements\.osImagesDialog\)/);
   assert.match(script, /openDialog\(elements\.validationEvidenceDialog\)/);
+  assert.match(script, /function isDialogOpen\(dialog\)/);
+  assert.match(script, /dialog-fallback-open/);
+  assert.match(styles, /dialog\.dialog-fallback-open/);
+  assert.match(script, /function renderSoftwareCatalog\(appState\)/);
+  assert.match(script, /function showAddSoftwareDialog\(\)/);
+  assert.match(script, /function handleSoftwareAdd\(input\)/);
+  assert.match(script, /function updateAddSoftwareSelectedInstallerDefaults\(\)/);
+  assert.doesNotMatch(script, /softwareAddId/);
+  assert.doesNotMatch(script, /safeSoftwareId/);
+  assert.match(script, /\/api\/software-upload\?fileName=/);
+  assert.match(script, /\/api\/software\/create/);
+  assert.match(script, /It does not publish Apps or change the active profile/);
+  assert.match(script, /Select it in a deployment profile before publishing/);
+  assert.match(styles, /\.software-catalog-table/);
   assert.match(script, /function cancelDialog\(dialog\)/);
   assert.match(script, /new Event\('cancel', \{ cancelable: true \}\)/);
   assert.match(script, /closeDialog\(dialog, 'cancel'\)/);

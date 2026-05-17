@@ -10,12 +10,14 @@ import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import {
+  createSoftwarePackage,
   createDeploymentProfile,
   deleteDeploymentProfile,
   formatSoftwareList,
   publishDeploymentProfile,
   resolveDeploymentProfileState,
   updateDeploymentProfile,
+  uploadSoftwareInstaller,
 } from './deploymentProfiles.js';
 import {
   deleteCachedOsImage,
@@ -95,6 +97,7 @@ function profileSummary(state) {
     softwareCatalog: (state.catalog?.software ?? []).map((software) => ({
       id: software.id,
       name: software.name,
+      source: software.source,
     })),
     selectedSoftware: state.selectedSoftware.map((software) => ({
       id: software.id,
@@ -150,6 +153,7 @@ export class ServiceController extends EventEmitter {
     this.dependencies = {
       applyServiceEndpoint,
       createDeploymentProfile,
+      createSoftwarePackage,
       deleteDeploymentProfile,
       deleteStatusRun,
       deleteCachedOsImage,
@@ -173,6 +177,7 @@ export class ServiceController extends EventEmitter {
       syncIpxeEndpoint,
       tailFile,
       updateDeploymentProfile,
+      uploadSoftwareInstaller,
       uploadOsImageFile,
       ...options.dependencies,
     };
@@ -751,6 +756,22 @@ export class ServiceController extends EventEmitter {
     return this.runOperation('Creating deployment profile', async () => {
       const created = this.dependencies.createDeploymentProfile(this.config, input);
       this.addLog(`Created deployment profile ${created.profile.id}: ${created.profile.softwareIds.join(', ') || 'none'}`);
+      return created;
+    });
+  }
+
+  async uploadSoftwareInstaller(input) {
+    return this.runOperation('Uploading software installer', async () => {
+      const uploaded = await this.dependencies.uploadSoftwareInstaller(this.config, input);
+      this.addLog(`Uploaded software installer ${uploaded.fileName}: ${uploaded.bytes} bytes sha256=${uploaded.sha256}`);
+      return uploaded;
+    });
+  }
+
+  async addSoftwarePackage(input) {
+    return this.runOperation('Adding software package', async () => {
+      const created = await this.dependencies.createSoftwarePackage(this.config, input);
+      this.addLog(`Added software package ${created.software.id}: ${created.software.installerFileName}`);
       return created;
     });
   }

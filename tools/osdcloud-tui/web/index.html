@@ -296,6 +296,33 @@
             </table>
           </div>
         </section>
+
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <div>
+              <h4>Software Catalog</h4>
+              <div class="drawer-subtitle">
+                <span>Add packages here, then use Edit active to include them in a profile.</span>
+              </div>
+            </div>
+            <div class="drawer-actions">
+              <button data-action="software-add" data-icon="upload_file" class="warning" type="button">Add software</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse software-catalog-table">
+              <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th class="p-table-cell-padding font-medium">ID</th>
+                  <th class="p-table-cell-padding font-medium">Name</th>
+                  <th class="p-table-cell-padding font-medium">Source</th>
+                  <th class="p-table-cell-padding font-medium">Profiles</th>
+                </tr>
+              </thead>
+              <tbody id="software-catalog-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </form>
   </dialog>
@@ -562,6 +589,50 @@
       <div class="dialog-actions">
         <button id="software-cancel-secondary" type="button">Cancel</button>
         <button type="submit">Save changes</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="software-add-dialog">
+    <form id="software-add-form" class="dialog-card wide">
+      <div class="dialog-header">
+        <h3>Add client software</h3>
+        <button id="software-add-cancel" type="button">Close</button>
+      </div>
+      <div class="dialog-summary" id="software-add-summary">Adds a package to the catalog only. It will not install until a deployment profile selects and publishes it.</div>
+      <div class="form-grid compact">
+        <label>Display name <input id="software-add-name" name="name" type="text" autocomplete="off" required placeholder="VLC media player"></label>
+        <label>Installer file <input id="software-add-file" type="file" accept=".msi,.exe" required></label>
+      </div>
+      <div class="form-grid compact">
+        <label>Script mode
+          <select id="software-add-script-mode">
+            <option value="template">Template</option>
+            <option value="raw">Raw install.ps1</option>
+          </select>
+        </label>
+        <label>Installer type
+          <select id="software-add-installer-type">
+            <option value="msi">MSI</option>
+            <option value="exe">EXE</option>
+          </select>
+        </label>
+        <label>Success exit codes <input id="software-add-success-codes" type="text" value="0,1641,3010"></label>
+      </div>
+      <div id="software-add-template-fields" class="form-grid compact">
+        <label>Silent arguments <input id="software-add-silent-args" type="text" value="/qn /norestart REBOOT=ReallySuppress"></label>
+        <label class="span-2">Installed file to verify
+          <input id="software-add-verify-path" type="text" placeholder="C:\Program Files\App\App.exe">
+          <span class="field-hint">After installation, SetupComplete checks this file exists. Use the main EXE or another file installed by the app.</span>
+        </label>
+      </div>
+      <div id="software-add-raw-fields" class="form-grid" hidden>
+        <label>Raw install.ps1 <textarea id="software-add-raw-script" rows="10" spellcheck="false"></textarea></label>
+      </div>
+      <p id="software-add-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="software-add-cancel-secondary" type="button">Cancel</button>
+        <button type="submit" class="warning">Add to catalog</button>
       </div>
     </form>
   </dialog>

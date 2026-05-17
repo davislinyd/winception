@@ -244,6 +244,24 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/software-upload') {
+      const fileName = requestUrl.searchParams.get('fileName')
+        ?? headerValue(req.headers, 'x-software-file-name');
+      const size = Number(headerValue(req.headers, 'content-length') ?? 0) || null;
+      const result = await this.controller.uploadSoftwareInstaller({
+        fileName,
+        size,
+        stream: req,
+      });
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/software/create') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.addSoftwarePackage(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/profiles/create') {
       const body = await readJsonBody(req);
       const result = await this.controller.addDeploymentProfile(body);

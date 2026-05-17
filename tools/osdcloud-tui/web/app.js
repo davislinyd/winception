@@ -45,6 +45,7 @@ const elements = {
   interfacesBody: $('#interfaces-body'),
   pendingInterfaceLabel: $('#pending-interface-label'),
   profilesBody: $('#profiles-body'),
+  softwareCatalogBody: $('#software-catalog-body'),
   payloadSummary: $('#payload-summary'),
   payloadChecks: $('#payload-checks'),
   syncTarget: $('#sync-target'),
@@ -108,6 +109,21 @@ const elements = {
   softwareSelectNone: $('#software-select-none'),
   softwareList: $('#software-list'),
   softwareError: $('#software-error'),
+  softwareAddDialog: $('#software-add-dialog'),
+  softwareAddForm: $('#software-add-form'),
+  softwareAddCancel: $('#software-add-cancel'),
+  softwareAddCancelSecondary: $('#software-add-cancel-secondary'),
+  softwareAddName: $('#software-add-name'),
+  softwareAddFile: $('#software-add-file'),
+  softwareAddScriptMode: $('#software-add-script-mode'),
+  softwareAddInstallerType: $('#software-add-installer-type'),
+  softwareAddSuccessCodes: $('#software-add-success-codes'),
+  softwareAddTemplateFields: $('#software-add-template-fields'),
+  softwareAddSilentArgs: $('#software-add-silent-args'),
+  softwareAddVerifyPath: $('#software-add-verify-path'),
+  softwareAddRawFields: $('#software-add-raw-fields'),
+  softwareAddRawScript: $('#software-add-raw-script'),
+  softwareAddError: $('#software-add-error'),
   confirmDialog: $('#confirm-dialog'),
   confirmTitle: $('#confirm-title'),
   confirmMessage: $('#confirm-message'),
@@ -313,7 +329,7 @@ async function mutate(path, body = null) {
 }
 
 function setControlsDisabled(disabled) {
-  $$('button[data-action], dialog button, dialog input, dialog textarea').forEach((control) => {
+  $$('button[data-action], dialog button, dialog input, dialog select, dialog textarea').forEach((control) => {
     control.disabled = disabled;
   });
 }
@@ -340,25 +356,47 @@ function setFleetExpanded(expanded) {
   renderFleetExpandedState();
 }
 
+function isDialogOpen(dialog) {
+  return Boolean(dialog.open || dialog.hasAttribute('open'));
+}
+
 function openDialog(dialog) {
-  if (!dialog.open) {
+  if (isDialogOpen(dialog)) {
+    return;
+  }
+  if (typeof dialog.showModal === 'function') {
     dialog.showModal();
+  } else {
+    dialog.setAttribute('open', '');
+    dialog.classList.add('dialog-fallback-open');
+    document.body.classList.add('dialog-fallback-open');
   }
 }
 
 function closeDialog(dialog, returnValue = '') {
-  if (dialog.open) {
+  if (!isDialogOpen(dialog)) {
+    return;
+  }
+  if (typeof dialog.close === 'function') {
     dialog.close(returnValue);
+  } else {
+    dialog.returnValue = returnValue;
+    dialog.removeAttribute('open');
+    dialog.classList.remove('dialog-fallback-open');
+    if (!document.querySelector('dialog.dialog-fallback-open')) {
+      document.body.classList.remove('dialog-fallback-open');
+    }
+    dialog.dispatchEvent(new Event('close'));
   }
 }
 
 function cancelDialog(dialog) {
-  if (!dialog.open) {
+  if (!isDialogOpen(dialog)) {
     return;
   }
   const cancelEvent = new Event('cancel', { cancelable: true });
   const shouldClose = dialog.dispatchEvent(cancelEvent);
-  if (shouldClose && dialog.open) {
+  if (shouldClose && isDialogOpen(dialog)) {
     closeDialog(dialog, 'cancel');
   }
 }
@@ -1416,6 +1454,47 @@ function renderProfiles(appState) {
   }
 }
 
+function renderSoftwareCatalog(appState) {
+  elements.softwareCatalogBody.replaceChildren();
+  const profileState = appState.profile;
+  if (profileState?.error) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 4;
+    td.textContent = profileState.error;
+    tr.append(td);
+    elements.softwareCatalogBody.append(tr);
+    return;
+  }
+  const software = profileState?.softwareCatalog ?? [];
+  if (!software.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 4;
+    td.textContent = 'No software catalog entries.';
+    tr.append(td);
+    elements.softwareCatalogBody.append(tr);
+    return;
+  }
+  for (const item of software) {
+    const tr = document.createElement('tr');
+    const selectedProfiles = (profileState.profiles ?? [])
+      .filter((profile) => profile.softwareIds?.includes(item.id))
+      .map((profile) => profile.name || profile.id);
+    for (const value of [
+      item.id,
+      item.name,
+      item.source ?? item.id,
+      selectedProfiles.length ? selectedProfiles.join(', ') : 'not selected',
+    ]) {
+      const td = document.createElement('td');
+      td.textContent = text(value);
+      tr.append(td);
+    }
+    elements.softwareCatalogBody.append(tr);
+  }
+}
+
 function payloadChecks(appState) {
   return (appState.preflight ?? []).filter((check) => (
     /apps|payload|profile|smb|os image/i.test(check.name ?? '') || /apps|payload|profile|smb|os image/i.test(check.detail ?? '')
@@ -1715,6 +1794,7 @@ function render() {
   renderClients(appState);
   renderInterfaces(appState);
   renderProfiles(appState);
+  renderSoftwareCatalog(appState);
   renderOsImages(appState);
   renderPayload(appState);
   renderSync(appState);
@@ -1768,8 +1848,8 @@ function showAddProfileDialog(profile) {
       elements.profileCancel.removeEventListener('click', cancel);
       elements.profileCancelSecondary.removeEventListener('click', cancel);
       elements.profileDialog.removeEventListener('cancel', cancel);
-      if (elements.profileDialog.open) {
-        elements.profileDialog.close();
+      if (isDialogOpen(elements.profileDialog)) {
+        closeDialog(elements.profileDialog);
       }
       resolve(value);
     };
@@ -1795,7 +1875,7 @@ function showAddProfileDialog(profile) {
     elements.profileCancel.addEventListener('click', cancel);
     elements.profileCancelSecondary.addEventListener('click', cancel);
     elements.profileDialog.addEventListener('cancel', cancel);
-    elements.profileDialog.showModal();
+    openDialog(elements.profileDialog);
     elements.profileName.focus();
   });
 }
@@ -1843,8 +1923,8 @@ function showSoftwareDialog(profile) {
       elements.softwareDialog.removeEventListener('cancel', cancel);
       elements.softwareSelectAll.removeEventListener('click', selectAll);
       elements.softwareSelectNone.removeEventListener('click', selectNone);
-      if (elements.softwareDialog.open) {
-        elements.softwareDialog.close();
+      if (isDialogOpen(elements.softwareDialog)) {
+        closeDialog(elements.softwareDialog);
       }
       resolve(value);
     };
@@ -1875,8 +1955,147 @@ function showSoftwareDialog(profile) {
     elements.softwareDialog.addEventListener('cancel', cancel);
     elements.softwareSelectAll.addEventListener('click', selectAll);
     elements.softwareSelectNone.addEventListener('click', selectNone);
-    elements.softwareDialog.showModal();
+    openDialog(elements.softwareDialog);
     elements.softwareProfileName.focus();
+  });
+}
+
+function installerTypeForFile(file) {
+  const name = String(file?.name ?? '').toLowerCase();
+  if (name.endsWith('.msi')) {
+    return 'msi';
+  }
+  if (name.endsWith('.exe')) {
+    return 'exe';
+  }
+  return '';
+}
+
+function defaultSoftwareArgs(installerType) {
+  return installerType === 'msi'
+    ? '/qn /norestart REBOOT=ReallySuppress'
+    : '/quiet /norestart';
+}
+
+function defaultSoftwareSuccessCodes(installerType) {
+  return installerType === 'msi' ? '0,1641,3010' : '0';
+}
+
+function setAddSoftwareTemplateDefaults(installerType) {
+  elements.softwareAddSilentArgs.value = defaultSoftwareArgs(installerType);
+  elements.softwareAddSuccessCodes.value = defaultSoftwareSuccessCodes(installerType);
+}
+
+function updateAddSoftwareMode() {
+  const mode = elements.softwareAddScriptMode.value;
+  const installerType = elements.softwareAddInstallerType.value;
+  elements.softwareAddTemplateFields.hidden = mode === 'raw';
+  elements.softwareAddRawFields.hidden = mode !== 'raw';
+  if (!elements.softwareAddSilentArgs.value.trim()) {
+    elements.softwareAddSilentArgs.value = defaultSoftwareArgs(installerType);
+  }
+  if (!elements.softwareAddSuccessCodes.value.trim()) {
+    elements.softwareAddSuccessCodes.value = defaultSoftwareSuccessCodes(installerType);
+  }
+}
+
+function updateAddSoftwareInstallerDefaults() {
+  const file = elements.softwareAddFile.files?.[0];
+  const inferred = installerTypeForFile(file);
+  if (inferred) {
+    elements.softwareAddInstallerType.value = inferred;
+    setAddSoftwareTemplateDefaults(inferred);
+  }
+  updateAddSoftwareMode();
+}
+
+function updateAddSoftwareSelectedInstallerDefaults() {
+  setAddSoftwareTemplateDefaults(elements.softwareAddInstallerType.value);
+  updateAddSoftwareMode();
+}
+
+function validateAddSoftwareInput(input) {
+  if (!input.name) {
+    return 'Display name is required.';
+  }
+  if (!input.file) {
+    return 'Installer file is required.';
+  }
+  const inferred = installerTypeForFile(input.file);
+  if (!inferred) {
+    return 'Installer file must be .msi or .exe.';
+  }
+  if (inferred !== input.installerType) {
+    return `Installer type ${input.installerType.toUpperCase()} does not match ${input.file.name}.`;
+  }
+  if (input.scriptMode === 'template' && !input.verifyPath) {
+    return 'Template mode requires an installed file to verify.';
+  }
+  if (input.scriptMode === 'raw' && !input.rawScript.trim()) {
+    return 'Raw mode requires install.ps1 content.';
+  }
+  return '';
+}
+
+function showAddSoftwareDialog() {
+  return new Promise((resolve) => {
+    elements.softwareAddForm.reset();
+    elements.softwareAddError.textContent = '';
+    elements.softwareAddInstallerType.value = 'msi';
+    setAddSoftwareTemplateDefaults('msi');
+    updateAddSoftwareMode();
+
+    let settled = false;
+    const done = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      elements.softwareAddForm.removeEventListener('submit', submit);
+      elements.softwareAddCancel.removeEventListener('click', cancel);
+      elements.softwareAddCancelSecondary.removeEventListener('click', cancel);
+      elements.softwareAddDialog.removeEventListener('cancel', cancel);
+      elements.softwareAddFile.removeEventListener('change', updateAddSoftwareInstallerDefaults);
+      elements.softwareAddScriptMode.removeEventListener('change', updateAddSoftwareMode);
+      elements.softwareAddInstallerType.removeEventListener('change', updateAddSoftwareSelectedInstallerDefaults);
+      if (isDialogOpen(elements.softwareAddDialog)) {
+        closeDialog(elements.softwareAddDialog);
+      }
+      resolve(value);
+    };
+    const cancel = (event) => {
+      event?.preventDefault();
+      done(null);
+    };
+    const submit = (event) => {
+      event.preventDefault();
+      const input = {
+        name: elements.softwareAddName.value.trim(),
+        file: elements.softwareAddFile.files?.[0] ?? null,
+        scriptMode: elements.softwareAddScriptMode.value,
+        installerType: elements.softwareAddInstallerType.value,
+        silentArgs: elements.softwareAddSilentArgs.value.trim(),
+        successExitCodes: elements.softwareAddSuccessCodes.value.trim(),
+        verifyPath: elements.softwareAddVerifyPath.value.trim(),
+        rawScript: elements.softwareAddRawScript.value,
+      };
+      const error = validateAddSoftwareInput(input);
+      if (error) {
+        elements.softwareAddError.textContent = error;
+        return;
+      }
+      done(input);
+    };
+
+    elements.softwareAddForm.addEventListener('submit', submit);
+    elements.softwareAddCancel.addEventListener('click', cancel);
+    elements.softwareAddCancelSecondary.addEventListener('click', cancel);
+    elements.softwareAddDialog.addEventListener('cancel', cancel);
+    elements.softwareAddFile.addEventListener('change', updateAddSoftwareInstallerDefaults);
+    elements.softwareAddScriptMode.addEventListener('change', updateAddSoftwareMode);
+    elements.softwareAddInstallerType.addEventListener('change', updateAddSoftwareSelectedInstallerDefaults);
+    openDialog(elements.softwareAddDialog);
+    elements.softwareAddName.focus();
   });
 }
 
@@ -1900,7 +2119,7 @@ function confirmAction({ title, message, details = [], confirmLabel = 'Continue'
     };
     const onClose = () => close();
     elements.confirmDialog.addEventListener('close', onClose);
-    elements.confirmDialog.showModal();
+    openDialog(elements.confirmDialog);
   });
 }
 
@@ -1922,13 +2141,13 @@ async function showPicker(title, rows, onPick, buttonLabel = 'Select') {
     button.className = buttonLabel.toLowerCase() === 'delete' ? 'danger' : '';
     button.dataset.icon = buttonLabel.toLowerCase() === 'delete' ? 'delete' : 'check';
     button.addEventListener('click', () => {
-      elements.pickerDialog.close();
+      closeDialog(elements.pickerDialog);
       onPick(row.value);
     });
     item.append(body, button);
     elements.pickerList.append(item);
   }
-  elements.pickerDialog.showModal();
+  openDialog(elements.pickerDialog);
 }
 
 async function confirmEndpointSync(choice) {
@@ -2096,6 +2315,56 @@ async function handleOsImageImport(row) {
   }
 }
 
+async function handleSoftwareAdd(input) {
+  const ok = await confirmAction({
+    title: 'Add software package',
+    message: 'This writes a new Softwares folder and catalog entry only. It does not publish Apps or change the active profile.',
+    details: [
+      `Software: ${input.name}`,
+      'Software ID: generated automatically',
+      `Installer: ${input.file.name}`,
+      `Script mode: ${input.scriptMode}`,
+    ],
+    confirmLabel: 'Add to catalog',
+    severity: 'warning',
+  });
+  if (!ok || state.busy) {
+    return;
+  }
+
+  state.busy = true;
+  setControlsDisabled(true);
+  try {
+    const uploadPayload = await api(`/api/software-upload?fileName=${encodeURIComponent(input.file.name)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: input.file,
+    });
+    const createPayload = await api('/api/software/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        uploadId: uploadPayload.result.uploadId,
+        name: input.name,
+        scriptMode: input.scriptMode,
+        installerType: input.installerType,
+        silentArgs: input.silentArgs,
+        successExitCodes: input.successExitCodes,
+        verifyPath: input.verifyPath,
+        rawScript: input.rawScript,
+      }),
+    });
+    state.current = createPayload.state;
+    state.selectedRunId = createPayload.state?.selectedRunId ?? state.selectedRunId;
+    render();
+    window.alert(`Added ${createPayload.result.software.name} (${createPayload.result.software.id}) to the software catalog. Select it in a deployment profile before publishing.`);
+  } catch (error) {
+    window.alert(error.message);
+  } finally {
+    state.busy = false;
+    setControlsDisabled(false);
+  }
+}
+
 async function handleStatusRunDelete(runId) {
   const run = state.current?.fleet?.runs?.find((item) => item.runId === runId);
   if (!run) {
@@ -2196,6 +2465,11 @@ async function handleAction(action, source = null) {
     })), (profile) => {
       handleProfileDelete(profile).catch((error) => window.alert(error.message));
     }, 'Delete');
+  } else if (action === 'software-add') {
+    const input = await showAddSoftwareDialog();
+    if (input) {
+      await handleSoftwareAdd(input);
+    }
   } else if (action === 'http-toggle') {
     await mutate(`/api/services/http/${services.http?.running ? 'stop' : 'start'}`);
   } else if (action === 'tftp-toggle') {
@@ -2328,6 +2602,24 @@ document.addEventListener('click', (event) => {
   if (actionButton) {
     handleAction(actionButton.dataset.action, actionButton).catch((error) => window.alert(error.message));
   }
+});
+
+$$('button[data-action]').forEach((button) => {
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    handleAction(button.dataset.action, button).catch((error) => window.alert(error.message));
+  });
+});
+
+document.addEventListener('submit', (event) => {
+  const form = event.target instanceof HTMLFormElement ? event.target : null;
+  const dialog = form?.closest('dialog');
+  if (!form || !dialog || form.getAttribute('method') !== 'dialog') {
+    return;
+  }
+  event.preventDefault();
+  closeDialog(dialog, event.submitter?.value ?? '');
 });
 
 document.addEventListener('keydown', (event) => {

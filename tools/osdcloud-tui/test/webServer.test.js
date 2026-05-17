@@ -213,6 +213,42 @@ async function makeServer(root, overrides = {}) {
         bytes: 30,
         filePath: path.join(root, 'OS', input.metadata?.fileName ?? 'uploaded.wim'),
       }),
+      uploadSoftwareInstaller: async (_config, input) => {
+        if (String(input.fileName ?? '').includes('..') || String(input.fileName ?? '').includes('/')) {
+          const error = new Error('Invalid software installer fileName');
+          error.statusCode = 400;
+          throw error;
+        }
+        let bytes = 0;
+        for await (const chunk of input.stream) {
+          bytes += chunk.length;
+        }
+        return {
+          uploadId: 'SOFTWARE-UPLOAD',
+          fileName: input.fileName,
+          bytes,
+          sha256: 'A'.repeat(64),
+        };
+      },
+      createSoftwarePackage: (_config, input) => {
+        if (!input.name) {
+          const error = new Error('Software name is required');
+          error.statusCode = 400;
+          throw error;
+        }
+        return {
+          software: {
+            id: 'SW-TEST001',
+            name: input.name,
+            source: 'SW-TEST001',
+            installerFileName: 'tool.msi',
+          },
+          bytes: 4,
+          sha256: 'B'.repeat(64),
+          catalogPath: path.join(root, 'software-catalog.json'),
+          uploadRemoved: true,
+        };
+      },
       deleteDeploymentProfile: (_config, profileId) => ({
         profile: { id: profileId, name: 'Minimal', description: '', softwareIds: [] },
         filePath: path.join(root, `${profileId}.json`),
@@ -324,6 +360,50 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.id, 'minimal');
+
+    response = await fetch(`${base}/api/software-upload?fileName=tool.msi`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: Buffer.from('tool'),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.uploadId, 'SOFTWARE-UPLOAD');
+    assert.equal(payload.result.bytes, 4);
+
+    response = await fetch(`${base}/api/software-upload?fileName=..%2Fbad.exe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: Buffer.from('bad'),
+    });
+    assert.equal(response.status, 400);
+    payload = await response.json();
+    assert.equal(payload.ok, false);
+
+    response = await fetch(`${base}/api/software/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        uploadId: 'SOFTWARE-UPLOAD',
+        name: 'Tool App',
+        scriptMode: 'template',
+        installerType: 'msi',
+        verifyPath: 'C:\\Program Files\\Tool\\tool.exe',
+      }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.software.id, 'SW-TEST001');
+    assert.equal(payload.result.uploadRemoved, true);
+
+    response = await fetch(`${base}/api/software/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.equal(response.status, 400);
+    payload = await response.json();
+    assert.equal(payload.ok, false);
 
     response = await fetch(`${base}/api/status/run/delete`, {
       method: 'POST',

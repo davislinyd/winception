@@ -1,6 +1,8 @@
 import fs from 'node:fs';
-import { randomInt } from 'node:crypto';
+import { createHash, randomInt, randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -9,8 +11,18 @@ const generatedProfileIdAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const generatedProfileIdLength = 8;
 const generatedProfileIdSpace = generatedProfileIdAlphabet.length ** generatedProfileIdLength;
 const defaultGeneratedProfileIdAttempts = 256;
+const generatedSoftwareIdPrefix = 'SW-';
+const allowedSoftwareInstallerExtensions = new Set(['.msi', '.exe']);
+const defaultSoftwareUploadMaxBytes = 2 * 1024 * 1024 * 1024;
+const defaultRawInstallScriptMaxBytes = 256 * 1024;
 
 export const selectedProfileFileName = 'selected-profile.json';
+
+function inputError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
 
 function deploymentProfileDefaults(root) {
   return {
@@ -20,6 +32,8 @@ function deploymentProfileDefaults(root) {
     softwareSourceRoot: path.join(root, 'Softwares'),
     appsRoot: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps',
     installerScript: path.join(root, 'Softwares', 'Install-Apps.ps1'),
+    softwareUploadRoot: path.join(root, '.osdcloud-tui', 'software-uploads'),
+    softwareUploadMaxBytes: defaultSoftwareUploadMaxBytes,
   };
 }
 
@@ -34,9 +48,33 @@ export function isSafeDeploymentProfileId(value) {
 function normalizeId(value, label) {
   const id = String(value ?? '').trim();
   if (!isSafeId(id)) {
-    throw new Error(`Invalid ${label} id: ${value}`);
+    throw inputError(`Invalid ${label} id: ${value}`);
   }
   return id;
+}
+
+function cleanSoftwareInstallerFileName(value, label = 'software installer fileName') {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw.includes('/') || raw.includes('\\') || raw.includes('..')) {
+    throw inputError(`${label} must be a plain file name: ${value}`);
+  }
+  const fileName = path.basename(raw);
+  const extension = path.extname(fileName).toLowerCase();
+  if (!allowedSoftwareInstallerExtensions.has(extension)) {
+    throw inputError(`${label} must end with .msi or .exe: ${fileName}`);
+  }
+  return fileName;
+}
+
+function normalizePositiveInteger(value, label, options = {}) {
+  if (value === undefined || value === null || value === '') {
+    return options.optional ? null : undefined;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number) || !Number.isInteger(number) || number < (options.min ?? 0)) {
+    throw inputError(`Invalid ${label}: ${value}`);
+  }
+  return number;
 }
 
 function formatGeneratedProfileId(value, alphabet = generatedProfileIdAlphabet, idLength = generatedProfileIdLength) {
@@ -79,6 +117,34 @@ export function generateDeploymentProfileId(existingIds = [], options = {}) {
   }
 
   throw new Error('No available deployment profile ids remain');
+}
+
+export function generateSoftwareId(existingIds = [], options = {}) {
+  const reserved = new Set(Array.from(existingIds ?? [], (id) => String(id).toLowerCase()));
+  const nextRandomInt = options.randomInt ?? randomInt;
+  const alphabet = options.alphabet ?? generatedProfileIdAlphabet;
+  const idLength = options.idLength ?? generatedProfileIdLength;
+  const idSpaceSize = options.idSpaceSize ?? alphabet.length ** idLength;
+  const maxAttempts = options.maxAttempts ?? defaultGeneratedProfileIdAttempts;
+  const prefix = options.prefix ?? generatedSoftwareIdPrefix;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const randomPart = formatGeneratedProfileId(nextRandomInt(idSpaceSize), alphabet, idLength);
+    const id = `${prefix}${randomPart}`;
+    if (isSafeId(id) && isMixedAlphanumericProfileId(randomPart, alphabet, idLength) && !reserved.has(id.toLowerCase())) {
+      return id;
+    }
+  }
+
+  for (let value = 0; value < idSpaceSize; value += 1) {
+    const randomPart = formatGeneratedProfileId(value, alphabet, idLength);
+    const id = `${prefix}${randomPart}`;
+    if (isSafeId(id) && isMixedAlphanumericProfileId(randomPart, alphabet, idLength) && !reserved.has(id.toLowerCase())) {
+      return id;
+    }
+  }
+
+  throw new Error('No available software ids remain');
 }
 
 function normalizeProfileName(value, label = 'Deployment profile name') {
@@ -145,6 +211,10 @@ export function deploymentProfileOptions(config = {}, overrides = {}) {
     softwareSourceRoot: resolveConfiguredPath(root, section.softwareSourceRoot),
     appsRoot: resolveConfiguredPath(root, section.appsRoot ?? section.liveAppsRoot),
     installerScript: resolveConfiguredPath(root, section.installerScript),
+    softwareUploadRoot: resolveConfiguredPath(root, section.softwareUploadRoot),
+    softwareUploadMaxBytes: Number(section.softwareUploadMaxBytes) > 0
+      ? Number(section.softwareUploadMaxBytes)
+      : defaultSoftwareUploadMaxBytes,
   };
 }
 
@@ -194,6 +264,336 @@ export function loadSoftwareCatalog(config = {}, options = {}) {
     software,
     byId: new Map(software.map((item) => [item.id, item])),
   };
+}
+
+function uploadSourceStream(input) {
+  if (input.stream) {
+    return input.stream;
+  }
+  if (input.buffer || input.bytes) {
+    return Readable.from([input.buffer ?? input.bytes]);
+  }
+  throw inputError('Software installer upload requires a readable stream or buffer');
+}
+
+function createUploadTransform(progress, maxBytes) {
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      progress.bytes += chunk.length;
+      if (progress.bytes > maxBytes) {
+        callback(inputError(`Software installer upload exceeds maximum size: ${maxBytes} bytes`));
+        return;
+      }
+      progress.onProgress?.({
+        status: 'uploading',
+        bytes: progress.bytes,
+        totalBytes: progress.totalBytes,
+        fileName: progress.fileName,
+        uploadId: progress.uploadId,
+        startedAt: progress.startedAt,
+      });
+      callback(null, chunk);
+    },
+  });
+}
+
+function hashFile(filePath, algorithm = 'sha256') {
+  return new Promise((resolve, reject) => {
+    const hash = createHash(algorithm);
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(hash.digest('hex').toUpperCase()));
+  });
+}
+
+const sha256File = (filePath) => hashFile(filePath, 'sha256');
+
+function softwareUploadDirectory(profileOptions, uploadId) {
+  const root = profileOptions.softwareUploadRoot;
+  return assertInside(root, path.join(root, normalizeId(uploadId, 'software upload')), 'Software upload directory');
+}
+
+function resolveUploadedSoftwareInstaller(profileOptions, uploadId) {
+  const uploadDir = softwareUploadDirectory(profileOptions, uploadId);
+  if (!fs.existsSync(uploadDir) || !fs.statSync(uploadDir).isDirectory()) {
+    throw inputError(`Software installer upload not found: ${uploadId}`, 404);
+  }
+  const files = fs.readdirSync(uploadDir)
+    .filter((name) => allowedSoftwareInstallerExtensions.has(path.extname(name).toLowerCase()))
+    .map((name) => assertInside(uploadDir, path.join(uploadDir, name), 'Software upload file'));
+  if (files.length !== 1) {
+    throw inputError(`Software installer upload ${uploadId} must contain exactly one MSI/EXE file`);
+  }
+  return {
+    uploadDir,
+    filePath: files[0],
+    fileName: path.basename(files[0]),
+  };
+}
+
+function reservedSoftwarePackageIds(profileOptions, softwareRows) {
+  const reserved = new Set();
+  for (const row of softwareRows) {
+    const id = normalizeId(row.id, 'software');
+    reserved.add(id);
+    const source = String(row.source ?? id).trim();
+    if (source && !path.isAbsolute(source)) {
+      reserved.add(source);
+    }
+  }
+  if (fs.existsSync(profileOptions.softwareSourceRoot)) {
+    for (const entry of fs.readdirSync(profileOptions.softwareSourceRoot, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        reserved.add(entry.name);
+      }
+    }
+  }
+  return reserved;
+}
+
+export async function uploadSoftwareInstaller(config = {}, input = {}, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  const fileName = cleanSoftwareInstallerFileName(input.fileName ?? input.name);
+  const declaredSize = normalizePositiveInteger(input.size ?? input.totalBytes, 'software installer upload size', { optional: true, min: 1 });
+  const maxBytes = Number(options.uploadMaxBytes ?? profileOptions.softwareUploadMaxBytes);
+  if (declaredSize && declaredSize > maxBytes) {
+    throw inputError(`Software installer upload exceeds maximum size: ${maxBytes} bytes`);
+  }
+
+  const uploadId = normalizeId(options.uploadId ?? input.uploadId ?? `software-${randomUUID()}`, 'software upload');
+  const uploadDir = softwareUploadDirectory(profileOptions, uploadId);
+  const targetPath = assertInside(uploadDir, path.join(uploadDir, fileName), 'Software upload path');
+  fs.mkdirSync(uploadDir, { recursive: true });
+
+  try {
+    const progress = {
+      bytes: 0,
+      totalBytes: declaredSize,
+      fileName,
+      uploadId,
+      startedAt: new Date().toISOString(),
+      onProgress: options.onProgress,
+    };
+    await pipeline(
+      uploadSourceStream(input),
+      createUploadTransform(progress, maxBytes),
+      fs.createWriteStream(targetPath, { flags: 'wx' }),
+    );
+    const stat = fs.statSync(targetPath);
+    if (stat.size <= 0) {
+      throw inputError('Software installer upload produced an empty file');
+    }
+    if (declaredSize && stat.size !== declaredSize) {
+      throw inputError(`Software installer upload size mismatch: ${stat.size} expected ${declaredSize}`);
+    }
+
+    return {
+      uploadId,
+      fileName,
+      bytes: stat.size,
+      sha256: await sha256File(targetPath),
+      uploadRoot: profileOptions.softwareUploadRoot,
+      uploadedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    fs.rmSync(uploadDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function normalizeInstallerType(value, fileName) {
+  const inferred = path.extname(fileName).toLowerCase().replace(/^\./u, '');
+  const type = String(value || inferred).trim().toLowerCase();
+  if (type !== 'msi' && type !== 'exe') {
+    throw inputError(`Software installer type must be msi or exe: ${value}`);
+  }
+  if (type !== inferred) {
+    throw inputError(`Software installer type ${type} does not match file extension .${inferred}`);
+  }
+  return type;
+}
+
+function defaultSilentArgs(installerType) {
+  return installerType === 'msi'
+    ? '/qn /norestart REBOOT=ReallySuppress'
+    : '/quiet /norestart';
+}
+
+function normalizeSuccessExitCodes(value, installerType) {
+  const source = value === undefined || value === null || value === ''
+    ? (installerType === 'msi' ? [0, 1641, 3010] : [0])
+    : (Array.isArray(value) ? value : String(value).split(/[,\s]+/u).filter(Boolean));
+  const codes = source.map((entry) => normalizePositiveInteger(entry, 'software installer success exit code', { min: 0 }));
+  if (!codes.length) {
+    throw inputError('At least one success exit code is required');
+  }
+  return [...new Set(codes)];
+}
+
+function psSingleQuote(value) {
+  return `'${String(value).replace(/'/gu, "''")}'`;
+}
+
+function psArray(values) {
+  return `@(${values.map((value) => String(Number(value))).join(', ')})`;
+}
+
+function renderTemplateInstallScript(input) {
+  const installerType = input.installerType;
+  const softwareName = String(input.name ?? input.id);
+  const silentArgs = String(input.silentArgs ?? defaultSilentArgs(installerType)).trim();
+  const verifyPath = String(input.verifyPath ?? '').trim();
+  if (!verifyPath) {
+    throw inputError('Template install.ps1 requires an installed file to verify');
+  }
+  const successExitCodes = normalizeSuccessExitCodes(input.successExitCodes, installerType);
+  const logFileName = `${input.id}-${installerType}.log`;
+  const installerRun = installerType === 'msi'
+    ? `$argumentList = '/i "' + $installerPath + '" ' + $silentArgs + ' /L*v "' + $logPath + '"'
+$process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $argumentList -Wait -PassThru -WindowStyle Hidden`
+    : `$process = Start-Process -FilePath $installerPath -ArgumentList $silentArgs -Wait -PassThru -WindowStyle Hidden`;
+
+  return `$ErrorActionPreference = 'Stop'
+
+$LogDir = 'C:\\Windows\\Temp\\osdcloud-logs'
+New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+
+$installerPath = Join-Path $PSScriptRoot ${psSingleQuote(input.installerFileName)}
+if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
+    throw ('Installer not found: ' + $installerPath)
+}
+
+$logPath = Join-Path $LogDir ${psSingleQuote(logFileName)}
+$silentArgs = ${psSingleQuote(silentArgs)}
+${installerRun}
+
+$successExitCodes = ${psArray(successExitCodes)}
+if ($successExitCodes -notcontains $process.ExitCode) {
+    throw (${psSingleQuote(softwareName)} + ' installer failed with exit code ' + $process.ExitCode + '. See ' + $logPath)
+}
+
+$verifyPath = [Environment]::ExpandEnvironmentVariables(${psSingleQuote(verifyPath)})
+if (-not (Test-Path -LiteralPath $verifyPath -PathType Leaf)) {
+    throw (${psSingleQuote(softwareName)} + ' install completed but verification file was not found: ' + $verifyPath)
+}
+
+Write-Host (${psSingleQuote(softwareName)} + ' installed: ' + $verifyPath)
+`;
+}
+
+function normalizeRawInstallScript(value) {
+  const script = String(value ?? '');
+  if (!script.trim()) {
+    throw inputError('Raw install.ps1 script is required');
+  }
+  if (Buffer.byteLength(script, 'utf8') > defaultRawInstallScriptMaxBytes) {
+    throw inputError(`Raw install.ps1 script is too large: ${defaultRawInstallScriptMaxBytes} bytes max`);
+  }
+  return script.endsWith('\n') ? script : `${script}\n`;
+}
+
+function renderSoftwareInstallScript(input) {
+  const mode = String(input.scriptMode ?? input.mode ?? 'template').trim().toLowerCase();
+  if (mode === 'raw') {
+    return normalizeRawInstallScript(input.rawScript ?? input.installScript);
+  }
+  if (mode !== 'template') {
+    throw inputError(`Software install script mode must be template or raw: ${input.scriptMode ?? input.mode}`);
+  }
+  return renderTemplateInstallScript(input);
+}
+
+export async function createSoftwarePackage(config = {}, input = {}, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  if (input.id !== undefined || input.softwareId !== undefined) {
+    throw inputError('Software id is generated by the server');
+  }
+  const name = normalizeProfileName(input.name, 'Software name');
+  const uploadId = normalizeId(input.uploadId, 'software upload');
+  const uploaded = resolveUploadedSoftwareInstaller(profileOptions, uploadId);
+  const installerFileName = cleanSoftwareInstallerFileName(uploaded.fileName);
+  const installerType = normalizeInstallerType(input.installerType, installerFileName);
+
+  const catalogRaw = readJson(profileOptions.softwareCatalogPath, 'software catalog');
+  const softwareRows = arrayFrom(catalogRaw.software, 'software catalog software');
+  const seenIds = new Set();
+  const seenSources = new Set();
+  for (const row of softwareRows) {
+    const existingId = normalizeId(row.id, 'software');
+    const existingIdKey = existingId.toLowerCase();
+    if (seenIds.has(existingIdKey)) {
+      throw inputError(`Duplicate software id: ${existingId}`, 409);
+    }
+    seenIds.add(existingIdKey);
+    const existingSource = String(row.source ?? existingId).trim();
+    const existingSourceKey = existingSource.toLowerCase();
+    if (seenSources.has(existingSourceKey)) {
+      throw inputError(`Duplicate software source: ${existingSource}`, 409);
+    }
+    seenSources.add(existingSourceKey);
+  }
+  const id = generateSoftwareId(reservedSoftwarePackageIds(profileOptions, softwareRows), options);
+  const source = id;
+  const sourcePath = assertInside(
+    profileOptions.softwareSourceRoot,
+    path.join(profileOptions.softwareSourceRoot, source),
+    `Software ${id} source`,
+  );
+  if (fs.existsSync(sourcePath)) {
+    throw inputError(`Software source folder already exists for ${id}: ${sourcePath}`, 409);
+  }
+
+  const installScript = renderSoftwareInstallScript({
+    ...input,
+    id,
+    name,
+    installerFileName,
+    installerType,
+  });
+  const installerTargetPath = assertInside(sourcePath, path.join(sourcePath, installerFileName), 'Software installer target');
+  const installScriptPath = assertInside(sourcePath, path.join(sourcePath, 'install.ps1'), 'Software install.ps1 target');
+  let sourceCreated = false;
+
+  try {
+    fs.mkdirSync(sourcePath, { recursive: true });
+    sourceCreated = true;
+    fs.copyFileSync(uploaded.filePath, installerTargetPath, fs.constants.COPYFILE_EXCL);
+    fs.writeFileSync(installScriptPath, installScript, 'utf8');
+    const stat = fs.statSync(installerTargetPath);
+    const sha256 = await sha256File(installerTargetPath);
+    catalogRaw.software = [
+      ...softwareRows,
+      { id, name, source },
+    ];
+    writeJson(profileOptions.softwareCatalogPath, catalogRaw);
+    let uploadRemoved = false;
+    try {
+      fs.rmSync(uploaded.uploadDir, { recursive: true, force: true });
+      uploadRemoved = true;
+    } catch {}
+
+    return {
+      software: {
+        id,
+        name,
+        source,
+        installerFileName,
+        installerType,
+        sourcePath,
+        installScript: installScriptPath,
+      },
+      catalogPath: profileOptions.softwareCatalogPath,
+      bytes: stat.size,
+      sha256,
+      uploadRemoved,
+    };
+  } catch (error) {
+    if (sourceCreated) {
+      fs.rmSync(sourcePath, { recursive: true, force: true });
+    }
+    throw error;
+  }
 }
 
 export function loadDeploymentProfiles(config = {}, options = {}) {

@@ -588,7 +588,22 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 
 自行新增 client 軟體與 profile：
 
-1. 在 repo source 建立一個軟體資料夾：
+日常操作優先用 Web console：開 `Profiles`，在 `Software Catalog` 區塊選 `Add software`，上傳單一 `.msi` 或 `.exe`。Web console 會產生安全亂數 software id、建立 `Softwares\<software-id>`、寫入 installer 與 `install.ps1`、更新 `config\software-catalog.json`，並顯示 installer size / SHA256。這一步只加入 catalog，不會自動加入 active profile，也不會發佈 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。
+
+1. Web `Add software` 的欄位：
+
+```text
+Display name       : Web/profile 顯示名稱
+Installer file     : 單一 .msi 或 .exe，純檔名，不接受路徑或 URL
+Script mode        : Template 或 Raw install.ps1
+Silent arguments   : Template 模式使用；MSI 預設 /qn /norestart REBOOT=ReallySuppress
+Success exit codes : MSI 預設 0,1641,3010；EXE 預設 0
+Installed file     : Template 模式安裝後必須存在的 EXE/檔案，用來確認安裝成功
+```
+
+2. Template 模式會產生標準 `install.ps1`：設定 `$ErrorActionPreference = 'Stop'`、log 寫到 `C:\Windows\Temp\osdcloud-logs`、靜默執行 installer、拒絕失敗 exit code，並用 `Installed file to verify` 指定的檔案確認安裝結果。Raw 模式可直接提供完整 `install.ps1`，適合 silent 參數或驗證邏輯比較特殊的軟體。
+3. 新增完成後，到 `Edit active` 勾選該軟體並存檔，才會停止 running services、重建 live `Apps` payload、寫入 `selected-profile.json` 並跑 preflight。只加入 catalog 不會影響下一次部署。
+4. 手動 fallback 是直接在 repo source 建立軟體資料夾：
 
 ```text
 <repo-root>\Softwares\<SoftwareId>\
@@ -596,7 +611,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
   installer.msi 或 installer.exe
 ```
 
-2. `install.ps1` 只處理該軟體自己的 silent install、exit code 與安裝後驗證。MSI 範本：
+5. `install.ps1` 只處理該軟體自己的 silent install、exit code 與安裝後驗證。MSI 範本：
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -627,21 +642,19 @@ if ($process.ExitCode -ne 0) {
 }
 ```
 
-3. 每個 installer 的 silent 參數可能不同；先查該軟體官方文件或用 installer help 確認。常見參數有 `/quiet /norestart`、`/S`、`/silent`、`/verysilent`。
-4. 在 `config\software-catalog.json` 新增軟體 id/name/source。若 installer 很大，使用 Git LFS 追蹤，例如本 repo 以 `.gitattributes` 將 `*.msi` 交給 LFS。
-5. 在 Web console 用 `Edit active` 勾選 active profile 要部署的軟體並存檔。Web console 會先停止 running 的 HTTP/TFTP/DHCP service，保留 profile 的 id/name/description 與未知欄位，只更新 `software` 清單，清空 live `Apps` 後立即發佈新 payload。
-6. 如需建立另一個 profile，可用 `Add deployment profile` 輸入 name；新 profile 會由主控端產生 8 碼 id，複製目前 active profile 的 `software`，但不會切換 active profile，也不會發佈。`Delete deployment profile` 只能刪除非 active profile；若要刪目前 active profile，先用 `Select deployment profile` 切到其他 profile。
-7. 只新增或更新 `Apps` payload 時，不需要重建或重新 commit `boot.wim`；既有 WinPE shutdown 已會複製整個已發佈的 `OSDCloud\Apps`。
-8. 同步 repo mirror 並提交：
+6. 每個 installer 的 silent 參數可能不同；先查該軟體官方文件或用 installer help 確認。常見參數有 `/quiet /norestart`、`/S`、`/silent`、`/verysilent`。
+7. 在 `config\software-catalog.json` 新增軟體 id/name/source。若 installer 很大，使用 Git LFS 追蹤；本 repo 以 `.gitattributes` 將 `*.msi` 與 `*.exe` 交給 LFS。
+8. 如需建立另一個 profile，可用 `Add deployment profile` 輸入 name；新 profile 會由主控端產生 8 碼 id，複製目前 active profile 的 `software`，但不會切換 active profile，也不會發佈。`Delete deployment profile` 只能刪除非 active profile；若要刪目前 active profile，先用 `Select deployment profile` 切到其他 profile。
+9. 只新增 catalog 軟體不需要重建或重新 commit `boot.wim`；只有真正發佈 profile 後，既有 WinPE shutdown 才會複製已發佈的 `OSDCloud\Apps`。
+10. 提交 repo source。若本次只是新增 catalog 軟體且尚未發佈 profile，不需要同步 `osdcloud-assets`；若已發佈 live `Apps` payload 或改到部署 runtime，再執行 `Sync-OsdCloudAssets.ps1`：
 
 ```powershell
-.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts
 git status --short --branch
 git add README.md AGENTS.md OSDCloud-Win11-Automated-Deployment-Test-Report.md config Softwares osdcloud-assets package.json package-lock.json tools\osdcloud-tui
 git commit -m "Update deployment profile software selection"
 ```
 
-9. 下一次實體 iPXE 部署時，Web console 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log` 和軟體自己的 log。
+11. 下一次實體 iPXE 部署時，Web console 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log` 和軟體自己的 log。
 
 若目前 endpoint 留在 VM 測試狀態，先切回實體筆電：
 
@@ -796,7 +809,7 @@ npm run web
 
 預設 URL 是 `http://127.0.0.1:8080`。Web 版是完整 operator console，負責 endpoint、OS image cache、deployment profile、service control、status/log/validation。PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議維持相容；OS image cache 會透過 `selected-os.json` 影響 WinPE deployment script 選用哪個 cached image。
 
-Web console 目前是單一 workbench。桌面版左上 `Operations` 放日常操作入口；中間上方顯示 endpoint summary、Endpoint Sync Progress、active OS image、active profile 與 HTTP/TFTP/DHCP service cards；`Preflight Summary` 與 `Client Fleet` 橫跨左側 Operations 欄和中間主欄下方，避免左下角留下整欄空白；右側是 `System Log`。窄版畫面維持上下堆疊。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可手動切換 active cached image，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯入 cache。Active cached image row 保留 `Republish` 動作，可在 active image 已正確但 `selected-os.json` / SMB image path stale 時重新發布 manifest；其他 cached image 使用 `Set active` 切換並發布。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍；failed row hover 會用原生 tooltip 顯示 `How to fix:` 建議，例如 `selected manifest stale` 會提示到 `OS images` 對 active image 執行 `Republish`，再重跑 `Run preflight`。`System Log` 只有在 operator 已經停在底部時才會隨新增訊息自動跟到底；如果 operator 往上捲動閱讀舊訊息，refresh 或新 log 不會改變目前閱讀位置。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
+Web console 目前是單一 workbench。桌面版左上 `Operations` 放日常操作入口；中間上方顯示 endpoint summary、Endpoint Sync Progress、active OS image、active profile 與 HTTP/TFTP/DHCP service cards；`Preflight Summary` 與 `Client Fleet` 橫跨左側 Operations 欄和中間主欄下方，避免左下角留下整欄空白；右側是 `System Log`。窄版畫面維持上下堆疊。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Profiles` drawer 內含 profile 管理與 `Software Catalog`；`Add software` 可上傳單一 MSI/EXE，建立 repo `Softwares\<id>` payload 與 catalog entry，但不會自動加入 active profile 或發佈 live `Apps`。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可手動切換 active cached image，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯入 cache。Active cached image row 保留 `Republish` 動作，可在 active image 已正確但 `selected-os.json` / SMB image path stale 時重新發布 manifest；其他 cached image 使用 `Set active` 切換並發布。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍；failed row hover 會用原生 tooltip 顯示 `How to fix:` 建議，例如 `selected manifest stale` 會提示到 `OS images` 對 active image 執行 `Republish`，再重跑 `Run preflight`。`System Log` 只有在 operator 已經停在底部時才會隨新增訊息自動跟到底；如果 operator 往上捲動閱讀舊訊息，refresh 或新 log 不會改變目前閱讀位置。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
 
 Operations 的視覺語意固定如下：`Run preflight` 是中性 outline 診斷動作，不使用藍色 primary；`Sync endpoint`、profile/OS `Set active`、OS image `Republish`、OS image download/import 使用 warning，表示會修改 live config/cache 但不是破壞性；`Start DHCP`、`Start all services`、`Clear status files`、delete 類動作使用 danger。狀態色只用於結果：running/ready 用綠色，blocked/error 用紅色，review/working 用黃色，stopped/idle/not run 用中性。
 
@@ -827,6 +840,7 @@ Web console 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/stat
 - 先執行 `Run preflight`；preflight 會檢查服務綁定 IP 是否存在於任一張啟用中的 IPv4 介面，不要求固定 NIC alias
 - 若要改服務監聽介面，使用 `Select service interface`；drawer 會立即開啟並背景刷新目前啟用、具 IPv4、非 APIPA 的介面清單。選定並同步後，才會寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、SMB firewall、published `boot.wim` 與 `osdcloud-assets`
 - 若要切換本次要安裝的 client software 組合，使用 `Select deployment profile`；Web console 會停止 running services，寫回 active profile，並只發佈該 profile 選中的 `Apps` payload
+- 若要新增可選 client software，使用 `Profiles` > `Software Catalog` > `Add software`；新增只更新 repo `Softwares\<id>` 與 `config\software-catalog.json`，不會自動發佈，仍需用 `Edit active` 勾選後存檔
 - 若要管理 profile，使用 `Add deployment profile`、`Edit deployment profile`、`Delete deployment profile`。新增 profile 會複製目前 active profile 但不切換/不發佈；編輯只更新 active profile 的 `software` 並在存檔後立即發佈；刪除只允許刪非 active profile
 - `Select service interface` 觸發 endpoint 更新時，Preflight panel 會顯示目前正在更新的項目，Logs 會即時串流同步腳本輸出，完成後會自動針對新 endpoint 跑 preflight
 - 選擇新介面時，HTTP/TFTP/DHCP 任一服務若正在 running，Web console 會先要求停止服務再更新 endpoint
