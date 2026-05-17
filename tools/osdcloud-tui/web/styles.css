@@ -879,32 +879,57 @@ pre {
     min-height: 0;
   }
 
-  .dashboard-grid {
+  #view-dashboard.active .dashboard-grid {
     flex: 1 1 auto;
+    grid-template-areas:
+      "operations endpoint log"
+      "operations sync log"
+      "operations summary log"
+      "preflight preflight log"
+      "fleet fleet log";
+    grid-template-columns: clamp(168px, 10vw, 190px) minmax(0, 1fr) minmax(280px, 24vw);
+    grid-template-rows: auto auto auto auto minmax(220px, 1fr);
+    max-height: calc(100vh - 124px);
+    overflow: hidden;
   }
 
-  .dashboard-operations-column {
-    grid-column: span 2 / span 2;
+  #view-dashboard.active .dashboard-operations-column {
+    align-self: start;
+    grid-area: operations;
   }
 
-  .dashboard-status-column {
-    grid-column: span 7 / span 7;
+  #view-dashboard.active .dashboard-status-column {
+    display: contents;
   }
 
-  .dashboard-log-column {
-    grid-column: span 3 / span 3;
+  #view-dashboard.active #endpoint-summary {
+    grid-area: endpoint;
+  }
+
+  #view-dashboard.active .sync-progress-panel {
+    grid-area: sync;
+  }
+
+  #view-dashboard.active .dashboard-status-summary {
+    grid-area: summary;
+  }
+
+  #view-dashboard.active .preflight-summary-panel {
+    grid-area: preflight;
+  }
+
+  #view-dashboard.active .client-fleet-panel {
+    grid-area: fleet;
+  }
+
+  #view-dashboard.active .dashboard-log-column {
+    grid-area: log;
   }
 
   .dashboard-operations-column,
   .dashboard-log-column {
     max-height: calc(100vh - 124px);
     overflow: hidden;
-  }
-
-  .dashboard-status-column {
-    max-height: calc(100vh - 124px);
-    overflow: auto;
-    padding-right: 2px;
   }
 
   .dashboard-log-column .system-log-panel {

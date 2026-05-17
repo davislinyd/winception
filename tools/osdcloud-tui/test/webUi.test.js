@@ -349,6 +349,14 @@ test('web UI keeps local component layer', () => {
   assert.match(styles, /\.service-switch/);
   assert.match(styles, /\.preflight-summary-list/);
   assert.match(styles, /-webkit-line-clamp: 2/);
+  assert.match(styles, /grid-template-areas:\s*"operations endpoint log"\s*"operations sync log"\s*"operations summary log"\s*"preflight preflight log"\s*"fleet fleet log";/);
+  assert.match(styles, /#view-dashboard\.active \.dashboard-grid \{[\s\S]*grid-template-columns: clamp\(168px, 10vw, 190px\) minmax\(0, 1fr\) minmax\(280px, 24vw\);/);
+  assert.match(styles, /#view-dashboard\.active \.dashboard-operations-column \{[\s\S]*grid-area: operations;/);
+  assert.match(styles, /#view-dashboard\.active \.dashboard-status-column \{\s*display: contents;/);
+  assert.match(styles, /#view-dashboard\.active \.preflight-summary-panel \{\s*grid-area: preflight;/);
+  assert.match(styles, /#view-dashboard\.active \.client-fleet-panel \{\s*grid-area: fleet;/);
+  assert.match(styles, /#view-dashboard\.active \.dashboard-log-column \{\s*grid-area: log;/);
+  assert.doesNotMatch(styles, /#view-dashboard\.active \.operations-panel \{\s*min-height:/);
   assert.match(styles, /\.dashboard-operations-column/);
   assert.match(styles, /\.dashboard-status-column/);
   assert.match(styles, /\.dashboard-log-column/);
