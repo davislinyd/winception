@@ -334,13 +334,13 @@ test('runs mutating API actions through the controller', async () => {
     response = await fetch(`${base}/api/profile/software`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Renamed Default', description: 'Chrome build', softwareIds: ['chrome'] }),
+      body: JSON.stringify({ name: 'Renamed Default', description: 'Chrome build', softwareIds: ['chrome', '7zip'] }),
     });
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.name, 'Renamed Default');
     assert.equal(payload.result.profile.description, 'Chrome build');
-    assert.deepEqual(payload.result.profile.softwareIds, ['chrome']);
+    assert.deepEqual(payload.result.profile.softwareIds, ['chrome', '7zip']);
 
     response = await fetch(`${base}/api/profile/software`, {
       method: 'POST',

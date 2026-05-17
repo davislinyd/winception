@@ -39,6 +39,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="software-catalog-body"/);
   assert.match(html, /data-action="software-add" data-icon="upload_file" class="warning"/);
   assert.match(html, /id="software-add-dialog"/);
+  assert.match(html, /id="software-select-all" data-icon="playlist_add_check"/);
+  assert.match(html, /id="software-select-none" data-icon="remove_done"/);
+  assert.match(html, /id="software-list" class="software-order-editor"/);
   assert.doesNotMatch(html, /id="software-add-id"/);
   assert.doesNotMatch(html, /Software ID <input/);
   assert.match(html, /id="software-add-file"[^>]*accept="\.msi,\.exe"/);
@@ -212,6 +215,14 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /If the client is still reporting, this run may appear again/);
   assert.match(script, /elements\.confirmSubmit\.classList\.toggle\('warning', resolvedSeverity === 'warning'\)/);
   assert.match(script, /severity: 'warning'/);
+  assert.match(script, /let selectedOrder = \(activeProfile\?\.softwareIds \?\? \[\]\)\.filter/);
+  assert.match(script, /Selected install order/);
+  assert.match(script, /Available software/);
+  assert.match(script, /softwareIds: \[\.\.\.selectedOrder\]/);
+  assert.match(script, /dataset\.softwareOrderAction = action/);
+  assert.match(script, /dataset\.softwareOrderAction = 'add'/);
+  assert.match(script, /draggedSoftwareId/);
+  assert.match(script, /handleDrop/);
   assert.match(script, /fleetBackdrop: \$\('#fleet-backdrop'\)/);
   assert.match(script, /function setFleetExpanded\(expanded\)/);
   assert.match(script, /elements\.fleetBackdrop\.hidden = !state\.fleetExpanded/);
@@ -222,6 +233,10 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.fleet-backdrop \{[\s\S]*position: fixed;[\s\S]*z-index: 40;/);
   assert.match(styles, /body\.fleet-expanded \{[\s\S]*overflow: hidden;/);
   assert.match(styles, /body\.fleet-expanded \.client-fleet-panel \{[\s\S]*position: fixed;[\s\S]*z-index: 45;/);
+  assert.match(styles, /\.software-order-editor \{[\s\S]*display: grid;/);
+  assert.match(styles, /\.software-order-row \{[\s\S]*grid-template-columns: auto auto minmax\(0, 1fr\) auto;/);
+  assert.match(styles, /\.software-drag-handle \{[\s\S]*font-family: "Material Symbols Outlined";/);
+  assert.match(styles, /button\.software-icon-button \{[\s\S]*min-width: 28px;/);
   assert.doesNotMatch(styles, /body\.fleet-expanded \.dashboard-status-column/);
   assert.doesNotMatch(styles, /body\.fleet-expanded \.dashboard-log-column/);
   assert.match(html, /Material\+Symbols\+Outlined/);

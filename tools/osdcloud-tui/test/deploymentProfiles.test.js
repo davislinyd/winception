@@ -74,14 +74,21 @@ function writeBaseFiles(root, options = {}) {
   });
 }
 
-test('loads active deployment profile with selected software', () => {
+test('loads active deployment profile with selected software order', () => {
   const root = makeRoot();
   try {
-    writeBaseFiles(root);
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['two', 'one'],
+      },
+    });
     const state = resolveDeploymentProfileState(configFor(root));
 
     assert.equal(state.activeProfile.id, 'default');
-    assert.deepEqual(state.selectedSoftware.map((software) => software.id), ['one']);
+    assert.deepEqual(state.activeProfile.softwareIds, ['two', 'one']);
+    assert.deepEqual(state.selectedSoftware.map((software) => software.id), ['two', 'one']);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -435,15 +442,15 @@ test('updates deployment profile software while preserving other fields', () => 
       },
     });
 
-    const updated = updateDeploymentProfileSoftware(configFor(root), 'default', ['two']);
+    const updated = updateDeploymentProfileSoftware(configFor(root), 'default', ['two', 'one']);
 
-    assert.deepEqual(updated.profile.softwareIds, ['two']);
+    assert.deepEqual(updated.profile.softwareIds, ['two', 'one']);
     const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
     assert.deepEqual(raw, {
       id: 'default',
       name: 'Default',
       description: 'Keep me',
-      software: ['two'],
+      software: ['two', 'one'],
       owner: 'ops',
     });
   } finally {
@@ -584,7 +591,13 @@ test('delete deployment profile rejects active profile', () => {
 test('publishes only selected software and removes stale apps', () => {
   const root = makeRoot();
   try {
-    writeBaseFiles(root);
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['two', 'one'],
+      },
+    });
     fs.mkdirSync(path.join(root, 'Apps', 'stale'), { recursive: true });
     fs.writeFileSync(path.join(root, 'Apps', 'stale', 'install.ps1'), "Write-Host 'stale'\n", 'utf8');
 
@@ -594,12 +607,14 @@ test('publishes only selected software and removes stale apps', () => {
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'Install-Apps.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'one', 'install.ps1')), true);
-    assert.equal(fs.existsSync(path.join(root, 'Apps', 'two')), false);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'two', 'install.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'stale')), false);
+    assert.deepEqual(result.copied, ['two', 'one']);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
     assert.equal(manifest.profileId, 'default');
-    assert.deepEqual(manifest.selectedSoftware, ['one']);
+    assert.deepEqual(manifest.selectedSoftware, ['two', 'one']);
+    assert.deepEqual(manifest.software.map((software) => software.id), ['two', 'one']);
     assert.equal(evaluateDeploymentProfilePayload(configFor(root)).ok, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -620,7 +635,7 @@ test('refuses to publish outside an Apps folder', () => {
   }
 });
 
-test('installer script installs only selected apps', () => {
+test('installer script installs selected apps in selected-profile order', () => {
   if (process.platform !== 'win32') {
     return;
   }
@@ -631,12 +646,15 @@ test('installer script installs only selected apps', () => {
     fs.mkdirSync(path.join(appsRoot, 'one'), { recursive: true });
     fs.mkdirSync(path.join(appsRoot, 'two'), { recursive: true });
     fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
-    fs.writeFileSync(path.join(appsRoot, 'one', 'install.ps1'), "Set-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'one.marker') -Value 'one'\n", 'utf8');
-    fs.writeFileSync(path.join(appsRoot, 'two', 'install.ps1'), "Set-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'two.marker') -Value 'two'\n", 'utf8');
+    fs.writeFileSync(path.join(appsRoot, 'one', 'install.ps1'), "Add-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'order.marker') -Value 'one'\nSet-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'one.marker') -Value 'one'\n", 'utf8');
+    fs.writeFileSync(path.join(appsRoot, 'two', 'install.ps1'), "Add-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'order.marker') -Value 'two'\nSet-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'two.marker') -Value 'two'\n", 'utf8');
     writeJson(path.join(appsRoot, 'selected-profile.json'), {
       profileId: 'default',
-      selectedSoftware: ['one'],
-      software: [{ id: 'one', name: 'One App' }],
+      selectedSoftware: ['two', 'one'],
+      software: [
+        { id: 'two', name: 'Two App' },
+        { id: 'one', name: 'One App' },
+      ],
     });
 
     const result = spawnSync('powershell.exe', [
@@ -649,7 +667,9 @@ test('installer script installs only selected apps', () => {
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(fs.existsSync(path.join(appsRoot, 'one.marker')), true);
-    assert.equal(fs.existsSync(path.join(appsRoot, 'two.marker')), false);
+    assert.equal(fs.existsSync(path.join(appsRoot, 'two.marker')), true);
+    const order = fs.readFileSync(path.join(appsRoot, 'order.marker'), 'utf8').trim().split(/\r?\n/u);
+    assert.deepEqual(order, ['two', 'one']);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

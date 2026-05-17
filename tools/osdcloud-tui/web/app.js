@@ -1880,36 +1880,145 @@ function showAddProfileDialog(profile) {
   });
 }
 
-function setSoftwareCheckboxes(checked) {
-  elements.softwareList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-    input.checked = checked;
-  });
-}
-
 function showSoftwareDialog(profile) {
   return new Promise((resolve) => {
     const activeProfile = profile.activeProfile;
     const software = profile.softwareCatalog ?? [];
-    const selectedIds = new Set(activeProfile?.softwareIds ?? []);
+    const softwareById = new Map(software.map((item) => [item.id, item]));
+    let selectedOrder = (activeProfile?.softwareIds ?? []).filter((id, index, ids) => (
+      softwareById.has(id) && ids.indexOf(id) === index
+    ));
+    let draggedSoftwareId = null;
     elements.softwareError.textContent = '';
-    elements.softwareProfileSummary.textContent = 'Save stops running services, republishes the live Apps payload, and reruns preflight.';
+    elements.softwareProfileSummary.textContent = 'Save stops running services, republishes the live Apps payload in this install order, and reruns preflight.';
     elements.softwareProfileId.value = activeProfile?.id ?? '';
     elements.softwareProfileName.value = activeProfile?.name ?? '';
     elements.softwareProfileDescription.value = activeProfile?.description ?? '';
-    elements.softwareList.replaceChildren();
 
-    for (const item of software) {
-      const label = document.createElement('label');
-      label.className = 'checkbox-item';
-      const input = document.createElement('input');
-      input.type = 'checkbox';
-      input.value = item.id;
-      input.checked = selectedIds.has(item.id);
-      const span = document.createElement('span');
-      span.textContent = item.name ?? item.id;
-      label.append(input, span);
-      elements.softwareList.append(label);
-    }
+    const moveSelected = (id, toIndex) => {
+      const fromIndex = selectedOrder.indexOf(id);
+      if (fromIndex < 0) {
+        return false;
+      }
+      const [moved] = selectedOrder.splice(fromIndex, 1);
+      const adjustedIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+      const boundedIndex = Math.max(0, Math.min(adjustedIndex, selectedOrder.length));
+      selectedOrder.splice(boundedIndex, 0, moved);
+      return true;
+    };
+
+    const renderSoftwareIdentity = (container, item) => {
+      const name = document.createElement('strong');
+      name.textContent = item?.name ?? item?.id ?? '';
+      const id = document.createElement('span');
+      id.className = 'software-order-id';
+      id.textContent = item?.id ?? '';
+      container.append(name, id);
+    };
+
+    const appendEmptyRow = (parent, message) => {
+      const row = document.createElement('div');
+      row.className = 'readonly-item software-order-empty';
+      row.textContent = message;
+      parent.append(row);
+    };
+
+    const iconButton = (icon, label, action, softwareId, disabled = false) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'software-icon-button';
+      button.dataset.icon = icon;
+      button.dataset.softwareOrderAction = action;
+      button.dataset.softwareId = softwareId;
+      button.title = label;
+      button.setAttribute('aria-label', label);
+      button.disabled = disabled;
+      return button;
+    };
+
+    const renderEditor = () => {
+      elements.softwareList.replaceChildren();
+      const selectedSet = new Set(selectedOrder);
+
+      const selectedSection = document.createElement('section');
+      selectedSection.className = 'software-order-section';
+      const selectedTitle = document.createElement('div');
+      selectedTitle.className = 'field-label';
+      selectedTitle.textContent = 'Selected install order';
+      const selectedList = document.createElement('div');
+      selectedList.className = 'software-order-list selected';
+
+      if (!selectedOrder.length) {
+        appendEmptyRow(selectedList, 'No client software selected.');
+      } else {
+        selectedOrder.forEach((id, index) => {
+          const item = softwareById.get(id);
+          const row = document.createElement('div');
+          row.className = 'software-order-row';
+          row.dataset.selected = 'true';
+          row.dataset.softwareId = id;
+          row.draggable = true;
+
+          const handle = document.createElement('span');
+          handle.className = 'software-drag-handle';
+          handle.textContent = 'drag_indicator';
+          handle.title = 'Drag to reorder';
+
+          const rank = document.createElement('span');
+          rank.className = 'software-order-rank';
+          rank.textContent = String(index + 1);
+
+          const label = document.createElement('span');
+          label.className = 'software-order-name';
+          renderSoftwareIdentity(label, item);
+
+          const actions = document.createElement('span');
+          actions.className = 'software-order-actions';
+          actions.append(
+            iconButton('keyboard_arrow_up', 'Move up', 'up', id, index === 0),
+            iconButton('keyboard_arrow_down', 'Move down', 'down', id, index === selectedOrder.length - 1),
+            iconButton('remove', 'Remove', 'remove', id),
+          );
+
+          row.append(handle, rank, label, actions);
+          selectedList.append(row);
+        });
+      }
+      selectedSection.append(selectedTitle, selectedList);
+
+      const availableSection = document.createElement('section');
+      availableSection.className = 'software-order-section';
+      const availableTitle = document.createElement('div');
+      availableTitle.className = 'field-label';
+      availableTitle.textContent = 'Available software';
+      const availableList = document.createElement('div');
+      availableList.className = 'software-order-list available';
+      const available = software.filter((item) => !selectedSet.has(item.id));
+      if (!available.length) {
+        appendEmptyRow(availableList, 'All catalog software is selected.');
+      } else {
+        available.forEach((item) => {
+          const row = document.createElement('div');
+          row.className = 'software-order-row';
+          row.dataset.softwareId = item.id;
+
+          const label = document.createElement('span');
+          label.className = 'software-order-name';
+          renderSoftwareIdentity(label, item);
+
+          const add = document.createElement('button');
+          add.type = 'button';
+          add.textContent = 'Add';
+          add.dataset.icon = 'add';
+          add.dataset.softwareOrderAction = 'add';
+          add.dataset.softwareId = item.id;
+          row.append(label, add);
+          availableList.append(row);
+        });
+      }
+      availableSection.append(availableTitle, availableList);
+      elements.softwareList.append(selectedSection, availableSection);
+    };
 
     let settled = false;
     const done = (value) => {
@@ -1923,6 +2032,12 @@ function showSoftwareDialog(profile) {
       elements.softwareDialog.removeEventListener('cancel', cancel);
       elements.softwareSelectAll.removeEventListener('click', selectAll);
       elements.softwareSelectNone.removeEventListener('click', selectNone);
+      elements.softwareList.removeEventListener('click', handleOrderClick);
+      elements.softwareList.removeEventListener('dragstart', handleDragStart);
+      elements.softwareList.removeEventListener('dragover', handleDragOver);
+      elements.softwareList.removeEventListener('dragleave', handleDragLeave);
+      elements.softwareList.removeEventListener('drop', handleDrop);
+      elements.softwareList.removeEventListener('dragend', handleDragEnd);
       if (isDialogOpen(elements.softwareDialog)) {
         closeDialog(elements.softwareDialog);
       }
@@ -1939,15 +2054,105 @@ function showSoftwareDialog(profile) {
         elements.softwareError.textContent = 'Profile name is required.';
         return;
       }
-      const checked = new Set([...elements.softwareList.querySelectorAll('input:checked')].map((input) => input.value));
       done({
         name,
         description: elements.softwareProfileDescription.value.trim(),
-        softwareIds: software.map((item) => item.id).filter((id) => checked.has(id)),
+        softwareIds: [...selectedOrder],
       });
     };
-    const selectAll = () => setSoftwareCheckboxes(true);
-    const selectNone = () => setSoftwareCheckboxes(false);
+    const selectAll = () => {
+      const selectedSet = new Set(selectedOrder);
+      selectedOrder = [
+        ...selectedOrder,
+        ...software.map((item) => item.id).filter((id) => !selectedSet.has(id)),
+      ];
+      renderEditor();
+    };
+    const selectNone = () => {
+      selectedOrder = [];
+      renderEditor();
+    };
+    const handleOrderClick = (event) => {
+      const button = event.target.closest('[data-software-order-action]');
+      if (!button || !elements.softwareList.contains(button)) {
+        return;
+      }
+      const id = button.dataset.softwareId;
+      if (!id) {
+        return;
+      }
+      const action = button.dataset.softwareOrderAction;
+      const index = selectedOrder.indexOf(id);
+      if (action === 'add' && !selectedOrder.includes(id) && softwareById.has(id)) {
+        selectedOrder = [...selectedOrder, id];
+      } else if (action === 'remove') {
+        selectedOrder = selectedOrder.filter((selectedId) => selectedId !== id);
+      } else if (action === 'up' && index > 0) {
+        moveSelected(id, index - 1);
+      } else if (action === 'down' && index >= 0 && index < selectedOrder.length - 1) {
+        moveSelected(id, index + 2);
+      }
+      renderEditor();
+    };
+    const clearDropTargets = () => {
+      elements.softwareList.querySelectorAll('.software-order-row.drag-over').forEach((row) => {
+        row.classList.remove('drag-over');
+      });
+    };
+    const handleDragStart = (event) => {
+      const row = event.target.closest('.software-order-row[data-selected="true"]');
+      if (!row || !elements.softwareList.contains(row)) {
+        return;
+      }
+      draggedSoftwareId = row.dataset.softwareId;
+      row.classList.add('dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', draggedSoftwareId);
+      }
+    };
+    const handleDragOver = (event) => {
+      const row = event.target.closest('.software-order-row[data-selected="true"]');
+      if (!draggedSoftwareId || !row || row.dataset.softwareId === draggedSoftwareId) {
+        return;
+      }
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+      }
+      clearDropTargets();
+      row.classList.add('drag-over');
+    };
+    const handleDragLeave = (event) => {
+      const row = event.target.closest('.software-order-row.drag-over');
+      if (row && !row.contains(event.relatedTarget)) {
+        row.classList.remove('drag-over');
+      }
+    };
+    const handleDrop = (event) => {
+      const row = event.target.closest('.software-order-row[data-selected="true"]');
+      if (!draggedSoftwareId || !row) {
+        return;
+      }
+      event.preventDefault();
+      const targetId = row.dataset.softwareId;
+      const targetIndex = selectedOrder.indexOf(targetId);
+      if (targetIndex >= 0 && targetId !== draggedSoftwareId) {
+        const rect = row.getBoundingClientRect();
+        const afterTarget = event.clientY > rect.top + rect.height / 2;
+        moveSelected(draggedSoftwareId, targetIndex + (afterTarget ? 1 : 0));
+      }
+      draggedSoftwareId = null;
+      clearDropTargets();
+      renderEditor();
+    };
+    const handleDragEnd = () => {
+      draggedSoftwareId = null;
+      clearDropTargets();
+      elements.softwareList.querySelectorAll('.software-order-row.dragging').forEach((row) => {
+        row.classList.remove('dragging');
+      });
+    };
 
     elements.softwareForm.addEventListener('submit', submit);
     elements.softwareCancel.addEventListener('click', cancel);
@@ -1955,6 +2160,13 @@ function showSoftwareDialog(profile) {
     elements.softwareDialog.addEventListener('cancel', cancel);
     elements.softwareSelectAll.addEventListener('click', selectAll);
     elements.softwareSelectNone.addEventListener('click', selectNone);
+    elements.softwareList.addEventListener('click', handleOrderClick);
+    elements.softwareList.addEventListener('dragstart', handleDragStart);
+    elements.softwareList.addEventListener('dragover', handleDragOver);
+    elements.softwareList.addEventListener('dragleave', handleDragLeave);
+    elements.softwareList.addEventListener('drop', handleDrop);
+    elements.softwareList.addEventListener('dragend', handleDragEnd);
+    renderEditor();
     openDialog(elements.softwareDialog);
     elements.softwareProfileName.focus();
   });

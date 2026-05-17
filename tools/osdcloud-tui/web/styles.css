@@ -1375,6 +1375,7 @@ dialog.drawer-dialog.dialog-fallback-open {
 .form-grid,
 .dialog-summary,
 .software-toolbar,
+.software-order-editor,
 .checkbox-list,
 .readonly-list,
 .confirm-body,
@@ -1450,6 +1451,107 @@ input[readonly] {
   align-items: center;
   color: var(--on-surface);
   flex-direction: row;
+}
+
+.software-order-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.software-order-section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.software-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.software-order-row {
+  align-items: center;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  border-radius: 2px;
+  color: var(--on-surface);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+.software-order-list.available .software-order-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.software-order-row.dragging {
+  opacity: 0.6;
+}
+
+.software-order-row.drag-over {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.software-drag-handle {
+  color: var(--on-surface-variant);
+  cursor: grab;
+  direction: ltr;
+  font-family: "Material Symbols Outlined";
+  font-feature-settings: "liga";
+  font-size: 18px;
+  line-height: 1;
+  user-select: none;
+}
+
+.software-order-row:active .software-drag-handle {
+  cursor: grabbing;
+}
+
+.software-order-rank {
+  color: var(--on-surface-variant);
+  font: 600 12px/16px "JetBrains Mono", Consolas, monospace;
+  min-width: 2ch;
+  text-align: right;
+}
+
+.software-order-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.software-order-name strong {
+  color: var(--on-surface);
+  font: 600 13px/18px Inter, sans-serif;
+}
+
+.software-order-id {
+  color: var(--on-surface-variant);
+  font: 400 12px/16px "JetBrains Mono", Consolas, monospace;
+}
+
+.software-order-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+button.software-icon-button {
+  height: 28px;
+  justify-content: center;
+  min-width: 28px;
+  padding: 4px;
+}
+
+.software-order-empty {
+  color: var(--on-surface-variant);
 }
 
 .picker-item {

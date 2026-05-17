@@ -339,11 +339,11 @@ test('deployment profile management actions create, update active software, and 
     const updated = await controller.updateActiveDeploymentProfile({
       name: 'Renamed',
       description: 'Updated active profile',
-      softwareIds: ['chrome'],
+      softwareIds: ['chrome', '7zip'],
     });
     assert.equal(updatedName, 'Renamed');
     assert.equal(updatedDescription, 'Updated active profile');
-    assert.deepEqual(updatedSoftwareIds, ['chrome']);
+    assert.deepEqual(updatedSoftwareIds, ['chrome', '7zip']);
     assert.equal(updated.profile.id, 'default');
     assert.equal(updated.profile.name, 'Renamed');
     assert.equal(updated.profile.description, 'Updated active profile');
@@ -354,8 +354,8 @@ test('deployment profile management actions create, update active software, and 
 
     const renamedOnly = await controller.updateActiveDeploymentProfile({ name: 'Display Name Only' });
     assert.equal(updatedName, 'Display Name Only');
-    assert.deepEqual(updatedSoftwareIds, ['chrome']);
-    assert.deepEqual(renamedOnly.profile.softwareIds, ['chrome']);
+    assert.deepEqual(updatedSoftwareIds, ['chrome', '7zip']);
+    assert.deepEqual(renamedOnly.profile.softwareIds, ['chrome', '7zip']);
 
     const deleted = await controller.removeDeploymentProfile('minimal');
     assert.equal(deletedProfileId, 'minimal');
