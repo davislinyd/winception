@@ -534,9 +534,7 @@ test('runs mutating API actions through the controller', async () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ imageId: 'SMOKE-WIN11-PRO' }),
     });
-    assert.equal(response.status, 200);
-    payload = await response.json();
-    assert.equal(payload.result.image.id, 'SMOKE-WIN11-PRO');
+    assert.equal(response.status, 404);
 
     response = await fetch(`${base}/api/os-download`, {
       method: 'POST',

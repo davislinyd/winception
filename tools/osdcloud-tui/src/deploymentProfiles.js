@@ -825,6 +825,10 @@ export async function createSoftwarePackage(config = {}, input = {}, options = {
 export function loadDeploymentProfiles(config = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const catalog = options.catalog ?? loadSoftwareCatalog(config, options);
+  const osImageCatalog = options.osImageCatalog ?? null;
+  const defaultOsImageId = options.defaultOsImageId
+    ?? config.osImage?.activeImage
+    ?? null;
   if (!fs.existsSync(profileOptions.profilesRoot)) {
     throw new Error(`Deployment profile folder not found: ${profileOptions.profilesRoot}`);
   }
@@ -856,11 +860,25 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       }
     }
 
+    const rawOsImageId = String(raw.osImage ?? raw.osImageId ?? '').trim();
+    let osImageId;
+    if (rawOsImageId) {
+      osImageId = normalizeId(rawOsImageId, `deployment profile ${id} osImage`);
+    } else if (defaultOsImageId) {
+      osImageId = normalizeId(defaultOsImageId, `deployment profile ${id} osImage`);
+    } else {
+      throw new Error(`Profile ${id} has no osImage and no default OS image is configured`);
+    }
+    if (osImageCatalog && !osImageCatalog.byId?.has(osImageId)) {
+      throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
+    }
+
     return {
       id,
       name: String(raw.name ?? id),
       description: String(raw.description ?? ''),
       softwareIds: selectedIds,
+      osImageId,
       filePath,
     };
   });
@@ -885,6 +903,7 @@ export function resolveDeploymentProfileState(config = {}, profileId = null, opt
     profiles,
     activeProfile,
     selectedSoftware,
+    osImageId: activeProfile.osImageId,
   };
 }
 
@@ -941,10 +960,15 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   }
 
   const softwareIds = [...state.activeProfile.softwareIds];
+  const osImageId = normalizeId(
+    input.osImageId ?? state.activeProfile.osImageId,
+    `deployment profile ${id} osImage`,
+  );
   const raw = {
     id,
     name,
     software: softwareIds,
+    osImage: osImageId,
   };
   if (input.description !== undefined) {
     raw.description = normalizeProfileDescription(input.description);
@@ -957,6 +981,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
       name,
       description: raw.description ?? '',
       softwareIds,
+      osImageId,
       filePath,
     },
     filePath,
@@ -983,11 +1008,18 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const name = input.name === undefined
     ? profile.name
     : normalizeProfileName(input.name);
+  const osImageId = input.osImageId === undefined
+    ? profile.osImageId
+    : normalizeId(input.osImageId, `deployment profile ${id} osImage`);
+  if (options.osImageCatalog && !options.osImageCatalog.byId?.has(osImageId)) {
+    throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
+  }
   const filePath = assertInside(profileOptions.profilesRoot, profile.filePath, 'Deployment profile path');
   const raw = readJson(filePath, 'deployment profile');
   raw.id = id;
   raw.name = name;
   raw.software = selectedIds;
+  raw.osImage = osImageId;
   if (input.description !== undefined) {
     raw.description = normalizeProfileDescription(input.description);
   }
@@ -999,6 +1031,7 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
       name,
       description: String(raw.description ?? ''),
       softwareIds: selectedIds,
+      osImageId,
     },
     filePath,
   };
@@ -1119,8 +1152,8 @@ function removeAppsRootContents(appsRoot) {
   return removed;
 }
 
-function profileManifest(state) {
-  return {
+function profileManifest(state, osImageResult = null) {
+  const manifest = {
     profileId: state.activeProfile.id,
     profileName: state.activeProfile.name,
     publishedAt: new Date().toISOString(),
@@ -1129,14 +1162,32 @@ function profileManifest(state) {
       id: software.id,
       name: software.name,
     })),
+    osImageId: state.activeProfile.osImageId,
   };
+  if (osImageResult?.image) {
+    manifest.osImage = {
+      id: osImageResult.image.id,
+      fileName: osImageResult.image.fileName,
+      imageIndex: osImageResult.image.imageIndex,
+    };
+  }
+  return manifest;
 }
 
-export function publishDeploymentProfile(config = {}, profileId = null, options = {}) {
+export async function publishDeploymentProfile(config = {}, profileId = null, options = {}) {
   const state = resolveDeploymentProfileState(config, profileId, options);
   const appsRoot = assertSafeAppsRoot(state.options.appsRoot);
   if (!fs.existsSync(state.options.installerScript)) {
     throw new Error(`Install-Apps.ps1 source not found: ${state.options.installerScript}`);
+  }
+
+  let osImageResult = null;
+  if (typeof options.publishOsImage === 'function') {
+    osImageResult = await options.publishOsImage(
+      config,
+      state.activeProfile.osImageId,
+      { ...options, validateDism: options.validateDism ?? false },
+    );
   }
 
   const removed = removeAppsRootContents(appsRoot);
@@ -1150,7 +1201,7 @@ export function publishDeploymentProfile(config = {}, profileId = null, options 
     copied.push(software.id);
   }
 
-  const manifest = profileManifest(state);
+  const manifest = profileManifest(state, osImageResult);
   const manifestPath = path.join(appsRoot, selectedProfileFileName);
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
@@ -1161,6 +1212,7 @@ export function publishDeploymentProfile(config = {}, profileId = null, options 
     manifestPath,
     copied,
     removed,
+    osImage: osImageResult,
   };
 }
 
@@ -1192,6 +1244,9 @@ export function evaluateDeploymentProfilePayload(config = {}, options = {}) {
     const manifest = readJson(manifestPath, 'selected profile manifest');
     if (manifest.profileId !== state.activeProfile.id) {
       return fail('Deployment profile', `published=${manifest.profileId ?? ''} active=${state.activeProfile.id}`);
+    }
+    if (manifest.osImageId && manifest.osImageId !== state.activeProfile.osImageId) {
+      return fail('Deployment profile', `manifest osImage=${manifest.osImageId} active=${state.activeProfile.osImageId}`);
     }
 
     const expectedIds = state.selectedSoftware.map((software) => software.id);

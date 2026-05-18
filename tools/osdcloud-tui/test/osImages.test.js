@@ -284,7 +284,13 @@ test('OS image delete removes non-active cache entries safely', async () => {
     assert.match(fs.readFileSync(path.join(config.osImage.cacheRoot, 'os-image-cache.jsonl'), 'utf8'), /"status":"deleted"/);
 
     await publishSelectedOsImage(config, 'SMOKE-WIN11-PRO');
-    assert.throws(() => deleteCachedOsImage(config, 'SMOKE-WIN11-PRO'), /Cannot delete active OS image/);
+    assert.throws(() => deleteCachedOsImage(config, 'SMOKE-WIN11-PRO'), /Cannot delete selected OS image/);
+    assert.throws(
+      () => deleteCachedOsImage(config, 'SHARED-TWO', {
+        referencedByProfiles: [{ id: 'demo', name: 'Demo' }],
+      }),
+      /referenced by deployment profile Demo/,
+    );
     assert.throws(() => deleteCachedOsImage(config, 'MISSING'), /OS image not found/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -1239,11 +1239,16 @@ export function deleteCachedOsImage(config = {}, imageId, options = {}) {
   const id = normalizeId(imageId, 'OS image');
   const imageOptions = osImageOptions(config, options);
   const state = resolveOsImageState(config, null, options);
-  if (state.activeImageId === id) {
-    throw new Error(`Cannot delete active OS image: ${id}`);
-  }
   if (state.selectedOs?.id === id) {
     throw new Error(`Cannot delete selected OS image: ${id}`);
+  }
+
+  const profileReferences = Array.isArray(options.referencedByProfiles)
+    ? options.referencedByProfiles
+    : [];
+  if (profileReferences.length > 0) {
+    const names = profileReferences.map((profile) => profile.name ?? profile.id ?? profile).join(', ');
+    throw new Error(`Cannot delete OS image ${id}: referenced by deployment profile ${names}`);
   }
 
   const catalog = loadOsImageCatalog(config, options);

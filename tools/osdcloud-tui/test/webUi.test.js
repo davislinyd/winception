@@ -165,16 +165,15 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /event\.stopImmediatePropagation\(\)/);
   assert.match(script, /document\.addEventListener\('click', suppressBackdropCloseClickThrough, true\)/);
   assert.match(script, /enableBackdropCloseForDialogs\(\)/);
-  assert.match(script, /handleOsImageSelect/);
+  assert.doesNotMatch(script, /handleOsImageSelect/);
   assert.match(script, /handleOsImageDelete/);
   assert.match(script, /\/api\/os-image-delete/);
-  assert.match(script, /button\.textContent = active \? 'Republish' : 'Set active'/);
-  assert.match(script, /button\.disabled = !image\.cached/);
-  assert.doesNotMatch(script, /button\.disabled = active \|\| !image\.cached/);
-  assert.match(script, /Republish active OS image/);
-  assert.match(script, /republishes selected-os\.json/);
+  assert.doesNotMatch(script, /Republish active OS image/);
+  assert.doesNotMatch(script, /Set active OS image/);
+  assert.doesNotMatch(script, /osImageAction = 'select'/);
   assert.match(script, /dataset\.osImageAction = 'delete'/);
   assert.match(script, /Delete cached OS image/);
+  assert.match(script, /populateOsImageSelect/);
   assert.match(script, /handleOsImageDownload/);
   assert.match(script, /osDownloadStarting/);
   assert.match(script, /\/api\/os-download/);
@@ -270,10 +269,8 @@ test('preflight failed rows expose hover fix hints', () => {
 
   assert.match(script, /function preflightResolutionHint\(check\)/);
   assert.match(script, /selected manifest stale/);
-  assert.match(script, /Open OS images/);
-  assert.match(script, /current active image/);
-  assert.match(script, /click Republish/);
-  assert.match(script, /Set active/);
+  assert.match(script, /Open Deployment profiles/);
+  assert.match(script, /active profile/);
   assert.match(script, /run preflight again/);
   assert.match(script, /nameLower === 'smb image'/);
   assert.match(script, /nameLower\.startsWith\('service ip'\)/);

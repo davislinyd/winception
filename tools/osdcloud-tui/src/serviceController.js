@@ -132,6 +132,7 @@ function profileSummary(state) {
       name: profile.name,
       description: profile.description,
       softwareIds: profile.softwareIds,
+      osImageId: profile.osImageId,
     })),
   };
 }
@@ -153,7 +154,11 @@ function retailOnlyCatalogFilters(filters = {}) {
   };
 }
 
-function osImageSummary(state) {
+function osImageSummary(state, profileUsage = new Map()) {
+  const images = state.images.map((image) => ({
+    ...image,
+    usedByProfiles: profileUsage.get(image.id) ?? [],
+  }));
   return {
     activeImage: state.activeImage,
     activeImageId: state.activeImageId,
@@ -165,9 +170,23 @@ function osImageSummary(state) {
     selectedOsPath: state.selectedOsPath,
     cacheLogPath: state.cacheLogPath,
     selectedOs: state.selectedOs,
-    images: state.images,
+    images,
     cachedFiles: state.cachedFiles,
   };
+}
+
+function osImageUsageFromProfiles(profileState) {
+  const usage = new Map();
+  if (!profileState?.profiles) {
+    return usage;
+  }
+  for (const profile of profileState.profiles) {
+    if (!profile.osImageId) continue;
+    const usedBy = usage.get(profile.osImageId) ?? [];
+    usedBy.push({ id: profile.id, name: profile.name });
+    usage.set(profile.osImageId, usedBy);
+  }
+  return usage;
 }
 
 export class ServiceController extends EventEmitter {
@@ -373,7 +392,12 @@ export class ServiceController extends EventEmitter {
 
   getOsImages() {
     const state = this.dependencies.resolveOsImageState(this.config);
-    return osImageSummary(state);
+    let usage = new Map();
+    try {
+      const profileState = this.dependencies.resolveDeploymentProfileState(this.config);
+      usage = osImageUsageFromProfiles(profileState);
+    } catch {}
+    return osImageSummary(state, usage);
   }
 
   async getOsDownloadCatalog(filters = {}) {
@@ -577,34 +601,23 @@ export class ServiceController extends EventEmitter {
     return this.runOperation('Publishing deployment profile', async () => {
       await this.stopAllServices();
       this.preflightResults = [];
-      const result = this.dependencies.publishDeploymentProfile(this.config, profileId);
+      const result = await this.dependencies.publishDeploymentProfile(this.config, profileId, {
+        publishOsImage: this.dependencies.publishSelectedOsImage,
+      });
       this.config.deploymentProfiles ??= {};
       this.config.deploymentProfiles.activeProfile = result.profile.id;
       const savedPath = this.dependencies.saveConfig(this.config);
       this.addLog(`Published deployment profile ${result.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+      if (result.osImage?.image) {
+        this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
+      }
       this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
       return {
         configPath: savedPath,
         profile: result.profile,
         selectedSoftware: result.selectedSoftware,
         appsRoot: result.appsRoot,
-        preflight: this.preflightResults,
-      };
-    });
-  }
-
-  async changeOsImage(imageId) {
-    return this.runOperation('Publishing OS image', async () => {
-      await this.stopAllServices();
-      this.preflightResults = [];
-      const result = await this.dependencies.publishSelectedOsImage(this.config, imageId);
-      const savedPath = this.dependencies.saveConfig(this.config);
-      this.addLog(`Published OS image ${result.image.id}: ${formatOsImageLabel(result.image)}`);
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
-      return {
-        configPath: savedPath,
-        image: result.image,
-        manifestPath: result.manifestPath,
+        osImage: result.osImage,
         preflight: this.preflightResults,
       };
     });
@@ -620,7 +633,16 @@ export class ServiceController extends EventEmitter {
       throw errorWithStatus(`Operation already running: Downloading OS image ${this.osDownloadStatus.catalogId}`, 409);
     }
     return this.runOperation('Deleting OS image', async () => {
-      const result = await this.dependencies.deleteCachedOsImage(this.config, imageId);
+      let referencedByProfiles = [];
+      try {
+        const profileState = this.dependencies.resolveDeploymentProfileState(this.config);
+        referencedByProfiles = profileState.profiles
+          .filter((profile) => profile.osImageId === imageId)
+          .map((profile) => ({ id: profile.id, name: profile.name }));
+      } catch {}
+      const result = await this.dependencies.deleteCachedOsImage(this.config, imageId, {
+        referencedByProfiles,
+      });
       this.addLog(`Deleted OS image ${result.image.id}: ${result.fileDeleted ? result.filePath : 'catalog entry only'}`);
       return result;
     });
@@ -835,14 +857,21 @@ export class ServiceController extends EventEmitter {
         name: input.name,
         description: input.description,
         softwareIds: input.softwareIds ?? input.software,
+        osImageId: input.osImageId,
       });
-      const result = this.dependencies.publishDeploymentProfile(this.config, updated.profile.id);
+      const result = await this.dependencies.publishDeploymentProfile(this.config, updated.profile.id, {
+        publishOsImage: this.dependencies.publishSelectedOsImage,
+      });
       this.addLog(`Saved deployment profile ${updated.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+      if (result.osImage?.image) {
+        this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
+      }
       this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
       return {
         profile: updated.profile,
         selectedSoftware: result.selectedSoftware,
         appsRoot: result.appsRoot,
+        osImage: result.osImage,
         preflight: this.preflightResults,
       };
     });

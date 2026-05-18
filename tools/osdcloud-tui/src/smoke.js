@@ -157,7 +157,7 @@ const config = {
 const publishedOsImage = await publishSelectedOsImage(config, null, { validateDism: false });
 assert.equal(publishedOsImage.image.id, 'SMOKE-WIN11-PRO');
 assert.equal(fs.existsSync(path.join(osCacheRoot, 'selected-os.json')), true);
-const publishedProfile = publishDeploymentProfile(config);
+const publishedProfile = await publishDeploymentProfile(config);
 assert.equal(publishedProfile.profile.id, 'default');
 assert.equal(fs.existsSync(path.join(appsRoot, 'selected-profile.json')), true);
 assert.equal(fs.existsSync(path.join(appsRoot, 'smoke-app', 'install.ps1')), true);
@@ -166,7 +166,7 @@ assert.match(createdProfile.profile.id, /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{8}$/u);
 assert.deepEqual(createdProfile.profile.softwareIds, ['smoke-app']);
 assert.equal(fs.existsSync(path.join(appsRoot, createdProfile.profile.id)), false);
 updateDeploymentProfileSoftware(config, 'default', ['smoke-extra']);
-const republishedProfile = publishDeploymentProfile(config);
+const republishedProfile = await publishDeploymentProfile(config);
 assert.equal(republishedProfile.profile.id, 'default');
 const selectedProfile = JSON.parse(fs.readFileSync(path.join(appsRoot, 'selected-profile.json'), 'utf8'));
 assert.deepEqual(selectedProfile.selectedSoftware, ['smoke-extra']);

@@ -57,6 +57,9 @@ function configFor(root, overrides = {}) {
       installerScript: 'Install-Apps.ps1',
       ...overrides,
     },
+    osImage: {
+      activeImage: 'TEST-OS',
+    },
   };
 }
 
@@ -74,6 +77,7 @@ function writeBaseFiles(root, options = {}) {
     id: 'default',
     name: 'Default',
     software: ['one'],
+    osImage: 'TEST-OS',
   });
 }
 
@@ -427,6 +431,7 @@ test('creates a deployment profile by copying active profile software', () => {
       id: 'AAAAAAA0',
       name: 'Field Tech',
       software: ['one'],
+      osImage: 'TEST-OS',
     });
     assert.equal(resolveDeploymentProfileState(configFor(root)).activeProfile.id, 'default');
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), false);
@@ -532,6 +537,7 @@ test('updates deployment profile software while preserving other fields', () => 
       name: 'Default',
       description: 'Keep me',
       software: ['two', 'one'],
+      osImage: 'TEST-OS',
       owner: 'ops',
     });
   } finally {
@@ -568,6 +574,7 @@ test('updates deployment profile name and software without changing its id', () 
       name: 'Renamed Default',
       description: 'Updated description',
       software: ['two'],
+      osImage: 'TEST-OS',
       owner: 'ops',
     });
     assert.equal(resolveDeploymentProfileState(configFor(root)).activeProfile.id, 'default');
@@ -814,7 +821,7 @@ test('read install script rejects escaped catalog source', () => {
   }
 });
 
-test('publishes only selected software and removes stale apps', () => {
+test('publishes only selected software and removes stale apps', async () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root, {
@@ -822,12 +829,13 @@ test('publishes only selected software and removes stale apps', () => {
         id: 'default',
         name: 'Default',
         software: ['two', 'one'],
+        osImage: 'TEST-OS',
       },
     });
     fs.mkdirSync(path.join(root, 'Apps', 'stale'), { recursive: true });
     fs.writeFileSync(path.join(root, 'Apps', 'stale', 'install.ps1'), "Write-Host 'stale'\n", 'utf8');
 
-    const result = publishDeploymentProfile(configFor(root));
+    const result = await publishDeploymentProfile(configFor(root));
 
     assert.equal(result.profile.id, 'default');
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'Install-Apps.ps1')), true);
@@ -847,12 +855,12 @@ test('publishes only selected software and removes stale apps', () => {
   }
 });
 
-test('refuses to publish outside an Apps folder', () => {
+test('refuses to publish outside an Apps folder', async () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root);
 
-    assert.throws(
+    await assert.rejects(
       () => publishDeploymentProfile(configFor(root, { appsRoot: path.join(root, 'not-apps') })),
       /outside an Apps folder/,
     );

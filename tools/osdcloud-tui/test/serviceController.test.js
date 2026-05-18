@@ -512,28 +512,12 @@ test('software install script read and open run through controller', async () =>
   }
 });
 
-test('OS image actions publish active image and download through host catalog', async () => {
+test('OS image download runs through host catalog without an explicit publish action', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osimage-'));
   try {
-    let publishedImageId = null;
     let downloadedCatalogId = null;
-    const { controller, services } = makeController(root, {
+    const { controller } = makeController(root, {
       dependencies: {
-        publishSelectedOsImage: async (_config, imageId) => {
-          publishedImageId = imageId;
-          return {
-            image: {
-              id: imageId,
-              name: 'Smoke Windows 11 Pro',
-              version: 'Windows 11 Smoke',
-              language: 'en-us',
-              edition: 'Pro',
-              imageIndex: 6,
-              fileName: 'install.esd',
-            },
-            manifestPath: path.join(root, 'OS', 'selected-os.json'),
-          };
-        },
         downloadOsImageFromCatalog: async (_config, catalogId) => {
           downloadedCatalogId = catalogId;
           return {
@@ -547,13 +531,7 @@ test('OS image actions publish active image and download through host catalog', 
     });
 
     await controller.startAll();
-    const published = await controller.changeOsImage('SMOKE-WIN11-PRO');
-    assert.equal(publishedImageId, 'SMOKE-WIN11-PRO');
-    assert.equal(published.image.id, 'SMOKE-WIN11-PRO');
-    assert.equal(published.preflight[0].ok, true);
-    assert.equal(services.http.running, false);
-    assert.equal(services.tftp.running, false);
-    assert.equal(services.dhcp.running, false);
+    assert.equal(typeof controller.changeOsImage, 'undefined');
 
     const catalog = await controller.getOsDownloadCatalog();
     assert.equal(catalog[0].id, 'SMOKE-DOWNLOAD-PRO');

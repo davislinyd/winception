@@ -93,6 +93,7 @@ const elements = {
   profileName: $('#profile-name'),
   profileDescription: $('#profile-description'),
   profileIdPreview: $('#profile-id-preview'),
+  profileOsImage: $('#profile-os-image'),
   profileSoftwareBaseline: $('#profile-software-baseline'),
   profileCancel: $('#profile-cancel'),
   profileCancelSecondary: $('#profile-cancel-secondary'),
@@ -105,6 +106,7 @@ const elements = {
   softwareProfileId: $('#software-profile-id'),
   softwareProfileName: $('#software-profile-name'),
   softwareProfileDescription: $('#software-profile-description'),
+  softwareProfileOsImage: $('#software-profile-os-image'),
   softwareSelectAll: $('#software-select-all'),
   softwareSelectNone: $('#software-select-none'),
   softwareList: $('#software-list'),
@@ -934,44 +936,35 @@ function renderOsImages(appState) {
     td.colSpan = 7;
     elements.osImagesBody.append(tr);
   } else {
-    const activeId = osState?.activeImageId;
     for (const image of osState?.images ?? []) {
       const tr = document.createElement('tr');
-      const active = image.id === activeId;
-      if (active) {
-        tr.classList.add('selected');
-      }
+      const usedBy = Array.isArray(image.usedByProfiles) ? image.usedByProfiles : [];
+      const inUse = usedBy.length > 0;
       const statusCell = document.createElement('td');
-      statusCell.append(makeStatusPill(active ? 'Active' : 'Available', active ? 'ok' : 'neutral'));
+      statusCell.append(makeStatusPill(inUse ? 'In use' : 'Available', inUse ? 'ok' : 'neutral'));
       tr.append(statusCell);
       appendTextCell(tr, `${image.id} / ${image.name}`);
       appendTextCell(tr, image.language);
       appendTextCell(tr, image.edition);
       appendTextCell(tr, image.imageIndex);
-      appendTextCell(tr, image.cached ? `${bytes(image.bytes)} cached` : 'missing');
+      const cacheText = image.cached ? `${bytes(image.bytes)} cached` : 'missing';
+      const usageText = inUse
+        ? ` · used by ${usedBy.map((profile) => profile.name ?? profile.id).join(', ')}`
+        : '';
+      appendTextCell(tr, `${cacheText}${usageText}`);
       const actionCell = document.createElement('td');
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = active ? 'Republish' : 'Set active';
-      button.className = 'warning';
-      button.dataset.icon = 'published_with_changes';
-      button.dataset.osImageAction = 'select';
-      button.dataset.osImageId = image.id;
-      button.disabled = !image.cached;
-      button.title = active
-        ? 'Republish selected-os.json and refresh the SMB image path for this active image.'
-        : 'Set this cached image active and publish selected-os.json.';
-      actionCell.append(button);
-      if (!active) {
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'danger';
-        deleteButton.textContent = 'Delete';
-        deleteButton.dataset.icon = 'delete';
-        deleteButton.dataset.osImageAction = 'delete';
-        deleteButton.dataset.osImageId = image.id;
-        actionCell.append(' ', deleteButton);
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'danger';
+      deleteButton.textContent = 'Delete';
+      deleteButton.dataset.icon = 'delete';
+      deleteButton.dataset.osImageAction = 'delete';
+      deleteButton.dataset.osImageId = image.id;
+      deleteButton.disabled = inUse;
+      if (inUse) {
+        deleteButton.title = `Cannot delete: in use by ${usedBy.map((p) => p.name ?? p.id).join(', ')}`;
       }
+      actionCell.append(deleteButton);
       tr.append(actionCell);
       elements.osImagesBody.append(tr);
     }
@@ -1190,13 +1183,13 @@ function preflightResolutionHint(check) {
   const fullText = `${name}\n${detail}`.toLowerCase();
 
   if (nameLower === 'os image' && fullText.includes('selected manifest stale')) {
-    return 'Open OS images, find the current active image, click Republish to republish selected-os.json, then run preflight again.';
+    return 'Open Deployment profiles, re-select the active profile (or edit its OS image) to refresh selected-os.json, then run preflight again.';
   }
   if (nameLower === 'os image') {
-    return 'Open OS images, confirm the intended image is cached, click Republish for the active image or Set active for another cached image, then run preflight again.';
+    return 'Confirm the OS image referenced by the active profile is cached. Upload or re-import the file if missing, or edit the profile to point at a different cached OS image, then run preflight again.';
   }
   if (nameLower === 'smb image') {
-    return 'Confirm the OSDCloudiPXE share exists, the backing image file is present, and pxeinstall has read access; republish the active image if the path is stale.';
+    return 'Confirm the OSDCloudiPXE share exists, the backing image file is present, and pxeinstall has read access; reselect the active deployment profile if the path is stale.';
   }
   if (nameLower.startsWith('service ip')) {
     return 'Open Select interface, choose an enabled adapter that owns the service IP, apply the endpoint sync, then run preflight again.';
@@ -1424,13 +1417,14 @@ function renderProfiles(appState) {
   if (profileState?.error) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 5;
+    td.colSpan = 6;
     td.textContent = profileState.error;
     tr.append(td);
     elements.profilesBody.append(tr);
     return;
   }
   const activeId = profileState?.activeProfile?.id;
+  const osImageById = new Map((appState.osImage?.images ?? []).map((image) => [image.id, image]));
   for (const profile of profileState?.profiles ?? []) {
     const tr = document.createElement('tr');
     const active = profile.id === activeId;
@@ -1440,9 +1434,14 @@ function renderProfiles(appState) {
     const status = document.createElement('td');
     status.append(makeStatusPill(active ? 'Active' : 'Inactive', active ? 'ok' : 'neutral'));
     tr.append(status);
+    const osImage = profile.osImageId ? osImageById.get(profile.osImageId) : null;
+    const osLabel = profile.osImageId
+      ? (osImage ? `${profile.osImageId} — ${osImageLabel(osImage)}` : `${profile.osImageId} (missing)`)
+      : '-';
     for (const value of [
       profile.id,
       profile.name,
+      osLabel,
       profile.softwareIds?.length ? profile.softwareIds.join(', ') : 'none',
     ]) {
       const td = document.createElement('td');
@@ -1860,6 +1859,37 @@ function validateProfileInput(name) {
   return '';
 }
 
+function availableOsImages() {
+  return state.current?.osImage?.images ?? [];
+}
+
+function populateOsImageSelect(selectElement, selectedId) {
+  selectElement.replaceChildren();
+  const images = availableOsImages();
+  if (!images.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'No OS images available — upload one first';
+    option.disabled = true;
+    option.selected = true;
+    selectElement.append(option);
+    return;
+  }
+  for (const image of images) {
+    const option = document.createElement('option');
+    option.value = image.id;
+    const cached = image.cached ? '' : ' (not cached)';
+    option.textContent = `${image.id} — ${osImageLabel(image)}${cached}`;
+    if (!image.cached) {
+      option.disabled = true;
+    }
+    if (image.id === selectedId) {
+      option.selected = true;
+    }
+    selectElement.append(option);
+  }
+}
+
 function renderSoftwareBaseline(element, softwareIds, catalog) {
   element.replaceChildren();
   const names = (softwareIds ?? []).map((id) => catalog.find((item) => item.id === id)?.name ?? id);
@@ -1883,6 +1913,7 @@ function showAddProfileDialog(profile) {
     elements.profileForm.reset();
     elements.profileError.textContent = '';
     elements.profileIdPreview.value = 'Generated by server on create';
+    populateOsImageSelect(elements.profileOsImage, profile.activeProfile?.osImageId ?? '');
     renderSoftwareBaseline(
       elements.profileSoftwareBaseline,
       profile.activeProfile?.softwareIds ?? [],
@@ -1916,9 +1947,15 @@ function showAddProfileDialog(profile) {
         elements.profileError.textContent = error;
         return;
       }
+      const osImageId = elements.profileOsImage.value;
+      if (!osImageId) {
+        elements.profileError.textContent = 'Select an OS image for this profile.';
+        return;
+      }
       done({
         name,
         description: elements.profileDescription.value.trim(),
+        osImageId,
       });
     };
 
@@ -1945,6 +1982,7 @@ function showSoftwareDialog(profile) {
     elements.softwareProfileId.value = activeProfile?.id ?? '';
     elements.softwareProfileName.value = activeProfile?.name ?? '';
     elements.softwareProfileDescription.value = activeProfile?.description ?? '';
+    populateOsImageSelect(elements.softwareProfileOsImage, activeProfile?.osImageId ?? '');
 
     const moveSelected = (id, toIndex) => {
       const fromIndex = selectedOrder.indexOf(id);
@@ -2105,10 +2143,16 @@ function showSoftwareDialog(profile) {
         elements.softwareError.textContent = 'Profile name is required.';
         return;
       }
+      const osImageId = elements.softwareProfileOsImage.value;
+      if (!osImageId) {
+        elements.softwareError.textContent = 'Select an OS image for this profile.';
+        return;
+      }
       done({
         name,
         description: elements.softwareProfileDescription.value.trim(),
         softwareIds: [...selectedOrder],
+        osImageId,
       });
     };
     const selectAll = () => {
@@ -2508,26 +2552,10 @@ async function handleProfileSelect(profile) {
   }
 }
 
-async function handleOsImageSelect(image) {
-  const active = image.id === state.current?.osImage?.activeImageId;
-  const ok = await confirmAction({
-    title: active ? 'Republish active OS image' : 'Set active OS image',
-    message: active
-      ? 'This stops services, republishes selected-os.json, refreshes the SMB image path, saves config, and reruns preflight.'
-      : 'This stops services, publishes selected-os.json, updates the SMB image path, saves config, and reruns preflight.',
-    details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
-    confirmLabel: active ? 'Republish' : 'Set active',
-    severity: 'warning',
-  });
-  if (ok) {
-    await mutate('/api/os-image', { imageId: image.id });
-  }
-}
-
 async function handleOsImageDelete(image) {
   const ok = await confirmAction({
     title: 'Delete cached OS image',
-    message: 'This removes the OS image from the host cache catalog and deletes the ESD/WIM file when no other cached row uses it. It does not change the active deployment image.',
+    message: 'This removes the OS image from the host cache catalog and deletes the ESD/WIM file when no other cached row uses it. Deletion is refused while any deployment profile references this image.',
     details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
     confirmLabel: 'Delete',
     danger: true,
@@ -2540,7 +2568,7 @@ async function handleOsImageDelete(image) {
 async function handleOsImageDownload(image) {
   const ok = await confirmAction({
     title: 'Download OS image',
-    message: 'This downloads on the host into a staging file and will not replace the active deployment image unless validation succeeds.',
+    message: 'This downloads on the host into a staging file. After validation the image is added to the cache and can be selected by any deployment profile.',
     details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
     confirmLabel: 'Download',
     severity: 'warning',
@@ -2606,7 +2634,7 @@ async function handleOsImageImport(row) {
   const metadata = importMetadataFromInputs(row.suggested ?? {});
   const ok = await confirmAction({
     title: 'Import OS image',
-    message: 'This copies the selected uploaded ISO/ESD/WIM image into the host OS cache. It does not change the active deployment image.',
+    message: 'This copies the selected uploaded ISO/ESD/WIM image into the host OS cache. After import it can be selected by any deployment profile.',
     details: [
       `Source: ${state.osImportInspection.originalFileName ?? uploadId}`,
       `Index: ${row.imageIndex}`,
@@ -2931,9 +2959,7 @@ document.addEventListener('click', (event) => {
   const osImageButton = target.closest('[data-os-image-action]');
   if (osImageButton) {
     const image = state.current?.osImage?.images?.find((item) => item.id === osImageButton.dataset.osImageId);
-    if (image && osImageButton.dataset.osImageAction === 'select') {
-      handleOsImageSelect(image).catch((error) => window.alert(error.message));
-    } else if (image && osImageButton.dataset.osImageAction === 'delete') {
+    if (image && osImageButton.dataset.osImageAction === 'delete') {
       handleOsImageDelete(image).catch((error) => window.alert(error.message));
     }
     return;

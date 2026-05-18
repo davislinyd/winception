@@ -217,12 +217,6 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
-    if (pathname === '/api/os-image') {
-      const body = await readJsonBody(req);
-      const result = await this.controller.changeOsImage(body.imageId ?? body.id);
-      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
-      return;
-    }
     if (pathname === '/api/os-image-delete') {
       const body = await readJsonBody(req);
       const result = await this.controller.deleteOsImage(body.imageId ?? body.id);
@@ -293,10 +287,13 @@ export class WebManagementServer {
       const body = await readJsonBody(req);
       const hasSoftware = Object.prototype.hasOwnProperty.call(body, 'softwareIds')
         || Object.prototype.hasOwnProperty.call(body, 'software');
+      const hasOsImage = Object.prototype.hasOwnProperty.call(body, 'osImageId')
+        || Object.prototype.hasOwnProperty.call(body, 'osImage');
       const result = await this.controller.updateActiveDeploymentProfile({
         name: body.name,
         description: body.description,
         softwareIds: hasSoftware ? (body.softwareIds ?? body.software) : undefined,
+        osImageId: hasOsImage ? (body.osImageId ?? body.osImage) : undefined,
       });
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
