@@ -165,7 +165,7 @@ $required | ForEach-Object {
 }
 ```
 
-若 active Windows image 不存在，先在 Web console 的 `OS Image Cache` 用 Download catalog 或 browser upload 把 Windows 11 Pro 25H2 zh-TW ISO/ESD/WIM 加到 host cache，再手動 `Set active`。不要讓 WinPE client 在部署中下載 Windows。
+若需要新增 Windows image，到 Web console 的 `OS Image Cache` 用 Download catalog 或 browser upload 把 Windows 11 Pro 25H2 zh-TW ISO/ESD/WIM 加到 host cache。新版起 OS image 不再有獨立的 active 旗標——cache 內所有 OS image 都會透過 SMB 並存供應，實際採用哪一個由 active deployment profile 的 `osImage` 欄位決定。要切換 OS 請在 `Deployment Profiles` 對 active profile 按 `Edit` 改 OS image，或切換到綁定該 OS image 的 profile。不要讓 WinPE client 在部署中下載 Windows。
 
 ### 4. 設定本次 PXE service endpoint
 
@@ -274,8 +274,8 @@ http://127.0.0.1:8080
 單純啟動 Web 版、打開頁面、刷新 Dashboard workbench、讀取 state/status/logs/validation 不會修改 `C:\OSDCloud`。會改 live deployment 狀態的按鈕會要求確認：
 
 - `Select service interface` 會先開啟 endpoint settings drawer 並背景載入 live Windows 介面清單；真正選定並同步 endpoint 時，才會停止 running services、更新 `config\osdcloud-tui.json`、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
-- `Select deployment profile` 會停止 running services，依 profile 內 `software` 陣列順序重建 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps` payload。
-- `OS Image Cache` 會下載或匯入 Windows image 到 host cache，但不會自動切換 active；非 active cached image 用 `Set active` 切換並發佈，active image 用 `Republish` 重新發佈 `selected-os.json` / SMB image path。兩者都會停止 running services、寫回 config，並重新跑 preflight。
+- `Select deployment profile` 會停止 running services，依 profile 內 `software` 陣列順序重建 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps` payload，並同步發佈 profile 綁定的 OS image（覆寫 `selected-os.json` 與 SMB image path）。
+- `OS Image Cache` 會下載或匯入 Windows image 到 host cache。OS image 沒有獨立的 active 狀態，所有 cached image 都會在 SMB share 上同時可用；要切換實際 deploy 的 OS，請在 `Deployment Profiles` 編輯 active profile 的 `osImage`，或切換到綁定其他 OS image 的 profile。被任何 profile 引用的 OS image 不能刪除。
 - `Clear status files` 會清除 configured status root 內的 JSON/JSONL/screenshot metadata。
 - `Start DHCP` / `Start all services` 不改檔案，但會讓 host DHCP responder 開始回答 client；只有確認真實 LAN DHCP server 已停用後才執行。
 
@@ -283,12 +283,12 @@ Web Dashboard 主要區塊：
 
 | 區塊 | 用途 |
 | --- | --- |
-| `Operations` | 左側操作欄；`Run preflight` 是中性診斷動作，`Sync endpoint` / `Set active` / `Republish` / OS image download/import 是 warning，`Start DHCP` / `Start all services` / `Clear status` / delete 是 danger |
+| `Operations` | 左側操作欄；`Run preflight` 是中性診斷動作，`Sync endpoint` / `Set active`（profile 切換）/ `Edit active` / OS image download/import 是 warning，`Start DHCP` / `Start all services` / `Clear status` / delete 是 danger |
 | `Endpoint Sync Progress` | 顯示 endpoint sync 目標、主要步驟與同步腳本輸出 |
 | `Active Profile` | 顯示目前 deployment profile、description 與選中的 client software 安裝順序 |
-| `Active OS Image` | 顯示目前 active cached Windows 映像、語言、edition、image index 與 cache/preflight 狀態；長映像檔名會在卡片內換行，不會撐出框線 |
+| `Active OS Image` | 顯示 active deployment profile 目前綁定的 OS image（語言、edition、image index 與 cache/preflight 狀態）。切換是透過編輯 profile 而非單獨切 OS；長映像檔名會在卡片內換行，不會撐出框線 |
 | `HTTP/TFTP/DHCP` service cards | 顯示各 host-side service 是否 running 與 bind address；stopped 是中性狀態，不代表 failure，只有 blocked/error 才使用紅色狀態 |
-| `Preflight Summary` | 桌面版橫跨左側 Operations 欄與中間主欄下方，顯示 preflight 檢查結果；`Not run` / `Ready` / `Review` / `Blocked` 是權威狀態來源，長路徑與錯誤訊息會在此區塊內捲動/截斷；failed row 可 hover 查看建議修復動作，例如 active OS 已正確但 `selected-os.json` stale 時可回 OS Images 按 `Republish` |
+| `Preflight Summary` | 桌面版橫跨左側 Operations 欄與中間主欄下方，顯示 preflight 檢查結果；`Not run` / `Ready` / `Review` / `Blocked` 是權威狀態來源，長路徑與錯誤訊息會在此區塊內捲動/截斷；failed row 可 hover 查看建議修復動作，例如 `selected-os.json` stale 時可回 `Deployment Profiles` 重新 `Set active` 同一 profile 觸發重新發佈 |
 | `Client Fleet` | 桌面版橫跨左側 Operations 欄與中間主欄下方，顯示多台 client / 多個 run 的狀態、stage、percent、last seen；可用 `Expand fleet` 以前景 overlay 長時間檢查更多 rows，`View` 開 validation evidence，`Delete` 只刪該列單一 run；`Last Seen` 使用本地時間 `yyyy/mm/dd HH:MM` |
 | `System Log` | 顯示 DHCP、TFTP、HTTP、endpoint sync 與 Web controller log；停在底部時新 log 會自動跟隨，往上捲動閱讀時會保留目前位置 |
 
@@ -307,8 +307,8 @@ Web Dashboard 主要區塊：
 1. 如需變更服務網卡，先選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
 2. Web console 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
 3. 在 Dashboard 的 Preflight Summary 或 Endpoint Sync Progress 看 endpoint update 進度；在 System Log 看同步腳本輸出。
-4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已 cached 且是 active。需要新版本/語言時，先用 Web download catalog 或 browser upload 在 host 端下載/匯入並驗證；完成後再手動 `Set active`。若 active image 已正確但 preflight 顯示 `selected manifest stale`，按 active row 的 `Republish` 重新發佈 `selected-os.json`。部署中不讓 WinPE client 下載 Windows。
-5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise + Notepad++ 8.9.5，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單或安裝順序，先用 `Edit active` 加入/移除軟體，以上移/下移或拖拉調整 `Selected install order`，存檔後 Web console 會立即重新發佈 live `Apps` payload。
+4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已 cached。需要新版本/語言時，先用 Web download catalog 或 browser upload 在 host 端下載/匯入並驗證；新版起 OS image 不再需要單獨 `Set active`，所有 cached 映像會同時透過 SMB 供應。實際要 deploy 哪一個由下一步的 deployment profile 決定。部署中不讓 WinPE client 下載 Windows。
+5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。每個 profile 同時綁定 client software 清單與一個 OS image，所以 `Set active` 會同時切換 software payload 與 `selected-os.json`。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise + Notepad++ 8.9.5，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單、安裝順序或 OS image，按 `Edit active`：在 `OS image` 下拉換 image、加入/移除軟體、以上移/下移或拖拉調整 `Selected install order`，存檔後 Web console 會立即重新發佈 live `Apps` payload 與 OS manifest。若 preflight 顯示 `selected manifest stale`，回 `Deployment Profiles` 再對 active profile 按一次 `Set active` 即可重新發佈。
 6. 在 Web console 選 `Run preflight`。
 7. 如果 service IP、DHCP pool、active OS image、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
 8. 確認真實 LAN DHCP server 已暫時關閉。
