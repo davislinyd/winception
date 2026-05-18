@@ -1087,6 +1087,24 @@ function assertSafeAppsRoot(appsRoot) {
   return resolved;
 }
 
+const retrySleepView = new Int32Array(new SharedArrayBuffer(4));
+
+function retrySyncOnTransientWindowsError(operation, { attempts = 10, delayMs = 200 } = {}) {
+  const transientCodes = new Set(['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY']);
+  let attempt = 0;
+  while (true) {
+    try {
+      return operation();
+    } catch (error) {
+      attempt += 1;
+      if (attempt >= attempts || !transientCodes.has(error.code)) {
+        throw error;
+      }
+      Atomics.wait(retrySleepView, 0, 0, delayMs * attempt);
+    }
+  }
+}
+
 function removeAppsRootContents(appsRoot) {
   if (!fs.existsSync(appsRoot)) {
     fs.mkdirSync(appsRoot, { recursive: true });
@@ -1095,7 +1113,7 @@ function removeAppsRootContents(appsRoot) {
 
   let removed = 0;
   for (const entry of fs.readdirSync(appsRoot)) {
-    fs.rmSync(path.join(appsRoot, entry), { recursive: true, force: true });
+    fs.rmSync(path.join(appsRoot, entry), { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     removed += 1;
   }
   return removed;
@@ -1122,12 +1140,13 @@ export function publishDeploymentProfile(config = {}, profileId = null, options 
   }
 
   const removed = removeAppsRootContents(appsRoot);
-  fs.copyFileSync(state.options.installerScript, path.join(appsRoot, 'Install-Apps.ps1'));
+  retrySyncOnTransientWindowsError(() =>
+    fs.copyFileSync(state.options.installerScript, path.join(appsRoot, 'Install-Apps.ps1')));
 
   const copied = [];
   for (const software of state.selectedSoftware) {
     const target = path.join(appsRoot, software.id);
-    fs.cpSync(software.sourcePath, target, { recursive: true });
+    retrySyncOnTransientWindowsError(() => fs.cpSync(software.sourcePath, target, { recursive: true }));
     copied.push(software.id);
   }
 

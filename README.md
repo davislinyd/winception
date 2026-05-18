@@ -210,7 +210,7 @@ http://127.0.0.1:8080
 
 1. `Endpoint` 顯示本次 service interface/IP、DHCP pool、HTTP base、SMB share 都一致。
 2. `OS Image Cache` 有 active Windows 11 Pro 25H2 zh-TW image，且 preflight 找得到檔案與 DISM index。
-3. `Active Profile` 是本次要安裝的 client software 組合：`Minimal` 不裝軟體、`Default` 裝 7-Zip、`All in One` 裝 7-Zip + Chrome Enterprise。
+3. `Active Profile` 是本次要安裝的 client software 組合：`Minimal` 不裝軟體、`Default` 裝 7-Zip、`All in One` 裝 7-Zip + Chrome Enterprise + Notepad++ 8.9.5。
 4. `Run preflight` 全部通過；若 service IP、DHCP pool、OS image、SMB image、HTTP files、profile payload 或 port 檢查失敗，不要啟動 DHCP。
 5. 確認真實 LAN 上沒有另一台 DHCP server 回答測試 client。
 6. 點 `Start all services`。
@@ -308,7 +308,7 @@ Web Dashboard 主要區塊：
 2. Web console 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
 3. 在 Dashboard 的 Preflight Summary 或 Endpoint Sync Progress 看 endpoint update 進度；在 System Log 看同步腳本輸出。
 4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已 cached 且是 active。需要新版本/語言時，先用 Web download catalog 或 browser upload 在 host 端下載/匯入並驗證；完成後再手動 `Set active`。若 active image 已正確但 preflight 顯示 `selected manifest stale`，按 active row 的 `Republish` 重新發佈 `selected-os.json`。部署中不讓 WinPE client 下載 Windows。
-5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單或安裝順序，先用 `Edit active` 加入/移除軟體，以上移/下移或拖拉調整 `Selected install order`，存檔後 Web console 會立即重新發佈 live `Apps` payload。
+5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise + Notepad++ 8.9.5，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單或安裝順序，先用 `Edit active` 加入/移除軟體，以上移/下移或拖拉調整 `Selected install order`，存檔後 Web console 會立即重新發佈 live `Apps` payload。
 6. 在 Web console 選 `Run preflight`。
 7. 如果 service IP、DHCP pool、active OS image、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
 8. 確認真實 LAN DHCP server 已暫時關閉。
@@ -581,7 +581,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 - 自訂下載來源必須放在 repo 管理的 `config\os-download-sources.json`，且每筆都要有 `id`、版本/語言/edition metadata、`.esd` 或 `.wim` URL、`fileName`、`imageIndex` 與 `sha256`。URL host 必須列在 `allowedHosts`；v1 不接受任意 URL 輸入。
 - Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host console 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
 - Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
-- Client app payload 由 Web deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 的 `selectedSoftware` 順序只安裝被選中的軟體。目前 `Default` profile 發佈 `7zip\7z2601-x64.msi`，`All in One` profile 發佈 7-Zip 與 `chrome\googlechromestandaloneenterprise64.msi`，`Minimal` profile 不安裝 client software。
+- Client app payload 由 Web deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 的 `selectedSoftware` 順序只安裝被選中的軟體。目前 `Default` profile 發佈 `7zip\7z2601-x64.msi`，`All in One` profile 發佈 7-Zip、`chrome\googlechromestandaloneenterprise64.msi` 與 `SW-4UT7PDID\npp.8.9.5.Installer.x64.msi`（Notepad++ 8.9.5），`Minimal` profile 不安裝 client software。
 - 測試時真實環境 DHCP server 必須暫時關閉，避免和本機 PXE DHCP responder 衝突。
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
@@ -949,6 +949,7 @@ New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
 - `C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt` 存在
 - `C:\Program Files\7-Zip\7z.exe` 存在
 - 若選 Chrome-enabled profile，`C:\Program Files\Google\Chrome\Application\chrome.exe` 存在
+- 若選 All in One profile，`C:\Program Files\Notepad++\notepad++.exe` 存在
 - `ExplorerRunning=True`
 - `OobeProcesses` 為空
 - `LaunchUserOOBE=0`

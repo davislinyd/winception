@@ -9,6 +9,11 @@
       "id": "chrome",
       "name": "Google Chrome Enterprise 64-bit",
       "source": "chrome"
+    },
+    {
+      "id": "SW-4UT7PDID",
+      "name": "Notepad++ 8.9.5",
+      "source": "SW-4UT7PDID"
     }
   ]
 }
