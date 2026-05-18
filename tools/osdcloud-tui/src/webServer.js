@@ -290,6 +290,7 @@ export class WebManagementServer {
       const hasOsImage = Object.prototype.hasOwnProperty.call(body, 'osImageId')
         || Object.prototype.hasOwnProperty.call(body, 'osImage');
       const result = await this.controller.updateActiveDeploymentProfile({
+        profileId: body.profileId ?? body.id,
         name: body.name,
         description: body.description,
         softwareIds: hasSoftware ? (body.softwareIds ?? body.software) : undefined,

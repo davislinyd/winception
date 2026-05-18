@@ -1449,14 +1449,16 @@ function renderProfiles(appState) {
       tr.append(td);
     }
     const action = document.createElement('td');
+    const actionGroup = document.createElement('div');
+    actionGroup.className = 'profile-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.textContent = 'Edit';
+    edit.dataset.icon = 'edit';
+    edit.dataset.profileAction = 'edit';
+    edit.dataset.profileId = profile.id;
     if (active) {
-      const edit = document.createElement('button');
-      edit.type = 'button';
-      edit.textContent = 'Edit';
-      edit.dataset.icon = 'edit';
-      edit.dataset.profileAction = 'edit';
-      edit.dataset.profileId = profile.id;
-      action.append(edit);
+      actionGroup.append(edit);
     } else {
       const select = document.createElement('button');
       select.type = 'button';
@@ -1472,8 +1474,9 @@ function renderProfiles(appState) {
       del.dataset.icon = 'delete';
       del.dataset.profileAction = 'delete';
       del.dataset.profileId = profile.id;
-      action.append(select, ' ', del);
+      actionGroup.append(edit, select, del);
     }
+    action.append(actionGroup);
     tr.append(action);
     elements.profilesBody.append(tr);
   }
@@ -1968,21 +1971,24 @@ function showAddProfileDialog(profile) {
   });
 }
 
-function showSoftwareDialog(profile) {
+function showSoftwareDialog(profile, profileToEdit = null) {
   return new Promise((resolve) => {
-    const activeProfile = profile.activeProfile;
+    const targetProfile = profileToEdit ?? profile.activeProfile;
+    const isActiveTarget = targetProfile?.id === profile.activeProfile?.id;
     const software = profile.softwareCatalog ?? [];
     const softwareById = new Map(software.map((item) => [item.id, item]));
-    let selectedOrder = (activeProfile?.softwareIds ?? []).filter((id, index, ids) => (
+    let selectedOrder = (targetProfile?.softwareIds ?? []).filter((id, index, ids) => (
       softwareById.has(id) && ids.indexOf(id) === index
     ));
     let draggedSoftwareId = null;
     elements.softwareError.textContent = '';
-    elements.softwareProfileSummary.textContent = 'Save stops running services, republishes the live Apps payload in this install order, and reruns preflight.';
-    elements.softwareProfileId.value = activeProfile?.id ?? '';
-    elements.softwareProfileName.value = activeProfile?.name ?? '';
-    elements.softwareProfileDescription.value = activeProfile?.description ?? '';
-    populateOsImageSelect(elements.softwareProfileOsImage, activeProfile?.osImageId ?? '');
+    elements.softwareProfileSummary.textContent = isActiveTarget
+      ? 'Save stops running services, republishes the live Apps payload in this install order, and reruns preflight.'
+      : 'Save only updates this profile’s JSON. Services and the live Apps payload are not touched. Use Set active to publish.';
+    elements.softwareProfileId.value = targetProfile?.id ?? '';
+    elements.softwareProfileName.value = targetProfile?.name ?? '';
+    elements.softwareProfileDescription.value = targetProfile?.description ?? '';
+    populateOsImageSelect(elements.softwareProfileOsImage, targetProfile?.osImageId ?? '');
 
     const moveSelected = (id, toIndex) => {
       const fromIndex = selectedOrder.indexOf(id);
@@ -2149,6 +2155,8 @@ function showSoftwareDialog(profile) {
         return;
       }
       done({
+        profileId: targetProfile?.id ?? '',
+        isActive: isActiveTarget,
         name,
         description: elements.softwareProfileDescription.value.trim(),
         softwareIds: [...selectedOrder],
@@ -2808,15 +2816,30 @@ async function handleAction(action, source = null) {
     }
   } else if (action === 'profile-edit') {
     const payload = await api('/api/profiles');
-    const profileUpdate = await showSoftwareDialog(payload.profile);
+    const requestedId = source?.dataset?.profileId ?? payload.profile.activeProfile?.id;
+    const profileToEdit = payload.profile.profiles?.find((item) => item.id === requestedId)
+      ?? payload.profile.activeProfile
+      ?? null;
+    if (!profileToEdit) {
+      window.alert('Deployment profile not found.');
+      return;
+    }
+    const profileUpdate = await showSoftwareDialog(payload.profile, profileToEdit);
     if (profileUpdate) {
-      const ok = await confirmAction({
-        title: 'Save active profile',
-        message: 'This stops services, updates the active profile, replaces the live Apps payload, and runs preflight.',
-        details: [`Profile: ${profileUpdate.name}`, `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`],
-        confirmLabel: 'Save changes',
-        severity: 'warning',
-      });
+      const ok = await confirmAction(profileUpdate.isActive
+        ? {
+            title: 'Save active profile',
+            message: 'This stops services, updates the active profile, replaces the live Apps payload, and runs preflight.',
+            details: [`Profile: ${profileUpdate.name}`, `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`],
+            confirmLabel: 'Save changes',
+            severity: 'warning',
+          }
+        : {
+            title: 'Save deployment profile',
+            message: 'This updates the profile JSON only. Services and the live Apps payload are not touched.',
+            details: [`Profile: ${profileUpdate.name} (${profileUpdate.profileId})`, `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`],
+            confirmLabel: 'Save changes',
+          });
       if (ok) {
         await mutate('/api/profile/software', profileUpdate);
       }
@@ -2935,7 +2958,7 @@ document.addEventListener('click', (event) => {
     } else if (profileButton.dataset.profileAction === 'delete') {
       handleProfileDelete(profile).catch((error) => window.alert(error.message));
     } else if (profileButton.dataset.profileAction === 'edit') {
-      handleAction('profile-edit').catch((error) => window.alert(error.message));
+      handleAction('profile-edit', profileButton).catch((error) => window.alert(error.message));
     }
     return;
   }

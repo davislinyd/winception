@@ -231,7 +231,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /If the client is still reporting, this run may appear again/);
   assert.match(script, /elements\.confirmSubmit\.classList\.toggle\('warning', resolvedSeverity === 'warning'\)/);
   assert.match(script, /severity: 'warning'/);
-  assert.match(script, /let selectedOrder = \(activeProfile\?\.softwareIds \?\? \[\]\)\.filter/);
+  assert.match(script, /let selectedOrder = \(targetProfile\?\.softwareIds \?\? \[\]\)\.filter/);
   assert.match(script, /Selected install order/);
   assert.match(script, /Available software/);
   assert.match(script, /softwareIds: \[\.\.\.selectedOrder\]/);

@@ -850,15 +850,24 @@ export class ServiceController extends EventEmitter {
 
   async updateActiveDeploymentProfile(input = {}) {
     return this.runOperation('Saving deployment profile', async () => {
-      await this.stopAllServices();
-      this.preflightResults = [];
       const state = this.dependencies.resolveDeploymentProfileState(this.config);
-      const updated = this.dependencies.updateDeploymentProfile(this.config, state.activeProfile.id, {
+      const activeId = state.activeProfile.id;
+      const targetId = input.profileId ?? input.id ?? activeId;
+      const editingActive = targetId === activeId;
+      const updateInput = {
         name: input.name,
         description: input.description,
         softwareIds: input.softwareIds ?? input.software,
         osImageId: input.osImageId,
-      });
+      };
+      if (!editingActive) {
+        const updated = this.dependencies.updateDeploymentProfile(this.config, targetId, updateInput);
+        this.addLog(`Saved inactive deployment profile ${updated.profile.id}: ${updated.profile.softwareIds.join(', ') || 'none'}`);
+        return { profile: updated.profile };
+      }
+      await this.stopAllServices();
+      this.preflightResults = [];
+      const updated = this.dependencies.updateDeploymentProfile(this.config, activeId, updateInput);
       const result = await this.dependencies.publishDeploymentProfile(this.config, updated.profile.id, {
         publishOsImage: this.dependencies.publishSelectedOsImage,
       });

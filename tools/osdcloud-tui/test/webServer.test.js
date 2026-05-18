@@ -607,6 +607,47 @@ test('runs mutating API actions through the controller', async () => {
   }
 });
 
+test('editing an inactive profile via /api/profile/software keeps services running and skips republish', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-inactive-edit-'));
+  let publishCalled = false;
+  const server = await makeServer(root, {
+    dependencies: {
+      publishDeploymentProfile: (_config, profileId) => {
+        publishCalled = true;
+        return {
+          profile: { id: profileId, name: 'Default', description: '', softwareIds: [] },
+          selectedSoftware: [],
+          appsRoot: path.join(root, 'Apps'),
+        };
+      },
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/services/http/start`, { method: 'POST' });
+    assert.equal(response.status, 200);
+    let payload = await response.json();
+    assert.equal(payload.state.services.http.running, true);
+
+    response = await fetch(`${base}/api/profile/software`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profileId: 'minimal', name: 'Minimal Renamed', softwareIds: ['chrome'] }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.profile.id, 'minimal');
+    assert.equal(payload.result.profile.name, 'Minimal Renamed');
+    assert.deepEqual(payload.result.profile.softwareIds, ['chrome']);
+    assert.equal(payload.result.selectedSoftware, undefined);
+    assert.equal(publishCalled, false);
+    assert.equal(payload.state.services.http.running, true);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('OS image download API starts a background job and rejects concurrent downloads', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-download-job-'));
   let releaseDownload = null;

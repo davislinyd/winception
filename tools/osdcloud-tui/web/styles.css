@@ -1118,6 +1118,14 @@ dialog.drawer-dialog.dialog-fallback-open {
   gap: 6px;
 }
 
+.profile-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .software-detail-list {
   display: grid;
   gap: 8px 14px;

@@ -366,6 +366,77 @@ test('deployment profile management actions create, update active software, and 
   }
 });
 
+test('editing an inactive deployment profile only rewrites JSON and leaves services and Apps payload alone', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-inactive-edit-'));
+  try {
+    let updatedProfileId = null;
+    let updatedInput = null;
+    let publishCalled = false;
+    let preflightCalled = false;
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        resolveDeploymentProfileState: () => ({
+          catalog: { software: [{ id: '7zip', name: '7-Zip' }, { id: 'chrome', name: 'Chrome' }] },
+          activeProfile: { id: 'default', name: 'Default' },
+          selectedSoftware: [{ id: '7zip', name: '7-Zip' }],
+          profiles: [
+            { id: 'default', name: 'Default', description: '', softwareIds: ['7zip'] },
+            { id: 'minimal', name: 'Minimal', description: '', softwareIds: [] },
+          ],
+        }),
+        updateDeploymentProfile(_config, profileId, input) {
+          updatedProfileId = profileId;
+          updatedInput = input;
+          return {
+            profile: {
+              id: profileId,
+              name: input.name ?? 'Minimal',
+              description: input.description ?? '',
+              softwareIds: input.softwareIds ?? [],
+              osImageId: input.osImageId ?? 'SMOKE-WIN11-PRO',
+            },
+            filePath: path.join(root, `${profileId}.json`),
+          };
+        },
+        publishDeploymentProfile() {
+          publishCalled = true;
+          return { profile: {}, selectedSoftware: [], appsRoot: '' };
+        },
+        runPreflight: async () => {
+          preflightCalled = true;
+          return [];
+        },
+      },
+    });
+
+    await controller.startAll();
+    assert.equal(services.http.running, true);
+    assert.equal(services.tftp.running, true);
+    assert.equal(services.dhcp.running, true);
+
+    const result = await controller.updateActiveDeploymentProfile({
+      profileId: 'minimal',
+      name: 'Minimal Renamed',
+      softwareIds: ['chrome'],
+    });
+
+    assert.equal(updatedProfileId, 'minimal');
+    assert.equal(updatedInput.name, 'Minimal Renamed');
+    assert.deepEqual(updatedInput.softwareIds, ['chrome']);
+    assert.equal(publishCalled, false);
+    assert.equal(preflightCalled, false);
+    assert.equal(services.http.running, true);
+    assert.equal(services.tftp.running, true);
+    assert.equal(services.dhcp.running, true);
+    assert.equal(result.profile.id, 'minimal');
+    assert.equal(result.profile.name, 'Minimal Renamed');
+    assert.equal(result.selectedSoftware, undefined);
+    assert.equal(result.preflight, undefined);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('software package actions upload and add catalog entry without publishing', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-software-'));
   try {
