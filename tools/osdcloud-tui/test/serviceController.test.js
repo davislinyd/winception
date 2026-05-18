@@ -491,6 +491,8 @@ test('software install script read and open run through controller', async () =>
           return {
             softwareId,
             filePath: path.join(root, 'Softwares', softwareId, 'install.ps1'),
+            opened: true,
+            method: 'open-with',
           };
         },
       },
@@ -503,6 +505,8 @@ test('software install script read and open run through controller', async () =>
     assert.equal(read.content, "Write-Host 'script'\n");
     assert.equal(openSoftwareId, 'chrome');
     assert.equal(opened.softwareId, 'chrome');
+    assert.equal(opened.opened, true);
+    assert.equal(opened.method, 'open-with');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

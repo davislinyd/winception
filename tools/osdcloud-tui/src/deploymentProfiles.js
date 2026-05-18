@@ -315,31 +315,94 @@ export function readSoftwareInstallScript(config = {}, softwareId, options = {})
   };
 }
 
-function spawnDetached(command, args) {
-  const child = spawn(command, args, {
+function spawnAndWait(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: false,
+      ...options,
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+      const detail = (stderr || stdout || '').trim();
+      reject(new Error(detail ? `${command} exited ${code}: ${detail}` : `${command} exited ${code}`));
+    });
+  });
+}
+
+async function launchWindowsOpenWith(scriptPath) {
+  const script = `
+$ErrorActionPreference = 'Stop'
+$target = ${psSingleQuote(scriptPath)}
+$rundll = Join-Path $env:SystemRoot 'System32\\rundll32.exe'
+if (-not (Test-Path -LiteralPath $rundll -PathType Leaf)) {
+  $rundll = 'rundll32.exe'
+}
+Start-Process -FilePath $rundll -ArgumentList @('shell32.dll,OpenAs_RunDLL', $target) -WindowStyle Normal
+`;
+  await spawnAndWait('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
+}
+
+async function launchDefaultOpen(scriptPath) {
+  if (process.platform === 'win32') {
+    const script = `
+$ErrorActionPreference = 'Stop'
+$target = ${psSingleQuote(scriptPath)}
+Start-Process -FilePath $target -WindowStyle Normal
+`;
+    await spawnAndWait('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
+    return;
+  }
+  const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
+  await spawnAndWait(opener, [scriptPath], {
     detached: true,
     stdio: 'ignore',
-    windowsHide: false,
   });
-  child.unref();
 }
 
 export async function openSoftwareInstallScript(config = {}, softwareId, options = {}) {
   const { software, scriptPath } = resolveSoftwareInstallScript(config, softwareId, options);
-  if (options.openScript) {
-    await options.openScript(scriptPath);
-  } else if (process.platform === 'win32') {
-    try {
-      spawnDetached('rundll32.exe', ['shell32.dll,OpenAs_RunDLL', scriptPath]);
-    } catch {
-      spawnDetached('cmd.exe', ['/c', 'start', '', scriptPath]);
+  let method = 'open-with';
+  try {
+    if (options.openScript) {
+      await options.openScript(scriptPath, 'open-with');
+    } else if (process.platform === 'win32') {
+      await launchWindowsOpenWith(scriptPath);
+    } else {
+      await launchDefaultOpen(scriptPath);
+      method = 'default-open';
     }
-  } else {
-    spawnDetached('xdg-open', [scriptPath]);
+  } catch (openWithError) {
+    method = 'default-open';
+    try {
+      if (options.openDefaultScript) {
+        await options.openDefaultScript(scriptPath, openWithError);
+      } else {
+        await launchDefaultOpen(scriptPath);
+      }
+    } catch (defaultOpenError) {
+      throw new Error(
+        `Unable to open install.ps1. Open With failed: ${openWithError.message}; default open failed: ${defaultOpenError.message}`,
+      );
+    }
   }
   return {
     softwareId: software.id,
     filePath: scriptPath,
+    opened: true,
+    method,
   };
 }
 

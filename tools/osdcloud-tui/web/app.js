@@ -132,6 +132,7 @@ const elements = {
   softwareScriptTitle: $('#software-script-title'),
   softwareScriptPath: $('#software-script-path'),
   softwareScriptContent: $('#software-script-content'),
+  softwareScriptStatus: $('#software-script-status'),
   softwareScriptError: $('#software-script-error'),
   softwareScriptOpen: $('#software-script-open'),
   confirmDialog: $('#confirm-dialog'),
@@ -2300,8 +2301,10 @@ async function showSoftwareScriptViewer(software) {
   elements.softwareScriptTitle.textContent = `${software.name || software.id} install.ps1`;
   elements.softwareScriptPath.textContent = 'Loading script...';
   elements.softwareScriptContent.textContent = '';
+  elements.softwareScriptStatus.textContent = '';
   elements.softwareScriptError.textContent = '';
   elements.softwareScriptOpen.dataset.softwareId = software.id;
+  elements.softwareScriptOpen.textContent = 'Open with...';
   elements.softwareScriptOpen.disabled = true;
   openDialog(elements.softwareScriptDialog);
   try {
@@ -3015,13 +3018,20 @@ elements.softwareScriptOpen.addEventListener('click', async () => {
   if (!softwareId || elements.softwareScriptOpen.disabled) {
     return;
   }
+  elements.softwareScriptStatus.textContent = '';
   elements.softwareScriptError.textContent = '';
+  elements.softwareScriptOpen.textContent = 'Opening...';
   elements.softwareScriptOpen.disabled = true;
   try {
-    await mutate('/api/software/script/open', { softwareId });
+    const payload = await api('/api/software/script/open', {
+      method: 'POST',
+      body: JSON.stringify({ softwareId }),
+    });
+    elements.softwareScriptStatus.textContent = `Open request sent: ${payload.result.method}`;
   } catch (error) {
     elements.softwareScriptError.textContent = error.message;
   } finally {
+    elements.softwareScriptOpen.textContent = 'Open with...';
     elements.softwareScriptOpen.disabled = false;
   }
 });

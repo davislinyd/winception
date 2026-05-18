@@ -44,6 +44,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="software-detail-list"/);
   assert.match(html, /id="software-script-dialog"/);
   assert.match(html, /id="software-script-content"/);
+  assert.match(html, /id="software-script-status"/);
   assert.match(html, /id="software-script-open"[^>]*>Open with\.\.\./);
   assert.match(html, /id="software-select-all" data-icon="playlist_add_check"/);
   assert.match(html, /id="software-select-none" data-icon="remove_done"/);
@@ -64,6 +65,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /dataset\.softwareAction = 'script-view'/);
   assert.match(script, /\/api\/software\/script\?softwareId=/);
   assert.match(script, /\/api\/software\/script\/open/);
+  assert.match(script, /Opening\.\.\./);
+  assert.match(script, /Open request sent:/);
   assert.match(html, /id="software-add-raw-script"/);
   assert.match(html, /id="os-images-dialog"/);
   assert.match(html, /class="drawer-dialog os-images-dialog"/);

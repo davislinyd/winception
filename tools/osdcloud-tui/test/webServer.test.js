@@ -271,6 +271,8 @@ async function makeServer(root, overrides = {}) {
       openSoftwareInstallScript: (_config, softwareId) => ({
         softwareId,
         filePath: path.join(root, 'Softwares', softwareId, 'install.ps1'),
+        opened: true,
+        method: 'open-with',
       }),
       deleteDeploymentProfile: (_config, profileId) => ({
         profile: { id: profileId, name: 'Minimal', description: '', softwareIds: [] },
@@ -432,6 +434,9 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.softwareId, 'chrome');
+    assert.equal(payload.result.opened, true);
+    assert.equal(payload.result.method, 'open-with');
+    assert.match(payload.result.filePath, /install\.ps1$/);
 
     response = await fetch(`${base}/api/software/delete`, {
       method: 'POST',

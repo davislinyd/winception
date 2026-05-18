@@ -16,6 +16,7 @@ import {
   loadDeploymentProfiles,
   loadSoftwareCatalog,
   publishDeploymentProfile,
+  openSoftwareInstallScript,
   readSoftwareInstallScript,
   resolveDeploymentProfileState,
   updateDeploymentProfile,
@@ -719,6 +720,60 @@ test('reads catalog install.ps1 content safely', () => {
     assert.match(result.content, /installed/);
     assert.throws(() => readSoftwareInstallScript(config, 'missing'), /Software not found: missing/);
     assert.throws(() => readSoftwareInstallScript(config, '..\\bad'), /Invalid software id/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('opens catalog install.ps1 with Open With first', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+    const calls = [];
+
+    const result = await openSoftwareInstallScript(config, 'one', {
+      openScript: async (scriptPath, method) => {
+        calls.push({ scriptPath, method });
+      },
+    });
+
+    assert.equal(result.softwareId, 'one');
+    assert.equal(result.filePath, path.join(root, 'Softwares', 'one', 'install.ps1'));
+    assert.equal(result.opened, true);
+    assert.equal(result.method, 'open-with');
+    assert.deepEqual(calls, [
+      { scriptPath: path.join(root, 'Softwares', 'one', 'install.ps1'), method: 'open-with' },
+    ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('open catalog install.ps1 falls back to default open', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+    const calls = [];
+
+    const result = await openSoftwareInstallScript(config, 'one', {
+      openScript: async (scriptPath, method) => {
+        calls.push({ scriptPath, method });
+        throw new Error('chooser failed');
+      },
+      openDefaultScript: async (scriptPath, error) => {
+        calls.push({ scriptPath, method: 'default-open', error: error.message });
+      },
+    });
+
+    assert.equal(result.softwareId, 'one');
+    assert.equal(result.opened, true);
+    assert.equal(result.method, 'default-open');
+    assert.deepEqual(calls, [
+      { scriptPath: path.join(root, 'Softwares', 'one', 'install.ps1'), method: 'open-with' },
+      { scriptPath: path.join(root, 'Softwares', 'one', 'install.ps1'), method: 'default-open', error: 'chooser failed' },
+    ]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
