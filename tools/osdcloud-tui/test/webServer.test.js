@@ -263,6 +263,15 @@ async function makeServer(root, overrides = {}) {
           usedByProfiles: [],
         };
       },
+      readSoftwareInstallScript: (_config, softwareId) => ({
+        softwareId,
+        filePath: path.join(root, 'Softwares', softwareId, 'install.ps1'),
+        content: "Write-Host 'script'\n",
+      }),
+      openSoftwareInstallScript: (_config, softwareId) => ({
+        softwareId,
+        filePath: path.join(root, 'Softwares', softwareId, 'install.ps1'),
+      }),
       deleteDeploymentProfile: (_config, profileId) => ({
         profile: { id: profileId, name: 'Minimal', description: '', softwareIds: [] },
         filePath: path.join(root, `${profileId}.json`),
@@ -408,6 +417,21 @@ test('runs mutating API actions through the controller', async () => {
     payload = await response.json();
     assert.equal(payload.result.software.id, 'SW-TEST001');
     assert.equal(payload.result.uploadRemoved, true);
+
+    response = await fetch(`${base}/api/software/script?softwareId=chrome`);
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.softwareId, 'chrome');
+    assert.match(payload.result.content, /script/);
+
+    response = await fetch(`${base}/api/software/script/open`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ softwareId: 'chrome' }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.softwareId, 'chrome');
 
     response = await fetch(`${base}/api/software/delete`, {
       method: 'POST',

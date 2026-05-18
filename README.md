@@ -588,7 +588,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 
 自行新增 client 軟體與 profile：
 
-日常操作優先用 Web console：開 `Profiles`，在 `Software Catalog` 區塊選 `Add software`，上傳單一 `.msi` 或 `.exe`。Web console 會產生安全亂數 software id、建立 `Softwares\<software-id>`、寫入 installer 與 `install.ps1`、更新 `config\software-catalog.json`，並顯示 installer size / SHA256。這一步只加入 catalog，不會自動加入 active profile，也不會發佈 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。Catalog row 的 `View` 可檢視 installer 檔、silent 參數、success exit codes、verify path / verification mode、source path 與套用到哪些 profiles。
+日常操作優先用 Web console：開 `Profiles`，在 `Software Catalog` 區塊選 `Add software`，上傳單一 `.msi` 或 `.exe`。Web console 會產生安全亂數 software id、建立 `Softwares\<software-id>`、寫入 installer 與 `install.ps1`、更新 `config\software-catalog.json`，並顯示 installer size / SHA256。這一步只加入 catalog，不會自動加入 active profile，也不會發佈 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。Catalog row 的 `View` 可檢視 installer 檔、silent 參數、success exit codes、verify path / verification mode、source path 與套用到哪些 profiles；若 Script mode 是 `custom install.ps1`，可點擊該文字開啟唯讀 script viewer，查看檔案位置與 PowerShell 內容，或用 `Open with...` 在外部編輯器開啟 repo 內的 `install.ps1`。
 
 1. Web `Add software` 的欄位：
 

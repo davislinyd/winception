@@ -128,6 +128,12 @@ const elements = {
   softwareDetailTitle: $('#software-detail-title'),
   softwareDetailSummary: $('#software-detail-summary'),
   softwareDetailList: $('#software-detail-list'),
+  softwareScriptDialog: $('#software-script-dialog'),
+  softwareScriptTitle: $('#software-script-title'),
+  softwareScriptPath: $('#software-script-path'),
+  softwareScriptContent: $('#software-script-content'),
+  softwareScriptError: $('#software-script-error'),
+  softwareScriptOpen: $('#software-script-open'),
   confirmDialog: $('#confirm-dialog'),
   confirmTitle: $('#confirm-title'),
   confirmMessage: $('#confirm-message'),
@@ -439,6 +445,21 @@ function setDefinitionList(element, rows) {
     dt.textContent = label;
     const dd = document.createElement('dd');
     dd.textContent = text(value);
+    element.append(dt, dd);
+  }
+}
+
+function setDefinitionListNodes(element, rows) {
+  element.replaceChildren();
+  for (const [label, value] of rows) {
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    if (value instanceof Node) {
+      dd.append(value);
+    } else {
+      dd.textContent = text(value);
+    }
     element.append(dt, dd);
   }
 }
@@ -2275,11 +2296,41 @@ function validateAddSoftwareInput(input) {
   return '';
 }
 
+async function showSoftwareScriptViewer(software) {
+  elements.softwareScriptTitle.textContent = `${software.name || software.id} install.ps1`;
+  elements.softwareScriptPath.textContent = 'Loading script...';
+  elements.softwareScriptContent.textContent = '';
+  elements.softwareScriptError.textContent = '';
+  elements.softwareScriptOpen.dataset.softwareId = software.id;
+  elements.softwareScriptOpen.disabled = true;
+  openDialog(elements.softwareScriptDialog);
+  try {
+    const payload = await api(`/api/software/script?softwareId=${encodeURIComponent(software.id)}`);
+    elements.softwareScriptPath.textContent = payload.result.filePath;
+    elements.softwareScriptContent.textContent = payload.result.content;
+    elements.softwareScriptOpen.disabled = false;
+  } catch (error) {
+    elements.softwareScriptPath.textContent = software.installScript || '';
+    elements.softwareScriptError.textContent = error.message;
+  }
+}
+
 function showSoftwareDetails(software) {
   const usedByProfiles = software.usedByProfiles?.map((profile) => profile.name || profile.id) ?? [];
+  const scriptModeValue = software.scriptMode === 'custom install.ps1'
+    ? (() => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'software-script-link';
+      button.textContent = 'custom install.ps1';
+      button.dataset.softwareAction = 'script-view';
+      button.dataset.softwareId = software.id;
+      return button;
+    })()
+    : software.scriptMode;
   elements.softwareDetailTitle.textContent = software.name || software.id;
   elements.softwareDetailSummary.textContent = `${software.id} / ${software.source ?? software.id}`;
-  setDefinitionList(elements.softwareDetailList, [
+  setDefinitionListNodes(elements.softwareDetailList, [
     ['Software ID', software.id],
     ['Name', software.name],
     ['Source folder', software.source],
@@ -2287,7 +2338,7 @@ function showSoftwareDetails(software) {
     ['Installer type', software.installerType ? String(software.installerType).toUpperCase() : '-'],
     ['Installer size', bytes(software.installerBytes)],
     ['Installer SHA256', software.installerSha256],
-    ['Script mode', software.scriptMode],
+    ['Script mode', scriptModeValue],
     ['Silent arguments', software.silentArgs],
     ['Success exit codes', Array.isArray(software.successExitCodes) ? software.successExitCodes.join(',') : software.successExitCodes],
     ['Verification', software.verificationMode],
@@ -2868,6 +2919,8 @@ document.addEventListener('click', (event) => {
       showSoftwareDetails(software);
     } else if (softwareButton.dataset.softwareAction === 'delete') {
       handleSoftwareDelete(software).catch((error) => window.alert(error.message));
+    } else if (softwareButton.dataset.softwareAction === 'script-view') {
+      showSoftwareScriptViewer(software).catch((error) => window.alert(error.message));
     }
     return;
   }
@@ -2955,6 +3008,22 @@ document.addEventListener('click', suppressBackdropCloseClickThrough, true);
 
 elements.refreshButton.addEventListener('click', () => {
   refresh().catch((error) => window.alert(error.message));
+});
+
+elements.softwareScriptOpen.addEventListener('click', async () => {
+  const softwareId = elements.softwareScriptOpen.dataset.softwareId;
+  if (!softwareId || elements.softwareScriptOpen.disabled) {
+    return;
+  }
+  elements.softwareScriptError.textContent = '';
+  elements.softwareScriptOpen.disabled = true;
+  try {
+    await mutate('/api/software/script/open', { softwareId });
+  } catch (error) {
+    elements.softwareScriptError.textContent = error.message;
+  } finally {
+    elements.softwareScriptOpen.disabled = false;
+  }
 });
 
 [

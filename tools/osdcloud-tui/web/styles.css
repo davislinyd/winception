@@ -1136,6 +1136,32 @@ dialog.drawer-dialog.dialog-fallback-open {
   overflow-wrap: anywhere;
 }
 
+.software-script-card {
+  max-height: calc(100vh - 48px);
+}
+
+.software-script-content {
+  background: var(--surface-container-low);
+  border: 1px solid var(--outline-variant);
+  color: var(--on-surface);
+  font: 500 12px/18px "JetBrains Mono", monospace;
+  margin: 0;
+  max-height: min(62vh, 680px);
+  overflow: auto;
+  padding: 12px;
+  white-space: pre;
+}
+
+.software-script-link {
+  background: none;
+  border: 0;
+  color: var(--primary);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
 .catalog-filter-panel {
   display: grid;
   gap: 10px;

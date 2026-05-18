@@ -169,6 +169,11 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, catalog: await this.controller.getOsDownloadCatalog(parseOsDownloadCatalogFilters(requestUrl.searchParams)) });
       return;
     }
+    if (req.method === 'GET' && pathname === '/api/software/script') {
+      const result = this.controller.readSoftwareInstallScript(requestUrl.searchParams.get('softwareId'));
+      sendJson(res, 200, { ok: true, result });
+      return;
+    }
 
     if (req.method !== 'POST') {
       res.writeHead(405, { Allow: 'GET, POST' });
@@ -263,6 +268,12 @@ export class WebManagementServer {
     if (pathname === '/api/software/create') {
       const body = await readJsonBody(req);
       const result = await this.controller.addSoftwarePackage(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/software/script/open') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.openSoftwareInstallScript(body.softwareId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }

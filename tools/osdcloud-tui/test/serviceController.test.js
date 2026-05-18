@@ -471,6 +471,43 @@ test('software package delete runs through controller without publishing', async
   }
 });
 
+test('software install script read and open run through controller', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-software-script-'));
+  try {
+    let readSoftwareId = null;
+    let openSoftwareId = null;
+    const { controller } = makeController(root, {
+      dependencies: {
+        readSoftwareInstallScript: (_config, softwareId) => {
+          readSoftwareId = softwareId;
+          return {
+            softwareId,
+            filePath: path.join(root, 'Softwares', softwareId, 'install.ps1'),
+            content: "Write-Host 'script'\n",
+          };
+        },
+        openSoftwareInstallScript: (_config, softwareId) => {
+          openSoftwareId = softwareId;
+          return {
+            softwareId,
+            filePath: path.join(root, 'Softwares', softwareId, 'install.ps1'),
+          };
+        },
+      },
+    });
+
+    const read = controller.readSoftwareInstallScript('chrome');
+    const opened = await controller.openSoftwareInstallScript('chrome');
+
+    assert.equal(readSoftwareId, 'chrome');
+    assert.equal(read.content, "Write-Host 'script'\n");
+    assert.equal(openSoftwareId, 'chrome');
+    assert.equal(opened.softwareId, 'chrome');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('OS image actions publish active image and download through host catalog', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-osimage-'));
   try {

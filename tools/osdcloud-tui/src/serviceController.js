@@ -15,7 +15,9 @@ import {
   deleteDeploymentProfile,
   deleteSoftwarePackage,
   formatSoftwareList,
+  openSoftwareInstallScript,
   publishDeploymentProfile,
+  readSoftwareInstallScript,
   resolveDeploymentProfileState,
   updateDeploymentProfile,
   uploadSoftwareInstaller,
@@ -183,8 +185,10 @@ export class ServiceController extends EventEmitter {
       importUploadedOsImage,
       listOsDownloadCatalog,
       listIpv4ServiceInterfaces,
+      openSoftwareInstallScript,
       publishSelectedOsImage,
       publishDeploymentProfile,
+      readSoftwareInstallScript,
       readFleetStatus,
       readRecentScreenshotMetadata,
       readRunLatestScreenshot,
@@ -803,6 +807,18 @@ export class ServiceController extends EventEmitter {
       const deleted = this.dependencies.deleteSoftwarePackage(this.config, softwareId);
       this.addLog(`Deleted software package ${deleted.software.id}: ${deleted.software.source}`);
       return deleted;
+    });
+  }
+
+  readSoftwareInstallScript(softwareId) {
+    return this.dependencies.readSoftwareInstallScript(this.config, softwareId);
+  }
+
+  async openSoftwareInstallScript(softwareId) {
+    return this.runOperation('Opening software install script', async () => {
+      const result = await this.dependencies.openSoftwareInstallScript(this.config, softwareId);
+      this.addLog(`Opened software install script ${result.softwareId}: ${result.filePath}`);
+      return result;
     });
   }
 

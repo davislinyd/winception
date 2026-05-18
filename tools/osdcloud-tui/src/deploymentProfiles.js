@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
@@ -285,6 +286,60 @@ function softwareInstallMetadata(row, sourcePath, installScript) {
     verificationMode,
     installerBytes,
     installerSha256: maybeString(row.installerSha256 ?? row.sha256),
+  };
+}
+
+function resolveSoftwareInstallScript(config = {}, softwareId, options = {}) {
+  const catalog = loadSoftwareCatalog(config, options);
+  const id = normalizeId(softwareId, 'software');
+  const software = catalog.byId.get(id);
+  if (!software) {
+    throw inputError(`Software not found: ${id}`, 404);
+  }
+  const scriptPath = assertInside(software.sourcePath, software.installScript, 'Software install.ps1 path');
+  if (path.basename(scriptPath).toLowerCase() !== 'install.ps1') {
+    throw inputError(`Software script must be install.ps1: ${scriptPath}`);
+  }
+  if (!fs.existsSync(scriptPath) || !fs.statSync(scriptPath).isFile()) {
+    throw inputError(`Software install.ps1 not found: ${scriptPath}`, 404);
+  }
+  return { software, scriptPath };
+}
+
+export function readSoftwareInstallScript(config = {}, softwareId, options = {}) {
+  const { software, scriptPath } = resolveSoftwareInstallScript(config, softwareId, options);
+  return {
+    softwareId: software.id,
+    filePath: scriptPath,
+    content: fs.readFileSync(scriptPath, 'utf8'),
+  };
+}
+
+function spawnDetached(command, args) {
+  const child = spawn(command, args, {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: false,
+  });
+  child.unref();
+}
+
+export async function openSoftwareInstallScript(config = {}, softwareId, options = {}) {
+  const { software, scriptPath } = resolveSoftwareInstallScript(config, softwareId, options);
+  if (options.openScript) {
+    await options.openScript(scriptPath);
+  } else if (process.platform === 'win32') {
+    try {
+      spawnDetached('rundll32.exe', ['shell32.dll,OpenAs_RunDLL', scriptPath]);
+    } catch {
+      spawnDetached('cmd.exe', ['/c', 'start', '', scriptPath]);
+    }
+  } else {
+    spawnDetached('xdg-open', [scriptPath]);
+  }
+  return {
+    softwareId: software.id,
+    filePath: scriptPath,
   };
 }
 

@@ -16,6 +16,7 @@ import {
   loadDeploymentProfiles,
   loadSoftwareCatalog,
   publishDeploymentProfile,
+  readSoftwareInstallScript,
   resolveDeploymentProfileState,
   updateDeploymentProfile,
   updateDeploymentProfileSoftware,
@@ -700,6 +701,59 @@ test('delete software package rejects software used by any profile', () => {
     assert.equal(fs.existsSync(path.join(root, 'Softwares', 'one')), true);
     const catalog = JSON.parse(fs.readFileSync(path.join(root, 'software-catalog.json'), 'utf8'));
     assert.deepEqual(catalog.software.map((software) => software.id), ['one', 'two']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('reads catalog install.ps1 content safely', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+
+    const result = readSoftwareInstallScript(config, 'one');
+
+    assert.equal(result.softwareId, 'one');
+    assert.equal(result.filePath, path.join(root, 'Softwares', 'one', 'install.ps1'));
+    assert.match(result.content, /installed/);
+    assert.throws(() => readSoftwareInstallScript(config, 'missing'), /Software not found: missing/);
+    assert.throws(() => readSoftwareInstallScript(config, '..\\bad'), /Invalid software id/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('read install script rejects missing script', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      catalog: [
+        { id: 'missing-script', name: 'Missing Script', source: 'missing-script' },
+      ],
+      defaultProfile: { id: 'default', name: 'Default', software: [] },
+    });
+    fs.mkdirSync(path.join(root, 'Softwares', 'missing-script'), { recursive: true });
+    const config = configFor(root);
+
+    assert.throws(() => readSoftwareInstallScript(config, 'missing-script'), /install\.ps1 not found/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('read install script rejects escaped catalog source', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      catalog: [
+        { id: 'escaped', name: 'Escaped', source: '..\\outside' },
+      ],
+      defaultProfile: { id: 'default', name: 'Default', software: [] },
+    });
+    const config = configFor(root);
+
+    assert.throws(() => readSoftwareInstallScript(config, 'escaped'), /escapes root/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
