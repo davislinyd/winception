@@ -2240,9 +2240,6 @@ function validateAddSoftwareInput(input) {
   if (inferred !== input.installerType) {
     return `Installer type ${input.installerType.toUpperCase()} does not match ${input.file.name}.`;
   }
-  if (input.scriptMode === 'template' && !input.verifyPath) {
-    return 'Template mode requires an installed file to verify.';
-  }
   if (input.scriptMode === 'raw' && !input.rawScript.trim()) {
     return 'Raw mode requires install.ps1 content.';
   }
@@ -2536,6 +2533,11 @@ async function handleSoftwareAdd(input) {
       'Software ID: generated automatically',
       `Installer: ${input.file.name}`,
       `Script mode: ${input.scriptMode}`,
+      `Post-install verification: ${
+        input.scriptMode === 'template'
+          ? (input.verifyPath || 'installer exit code only')
+          : 'raw install.ps1'
+      }`,
     ],
     confirmLabel: 'Add to catalog',
     severity: 'warning',

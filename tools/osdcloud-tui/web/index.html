@@ -621,9 +621,9 @@
       </div>
       <div id="software-add-template-fields" class="form-grid compact">
         <label>Silent arguments <input id="software-add-silent-args" type="text" value="/qn /norestart REBOOT=ReallySuppress"></label>
-        <label class="span-2">Installed file to verify
+        <label class="span-2">Installed file to verify (optional)
           <input id="software-add-verify-path" type="text" placeholder="C:\Program Files\App\App.exe">
-          <span class="field-hint">After installation, SetupComplete checks this file exists. Use the main EXE or another file installed by the app.</span>
+          <span class="field-hint">Leave blank to trust the installer success exit code only. Enter the main EXE or another installed file for stronger verification.</span>
         </label>
       </div>
       <div id="software-add-raw-fields" class="form-grid" hidden>

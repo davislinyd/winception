@@ -230,6 +230,7 @@ test('uploads and creates software package without publishing or changing active
     assert.match(installScript, /\$ErrorActionPreference = 'Stop'/);
     assert.match(installScript, /msiexec\.exe/);
     assert.match(installScript, /C:\\Program Files\\Tool\\tool\.exe/);
+    assert.match(installScript, /verification file was not found/);
     assert.equal(fs.existsSync(path.join(root, '.osdcloud-tui', 'software-uploads', 'upload-tool')), false);
 
     const catalog = JSON.parse(fs.readFileSync(path.join(root, 'software-catalog.json'), 'utf8'));
@@ -237,6 +238,43 @@ test('uploads and creates software package without publishing or changing active
     const state = resolveDeploymentProfileState(config);
     assert.deepEqual(state.activeProfile.softwareIds, ['one']);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('creates template software package without installed-file verification', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+
+    await uploadSoftwareInstaller(config, {
+      fileName: 'ExitCodeOnly.msi',
+      buffer: Buffer.from('msi bytes'),
+    }, {
+      uploadId: 'upload-exit-code-only',
+    });
+
+    const created = await createSoftwarePackage(config, {
+      uploadId: 'upload-exit-code-only',
+      name: 'Exit Code Only App',
+      scriptMode: 'template',
+      installerType: 'msi',
+      silentArgs: '/qn /norestart REBOOT=ReallySuppress',
+      successExitCodes: '0,1641,3010',
+    }, {
+      randomInt: () => 27,
+    });
+
+    assert.equal(created.software.id, 'SW-AAAAAAA1');
+    const installScript = fs.readFileSync(path.join(root, 'Softwares', 'SW-AAAAAAA1', 'install.ps1'), 'utf8');
+    assert.match(installScript, /Installer not found/);
+    assert.match(installScript, /msiexec\.exe/);
+    assert.match(installScript, /\$successExitCodes = @\(0, 1641, 3010\)/);
+    assert.match(installScript, /no installed-file verification configured/);
+    assert.doesNotMatch(installScript, /\$verifyPath =/);
+    assert.doesNotMatch(installScript, /verification file was not found/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

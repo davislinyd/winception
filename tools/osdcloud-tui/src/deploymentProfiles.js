@@ -444,15 +444,20 @@ function renderTemplateInstallScript(input) {
   const softwareName = String(input.name ?? input.id);
   const silentArgs = String(input.silentArgs ?? defaultSilentArgs(installerType)).trim();
   const verifyPath = String(input.verifyPath ?? '').trim();
-  if (!verifyPath) {
-    throw inputError('Template install.ps1 requires an installed file to verify');
-  }
   const successExitCodes = normalizeSuccessExitCodes(input.successExitCodes, installerType);
   const logFileName = `${input.id}-${installerType}.log`;
   const installerRun = installerType === 'msi'
     ? `$argumentList = '/i "' + $installerPath + '" ' + $silentArgs + ' /L*v "' + $logPath + '"'
 $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $argumentList -Wait -PassThru -WindowStyle Hidden`
     : `$process = Start-Process -FilePath $installerPath -ArgumentList $silentArgs -Wait -PassThru -WindowStyle Hidden`;
+  const verificationBlock = verifyPath
+    ? `$verifyPath = [Environment]::ExpandEnvironmentVariables(${psSingleQuote(verifyPath)})
+if (-not (Test-Path -LiteralPath $verifyPath -PathType Leaf)) {
+    throw (${psSingleQuote(softwareName)} + ' install completed but verification file was not found: ' + $verifyPath)
+}
+
+Write-Host (${psSingleQuote(softwareName)} + ' installed: ' + $verifyPath)`
+    : `Write-Host (${psSingleQuote(softwareName)} + ' installed; no installed-file verification configured')`;
 
   return `$ErrorActionPreference = 'Stop'
 
@@ -473,12 +478,7 @@ if ($successExitCodes -notcontains $process.ExitCode) {
     throw (${psSingleQuote(softwareName)} + ' installer failed with exit code ' + $process.ExitCode + '. See ' + $logPath)
 }
 
-$verifyPath = [Environment]::ExpandEnvironmentVariables(${psSingleQuote(verifyPath)})
-if (-not (Test-Path -LiteralPath $verifyPath -PathType Leaf)) {
-    throw (${psSingleQuote(softwareName)} + ' install completed but verification file was not found: ' + $verifyPath)
-}
-
-Write-Host (${psSingleQuote(softwareName)} + ' installed: ' + $verifyPath)
+${verificationBlock}
 `;
 }
 

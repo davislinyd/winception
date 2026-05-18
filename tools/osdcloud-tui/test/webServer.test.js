@@ -388,7 +388,6 @@ test('runs mutating API actions through the controller', async () => {
         name: 'Tool App',
         scriptMode: 'template',
         installerType: 'msi',
-        verifyPath: 'C:\\Program Files\\Tool\\tool.exe',
       }),
     });
     assert.equal(response.status, 200);

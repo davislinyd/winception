@@ -48,8 +48,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="software-add-script-mode"/);
   assert.match(html, /value="template"/);
   assert.match(html, /value="raw"/);
-  assert.match(html, /Installed file to verify/);
-  assert.match(html, /After installation, SetupComplete checks this file exists/);
+  assert.match(html, /Installed file to verify \(optional\)/);
+  assert.match(html, /Leave blank to trust the installer success exit code only/);
+  assert.match(script, /installer exit code only/);
   assert.match(html, /id="software-add-raw-script"/);
   assert.match(html, /id="os-images-dialog"/);
   assert.match(html, /class="drawer-dialog os-images-dialog"/);

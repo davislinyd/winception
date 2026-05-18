@@ -598,10 +598,10 @@ Installer file     : 單一 .msi 或 .exe，純檔名，不接受路徑或 URL
 Script mode        : Template 或 Raw install.ps1
 Silent arguments   : Template 模式使用；MSI 預設 /qn /norestart REBOOT=ReallySuppress
 Success exit codes : MSI 預設 0,1641,3010；EXE 預設 0
-Installed file     : Template 模式安裝後必須存在的 EXE/檔案，用來確認安裝成功
+Installed file     : 選填；填入時 Template 模式會在安裝後檢查該 EXE/檔案是否存在
 ```
 
-2. Template 模式會產生標準 `install.ps1`：設定 `$ErrorActionPreference = 'Stop'`、log 寫到 `C:\Windows\Temp\osdcloud-logs`、靜默執行 installer、拒絕失敗 exit code，並用 `Installed file to verify` 指定的檔案確認安裝結果。Raw 模式可直接提供完整 `install.ps1`，適合 silent 參數或驗證邏輯比較特殊的軟體。
+2. Template 模式會產生標準 `install.ps1`：設定 `$ErrorActionPreference = 'Stop'`、log 寫到 `C:\Windows\Temp\osdcloud-logs`、靜默執行 installer、拒絕失敗 exit code；若填入 `Installed file to verify`，會額外檢查該檔案確認安裝結果，留空則只以 installer 成功 exit code 判斷。Raw 模式可直接提供完整 `install.ps1`，適合 silent 參數或驗證邏輯比較特殊的軟體。
 3. 新增完成後，到 `Edit active` 將該軟體加入 `Selected install order`，必要時用上移/下移或拖拉調整順序並存檔，才會停止 running services、重建 live `Apps` payload、依順序寫入 `selected-profile.json.selectedSoftware` 並跑 preflight。只加入 catalog 不會影響下一次部署。
 4. 手動 fallback 是直接在 repo source 建立軟體資料夾：
 
