@@ -13,6 +13,7 @@ import {
   createSoftwarePackage,
   createDeploymentProfile,
   deleteDeploymentProfile,
+  deleteSoftwarePackage,
   formatSoftwareList,
   publishDeploymentProfile,
   resolveDeploymentProfileState,
@@ -92,12 +93,32 @@ function safeRead(callback, fallback = null) {
 }
 
 function profileSummary(state) {
+  const usageBySoftware = new Map();
+  for (const profile of state.profiles) {
+    for (const softwareId of profile.softwareIds) {
+      const usedByProfiles = usageBySoftware.get(softwareId) ?? [];
+      usedByProfiles.push({ id: profile.id, name: profile.name });
+      usageBySoftware.set(softwareId, usedByProfiles);
+    }
+  }
   return {
     activeProfile: state.activeProfile,
     softwareCatalog: (state.catalog?.software ?? []).map((software) => ({
       id: software.id,
       name: software.name,
       source: software.source,
+      sourcePath: software.sourcePath,
+      installScript: software.installScript,
+      scriptMode: software.scriptMode,
+      installerType: software.installerType,
+      installerFileName: software.installerFileName,
+      silentArgs: software.silentArgs,
+      successExitCodes: software.successExitCodes,
+      verifyPath: software.verifyPath,
+      verificationMode: software.verificationMode,
+      installerBytes: software.installerBytes,
+      installerSha256: software.installerSha256,
+      usedByProfiles: usageBySoftware.get(software.id) ?? [],
     })),
     selectedSoftware: state.selectedSoftware.map((software) => ({
       id: software.id,
@@ -155,6 +176,7 @@ export class ServiceController extends EventEmitter {
       createDeploymentProfile,
       createSoftwarePackage,
       deleteDeploymentProfile,
+      deleteSoftwarePackage,
       deleteStatusRun,
       deleteCachedOsImage,
       downloadOsImageFromCatalog,
@@ -773,6 +795,14 @@ export class ServiceController extends EventEmitter {
       const created = await this.dependencies.createSoftwarePackage(this.config, input);
       this.addLog(`Added software package ${created.software.id}: ${created.software.installerFileName}`);
       return created;
+    });
+  }
+
+  async removeSoftwarePackage(softwareId) {
+    return this.runOperation('Deleting software package', async () => {
+      const deleted = this.dependencies.deleteSoftwarePackage(this.config, softwareId);
+      this.addLog(`Deleted software package ${deleted.software.id}: ${deleted.software.source}`);
+      return deleted;
     });
   }
 

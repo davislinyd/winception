@@ -317,6 +317,7 @@
                   <th class="p-table-cell-padding font-medium">Name</th>
                   <th class="p-table-cell-padding font-medium">Source</th>
                   <th class="p-table-cell-padding font-medium">Profiles</th>
+                  <th class="p-table-cell-padding font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody id="software-catalog-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
@@ -633,6 +634,20 @@
       <div class="dialog-actions">
         <button id="software-add-cancel-secondary" type="button">Cancel</button>
         <button type="submit" class="warning">Add to catalog</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="software-detail-dialog">
+    <form method="dialog" class="dialog-card wide">
+      <div class="dialog-header">
+        <h3 id="software-detail-title">Software details</h3>
+        <button type="submit">Close</button>
+      </div>
+      <div class="dialog-summary" id="software-detail-summary"></div>
+      <dl id="software-detail-list" class="software-detail-list"></dl>
+      <div class="dialog-actions">
+        <button type="submit">Close</button>
       </div>
     </form>
   </dialog>

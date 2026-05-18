@@ -188,11 +188,104 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
+function maybeString(value) {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+}
+
 function arrayFrom(value, label) {
   if (!Array.isArray(value)) {
     throw new Error(`${label} must be an array`);
   }
   return value;
+}
+
+function inferInstallerFile(sourcePath, preferredFileName = null) {
+  const preferred = maybeString(preferredFileName);
+  if (preferred) {
+    return preferred;
+  }
+  if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isDirectory()) {
+    return null;
+  }
+  const installers = fs.readdirSync(sourcePath)
+    .filter((entry) => allowedSoftwareInstallerExtensions.has(path.extname(entry).toLowerCase()))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return installers[0] ?? null;
+}
+
+function installerTypeFromFile(fileName) {
+  const extension = path.extname(String(fileName ?? '')).toLowerCase();
+  return extension ? extension.replace(/^\./u, '') : null;
+}
+
+function parseSuccessExitCodesFromScript(script) {
+  const assignment = /\$successExitCodes\s*=\s*@\(([^)]*)\)/iu.exec(script)
+    ?? /@\(([^)]*)\)\s+-notcontains\s+\$process\.ExitCode/iu.exec(script);
+  if (!assignment) {
+    return null;
+  }
+  const values = assignment[1].split(/[,\s]+/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => Number(entry));
+  return values.every((entry) => Number.isInteger(entry)) ? values : null;
+}
+
+function parseSoftwareInstallDetails(installScript) {
+  if (!fs.existsSync(installScript)) {
+    return {};
+  }
+  const script = fs.readFileSync(installScript, 'utf8');
+  const installerFileName = /Join-Path\s+\$PSScriptRoot\s+'([^']+\.(?:msi|exe))'/iu.exec(script)?.[1] ?? null;
+  const silentArgs = /\$silentArgs\s*=\s*'([^']*)'/iu.exec(script)?.[1] ?? null;
+  const verifyPath = /\$verifyPath\s*=\s*\[Environment\]::ExpandEnvironmentVariables\('([^']*)'\)/iu.exec(script)?.[1] ?? null;
+  const successExitCodes = parseSuccessExitCodesFromScript(script);
+  const hasInstalledFileCheck = /\$installedExe\b/iu.test(script) && /Test-Path\s+-LiteralPath\s+\$installedExe/iu.test(script);
+  const hasGeneratedExitOnly = /no installed-file verification configured/iu.test(script);
+  const isGeneratedTemplate = /\$silentArgs\s*=/iu.test(script) && /\$successExitCodes\s*=/iu.test(script);
+
+  let verificationMode = 'custom install.ps1';
+  if (verifyPath) {
+    verificationMode = 'installed file';
+  } else if (hasGeneratedExitOnly) {
+    verificationMode = 'installer exit code only';
+  } else if (hasInstalledFileCheck) {
+    verificationMode = 'custom installed-file check';
+  }
+
+  return {
+    scriptMode: isGeneratedTemplate ? 'template' : 'custom install.ps1',
+    installerFileName,
+    installerType: installerTypeFromFile(installerFileName),
+    silentArgs,
+    successExitCodes,
+    verifyPath,
+    verificationMode,
+  };
+}
+
+function softwareInstallMetadata(row, sourcePath, installScript) {
+  const parsed = parseSoftwareInstallDetails(installScript);
+  const installerFileName = maybeString(row.installerFileName) ?? parsed.installerFileName ?? inferInstallerFile(sourcePath);
+  const installerPath = installerFileName ? path.join(sourcePath, installerFileName) : null;
+  const installerBytes = row.installerBytes ?? (installerPath && fs.existsSync(installerPath) ? fs.statSync(installerPath).size : null);
+  const verifyPath = maybeString(row.verifyPath) ?? parsed.verifyPath ?? null;
+  const verificationMode = maybeString(row.verificationMode)
+    ?? (verifyPath ? 'installed file' : parsed.verificationMode)
+    ?? 'custom install.ps1';
+
+  return {
+    scriptMode: maybeString(row.scriptMode) ?? parsed.scriptMode ?? 'custom install.ps1',
+    installerType: maybeString(row.installerType) ?? parsed.installerType ?? installerTypeFromFile(installerFileName),
+    installerFileName,
+    silentArgs: row.silentArgs !== undefined ? String(row.silentArgs) : parsed.silentArgs,
+    successExitCodes: Array.isArray(row.successExitCodes) ? row.successExitCodes : parsed.successExitCodes,
+    verifyPath,
+    verificationMode,
+    installerBytes,
+    installerSha256: maybeString(row.installerSha256 ?? row.sha256),
+  };
 }
 
 export function deploymentProfileOptions(config = {}, overrides = {}) {
@@ -250,12 +343,14 @@ export function loadSoftwareCatalog(config = {}, options = {}) {
       }
     }
 
+    const metadata = softwareInstallMetadata(row, sourcePath, installScript);
     return {
       id,
       name: String(row.name ?? id),
       source,
       sourcePath,
       installScript,
+      ...metadata,
     };
   });
 
@@ -564,7 +659,20 @@ export async function createSoftwarePackage(config = {}, input = {}, options = {
     const sha256 = await sha256File(installerTargetPath);
     catalogRaw.software = [
       ...softwareRows,
-      { id, name, source },
+      {
+        id,
+        name,
+        source,
+        scriptMode: String(input.scriptMode ?? input.mode ?? 'template').trim().toLowerCase(),
+        installerType,
+        installerFileName,
+        silentArgs: String(input.silentArgs ?? defaultSilentArgs(installerType)).trim(),
+        successExitCodes: normalizeSuccessExitCodes(input.successExitCodes, installerType),
+        verifyPath: String(input.verifyPath ?? '').trim(),
+        verificationMode: String(input.verifyPath ?? '').trim() ? 'installed file' : 'installer exit code only',
+        installerBytes: stat.size,
+        installerSha256: sha256,
+      },
     ];
     writeJson(profileOptions.softwareCatalogPath, catalogRaw);
     let uploadRemoved = false;
@@ -802,6 +910,50 @@ export function deleteDeploymentProfile(config = {}, profileId, options = {}) {
   return {
     profile,
     filePath,
+  };
+}
+
+export function deleteSoftwarePackage(config = {}, softwareId, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  const id = normalizeId(softwareId, 'software');
+  const catalogRaw = readJson(profileOptions.softwareCatalogPath, 'software catalog');
+  const softwareRows = arrayFrom(catalogRaw.software, 'software catalog software');
+  const rowIndex = softwareRows.findIndex((row) => normalizeId(row.id, 'software') === id);
+  if (rowIndex < 0) {
+    throw inputError(`Software not found: ${id}`, 404);
+  }
+
+  const catalog = loadSoftwareCatalog(config, options);
+  const profiles = loadDeploymentProfiles(config, { ...options, catalog });
+  const usedByProfiles = profiles
+    .filter((profile) => profile.softwareIds.includes(id))
+    .map((profile) => ({ id: profile.id, name: profile.name }));
+  if (usedByProfiles.length) {
+    const names = usedByProfiles.map((profile) => profile.name || profile.id).join(', ');
+    const error = inputError(`Software ${id} is still used by deployment profiles: ${names}`, 409);
+    error.profiles = usedByProfiles;
+    throw error;
+  }
+
+  const row = softwareRows[rowIndex];
+  const software = catalog.byId.get(id);
+  const source = String(row.source ?? id).trim();
+  const sourceUsers = softwareRows.filter((candidate, index) => index !== rowIndex && String(candidate.source ?? candidate.id).trim() === source);
+  if (sourceUsers.length) {
+    throw inputError(`Software source ${source} is shared by another catalog entry`, 409);
+  }
+
+  catalogRaw.software = softwareRows.filter((_row, index) => index !== rowIndex);
+  writeJson(profileOptions.softwareCatalogPath, catalogRaw);
+  if (software?.sourcePath && fs.existsSync(software.sourcePath)) {
+    fs.rmSync(software.sourcePath, { recursive: true, force: true });
+  }
+
+  return {
+    software,
+    catalogPath: profileOptions.softwareCatalogPath,
+    sourceRemoved: Boolean(software?.sourcePath),
+    usedByProfiles,
   };
 }
 

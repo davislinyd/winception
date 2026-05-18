@@ -124,6 +124,10 @@ const elements = {
   softwareAddRawFields: $('#software-add-raw-fields'),
   softwareAddRawScript: $('#software-add-raw-script'),
   softwareAddError: $('#software-add-error'),
+  softwareDetailDialog: $('#software-detail-dialog'),
+  softwareDetailTitle: $('#software-detail-title'),
+  softwareDetailSummary: $('#software-detail-summary'),
+  softwareDetailList: $('#software-detail-list'),
   confirmDialog: $('#confirm-dialog'),
   confirmTitle: $('#confirm-title'),
   confirmMessage: $('#confirm-message'),
@@ -1460,7 +1464,7 @@ function renderSoftwareCatalog(appState) {
   if (profileState?.error) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 4;
+    td.colSpan = 5;
     td.textContent = profileState.error;
     tr.append(td);
     elements.softwareCatalogBody.append(tr);
@@ -1470,7 +1474,7 @@ function renderSoftwareCatalog(appState) {
   if (!software.length) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 4;
+    td.colSpan = 5;
     td.textContent = 'No software catalog entries.';
     tr.append(td);
     elements.softwareCatalogBody.append(tr);
@@ -1478,9 +1482,11 @@ function renderSoftwareCatalog(appState) {
   }
   for (const item of software) {
     const tr = document.createElement('tr');
-    const selectedProfiles = (profileState.profiles ?? [])
-      .filter((profile) => profile.softwareIds?.includes(item.id))
-      .map((profile) => profile.name || profile.id);
+    const selectedProfiles = item.usedByProfiles?.length
+      ? item.usedByProfiles.map((profile) => profile.name || profile.id)
+      : (profileState.profiles ?? [])
+        .filter((profile) => profile.softwareIds?.includes(item.id))
+        .map((profile) => profile.name || profile.id);
     for (const value of [
       item.id,
       item.name,
@@ -1491,6 +1497,29 @@ function renderSoftwareCatalog(appState) {
       td.textContent = text(value);
       tr.append(td);
     }
+    const actions = document.createElement('td');
+    const actionWrap = document.createElement('div');
+    actionWrap.className = 'software-catalog-actions';
+    const view = document.createElement('button');
+    view.type = 'button';
+    view.textContent = 'View';
+    view.dataset.icon = 'visibility';
+    view.dataset.softwareAction = 'view';
+    view.dataset.softwareId = item.id;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = 'Delete';
+    del.className = 'danger';
+    del.dataset.icon = 'delete';
+    del.dataset.softwareAction = 'delete';
+    del.dataset.softwareId = item.id;
+    if (selectedProfiles.length) {
+      del.disabled = true;
+      del.title = `Remove from profiles first: ${selectedProfiles.join(', ')}`;
+    }
+    actionWrap.append(view, del);
+    actions.append(actionWrap);
+    tr.append(actions);
     elements.softwareCatalogBody.append(tr);
   }
 }
@@ -2246,6 +2275,30 @@ function validateAddSoftwareInput(input) {
   return '';
 }
 
+function showSoftwareDetails(software) {
+  const usedByProfiles = software.usedByProfiles?.map((profile) => profile.name || profile.id) ?? [];
+  elements.softwareDetailTitle.textContent = software.name || software.id;
+  elements.softwareDetailSummary.textContent = `${software.id} / ${software.source ?? software.id}`;
+  setDefinitionList(elements.softwareDetailList, [
+    ['Software ID', software.id],
+    ['Name', software.name],
+    ['Source folder', software.source],
+    ['Installer file', software.installerFileName],
+    ['Installer type', software.installerType ? String(software.installerType).toUpperCase() : '-'],
+    ['Installer size', bytes(software.installerBytes)],
+    ['Installer SHA256', software.installerSha256],
+    ['Script mode', software.scriptMode],
+    ['Silent arguments', software.silentArgs],
+    ['Success exit codes', Array.isArray(software.successExitCodes) ? software.successExitCodes.join(',') : software.successExitCodes],
+    ['Verification', software.verificationMode],
+    ['Installed file to verify', software.verifyPath],
+    ['Applied profiles', usedByProfiles.length ? usedByProfiles.join(', ') : 'not selected'],
+    ['Source path', software.sourcePath],
+    ['install.ps1', software.installScript],
+  ]);
+  openDialog(elements.softwareDetailDialog);
+}
+
 function showAddSoftwareDialog() {
   return new Promise((resolve) => {
     elements.softwareAddForm.reset();
@@ -2579,6 +2632,28 @@ async function handleSoftwareAdd(input) {
   }
 }
 
+async function handleSoftwareDelete(software) {
+  const usedByProfiles = software.usedByProfiles?.map((profile) => profile.name || profile.id) ?? [];
+  if (usedByProfiles.length) {
+    window.alert(`Remove ${software.name || software.id} from profiles first: ${usedByProfiles.join(', ')}`);
+    return;
+  }
+  const ok = await confirmAction({
+    title: 'Delete software package',
+    message: 'This removes the catalog entry and repo Softwares folder. It does not republish live Apps or change deployment profiles.',
+    details: [
+      `Software: ${software.name || software.id}`,
+      `ID: ${software.id}`,
+      `Source: ${software.source ?? software.id}`,
+    ],
+    confirmLabel: 'Delete software',
+    severity: 'danger',
+  });
+  if (ok) {
+    await mutate('/api/software/delete', { softwareId: software.id });
+  }
+}
+
 async function handleStatusRunDelete(runId) {
   const run = state.current?.fleet?.runs?.find((item) => item.runId === runId);
   if (!run) {
@@ -2779,6 +2854,20 @@ document.addEventListener('click', (event) => {
       handleProfileDelete(profile).catch((error) => window.alert(error.message));
     } else if (profileButton.dataset.profileAction === 'edit') {
       handleAction('profile-edit').catch((error) => window.alert(error.message));
+    }
+    return;
+  }
+
+  const softwareButton = target.closest('[data-software-action]');
+  if (softwareButton) {
+    const software = state.current?.profile?.softwareCatalog?.find((item) => item.id === softwareButton.dataset.softwareId);
+    if (!software) {
+      return;
+    }
+    if (softwareButton.dataset.softwareAction === 'view') {
+      showSoftwareDetails(software);
+    } else if (softwareButton.dataset.softwareAction === 'delete') {
+      handleSoftwareDelete(software).catch((error) => window.alert(error.message));
     }
     return;
   }

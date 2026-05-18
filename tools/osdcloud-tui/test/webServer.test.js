@@ -249,6 +249,20 @@ async function makeServer(root, overrides = {}) {
           uploadRemoved: true,
         };
       },
+      deleteSoftwarePackage: (_config, softwareId) => {
+        if (softwareId === '7zip') {
+          const error = new Error('Software 7zip is still used by deployment profiles: Default');
+          error.statusCode = 409;
+          error.profiles = [{ id: 'default', name: 'Default' }];
+          throw error;
+        }
+        return {
+          software: { id: softwareId, name: 'Tool App', source: softwareId },
+          catalogPath: path.join(root, 'software-catalog.json'),
+          sourceRemoved: true,
+          usedByProfiles: [],
+        };
+      },
       deleteDeploymentProfile: (_config, profileId) => ({
         profile: { id: profileId, name: 'Minimal', description: '', softwareIds: [] },
         filePath: path.join(root, `${profileId}.json`),
@@ -394,6 +408,25 @@ test('runs mutating API actions through the controller', async () => {
     payload = await response.json();
     assert.equal(payload.result.software.id, 'SW-TEST001');
     assert.equal(payload.result.uploadRemoved, true);
+
+    response = await fetch(`${base}/api/software/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ softwareId: 'SW-TEST001' }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.software.id, 'SW-TEST001');
+
+    response = await fetch(`${base}/api/software/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ softwareId: '7zip' }),
+    });
+    assert.equal(response.status, 409);
+    payload = await response.json();
+    assert.equal(payload.ok, false);
+    assert.deepEqual(payload.profiles, [{ id: 'default', name: 'Default' }]);
 
     response = await fetch(`${base}/api/software/create`, {
       method: 'POST',

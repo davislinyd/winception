@@ -8,6 +8,7 @@ import {
   createSoftwarePackage,
   createDeploymentProfile,
   deleteDeploymentProfile,
+  deleteSoftwarePackage,
   deploymentProfileOptions,
   evaluateDeploymentProfilePayload,
   generateDeploymentProfileId,
@@ -235,9 +236,49 @@ test('uploads and creates software package without publishing or changing active
 
     const catalog = JSON.parse(fs.readFileSync(path.join(root, 'software-catalog.json'), 'utf8'));
     assert.deepEqual(catalog.software.map((software) => software.id), ['one', 'two', 'SW-AAAAAAA0']);
+    const catalogEntry = catalog.software.find((software) => software.id === 'SW-AAAAAAA0');
+    assert.equal(catalogEntry.scriptMode, 'template');
+    assert.equal(catalogEntry.installerType, 'msi');
+    assert.equal(catalogEntry.installerFileName, 'ToolSetup.msi');
+    assert.equal(catalogEntry.silentArgs, '/qn /norestart REBOOT=ReallySuppress');
+    assert.deepEqual(catalogEntry.successExitCodes, [0, 1641, 3010]);
+    assert.equal(catalogEntry.verifyPath, 'C:\\Program Files\\Tool\\tool.exe');
+    assert.equal(catalogEntry.verificationMode, 'installed file');
+    assert.equal(catalogEntry.installerBytes, Buffer.byteLength('msi bytes'));
+    assert.equal(catalogEntry.installerSha256.length, 64);
     const state = resolveDeploymentProfileState(config);
     assert.deepEqual(state.activeProfile.softwareIds, ['one']);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('loads software install details from legacy generated install script', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      catalog: [{ id: 'tool', name: 'Tool App', source: 'tool' }],
+    });
+    const softwareRoot = path.join(root, 'Softwares', 'tool');
+    fs.mkdirSync(softwareRoot, { recursive: true });
+    fs.writeFileSync(path.join(softwareRoot, 'tool.msi'), 'tool installer', 'utf8');
+    fs.writeFileSync(path.join(softwareRoot, 'install.ps1'), `$ErrorActionPreference = 'Stop'
+$installerPath = Join-Path $PSScriptRoot 'tool.msi'
+$silentArgs = '/qn /norestart'
+$successExitCodes = @(0, 1641, 3010)
+Write-Host ('Tool App' + ' installed; no installed-file verification configured')
+`, 'utf8');
+
+    const catalog = loadSoftwareCatalog(configFor(root));
+    const software = catalog.byId.get('tool');
+    assert.equal(software.scriptMode, 'template');
+    assert.equal(software.installerFileName, 'tool.msi');
+    assert.equal(software.installerType, 'msi');
+    assert.equal(software.silentArgs, '/qn /norestart');
+    assert.deepEqual(software.successExitCodes, [0, 1641, 3010]);
+    assert.equal(software.verificationMode, 'installer exit code only');
+    assert.equal(software.installerBytes, Buffer.byteLength('tool installer'));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -621,6 +662,44 @@ test('delete deployment profile rejects active profile', () => {
       /Cannot delete active deployment profile/,
     );
     assert.equal(fs.existsSync(path.join(root, 'profiles', 'default.json')), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('deletes unused software package from catalog and source folder', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+
+    const deleted = deleteSoftwarePackage(config, 'two');
+
+    assert.equal(deleted.software.id, 'two');
+    assert.equal(fs.existsSync(path.join(root, 'Softwares', 'two')), false);
+    const catalog = JSON.parse(fs.readFileSync(path.join(root, 'software-catalog.json'), 'utf8'));
+    assert.deepEqual(catalog.software.map((software) => software.id), ['one']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('delete software package rejects software used by any profile', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+      },
+    });
+    const config = configFor(root);
+
+    assert.throws(() => deleteSoftwarePackage(config, 'one'), /still used by deployment profiles: Default/);
+    assert.equal(fs.existsSync(path.join(root, 'Softwares', 'one')), true);
+    const catalog = JSON.parse(fs.readFileSync(path.join(root, 'software-catalog.json'), 'utf8'));
+    assert.deepEqual(catalog.software.map((software) => software.id), ['one', 'two']);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

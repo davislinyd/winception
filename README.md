@@ -588,7 +588,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 
 自行新增 client 軟體與 profile：
 
-日常操作優先用 Web console：開 `Profiles`，在 `Software Catalog` 區塊選 `Add software`，上傳單一 `.msi` 或 `.exe`。Web console 會產生安全亂數 software id、建立 `Softwares\<software-id>`、寫入 installer 與 `install.ps1`、更新 `config\software-catalog.json`，並顯示 installer size / SHA256。這一步只加入 catalog，不會自動加入 active profile，也不會發佈 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。
+日常操作優先用 Web console：開 `Profiles`，在 `Software Catalog` 區塊選 `Add software`，上傳單一 `.msi` 或 `.exe`。Web console 會產生安全亂數 software id、建立 `Softwares\<software-id>`、寫入 installer 與 `install.ps1`、更新 `config\software-catalog.json`，並顯示 installer size / SHA256。這一步只加入 catalog，不會自動加入 active profile，也不會發佈 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。Catalog row 的 `View` 可檢視 installer 檔、silent 參數、success exit codes、verify path / verification mode、source path 與套用到哪些 profiles。
 
 1. Web `Add software` 的欄位：
 
@@ -602,7 +602,7 @@ Installed file     : 選填；填入時 Template 模式會在安裝後檢查該 
 ```
 
 2. Template 模式會產生標準 `install.ps1`：設定 `$ErrorActionPreference = 'Stop'`、log 寫到 `C:\Windows\Temp\osdcloud-logs`、靜默執行 installer、拒絕失敗 exit code；若填入 `Installed file to verify`，會額外檢查該檔案確認安裝結果，留空則只以 installer 成功 exit code 判斷。Raw 模式可直接提供完整 `install.ps1`，適合 silent 參數或驗證邏輯比較特殊的軟體。
-3. 新增完成後，到 `Edit active` 將該軟體加入 `Selected install order`，必要時用上移/下移或拖拉調整順序並存檔，才會停止 running services、重建 live `Apps` payload、依順序寫入 `selected-profile.json.selectedSoftware` 並跑 preflight。只加入 catalog 不會影響下一次部署。
+3. 新增完成後，到 `Edit active` 將該軟體加入 `Selected install order`，必要時用上移/下移或拖拉調整順序並存檔，才會停止 running services、重建 live `Apps` payload、依順序寫入 `selected-profile.json.selectedSoftware` 並跑 preflight。只加入 catalog 不會影響下一次部署。Catalog row 的 `Delete` 只允許刪除未被任何 profile 使用的 software；若已被套用到 `Default` / `All in One` / 其他 profile，必須先用 profile editor 解除套用並存檔，才可以刪除。
 4. 手動 fallback 是直接在 repo source 建立軟體資料夾：
 
 ```text
@@ -840,7 +840,7 @@ Web console 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/stat
 - 先執行 `Run preflight`；preflight 會檢查服務綁定 IP 是否存在於任一張啟用中的 IPv4 介面，不要求固定 NIC alias
 - 若要改服務監聽介面，使用 `Select service interface`；drawer 會立即開啟並背景刷新目前啟用、具 IPv4、非 APIPA 的介面清單。選定並同步後，才會寫回 `config\osdcloud-tui.json`，同步 DHCP lease pool / subnet mask / router、live `boot.ipxe`、iPXE WinPE status/SMB endpoint、SMB firewall、published `boot.wim` 與 `osdcloud-assets`
 - 若要切換本次要安裝的 client software 組合，使用 `Select deployment profile`；Web console 會停止 running services，寫回 active profile，並依該 profile `software` 順序只發佈選中的 `Apps` payload
-- 若要新增可選 client software，使用 `Profiles` > `Software Catalog` > `Add software`；新增只更新 repo `Softwares\<id>` 與 `config\software-catalog.json`，不會自動發佈，仍需用 `Edit active` 加入 `Selected install order` 後存檔
+- 若要新增可選 client software，使用 `Profiles` > `Software Catalog` > `Add software`；新增只更新 repo `Softwares\<id>` 與 `config\software-catalog.json`，不會自動發佈，仍需用 `Edit active` 加入 `Selected install order` 後存檔。Software Catalog 可用 `View` 檢視 installer/settings/profile usage；`Delete` 只允許刪除未被任何 profile 使用的 software
 - 若要管理 profile，使用 `Add deployment profile`、`Edit deployment profile`、`Delete deployment profile`。新增 profile 會複製目前 active profile 與其軟體順序但不切換/不發佈；編輯會更新 active profile 的 `software` 清單與安裝順序，並在存檔後立即發佈；刪除只允許刪非 active profile
 - `Select service interface` 觸發 endpoint 更新時，Preflight panel 會顯示目前正在更新的項目，Logs 會即時串流同步腳本輸出，完成後會自動針對新 endpoint 跑 preflight
 - 選擇新介面時，HTTP/TFTP/DHCP 任一服務若正在 running，Web console 會先要求停止服務再更新 endpoint

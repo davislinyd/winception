@@ -108,7 +108,11 @@ export class WebManagementServer {
     this.server = http.createServer((req, res) => {
       this.handleRequest(req, res).catch((error) => {
         const statusCode = error.statusCode ?? (error instanceof SyntaxError ? 400 : 500);
-        sendJson(res, statusCode, { ok: false, error: error.message });
+        const payload = { ok: false, error: error.message };
+        if (error.profiles) {
+          payload.profiles = error.profiles;
+        }
+        sendJson(res, statusCode, payload);
       });
     });
     await new Promise((resolve, reject) => {
@@ -259,6 +263,12 @@ export class WebManagementServer {
     if (pathname === '/api/software/create') {
       const body = await readJsonBody(req);
       const result = await this.controller.addSoftwarePackage(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/software/delete') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.removeSoftwarePackage(body.softwareId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }

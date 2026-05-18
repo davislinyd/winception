@@ -1108,7 +1108,32 @@ dialog.drawer-dialog.dialog-fallback-open {
 }
 
 .software-catalog-table {
-  min-width: 760px;
+  min-width: 940px;
+}
+
+.software-catalog-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.software-detail-list {
+  display: grid;
+  gap: 8px 14px;
+  grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
+}
+
+.software-detail-list dt {
+  color: var(--on-surface-variant);
+  font: 600 11px/16px Inter, sans-serif;
+}
+
+.software-detail-list dd {
+  font: 500 12px/16px "JetBrains Mono", monospace;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .catalog-filter-panel {

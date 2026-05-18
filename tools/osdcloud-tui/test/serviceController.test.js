@@ -201,6 +201,7 @@ test('state reads do not create live status roots', () => {
     assert.equal(state.services.http.running, false);
     assert.equal(state.profile.activeProfile.id, 'default');
     assert.deepEqual(state.profile.softwareCatalog.map((software) => software.id), ['7zip', 'chrome']);
+    assert.deepEqual(state.profile.softwareCatalog.find((software) => software.id === '7zip').usedByProfiles, [{ id: 'default', name: 'Default' }]);
     assert.equal(fs.existsSync(statusRoot), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -420,6 +421,47 @@ test('software package actions upload and add catalog entry without publishing',
     assert.equal(uploadedInput.fileName, 'tool.msi');
     assert.equal(Object.prototype.hasOwnProperty.call(createInput, 'id'), false);
     assert.equal(created.software.id, 'SW-TOOL001');
+    assert.equal(publishCalled, false);
+    assert.equal(services.http.running, true);
+    assert.equal(services.tftp.running, true);
+    assert.equal(services.dhcp.running, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('software package delete runs through controller without publishing', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-software-delete-'));
+  try {
+    let deletedSoftwareId = null;
+    let publishCalled = false;
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        deleteSoftwarePackage: (_config, softwareId) => {
+          deletedSoftwareId = softwareId;
+          return {
+            software: { id: softwareId, name: 'Tool App', source: softwareId },
+            catalogPath: path.join(root, 'software-catalog.json'),
+            sourceRemoved: true,
+            usedByProfiles: [],
+          };
+        },
+        publishDeploymentProfile() {
+          publishCalled = true;
+          return {
+            profile: { id: 'default', name: 'Default', description: '', softwareIds: ['7zip'] },
+            selectedSoftware: [{ id: '7zip', name: '7-Zip' }],
+            appsRoot: path.join(root, 'Apps'),
+          };
+        },
+      },
+    });
+
+    await controller.startAll();
+    const deleted = await controller.removeSoftwarePackage('SW-TOOL001');
+
+    assert.equal(deletedSoftwareId, 'SW-TOOL001');
+    assert.equal(deleted.software.id, 'SW-TOOL001');
     assert.equal(publishCalled, false);
     assert.equal(services.http.running, true);
     assert.equal(services.tftp.running, true);

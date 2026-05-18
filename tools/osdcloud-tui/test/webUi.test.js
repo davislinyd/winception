@@ -37,8 +37,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(deploymentProfilesDialogHtml, /Profile Management[\s\S]*Software Catalog/);
   assert.match(html, /Software Catalog/);
   assert.match(html, /id="software-catalog-body"/);
+  assert.match(html, /Software Catalog[\s\S]*>Actions</);
   assert.match(html, /data-action="software-add" data-icon="upload_file" class="warning"/);
   assert.match(html, /id="software-add-dialog"/);
+  assert.match(html, /id="software-detail-dialog"/);
+  assert.match(html, /id="software-detail-list"/);
   assert.match(html, /id="software-select-all" data-icon="playlist_add_check"/);
   assert.match(html, /id="software-select-none" data-icon="remove_done"/);
   assert.match(html, /id="software-list" class="software-order-editor"/);
@@ -51,6 +54,10 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /Installed file to verify \(optional\)/);
   assert.match(html, /Leave blank to trust the installer success exit code only/);
   assert.match(script, /installer exit code only/);
+  assert.match(script, /data-software-action/);
+  assert.match(script, /Remove from profiles first/);
+  assert.match(script, /\/api\/software\/delete/);
+  assert.match(script, /showSoftwareDetails/);
   assert.match(html, /id="software-add-raw-script"/);
   assert.match(html, /id="os-images-dialog"/);
   assert.match(html, /class="drawer-dialog os-images-dialog"/);
