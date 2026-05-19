@@ -668,8 +668,9 @@ custom script 是「在部署流程中要跑、但又不是傳統 MSI/EXE 安裝
 3. 到 `Edit active` 或 inactive profile 的 `Edit`，在 `Custom Scripts` 子區塊勾選要使用的 script，每個被勾選的 script 都有獨立的 `Before Apps` / `After Apps` 下拉，可覆寫 catalog 預設。存檔規則和 software 完全相同：editing active profile 會停服務、重建 `Apps` + `Scripts` payload、跑 preflight；editing inactive profile 只改 JSON。
 4. 發佈後 `selected-profile.json` 會新增 `customScripts: [{id, phase}]`，發佈順序為先全部 `before`、再全部 `after`。WinPE shutdown 會把 `Scripts` 子樹一併複製到 client 端 `C:\ProgramData\OSDCloud\Scripts`，SetupComplete 透過 `Install-Apps.ps1` 在對應階段執行 `Scripts\<id>\run.ps1`。
 5. Custom Script Catalog row 的 `View` 會打開唯讀檢視器顯示 `run.ps1` 內容與磁碟位置；`Delete` 只允許刪除未被任何 profile 引用的 script，被引用時必須先到 profile editor 解除勾選並存檔才能刪。
-6. 手動 fallback（不建議）：在 repo 直接建立 `Scripts\<SC-XXX>\run.ps1` 並把該 id 加進 `config\scripts-catalog.json` 的 `scripts` 陣列（欄位：`id`、`name`、`source`、`fileName`、`defaultPhase`、`bytes`、`sha256`），同樣可以被 profile 引用。
-7. `run.ps1` 必須自己處理 `$ErrorActionPreference`、log 寫到 `C:\Windows\Temp\osdcloud-logs`、靜默失敗回報；`Install-Apps.ps1` 只負責呼叫並把錯誤累加到失敗清單。範例（建立暫存防火牆規則）：
+6. Custom scripts 在 Windows `SetupComplete` 階段由 SYSTEM 執行；`[Environment]::GetFolderPath('Desktop')` 會解析到 `C:\Users\Public\Desktop`。若腳本要寫入 `davis` 的個人桌面，請從 `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList` 找出 `davis` 的 `ProfileImagePath` 後寫入該 profile 的 `Desktop`；如果 `davis` 尚未第一次登入、profile 還不存在，請寫入 `C:\Users\Default\Desktop`，讓 Windows 建立新 profile 時帶入。
+7. 手動 fallback（不建議）：在 repo 直接建立 `Scripts\<SC-XXX>\run.ps1` 並把該 id 加進 `config\scripts-catalog.json` 的 `scripts` 陣列（欄位：`id`、`name`、`source`、`fileName`、`defaultPhase`、`bytes`、`sha256`），同樣可以被 profile 引用。
+8. `run.ps1` 必須自己處理 `$ErrorActionPreference`、log 寫到 `C:\Windows\Temp\osdcloud-logs`、靜默失敗回報；`Install-Apps.ps1` 只負責呼叫並把錯誤累加到失敗清單。範例（建立暫存防火牆規則）：
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -687,7 +688,7 @@ finally {
 }
 ```
 
-8. 只新增 catalog script 不需要重建 `boot.wim`；只有真正發佈 profile 後，既有 WinPE shutdown 才會複製已發佈的 `OSDCloud\Scripts`。
+9. 只新增 catalog script 不需要重建 `boot.wim`；只有真正發佈 profile 後，既有 WinPE shutdown 才會複製已發佈的 `OSDCloud\Scripts`。
 
 若目前 endpoint 留在 VM 測試狀態，先切回實體筆電：
 

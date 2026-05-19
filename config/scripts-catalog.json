@@ -1,3 +1,13 @@
 {
-  "scripts": []
+  "scripts": [
+    {
+      "id": "SC-J5GF07Y2",
+      "name": "Add text file to desktop",
+      "source": "SC-J5GF07Y2",
+      "fileName": "test.ps1",
+      "defaultPhase": "after",
+      "bytes": 1330,
+      "sha256": "B35D8C4C6276501E88E8807F0C9AB7C48D5E6F032E9705DFAE42078EC9C798B5"
+    }
+  ]
 }
