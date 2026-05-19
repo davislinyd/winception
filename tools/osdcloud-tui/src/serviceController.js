@@ -12,14 +12,18 @@ import { MediaHttpServer } from './httpServer.js';
 import {
   createSoftwarePackage,
   createDeploymentProfile,
+  createCustomScript,
   deleteDeploymentProfile,
   deleteSoftwarePackage,
+  deleteCustomScript,
   formatSoftwareList,
   openSoftwareInstallScript,
   publishDeploymentProfile,
+  readCustomScriptContent,
   readSoftwareInstallScript,
   resolveDeploymentProfileState,
   updateDeploymentProfile,
+  uploadCustomScript,
   uploadSoftwareInstaller,
 } from './deploymentProfiles.js';
 import {
@@ -96,11 +100,17 @@ function safeRead(callback, fallback = null) {
 
 function profileSummary(state) {
   const usageBySoftware = new Map();
+  const usageByScript = new Map();
   for (const profile of state.profiles) {
     for (const softwareId of profile.softwareIds) {
       const usedByProfiles = usageBySoftware.get(softwareId) ?? [];
       usedByProfiles.push({ id: profile.id, name: profile.name });
       usageBySoftware.set(softwareId, usedByProfiles);
+    }
+    for (const entry of profile.customScripts ?? []) {
+      const usedByProfiles = usageByScript.get(entry.id) ?? [];
+      usedByProfiles.push({ id: profile.id, name: profile.name });
+      usageByScript.set(entry.id, usedByProfiles);
     }
   }
   return {
@@ -122,16 +132,34 @@ function profileSummary(state) {
       installerSha256: software.installerSha256,
       usedByProfiles: usageBySoftware.get(software.id) ?? [],
     })),
+    customScriptCatalog: (state.scriptCatalog?.scripts ?? []).map((script) => ({
+      id: script.id,
+      name: script.name,
+      source: script.source,
+      sourcePath: script.sourcePath,
+      scriptFile: script.scriptFile,
+      fileName: script.fileName,
+      defaultPhase: script.defaultPhase,
+      bytes: script.bytes,
+      sha256: script.sha256,
+      usedByProfiles: usageByScript.get(script.id) ?? [],
+    })),
     selectedSoftware: state.selectedSoftware.map((software) => ({
       id: software.id,
       name: software.name,
     })),
     selectedSoftwareText: formatSoftwareList(state.selectedSoftware),
+    selectedScripts: (state.selectedScripts ?? []).map((script) => ({
+      id: script.id,
+      name: script.name,
+      phase: script.phase,
+    })),
     profiles: state.profiles.map((profile) => ({
       id: profile.id,
       name: profile.name,
       description: profile.description,
       softwareIds: profile.softwareIds,
+      customScripts: (profile.customScripts ?? []).map((entry) => ({ id: entry.id, phase: entry.phase })),
       osImageId: profile.osImageId,
     })),
   };
@@ -196,8 +224,10 @@ export class ServiceController extends EventEmitter {
       applyServiceEndpoint,
       createDeploymentProfile,
       createSoftwarePackage,
+      createCustomScript,
       deleteDeploymentProfile,
       deleteSoftwarePackage,
+      deleteCustomScript,
       deleteStatusRun,
       deleteCachedOsImage,
       downloadOsImageFromCatalog,
@@ -207,6 +237,7 @@ export class ServiceController extends EventEmitter {
       openSoftwareInstallScript,
       publishSelectedOsImage,
       publishDeploymentProfile,
+      readCustomScriptContent,
       readSoftwareInstallScript,
       readFleetStatus,
       readRecentScreenshotMetadata,
@@ -222,6 +253,7 @@ export class ServiceController extends EventEmitter {
       syncIpxeEndpoint,
       tailFile,
       updateDeploymentProfile,
+      uploadCustomScript,
       uploadSoftwareInstaller,
       uploadOsImageFile,
       ...options.dependencies,
@@ -832,6 +864,34 @@ export class ServiceController extends EventEmitter {
     });
   }
 
+  async uploadCustomScript(input) {
+    return this.runOperation('Uploading custom script', async () => {
+      const uploaded = await this.dependencies.uploadCustomScript(this.config, input);
+      this.addLog(`Uploaded custom script ${uploaded.fileName}: ${uploaded.bytes} bytes sha256=${uploaded.sha256}`);
+      return uploaded;
+    });
+  }
+
+  async addCustomScript(input) {
+    return this.runOperation('Adding custom script', async () => {
+      const created = await this.dependencies.createCustomScript(this.config, input);
+      this.addLog(`Added custom script ${created.script.id}: ${created.script.fileName} (${created.script.defaultPhase})`);
+      return created;
+    });
+  }
+
+  async removeCustomScript(scriptId) {
+    return this.runOperation('Deleting custom script', async () => {
+      const deleted = this.dependencies.deleteCustomScript(this.config, scriptId);
+      this.addLog(`Deleted custom script ${deleted.script?.id ?? scriptId}`);
+      return deleted;
+    });
+  }
+
+  readCustomScriptContent(scriptId) {
+    return this.dependencies.readCustomScriptContent(this.config, scriptId);
+  }
+
   readSoftwareInstallScript(softwareId) {
     return this.dependencies.readSoftwareInstallScript(this.config, softwareId);
   }
@@ -858,6 +918,7 @@ export class ServiceController extends EventEmitter {
         name: input.name,
         description: input.description,
         softwareIds: input.softwareIds ?? input.software,
+        customScripts: input.customScripts,
         osImageId: input.osImageId,
       };
       if (!editingActive) {

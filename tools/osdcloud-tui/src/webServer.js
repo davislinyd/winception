@@ -277,6 +277,37 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/script-upload') {
+      const fileName = requestUrl.searchParams.get('fileName')
+        ?? headerValue(req.headers, 'x-script-file-name');
+      const size = Number(headerValue(req.headers, 'content-length') ?? 0) || null;
+      const result = await this.controller.uploadCustomScript({
+        fileName,
+        size,
+        stream: req,
+      });
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/scripts/create') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.addCustomScript(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/scripts/delete') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.removeCustomScript(body.scriptId ?? body.id);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/scripts/content') {
+      const scriptId = requestUrl.searchParams.get('scriptId')
+        ?? requestUrl.searchParams.get('id');
+      const result = this.controller.readCustomScriptContent(scriptId);
+      sendJson(res, 200, { ok: true, result });
+      return;
+    }
     if (pathname === '/api/profiles/create') {
       const body = await readJsonBody(req);
       const result = await this.controller.addDeploymentProfile(body);
@@ -289,11 +320,13 @@ export class WebManagementServer {
         || Object.prototype.hasOwnProperty.call(body, 'software');
       const hasOsImage = Object.prototype.hasOwnProperty.call(body, 'osImageId')
         || Object.prototype.hasOwnProperty.call(body, 'osImage');
+      const hasCustomScripts = Object.prototype.hasOwnProperty.call(body, 'customScripts');
       const result = await this.controller.updateActiveDeploymentProfile({
         profileId: body.profileId ?? body.id,
         name: body.name,
         description: body.description,
         softwareIds: hasSoftware ? (body.softwareIds ?? body.software) : undefined,
+        customScripts: hasCustomScripts ? body.customScripts : undefined,
         osImageId: hasOsImage ? (body.osImageId ?? body.osImage) : undefined,
       });
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });

@@ -137,6 +137,21 @@ const elements = {
   softwareScriptStatus: $('#software-script-status'),
   softwareScriptError: $('#software-script-error'),
   softwareScriptOpen: $('#software-script-open'),
+  scriptCatalogBody: $('#script-catalog-body'),
+  profileScriptsList: $('#profile-scripts-list'),
+  scriptAddDialog: $('#script-add-dialog'),
+  scriptAddForm: $('#script-add-form'),
+  scriptAddCancel: $('#script-add-cancel'),
+  scriptAddCancelSecondary: $('#script-add-cancel-secondary'),
+  scriptAddName: $('#script-add-name'),
+  scriptAddFile: $('#script-add-file'),
+  scriptAddDefaultPhase: $('#script-add-default-phase'),
+  scriptAddError: $('#script-add-error'),
+  scriptContentDialog: $('#script-content-dialog'),
+  scriptContentTitle: $('#script-content-title'),
+  scriptContentPath: $('#script-content-path'),
+  scriptContentBody: $('#script-content-body'),
+  scriptContentError: $('#script-content-error'),
   confirmDialog: $('#confirm-dialog'),
   confirmTitle: $('#confirm-title'),
   confirmMessage: $('#confirm-message'),
@@ -1548,6 +1563,71 @@ function renderSoftwareCatalog(appState) {
   }
 }
 
+function renderScriptCatalog(appState) {
+  elements.scriptCatalogBody.replaceChildren();
+  const profileState = appState.profile;
+  if (profileState?.error) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.textContent = profileState.error;
+    tr.append(td);
+    elements.scriptCatalogBody.append(tr);
+    return;
+  }
+  const scripts = profileState?.customScriptCatalog ?? [];
+  if (!scripts.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.textContent = 'No custom scripts.';
+    tr.append(td);
+    elements.scriptCatalogBody.append(tr);
+    return;
+  }
+  for (const item of scripts) {
+    const tr = document.createElement('tr');
+    const selectedProfiles = item.usedByProfiles?.length
+      ? item.usedByProfiles.map((profile) => profile.name || profile.id)
+      : [];
+    for (const value of [
+      item.id,
+      item.name,
+      item.fileName,
+      item.defaultPhase === 'before' ? 'Before Apps' : 'After Apps',
+      selectedProfiles.length ? selectedProfiles.join(', ') : 'not selected',
+    ]) {
+      const td = document.createElement('td');
+      td.textContent = text(value);
+      tr.append(td);
+    }
+    const actions = document.createElement('td');
+    const actionWrap = document.createElement('div');
+    actionWrap.className = 'software-catalog-actions';
+    const view = document.createElement('button');
+    view.type = 'button';
+    view.textContent = 'View';
+    view.dataset.icon = 'visibility';
+    view.dataset.scriptAction = 'view';
+    view.dataset.scriptId = item.id;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = 'Delete';
+    del.className = 'danger';
+    del.dataset.icon = 'delete';
+    del.dataset.scriptAction = 'delete';
+    del.dataset.scriptId = item.id;
+    if (selectedProfiles.length) {
+      del.disabled = true;
+      del.title = `Remove from profiles first: ${selectedProfiles.join(', ')}`;
+    }
+    actionWrap.append(view, del);
+    actions.append(actionWrap);
+    tr.append(actions);
+    elements.scriptCatalogBody.append(tr);
+  }
+}
+
 function payloadChecks(appState) {
   return (appState.preflight ?? []).filter((check) => (
     /apps|payload|profile|smb|os image/i.test(check.name ?? '') || /apps|payload|profile|smb|os image/i.test(check.detail ?? '')
@@ -1848,6 +1928,7 @@ function render() {
   renderInterfaces(appState);
   renderProfiles(appState);
   renderSoftwareCatalog(appState);
+  renderScriptCatalog(appState);
   renderOsImages(appState);
   renderPayload(appState);
   renderSync(appState);
@@ -1977,10 +2058,86 @@ function showSoftwareDialog(profile, profileToEdit = null) {
     const isActiveTarget = targetProfile?.id === profile.activeProfile?.id;
     const software = profile.softwareCatalog ?? [];
     const softwareById = new Map(software.map((item) => [item.id, item]));
+    const scripts = profile.customScriptCatalog ?? [];
+    const scriptsById = new Map(scripts.map((item) => [item.id, item]));
     let selectedOrder = (targetProfile?.softwareIds ?? []).filter((id, index, ids) => (
       softwareById.has(id) && ids.indexOf(id) === index
     ));
+    const selectedScripts = new Map();
+    for (const entry of targetProfile?.customScripts ?? []) {
+      if (scriptsById.has(entry.id)) {
+        const phase = entry.phase === 'before' ? 'before' : 'after';
+        selectedScripts.set(entry.id, phase);
+      }
+    }
     let draggedSoftwareId = null;
+
+    const renderScriptsEditor = () => {
+      elements.profileScriptsList.replaceChildren();
+      if (!scripts.length) {
+        const empty = document.createElement('div');
+        empty.className = 'readonly-item software-order-empty';
+        empty.textContent = 'No custom scripts in catalog. Add one from Custom Scripts.';
+        elements.profileScriptsList.append(empty);
+        return;
+      }
+      for (const item of scripts) {
+        const row = document.createElement('div');
+        row.className = 'profile-script-row';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = selectedScripts.has(item.id);
+        checkbox.dataset.scriptCheckbox = item.id;
+        const labelWrap = document.createElement('label');
+        labelWrap.className = 'profile-script-label';
+        const nameSpan = document.createElement('strong');
+        nameSpan.textContent = item.name || item.id;
+        const idSpan = document.createElement('span');
+        idSpan.className = 'software-order-id';
+        idSpan.textContent = item.id;
+        labelWrap.append(checkbox, nameSpan, idSpan);
+        const phaseSelect = document.createElement('select');
+        phaseSelect.dataset.scriptPhase = item.id;
+        for (const [value, label] of [['before', 'Before Apps'], ['after', 'After Apps']]) {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.textContent = label;
+          phaseSelect.append(opt);
+        }
+        phaseSelect.value = selectedScripts.get(item.id) ?? item.defaultPhase ?? 'after';
+        phaseSelect.disabled = !selectedScripts.has(item.id);
+        row.append(labelWrap, phaseSelect);
+        elements.profileScriptsList.append(row);
+      }
+    };
+
+    const handleScriptsListChange = (event) => {
+      const checkbox = event.target.closest('[data-script-checkbox]');
+      if (checkbox) {
+        const id = checkbox.dataset.scriptCheckbox;
+        if (checkbox.checked) {
+          const phase = scriptsById.get(id)?.defaultPhase ?? 'after';
+          selectedScripts.set(id, phase);
+        } else {
+          selectedScripts.delete(id);
+        }
+        const phaseSelect = elements.profileScriptsList.querySelector(`[data-script-phase="${CSS.escape(id)}"]`);
+        if (phaseSelect) {
+          phaseSelect.disabled = !checkbox.checked;
+          if (checkbox.checked) {
+            phaseSelect.value = selectedScripts.get(id);
+          }
+        }
+        return;
+      }
+      const phase = event.target.closest('[data-script-phase]');
+      if (phase) {
+        const id = phase.dataset.scriptPhase;
+        if (selectedScripts.has(id)) {
+          selectedScripts.set(id, phase.value === 'before' ? 'before' : 'after');
+        }
+      }
+    };
     elements.softwareError.textContent = '';
     elements.softwareProfileSummary.textContent = isActiveTarget
       ? 'Save stops running services, republishes the live Apps payload in this install order, and reruns preflight.'
@@ -2133,6 +2290,7 @@ function showSoftwareDialog(profile, profileToEdit = null) {
       elements.softwareList.removeEventListener('dragleave', handleDragLeave);
       elements.softwareList.removeEventListener('drop', handleDrop);
       elements.softwareList.removeEventListener('dragend', handleDragEnd);
+      elements.profileScriptsList.removeEventListener('change', handleScriptsListChange);
       if (isDialogOpen(elements.softwareDialog)) {
         closeDialog(elements.softwareDialog);
       }
@@ -2154,12 +2312,19 @@ function showSoftwareDialog(profile, profileToEdit = null) {
         elements.softwareError.textContent = 'Select an OS image for this profile.';
         return;
       }
+      const customScripts = [];
+      for (const item of scripts) {
+        if (selectedScripts.has(item.id)) {
+          customScripts.push({ id: item.id, phase: selectedScripts.get(item.id) });
+        }
+      }
       done({
         profileId: targetProfile?.id ?? '',
         isActive: isActiveTarget,
         name,
         description: elements.softwareProfileDescription.value.trim(),
         softwareIds: [...selectedOrder],
+        customScripts,
         osImageId,
       });
     };
@@ -2269,7 +2434,9 @@ function showSoftwareDialog(profile, profileToEdit = null) {
     elements.softwareList.addEventListener('dragleave', handleDragLeave);
     elements.softwareList.addEventListener('drop', handleDrop);
     elements.softwareList.addEventListener('dragend', handleDragEnd);
+    elements.profileScriptsList.addEventListener('change', handleScriptsListChange);
     renderEditor();
+    renderScriptsEditor();
     openDialog(elements.softwareDialog);
     elements.softwareProfileName.focus();
   });
@@ -2465,6 +2632,144 @@ function showAddSoftwareDialog() {
     openDialog(elements.softwareAddDialog);
     elements.softwareAddName.focus();
   });
+}
+
+function showAddScriptDialog() {
+  return new Promise((resolve) => {
+    elements.scriptAddForm.reset();
+    elements.scriptAddError.textContent = '';
+    elements.scriptAddDefaultPhase.value = 'after';
+
+    let settled = false;
+    const done = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      elements.scriptAddForm.removeEventListener('submit', submit);
+      elements.scriptAddCancel.removeEventListener('click', cancel);
+      elements.scriptAddCancelSecondary.removeEventListener('click', cancel);
+      elements.scriptAddDialog.removeEventListener('cancel', cancel);
+      if (isDialogOpen(elements.scriptAddDialog)) {
+        closeDialog(elements.scriptAddDialog);
+      }
+      resolve(value);
+    };
+    const cancel = (event) => {
+      event?.preventDefault();
+      done(null);
+    };
+    const submit = (event) => {
+      event.preventDefault();
+      const input = {
+        name: elements.scriptAddName.value.trim(),
+        file: elements.scriptAddFile.files?.[0] ?? null,
+        defaultPhase: elements.scriptAddDefaultPhase.value === 'before' ? 'before' : 'after',
+      };
+      if (!input.name) {
+        elements.scriptAddError.textContent = 'Display name is required.';
+        return;
+      }
+      if (!input.file) {
+        elements.scriptAddError.textContent = 'Script file is required.';
+        return;
+      }
+      if (!input.file.name.toLowerCase().endsWith('.ps1')) {
+        elements.scriptAddError.textContent = 'Script file must be .ps1.';
+        return;
+      }
+      done(input);
+    };
+
+    elements.scriptAddForm.addEventListener('submit', submit);
+    elements.scriptAddCancel.addEventListener('click', cancel);
+    elements.scriptAddCancelSecondary.addEventListener('click', cancel);
+    elements.scriptAddDialog.addEventListener('cancel', cancel);
+    openDialog(elements.scriptAddDialog);
+    elements.scriptAddName.focus();
+  });
+}
+
+async function handleScriptAdd(input) {
+  const ok = await confirmAction({
+    title: 'Add custom script',
+    message: 'This writes a new Scripts folder and catalog entry only. It does not change deployment profiles.',
+    details: [
+      `Script: ${input.name}`,
+      `File: ${input.file.name}`,
+      `Default phase: ${input.defaultPhase === 'before' ? 'Before Apps' : 'After Apps'}`,
+    ],
+    confirmLabel: 'Add to catalog',
+    severity: 'warning',
+  });
+  if (!ok || state.busy) {
+    return;
+  }
+
+  state.busy = true;
+  setControlsDisabled(true);
+  try {
+    const uploadPayload = await api(`/api/script-upload?fileName=${encodeURIComponent(input.file.name)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: input.file,
+    });
+    const createPayload = await api('/api/scripts/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        uploadId: uploadPayload.result.uploadId,
+        name: input.name,
+        defaultPhase: input.defaultPhase,
+      }),
+    });
+    state.current = createPayload.state;
+    state.selectedRunId = createPayload.state?.selectedRunId ?? state.selectedRunId;
+    render();
+    window.alert(`Added ${createPayload.result.script.name} (${createPayload.result.script.id}) to the custom scripts catalog. Select it in a deployment profile before publishing.`);
+  } catch (error) {
+    window.alert(error.message);
+  } finally {
+    state.busy = false;
+    setControlsDisabled(false);
+  }
+}
+
+async function handleScriptDelete(script) {
+  const usedByProfiles = script.usedByProfiles?.map((profile) => profile.name || profile.id) ?? [];
+  if (usedByProfiles.length) {
+    window.alert(`Remove ${script.name || script.id} from profiles first: ${usedByProfiles.join(', ')}`);
+    return;
+  }
+  const ok = await confirmAction({
+    title: 'Delete custom script',
+    message: 'This removes the catalog entry and repo Scripts folder. It does not republish live profiles.',
+    details: [
+      `Script: ${script.name || script.id}`,
+      `ID: ${script.id}`,
+      `File: ${script.fileName}`,
+    ],
+    confirmLabel: 'Delete script',
+    severity: 'danger',
+  });
+  if (ok) {
+    await mutate('/api/scripts/delete', { scriptId: script.id });
+  }
+}
+
+async function showScriptContentViewer(script) {
+  elements.scriptContentTitle.textContent = `${script.name || script.id} run.ps1`;
+  elements.scriptContentPath.textContent = 'Loading script...';
+  elements.scriptContentBody.textContent = '';
+  elements.scriptContentError.textContent = '';
+  openDialog(elements.scriptContentDialog);
+  try {
+    const payload = await api(`/api/scripts/content?scriptId=${encodeURIComponent(script.id)}`);
+    elements.scriptContentPath.textContent = payload.result.filePath;
+    elements.scriptContentBody.textContent = payload.result.content;
+  } catch (error) {
+    elements.scriptContentPath.textContent = script.scriptFile || '';
+    elements.scriptContentError.textContent = error.message;
+  }
 }
 
 function confirmAction({ title, message, details = [], confirmLabel = 'Continue', danger = false, severity = null }) {
@@ -2826,18 +3131,29 @@ async function handleAction(action, source = null) {
     }
     const profileUpdate = await showSoftwareDialog(payload.profile, profileToEdit);
     if (profileUpdate) {
+      const scriptDetail = profileUpdate.customScripts?.length
+        ? profileUpdate.customScripts.map((entry) => `${entry.id} (${entry.phase})`).join(', ')
+        : 'none';
       const ok = await confirmAction(profileUpdate.isActive
         ? {
             title: 'Save active profile',
             message: 'This stops services, updates the active profile, replaces the live Apps payload, and runs preflight.',
-            details: [`Profile: ${profileUpdate.name}`, `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`],
+            details: [
+              `Profile: ${profileUpdate.name}`,
+              `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`,
+              `Custom scripts: ${scriptDetail}`,
+            ],
             confirmLabel: 'Save changes',
             severity: 'warning',
           }
         : {
             title: 'Save deployment profile',
             message: 'This updates the profile JSON only. Services and the live Apps payload are not touched.',
-            details: [`Profile: ${profileUpdate.name} (${profileUpdate.profileId})`, `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`],
+            details: [
+              `Profile: ${profileUpdate.name} (${profileUpdate.profileId})`,
+              `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`,
+              `Custom scripts: ${scriptDetail}`,
+            ],
             confirmLabel: 'Save changes',
           });
       if (ok) {
@@ -2863,6 +3179,11 @@ async function handleAction(action, source = null) {
     const input = await showAddSoftwareDialog();
     if (input) {
       await handleSoftwareAdd(input);
+    }
+  } else if (action === 'script-add') {
+    const input = await showAddScriptDialog();
+    if (input) {
+      await handleScriptAdd(input);
     }
   } else if (action === 'http-toggle') {
     await mutate(`/api/services/http/${services.http?.running ? 'stop' : 'start'}`);
@@ -2975,6 +3296,20 @@ document.addEventListener('click', (event) => {
       handleSoftwareDelete(software).catch((error) => window.alert(error.message));
     } else if (softwareButton.dataset.softwareAction === 'script-view') {
       showSoftwareScriptViewer(software).catch((error) => window.alert(error.message));
+    }
+    return;
+  }
+
+  const scriptButton = target.closest('[data-script-action]');
+  if (scriptButton) {
+    const script = state.current?.profile?.customScriptCatalog?.find((item) => item.id === scriptButton.dataset.scriptId);
+    if (!script) {
+      return;
+    }
+    if (scriptButton.dataset.scriptAction === 'view') {
+      showScriptContentViewer(script).catch((error) => window.alert(error.message));
+    } else if (scriptButton.dataset.scriptAction === 'delete') {
+      handleScriptDelete(script).catch((error) => window.alert(error.message));
     }
     return;
   }

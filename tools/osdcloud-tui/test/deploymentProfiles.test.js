@@ -5,22 +5,28 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
+  createCustomScript,
   createSoftwarePackage,
   createDeploymentProfile,
+  deleteCustomScript,
   deleteDeploymentProfile,
   deleteSoftwarePackage,
   deploymentProfileOptions,
   evaluateDeploymentProfilePayload,
+  generateCustomScriptId,
   generateDeploymentProfileId,
   generateSoftwareId,
+  loadCustomScriptCatalog,
   loadDeploymentProfiles,
   loadSoftwareCatalog,
   publishDeploymentProfile,
   openSoftwareInstallScript,
+  readCustomScriptContent,
   readSoftwareInstallScript,
   resolveDeploymentProfileState,
   updateDeploymentProfile,
   updateDeploymentProfileSoftware,
+  uploadCustomScript,
   uploadSoftwareInstaller,
 } from '../src/deploymentProfiles.js';
 
@@ -55,6 +61,9 @@ function configFor(root, overrides = {}) {
       softwareSourceRoot: 'Softwares',
       appsRoot: path.join(root, 'Apps'),
       installerScript: 'Install-Apps.ps1',
+      customScriptsCatalogPath: 'scripts-catalog.json',
+      customScriptsSourceRoot: 'Scripts',
+      customScriptsAppsRoot: path.join(root, 'Media', 'Scripts'),
       ...overrides,
     },
     osImage: {
@@ -934,7 +943,229 @@ test('installer script fails when selected app is missing', () => {
     ], { encoding: 'utf8' });
 
     assert.notEqual(result.status, 0);
-    assert.match(`${result.stdout}\n${result.stderr}`, /Selected software installer not found/);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Selected app script not found/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('uploads and creates a custom script package', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+
+    const uploaded = await uploadCustomScript(config, {
+      fileName: 'firewall.ps1',
+      buffer: Buffer.from("Write-Host 'firewall rule'\n"),
+    }, {
+      uploadId: 'upload-script',
+    });
+    assert.equal(uploaded.fileName, 'firewall.ps1');
+    assert.equal(uploaded.sha256.length, 64);
+
+    const created = await createCustomScript(config, {
+      uploadId: 'upload-script',
+      name: 'Firewall Tweaks',
+      defaultPhase: 'after',
+    }, {
+      randomInt: () => 26,
+    });
+    assert.equal(created.script.id, 'SC-AAAAAAA0');
+    assert.equal(created.script.fileName, 'firewall.ps1');
+    assert.equal(created.script.defaultPhase, 'after');
+    const runScriptPath = path.join(root, 'Scripts', 'SC-AAAAAAA0', 'run.ps1');
+    assert.equal(fs.existsSync(runScriptPath), true);
+    assert.equal(fs.readFileSync(runScriptPath, 'utf8'), "Write-Host 'firewall rule'\n");
+
+    const catalog = JSON.parse(fs.readFileSync(path.join(root, 'scripts-catalog.json'), 'utf8'));
+    assert.deepEqual(catalog.scripts.map((script) => script.id), ['SC-AAAAAAA0']);
+    assert.equal(catalog.scripts[0].defaultPhase, 'after');
+
+    const content = readCustomScriptContent(config, 'SC-AAAAAAA0');
+    assert.equal(content.content, "Write-Host 'firewall rule'\n");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects non-ps1 custom script upload', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+
+    await assert.rejects(() => uploadCustomScript(config, {
+      fileName: 'install.exe',
+      buffer: Buffer.from('binary'),
+    }, { uploadId: 'upload-bad' }), /must end with \.ps1/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('profile customScripts must reference a known script', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        customScripts: [{ id: 'SC-NOPE0001', phase: 'after' }],
+      },
+    });
+
+    assert.throws(() => loadDeploymentProfiles(configFor(root)), /unknown custom script/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('profile customScripts rejects invalid phase', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    fs.writeFileSync(path.join(root, 'scripts-catalog.json'), JSON.stringify({
+      scripts: [{ id: 'SC-AAAAAAA0', name: 'Firewall', source: 'SC-AAAAAAA0', fileName: 'run.ps1', defaultPhase: 'after' }],
+    }), 'utf8');
+    fs.mkdirSync(path.join(root, 'Scripts', 'SC-AAAAAAA0'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'Scripts', 'SC-AAAAAAA0', 'run.ps1'), "Write-Host 'fw'\n", 'utf8');
+    writeJson(path.join(root, 'profiles', 'default.json'), {
+      id: 'default',
+      name: 'Default',
+      software: ['one'],
+      customScripts: [{ id: 'SC-AAAAAAA0', phase: 'midway' }],
+      osImage: 'TEST-OS',
+    });
+
+    assert.throws(() => loadDeploymentProfiles(configFor(root)), /must be 'before' or 'after'/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveDeploymentProfileState exposes selected custom scripts with phase', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+    await uploadCustomScript(config, {
+      fileName: 'firewall.ps1',
+      buffer: Buffer.from("Write-Host 'firewall'\n"),
+    }, { uploadId: 'upload-fw' });
+    const created = await createCustomScript(config, {
+      uploadId: 'upload-fw',
+      name: 'Firewall',
+      defaultPhase: 'before',
+    }, { randomInt: () => 26 });
+
+    const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
+    profile.customScripts = [{ id: created.script.id, phase: 'after' }];
+    fs.writeFileSync(path.join(root, 'profiles', 'default.json'), JSON.stringify(profile, null, 2), 'utf8');
+
+    const state = resolveDeploymentProfileState(config);
+    assert.equal(state.selectedScripts.length, 1);
+    assert.equal(state.selectedScripts[0].id, created.script.id);
+    assert.equal(state.selectedScripts[0].phase, 'after');
+    assert.equal(state.selectedScripts[0].defaultPhase, 'before');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('publishDeploymentProfile copies scripts and writes customScripts manifest', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+
+    await uploadCustomScript(config, {
+      fileName: 'before.ps1',
+      buffer: Buffer.from("Write-Host 'before'\n"),
+    }, { uploadId: 'upload-before' });
+    const beforeScript = await createCustomScript(config, {
+      uploadId: 'upload-before',
+      name: 'Before Script',
+      defaultPhase: 'before',
+    }, { randomInt: () => 26 });
+
+    await uploadCustomScript(config, {
+      fileName: 'after.ps1',
+      buffer: Buffer.from("Write-Host 'after'\n"),
+    }, { uploadId: 'upload-after' });
+    const afterScript = await createCustomScript(config, {
+      uploadId: 'upload-after',
+      name: 'After Script',
+      defaultPhase: 'after',
+    }, { randomInt: () => 27 });
+
+    const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
+    profile.customScripts = [
+      { id: afterScript.script.id, phase: 'after' },
+      { id: beforeScript.script.id, phase: 'before' },
+    ];
+    fs.writeFileSync(path.join(root, 'profiles', 'default.json'), JSON.stringify(profile, null, 2), 'utf8');
+
+    const result = await publishDeploymentProfile(config);
+    assert.equal(result.customScripts.copied.length, 2);
+    const publishedScriptsRoot = path.join(root, 'Media', 'Scripts');
+    assert.equal(fs.existsSync(path.join(publishedScriptsRoot, beforeScript.script.id, 'run.ps1')), true);
+    assert.equal(fs.existsSync(path.join(publishedScriptsRoot, afterScript.script.id, 'run.ps1')), true);
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
+    assert.deepEqual(manifest.customScripts.map((entry) => entry.id), [beforeScript.script.id, afterScript.script.id]);
+    assert.deepEqual(manifest.customScripts.map((entry) => entry.phase), ['before', 'after']);
+    assert.equal(evaluateDeploymentProfilePayload(config).ok, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('deleteCustomScript refuses when a profile still references it', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+
+    await uploadCustomScript(config, {
+      fileName: 'firewall.ps1',
+      buffer: Buffer.from("Write-Host 'firewall'\n"),
+    }, { uploadId: 'upload-fw' });
+    const created = await createCustomScript(config, {
+      uploadId: 'upload-fw',
+      name: 'Firewall',
+      defaultPhase: 'after',
+    }, { randomInt: () => 26 });
+
+    const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
+    profile.customScripts = [{ id: created.script.id, phase: 'after' }];
+    fs.writeFileSync(path.join(root, 'profiles', 'default.json'), JSON.stringify(profile, null, 2), 'utf8');
+
+    assert.throws(() => deleteCustomScript(config, created.script.id), /still used by deployment profiles/);
+
+    profile.customScripts = [];
+    fs.writeFileSync(path.join(root, 'profiles', 'default.json'), JSON.stringify(profile, null, 2), 'utf8');
+    const deleted = deleteCustomScript(config, created.script.id);
+    assert.equal(deleted.script.id, created.script.id);
+    assert.equal(fs.existsSync(path.join(root, 'Scripts', created.script.id)), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('generateCustomScriptId produces SC- prefixed ids', () => {
+  const id = generateCustomScriptId([], { randomInt: () => 26 });
+  assert.match(id, /^SC-/);
+});
+
+test('loadCustomScriptCatalog returns empty when no catalog file exists', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    fs.rmSync(path.join(root, 'scripts-catalog.json'), { force: true });
+    const catalog = loadCustomScriptCatalog(configFor(root));
+    assert.deepEqual(catalog.scripts, []);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

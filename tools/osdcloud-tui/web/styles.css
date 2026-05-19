@@ -1531,6 +1531,32 @@ input[readonly] {
   overflow: auto;
 }
 
+.profile-scripts-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.profile-script-row {
+  align-items: center;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  border-radius: 2px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 6px 8px;
+}
+
+.profile-script-label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
 .software-order-row {
   align-items: center;
   background: var(--surface-container-lowest);

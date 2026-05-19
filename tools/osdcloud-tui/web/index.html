@@ -325,6 +325,35 @@
             </table>
           </div>
         </section>
+
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <div>
+              <h4>Custom Scripts</h4>
+              <div class="drawer-subtitle">
+                <span>Upload PowerShell scripts (.ps1) that run before or after app installation.</span>
+              </div>
+            </div>
+            <div class="drawer-actions">
+              <button data-action="script-add" data-icon="upload_file" class="warning" type="button">Add script</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse software-catalog-table">
+              <thead class="bg-surface-container text-on-surface-variant font-ui-label text-ui-label uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th class="p-table-cell-padding font-medium">ID</th>
+                  <th class="p-table-cell-padding font-medium">Name</th>
+                  <th class="p-table-cell-padding font-medium">File</th>
+                  <th class="p-table-cell-padding font-medium">Default phase</th>
+                  <th class="p-table-cell-padding font-medium">Profiles</th>
+                  <th class="p-table-cell-padding font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="script-catalog-body" class="font-data-tabular text-data-tabular divide-y divide-outline-variant"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </form>
   </dialog>
@@ -593,6 +622,8 @@
         <button id="software-select-none" data-icon="remove_done" type="button">Select none</button>
       </div>
       <div id="software-list" class="software-order-editor"></div>
+      <div class="field-label">Custom Scripts</div>
+      <div id="profile-scripts-list" class="profile-scripts-editor"></div>
       <p id="software-error" class="form-error" role="alert"></p>
       <div class="dialog-actions">
         <button id="software-cancel-secondary" type="button">Cancel</button>
@@ -671,6 +702,46 @@
       <p id="software-script-error" class="form-error" role="alert"></p>
       <div class="dialog-actions">
         <button id="software-script-open" type="button" class="warning">Open with...</button>
+        <button type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="script-add-dialog">
+    <form id="script-add-form" class="dialog-card wide">
+      <div class="dialog-header">
+        <h3>Add custom script</h3>
+        <button id="script-add-cancel" type="button">Close</button>
+      </div>
+      <div class="dialog-summary">Uploads a PowerShell script (.ps1) into the catalog. It will not run until a deployment profile selects and publishes it.</div>
+      <div class="form-grid compact">
+        <label>Display name <input id="script-add-name" name="name" type="text" autocomplete="off" required placeholder="Firewall tweaks"></label>
+        <label>Script file <input id="script-add-file" type="file" accept=".ps1" required></label>
+        <label>Default phase
+          <select id="script-add-default-phase">
+            <option value="after">After Apps</option>
+            <option value="before">Before Apps</option>
+          </select>
+        </label>
+      </div>
+      <p id="script-add-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="script-add-cancel-secondary" type="button">Cancel</button>
+        <button type="submit" class="warning">Add to catalog</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="script-content-dialog">
+    <form method="dialog" class="dialog-card wide software-script-card">
+      <div class="dialog-header">
+        <h3 id="script-content-title">run.ps1</h3>
+        <button type="submit">Close</button>
+      </div>
+      <div class="dialog-summary" id="script-content-path"></div>
+      <pre id="script-content-body" class="software-script-content" tabindex="0"></pre>
+      <p id="script-content-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
         <button type="submit">Close</button>
       </div>
     </form>

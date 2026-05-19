@@ -452,6 +452,8 @@ Safety contract:
 - Validation Evidence must read parsed status events for the selected run, preferring `<runId>.jsonl` over the global `progress.jsonl` tail. Missing evidence should be shown as `Not reported`; explicitly empty no-redownload fields such as `imageFileUrl` should be shown as `<empty>`.
 - Deployment payload includes selected client app installation during Windows SetupComplete, with `windows-apps-start`, `windows-apps-finished`, and `windows-apps-error` status stages.
 - Web `Profiles` > `Software Catalog` > `Add software` is the operator-facing path for adding a new optional client software package. It accepts one MSI/EXE upload, generates the software id server-side, writes repo `Softwares\<software-id>\`, generates or stores `install.ps1`, appends `config\software-catalog.json`, and returns installer size/SHA256 evidence. Operators do not type the software id. It must not stop services, publish live `Apps`, change active profile, sync endpoint, mount `boot.wim`, or touch `C:\OSDCloud`.
+- Web `Profiles` > `Custom Scripts` > `Add script` is the operator-facing path for adding an arbitrary PowerShell task (e.g. firewall rules, registry tweaks) that must run on the client during deployment. It accepts one `.ps1` upload (≤1 MB), generates the script id server-side with `SC-` prefix, writes repo `Scripts\<script-id>\run.ps1` (1:1 copy, no template rewriting), appends `config\scripts-catalog.json` with `defaultPhase` ∈ `{before, after}`, and returns size/SHA256. Operators do not type the script id. Same isolation contract as software-add: must not stop services, publish live `Scripts`, change profiles, sync endpoint, mount `boot.wim`, or touch `C:\OSDCloud`. Profile editor lets each profile pick which scripts to include and override the phase per script.
+- Publishing a deployment profile must also publish its `customScripts`: copy each selected `Scripts\<id>\` into `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Scripts\<id>\`, write `customScripts: [{id, phase}]` into `selected-profile.json` ordered before→after, and let `Install-Apps.ps1` run `Scripts\<id>\run.ps1` in the matching phase (before-apps loop, after-apps loop). Profiles without any selected custom scripts must remain backward-compatible — `Install-Apps.ps1` skips both phases when `customScripts` is absent or empty.
 - Web deployment profile selection publishes profile-filtered client software payloads. Use `Select deployment profile` before starting services when the software set or install order changes; it must stop running HTTP/TFTP/DHCP services, write the active profile to `config\osdcloud-tui.json`, clear stale live `Apps` content, copy only selected software from `Softwares\<software-id>` in profile order, write `selected-profile.json`, and let preflight verify the live payload matches the active profile.
 - Keep the normal `Default` profile on 7-Zip only unless the user deliberately selects a Chrome-enabled profile.
 - Endpoint sync hash verification must tolerate host PowerShell sessions where `Get-FileHash` is unavailable by falling back to .NET SHA256 hashing.
@@ -473,6 +475,7 @@ Validation contract:
 - Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.
 - Software catalog onboarding changes must test safe software ids, plain MSI/EXE filenames, duplicate catalog/source rejection, upload staging cleanup, template and raw `install.ps1` creation, and that adding catalog software does not mutate active profile or publish live `Apps`.
+- Custom script onboarding changes must test `SC-` id generation, `.ps1`-only upload rejection of `.exe`/`.msi`, duplicate catalog/source rejection, profile rejection of unknown script ids and invalid phases, `selectedScripts` resolution through `resolveDeploymentProfileState`, publish copying `Scripts\<id>\run.ps1` to the safe Scripts root, `customScripts` ordered before→after in `selected-profile.json`, `evaluateDeploymentProfilePayload` script verification, delete-blocked-when-referenced by any profile, and backward compatibility when a profile has no `customScripts`.
 - Deployment profile changes must test catalog/profile validation, profile add/edit/delete validation, safe publish roots, selected-only ordered payload publishing, empty profiles, `Install-Apps.ps1` selected-only / ordered / missing-selected-app behavior, that publishing a profile also republishes its `osImage` to `selected-os.json` / `smb.imagePath`, and that editing an inactive profile only rewrites its JSON without stopping services, republishing live `Apps`, or rerunning preflight.
 - Multi-client host-console changes must include synthetic tests for at least two interleaved runs and must verify that one client does not overwrite another client's summary.
 - Screenshot behavior must preserve the status contract: `/osdcloud/status` stays JSON-only, `/osdcloud/screenshot` accepts PNG-only uploads capped at 5 MB, and PNG files remain local evidence rather than Git artifacts.
@@ -573,8 +576,10 @@ config\osdcloud-tui.json
 config\os-image-catalog.json
 config\os-download-sources.json
 config\software-catalog.json
+config\scripts-catalog.json
 config\deployment-profiles\...
 Softwares\...
+Scripts\...
 tools\osdcloud-tui\...
 TUI-REWRITE-PLAN.md
 osdcloud-assets\README.md

@@ -13,9 +13,14 @@ const generatedProfileIdLength = 8;
 const generatedProfileIdSpace = generatedProfileIdAlphabet.length ** generatedProfileIdLength;
 const defaultGeneratedProfileIdAttempts = 256;
 const generatedSoftwareIdPrefix = 'SW-';
+const generatedCustomScriptIdPrefix = 'SC-';
 const allowedSoftwareInstallerExtensions = new Set(['.msi', '.exe']);
+const allowedCustomScriptExtensions = new Set(['.ps1']);
 const defaultSoftwareUploadMaxBytes = 2 * 1024 * 1024 * 1024;
 const defaultRawInstallScriptMaxBytes = 256 * 1024;
+const defaultCustomScriptUploadMaxBytes = 1 * 1024 * 1024;
+const customScriptPhases = new Set(['before', 'after']);
+const defaultCustomScriptPhase = 'after';
 
 export const selectedProfileFileName = 'selected-profile.json';
 
@@ -35,6 +40,11 @@ function deploymentProfileDefaults(root) {
     installerScript: path.join(root, 'Softwares', 'Install-Apps.ps1'),
     softwareUploadRoot: path.join(root, '.osdcloud-tui', 'software-uploads'),
     softwareUploadMaxBytes: defaultSoftwareUploadMaxBytes,
+    customScriptsCatalogPath: path.join(root, 'config', 'scripts-catalog.json'),
+    customScriptsSourceRoot: path.join(root, 'Scripts'),
+    customScriptsAppsRoot: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Scripts',
+    customScriptUploadRoot: path.join(root, '.osdcloud-tui', 'script-uploads'),
+    customScriptUploadMaxBytes: defaultCustomScriptUploadMaxBytes,
   };
 }
 
@@ -65,6 +75,30 @@ function cleanSoftwareInstallerFileName(value, label = 'software installer fileN
     throw inputError(`${label} must end with .msi or .exe: ${fileName}`);
   }
   return fileName;
+}
+
+function cleanCustomScriptFileName(value, label = 'custom script fileName') {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw.includes('/') || raw.includes('\\') || raw.includes('..')) {
+    throw inputError(`${label} must be a plain file name: ${value}`);
+  }
+  const fileName = path.basename(raw);
+  const extension = path.extname(fileName).toLowerCase();
+  if (!allowedCustomScriptExtensions.has(extension)) {
+    throw inputError(`${label} must end with .ps1: ${fileName}`);
+  }
+  return fileName;
+}
+
+function normalizeCustomScriptPhase(value, label = 'custom script phase') {
+  const phase = String(value ?? '').trim().toLowerCase();
+  if (!phase) {
+    return defaultCustomScriptPhase;
+  }
+  if (!customScriptPhases.has(phase)) {
+    throw inputError(`${label} must be 'before' or 'after': ${value}`);
+  }
+  return phase;
 }
 
 function normalizePositiveInteger(value, label, options = {}) {
@@ -146,6 +180,13 @@ export function generateSoftwareId(existingIds = [], options = {}) {
   }
 
   throw new Error('No available software ids remain');
+}
+
+export function generateCustomScriptId(existingIds = [], options = {}) {
+  return generateSoftwareId(existingIds, {
+    ...options,
+    prefix: options.prefix ?? generatedCustomScriptIdPrefix,
+  });
 }
 
 function normalizeProfileName(value, label = 'Deployment profile name') {
@@ -426,6 +467,13 @@ export function deploymentProfileOptions(config = {}, overrides = {}) {
     softwareUploadMaxBytes: Number(section.softwareUploadMaxBytes) > 0
       ? Number(section.softwareUploadMaxBytes)
       : defaultSoftwareUploadMaxBytes,
+    customScriptsCatalogPath: resolveConfiguredPath(root, section.customScriptsCatalogPath),
+    customScriptsSourceRoot: resolveConfiguredPath(root, section.customScriptsSourceRoot),
+    customScriptsAppsRoot: resolveConfiguredPath(root, section.customScriptsAppsRoot),
+    customScriptUploadRoot: resolveConfiguredPath(root, section.customScriptUploadRoot),
+    customScriptUploadMaxBytes: Number(section.customScriptUploadMaxBytes) > 0
+      ? Number(section.customScriptUploadMaxBytes)
+      : defaultCustomScriptUploadMaxBytes,
   };
 }
 
@@ -822,9 +870,36 @@ export async function createSoftwarePackage(config = {}, input = {}, options = {
   }
 }
 
+function normalizeCustomScriptSelection(value, scriptCatalog, label) {
+  if (value === undefined || value === null) {
+    return [];
+  }
+  const rows = arrayFrom(value, label);
+  const seen = new Set();
+  return rows.map((entry, index) => {
+    const itemLabel = `${label}[${index}]`;
+    const rawId = typeof entry === 'string' ? entry : entry?.id;
+    const id = normalizeId(rawId, itemLabel);
+    if (seen.has(id)) {
+      throw new Error(`Duplicate custom script id ${id} in ${label}`);
+    }
+    seen.add(id);
+    const catalogEntry = scriptCatalog?.byId?.get(id);
+    if (scriptCatalog && !catalogEntry) {
+      throw new Error(`${label} references unknown custom script: ${id}`);
+    }
+    const rawPhase = typeof entry === 'string' ? null : entry?.phase;
+    const phase = rawPhase
+      ? normalizeCustomScriptPhase(rawPhase, `${itemLabel}.phase`)
+      : (catalogEntry?.defaultPhase ?? defaultCustomScriptPhase);
+    return { id, phase };
+  });
+}
+
 export function loadDeploymentProfiles(config = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const catalog = options.catalog ?? loadSoftwareCatalog(config, options);
+  const scriptCatalog = options.scriptCatalog ?? loadCustomScriptCatalog(config, options);
   const osImageCatalog = options.osImageCatalog ?? null;
   const defaultOsImageId = options.defaultOsImageId
     ?? config.osImage?.activeImage
@@ -860,6 +935,12 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       }
     }
 
+    const customScripts = normalizeCustomScriptSelection(
+      raw.customScripts ?? [],
+      scriptCatalog,
+      `deployment profile ${id} customScripts`,
+    );
+
     const rawOsImageId = String(raw.osImage ?? raw.osImageId ?? '').trim();
     let osImageId;
     if (rawOsImageId) {
@@ -878,6 +959,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       name: String(raw.name ?? id),
       description: String(raw.description ?? ''),
       softwareIds: selectedIds,
+      customScripts,
       osImageId,
       filePath,
     };
@@ -889,7 +971,8 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
 export function resolveDeploymentProfileState(config = {}, profileId = null, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const catalog = loadSoftwareCatalog(config, options);
-  const profiles = loadDeploymentProfiles(config, { ...options, catalog });
+  const scriptCatalog = loadCustomScriptCatalog(config, options);
+  const profiles = loadDeploymentProfiles(config, { ...options, catalog, scriptCatalog });
   const selectedId = normalizeId(profileId ?? profileOptions.activeProfile, 'active profile');
   const activeProfile = profiles.find((profile) => profile.id === selectedId);
   if (!activeProfile) {
@@ -897,12 +980,18 @@ export function resolveDeploymentProfileState(config = {}, profileId = null, opt
   }
 
   const selectedSoftware = activeProfile.softwareIds.map((id) => catalog.byId.get(id));
+  const selectedScripts = (activeProfile.customScripts ?? []).map((entry) => {
+    const script = scriptCatalog.byId.get(entry.id);
+    return script ? { ...script, phase: entry.phase } : null;
+  }).filter(Boolean);
   return {
     options: profileOptions,
     catalog,
+    scriptCatalog,
     profiles,
     activeProfile,
     selectedSoftware,
+    selectedScripts,
     osImageId: activeProfile.osImageId,
   };
 }
@@ -960,6 +1049,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   }
 
   const softwareIds = [...state.activeProfile.softwareIds];
+  const customScripts = (state.activeProfile.customScripts ?? []).map((entry) => ({ ...entry }));
   const osImageId = normalizeId(
     input.osImageId ?? state.activeProfile.osImageId,
     `deployment profile ${id} osImage`,
@@ -970,6 +1060,9 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
     software: softwareIds,
     osImage: osImageId,
   };
+  if (customScripts.length > 0) {
+    raw.customScripts = customScripts;
+  }
   if (input.description !== undefined) {
     raw.description = normalizeProfileDescription(input.description);
   }
@@ -981,6 +1074,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
       name,
       description: raw.description ?? '',
       softwareIds,
+      customScripts,
       osImageId,
       filePath,
     },
@@ -991,7 +1085,8 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
 export function updateDeploymentProfile(config = {}, profileId, input = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const catalog = loadSoftwareCatalog(config, options);
-  const profiles = loadDeploymentProfiles(config, { ...options, catalog });
+  const scriptCatalog = loadCustomScriptCatalog(config, options);
+  const profiles = loadDeploymentProfiles(config, { ...options, catalog, scriptCatalog });
   const id = normalizeId(profileId, 'profile');
   const profile = profiles.find((candidate) => candidate.id === id);
   if (!profile) {
@@ -1005,6 +1100,9 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const selectedIds = input.softwareIds === undefined
     ? profile.softwareIds
     : normalizeSoftwareSelection(input.softwareIds, catalog, `deployment profile ${id} software`);
+  const customScripts = input.customScripts === undefined
+    ? (profile.customScripts ?? []).map((entry) => ({ ...entry }))
+    : normalizeCustomScriptSelection(input.customScripts, scriptCatalog, `deployment profile ${id} customScripts`);
   const name = input.name === undefined
     ? profile.name
     : normalizeProfileName(input.name);
@@ -1019,6 +1117,11 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   raw.id = id;
   raw.name = name;
   raw.software = selectedIds;
+  if (customScripts.length > 0) {
+    raw.customScripts = customScripts;
+  } else {
+    delete raw.customScripts;
+  }
   raw.osImage = osImageId;
   if (input.description !== undefined) {
     raw.description = normalizeProfileDescription(input.description);
@@ -1031,6 +1134,7 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
       name,
       description: String(raw.description ?? ''),
       softwareIds: selectedIds,
+      customScripts,
       osImageId,
     },
     filePath,
@@ -1120,6 +1224,337 @@ function assertSafeAppsRoot(appsRoot) {
   return resolved;
 }
 
+function assertSafeCustomScriptsRoot(scriptsRoot) {
+  const resolved = path.resolve(scriptsRoot);
+  const parsed = path.parse(resolved);
+  if (resolved === parsed.root) {
+    throw new Error(`Refusing to publish to filesystem root: ${resolved}`);
+  }
+  if (path.basename(resolved).toLowerCase() !== 'scripts') {
+    throw new Error(`Refusing to publish outside a Scripts folder: ${resolved}`);
+  }
+  return resolved;
+}
+
+export function loadCustomScriptCatalog(config = {}, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  if (!profileOptions.customScriptsCatalogPath || !fs.existsSync(profileOptions.customScriptsCatalogPath)) {
+    return {
+      path: profileOptions.customScriptsCatalogPath,
+      scripts: [],
+      byId: new Map(),
+    };
+  }
+  const raw = readJson(profileOptions.customScriptsCatalogPath, 'custom scripts catalog');
+  const rows = arrayFrom(raw.scripts ?? [], 'custom scripts catalog scripts');
+  const seen = new Set();
+  const scripts = rows.map((row) => {
+    const id = normalizeId(row.id, 'custom script');
+    if (seen.has(id)) {
+      throw new Error(`Duplicate custom script id: ${id}`);
+    }
+    seen.add(id);
+
+    const source = String(row.source ?? id).trim();
+    if (!source || path.isAbsolute(source)) {
+      throw new Error(`Invalid source for custom script ${id}: ${source}`);
+    }
+
+    const sourcePath = assertInside(
+      profileOptions.customScriptsSourceRoot,
+      path.resolve(profileOptions.customScriptsSourceRoot, source),
+      `Custom script ${id} source`,
+    );
+    const scriptFile = path.join(sourcePath, 'run.ps1');
+    if (options.validateSources !== false) {
+      if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isDirectory()) {
+        throw new Error(`Custom script source folder not found for ${id}: ${sourcePath}`);
+      }
+      if (!fs.existsSync(scriptFile)) {
+        throw new Error(`Custom script run.ps1 not found for ${id}: ${scriptFile}`);
+      }
+    }
+
+    const defaultPhase = normalizeCustomScriptPhase(row.defaultPhase ?? row.phase, `custom script ${id} defaultPhase`);
+    return {
+      id,
+      name: String(row.name ?? id),
+      source,
+      sourcePath,
+      scriptFile,
+      defaultPhase,
+      fileName: maybeString(row.fileName) ?? 'run.ps1',
+      bytes: typeof row.bytes === 'number' ? row.bytes : null,
+      sha256: maybeString(row.sha256),
+    };
+  });
+
+  return {
+    path: profileOptions.customScriptsCatalogPath,
+    scripts,
+    byId: new Map(scripts.map((item) => [item.id, item])),
+  };
+}
+
+function customScriptUploadDirectory(profileOptions, uploadId) {
+  const root = profileOptions.customScriptUploadRoot;
+  return assertInside(root, path.join(root, normalizeId(uploadId, 'custom script upload')), 'Custom script upload directory');
+}
+
+function resolveUploadedCustomScript(profileOptions, uploadId) {
+  const uploadDir = customScriptUploadDirectory(profileOptions, uploadId);
+  if (!fs.existsSync(uploadDir) || !fs.statSync(uploadDir).isDirectory()) {
+    throw inputError(`Custom script upload not found: ${uploadId}`, 404);
+  }
+  const files = fs.readdirSync(uploadDir)
+    .filter((name) => allowedCustomScriptExtensions.has(path.extname(name).toLowerCase()))
+    .map((name) => assertInside(uploadDir, path.join(uploadDir, name), 'Custom script upload file'));
+  if (files.length !== 1) {
+    throw inputError(`Custom script upload ${uploadId} must contain exactly one .ps1 file`);
+  }
+  return {
+    uploadDir,
+    filePath: files[0],
+    fileName: path.basename(files[0]),
+  };
+}
+
+function reservedCustomScriptIds(profileOptions, scriptRows) {
+  const reserved = new Set();
+  for (const row of scriptRows) {
+    const id = normalizeId(row.id, 'custom script');
+    reserved.add(id);
+    const source = String(row.source ?? id).trim();
+    if (source && !path.isAbsolute(source)) {
+      reserved.add(source);
+    }
+  }
+  if (fs.existsSync(profileOptions.customScriptsSourceRoot)) {
+    for (const entry of fs.readdirSync(profileOptions.customScriptsSourceRoot, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        reserved.add(entry.name);
+      }
+    }
+  }
+  return reserved;
+}
+
+export async function uploadCustomScript(config = {}, input = {}, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  const fileName = cleanCustomScriptFileName(input.fileName ?? input.name);
+  const declaredSize = normalizePositiveInteger(input.size ?? input.totalBytes, 'custom script upload size', { optional: true, min: 1 });
+  const maxBytes = Number(options.uploadMaxBytes ?? profileOptions.customScriptUploadMaxBytes);
+  if (declaredSize && declaredSize > maxBytes) {
+    throw inputError(`Custom script upload exceeds maximum size: ${maxBytes} bytes`);
+  }
+
+  const uploadId = normalizeId(options.uploadId ?? input.uploadId ?? `script-${randomUUID()}`, 'custom script upload');
+  const uploadDir = customScriptUploadDirectory(profileOptions, uploadId);
+  const targetPath = assertInside(uploadDir, path.join(uploadDir, fileName), 'Custom script upload path');
+  fs.mkdirSync(uploadDir, { recursive: true });
+
+  try {
+    const progress = {
+      bytes: 0,
+      totalBytes: declaredSize,
+      fileName,
+      uploadId,
+      startedAt: new Date().toISOString(),
+      onProgress: options.onProgress,
+    };
+    await pipeline(
+      uploadSourceStream(input),
+      createUploadTransform(progress, maxBytes),
+      fs.createWriteStream(targetPath, { flags: 'wx' }),
+    );
+    const stat = fs.statSync(targetPath);
+    if (stat.size <= 0) {
+      throw inputError('Custom script upload produced an empty file');
+    }
+    if (declaredSize && stat.size !== declaredSize) {
+      throw inputError(`Custom script upload size mismatch: ${stat.size} expected ${declaredSize}`);
+    }
+
+    return {
+      uploadId,
+      fileName,
+      bytes: stat.size,
+      sha256: await sha256File(targetPath),
+      uploadRoot: profileOptions.customScriptUploadRoot,
+      uploadedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    fs.rmSync(uploadDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function readCustomScriptCatalogFile(profileOptions) {
+  if (!fs.existsSync(profileOptions.customScriptsCatalogPath)) {
+    return { scripts: [] };
+  }
+  const raw = readJson(profileOptions.customScriptsCatalogPath, 'custom scripts catalog');
+  if (!raw || typeof raw !== 'object') {
+    return { scripts: [] };
+  }
+  if (!Array.isArray(raw.scripts)) {
+    raw.scripts = [];
+  }
+  return raw;
+}
+
+export async function createCustomScript(config = {}, input = {}, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  if (input.id !== undefined || input.scriptId !== undefined) {
+    throw inputError('Custom script id is generated by the server');
+  }
+  const name = normalizeProfileName(input.name, 'Custom script name');
+  const uploadId = normalizeId(input.uploadId, 'custom script upload');
+  const uploaded = resolveUploadedCustomScript(profileOptions, uploadId);
+  const defaultPhase = normalizeCustomScriptPhase(input.defaultPhase ?? input.phase, 'custom script defaultPhase');
+
+  const catalogRaw = readCustomScriptCatalogFile(profileOptions);
+  const scriptRows = arrayFrom(catalogRaw.scripts, 'custom scripts catalog scripts');
+  const seenIds = new Set();
+  const seenSources = new Set();
+  for (const row of scriptRows) {
+    const existingId = normalizeId(row.id, 'custom script');
+    const existingIdKey = existingId.toLowerCase();
+    if (seenIds.has(existingIdKey)) {
+      throw inputError(`Duplicate custom script id: ${existingId}`, 409);
+    }
+    seenIds.add(existingIdKey);
+    const existingSource = String(row.source ?? existingId).trim();
+    const existingSourceKey = existingSource.toLowerCase();
+    if (seenSources.has(existingSourceKey)) {
+      throw inputError(`Duplicate custom script source: ${existingSource}`, 409);
+    }
+    seenSources.add(existingSourceKey);
+  }
+  const id = generateCustomScriptId(reservedCustomScriptIds(profileOptions, scriptRows), options);
+  const source = id;
+  const sourcePath = assertInside(
+    profileOptions.customScriptsSourceRoot,
+    path.join(profileOptions.customScriptsSourceRoot, source),
+    `Custom script ${id} source`,
+  );
+  if (fs.existsSync(sourcePath)) {
+    throw inputError(`Custom script source folder already exists for ${id}: ${sourcePath}`, 409);
+  }
+
+  const scriptTargetPath = assertInside(sourcePath, path.join(sourcePath, 'run.ps1'), 'Custom script run.ps1 target');
+  let sourceCreated = false;
+
+  try {
+    fs.mkdirSync(sourcePath, { recursive: true });
+    sourceCreated = true;
+    fs.copyFileSync(uploaded.filePath, scriptTargetPath, fs.constants.COPYFILE_EXCL);
+    const stat = fs.statSync(scriptTargetPath);
+    const sha256 = await sha256File(scriptTargetPath);
+    catalogRaw.scripts = [
+      ...scriptRows,
+      {
+        id,
+        name,
+        source,
+        fileName: uploaded.fileName,
+        defaultPhase,
+        bytes: stat.size,
+        sha256,
+      },
+    ];
+    writeJson(profileOptions.customScriptsCatalogPath, catalogRaw);
+    let uploadRemoved = false;
+    try {
+      fs.rmSync(uploaded.uploadDir, { recursive: true, force: true });
+      uploadRemoved = true;
+    } catch {}
+
+    return {
+      script: {
+        id,
+        name,
+        source,
+        fileName: uploaded.fileName,
+        defaultPhase,
+        sourcePath,
+        scriptFile: scriptTargetPath,
+      },
+      catalogPath: profileOptions.customScriptsCatalogPath,
+      bytes: stat.size,
+      sha256,
+      uploadRemoved,
+    };
+  } catch (error) {
+    if (sourceCreated) {
+      fs.rmSync(sourcePath, { recursive: true, force: true });
+    }
+    throw error;
+  }
+}
+
+export function readCustomScriptContent(config = {}, scriptId, options = {}) {
+  const catalog = loadCustomScriptCatalog(config, options);
+  const id = normalizeId(scriptId, 'custom script');
+  const script = catalog.byId.get(id);
+  if (!script) {
+    throw inputError(`Custom script not found: ${id}`, 404);
+  }
+  if (!fs.existsSync(script.scriptFile) || !fs.statSync(script.scriptFile).isFile()) {
+    throw inputError(`Custom script run.ps1 not found: ${script.scriptFile}`, 404);
+  }
+  return {
+    scriptId: script.id,
+    filePath: script.scriptFile,
+    content: fs.readFileSync(script.scriptFile, 'utf8'),
+  };
+}
+
+export function deleteCustomScript(config = {}, scriptId, options = {}) {
+  const profileOptions = deploymentProfileOptions(config, options);
+  const id = normalizeId(scriptId, 'custom script');
+  const catalogRaw = readCustomScriptCatalogFile(profileOptions);
+  const scriptRows = arrayFrom(catalogRaw.scripts, 'custom scripts catalog scripts');
+  const rowIndex = scriptRows.findIndex((row) => normalizeId(row.id, 'custom script') === id);
+  if (rowIndex < 0) {
+    throw inputError(`Custom script not found: ${id}`, 404);
+  }
+
+  const catalog = loadCustomScriptCatalog(config, options);
+  const softwareCatalog = loadSoftwareCatalog(config, options);
+  const profiles = loadDeploymentProfiles(config, { ...options, catalog: softwareCatalog, scriptCatalog: catalog });
+  const usedByProfiles = profiles
+    .filter((profile) => (profile.customScripts ?? []).some((entry) => entry.id === id))
+    .map((profile) => ({ id: profile.id, name: profile.name }));
+  if (usedByProfiles.length) {
+    const names = usedByProfiles.map((profile) => profile.name || profile.id).join(', ');
+    const error = inputError(`Custom script ${id} is still used by deployment profiles: ${names}`, 409);
+    error.profiles = usedByProfiles;
+    throw error;
+  }
+
+  const row = scriptRows[rowIndex];
+  const script = catalog.byId.get(id);
+  const source = String(row.source ?? id).trim();
+  const sourceUsers = scriptRows.filter((candidate, index) => index !== rowIndex && String(candidate.source ?? candidate.id).trim() === source);
+  if (sourceUsers.length) {
+    throw inputError(`Custom script source ${source} is shared by another catalog entry`, 409);
+  }
+
+  catalogRaw.scripts = scriptRows.filter((_row, index) => index !== rowIndex);
+  writeJson(profileOptions.customScriptsCatalogPath, catalogRaw);
+  if (script?.sourcePath && fs.existsSync(script.sourcePath)) {
+    fs.rmSync(script.sourcePath, { recursive: true, force: true });
+  }
+
+  return {
+    script,
+    catalogPath: profileOptions.customScriptsCatalogPath,
+    sourceRemoved: Boolean(script?.sourcePath),
+    usedByProfiles,
+  };
+}
+
 const retrySleepView = new Int32Array(new SharedArrayBuffer(4));
 
 function retrySyncOnTransientWindowsError(operation, { attempts = 10, delayMs = 200 } = {}) {
@@ -1153,6 +1588,11 @@ function removeAppsRootContents(appsRoot) {
 }
 
 function profileManifest(state, osImageResult = null) {
+  const selectedScripts = state.selectedScripts ?? [];
+  const orderedScripts = [
+    ...selectedScripts.filter((script) => script.phase === 'before'),
+    ...selectedScripts.filter((script) => script.phase === 'after'),
+  ];
   const manifest = {
     profileId: state.activeProfile.id,
     profileName: state.activeProfile.name,
@@ -1161,6 +1601,11 @@ function profileManifest(state, osImageResult = null) {
     software: state.selectedSoftware.map((software) => ({
       id: software.id,
       name: software.name,
+    })),
+    customScripts: orderedScripts.map((script) => ({
+      id: script.id,
+      name: script.name,
+      phase: script.phase,
     })),
     osImageId: state.activeProfile.osImageId,
   };
@@ -1172,6 +1617,20 @@ function profileManifest(state, osImageResult = null) {
     };
   }
   return manifest;
+}
+
+function removeScriptsRootContents(scriptsRoot) {
+  if (!fs.existsSync(scriptsRoot)) {
+    fs.mkdirSync(scriptsRoot, { recursive: true });
+    return 0;
+  }
+
+  let removed = 0;
+  for (const entry of fs.readdirSync(scriptsRoot)) {
+    fs.rmSync(path.join(scriptsRoot, entry), { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    removed += 1;
+  }
+  return removed;
 }
 
 export async function publishDeploymentProfile(config = {}, profileId = null, options = {}) {
@@ -1201,6 +1660,25 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
     copied.push(software.id);
   }
 
+  let scriptsPublished = null;
+  const selectedScripts = state.selectedScripts ?? [];
+  const configuredScriptsRoot = state.options.customScriptsAppsRoot;
+  if (configuredScriptsRoot && (selectedScripts.length > 0 || fs.existsSync(configuredScriptsRoot))) {
+    const scriptsRoot = assertSafeCustomScriptsRoot(configuredScriptsRoot);
+    const scriptsRemoved = removeScriptsRootContents(scriptsRoot);
+    const copiedScripts = [];
+    for (const script of selectedScripts) {
+      const target = path.join(scriptsRoot, script.id);
+      retrySyncOnTransientWindowsError(() => fs.cpSync(script.sourcePath, target, { recursive: true }));
+      copiedScripts.push({ id: script.id, phase: script.phase });
+    }
+    scriptsPublished = {
+      scriptsRoot,
+      copied: copiedScripts,
+      removed: scriptsRemoved,
+    };
+  }
+
   const manifest = profileManifest(state, osImageResult);
   const manifestPath = path.join(appsRoot, selectedProfileFileName);
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
@@ -1208,11 +1686,13 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
   return {
     profile: state.activeProfile,
     selectedSoftware: state.selectedSoftware,
+    selectedScripts: state.selectedScripts ?? [],
     appsRoot,
     manifestPath,
     copied,
     removed,
     osImage: osImageResult,
+    customScripts: scriptsPublished,
   };
 }
 
@@ -1272,6 +1752,31 @@ export function evaluateDeploymentProfilePayload(config = {}, options = {}) {
       const script = path.join(appsRoot, softwareId, 'install.ps1');
       if (!fs.existsSync(script)) {
         return fail('Deployment profile', `missing live installer script for ${softwareId}: ${script}`);
+      }
+    }
+
+    const scriptsRoot = state.options.customScriptsAppsRoot;
+    const expectedScriptIds = (state.selectedScripts ?? []).map((script) => script.id);
+    if (scriptsRoot && expectedScriptIds.length > 0) {
+      if (!fs.existsSync(scriptsRoot)) {
+        return fail('Deployment profile', `Scripts root not found: ${scriptsRoot}`);
+      }
+      const liveScriptFolders = fs.readdirSync(scriptsRoot, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+      const unexpectedScripts = liveScriptFolders.filter((id) => !expectedScriptIds.includes(id));
+      const missingScripts = expectedScriptIds.filter((id) => !liveScriptFolders.includes(id));
+      if (unexpectedScripts.length > 0) {
+        return fail('Deployment profile', `unexpected live custom script folders: ${unexpectedScripts.join(', ')}`);
+      }
+      if (missingScripts.length > 0) {
+        return fail('Deployment profile', `missing live custom script folders: ${missingScripts.join(', ')}`);
+      }
+      for (const scriptId of expectedScriptIds) {
+        const runScript = path.join(scriptsRoot, scriptId, 'run.ps1');
+        if (!fs.existsSync(runScript)) {
+          return fail('Deployment profile', `missing live run.ps1 for ${scriptId}: ${runScript}`);
+        }
       }
     }
 
