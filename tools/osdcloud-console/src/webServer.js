@@ -174,6 +174,13 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result });
       return;
     }
+    if (req.method === 'GET' && pathname === '/api/scripts/content') {
+      const scriptId = requestUrl.searchParams.get('scriptId')
+        ?? requestUrl.searchParams.get('id');
+      const result = this.controller.readCustomScriptContent(scriptId);
+      sendJson(res, 200, { ok: true, result });
+      return;
+    }
 
     if (req.method !== 'POST') {
       res.writeHead(405, { Allow: 'GET, POST' });
@@ -299,13 +306,6 @@ export class WebManagementServer {
       const body = await readJsonBody(req);
       const result = await this.controller.removeCustomScript(body.scriptId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
-      return;
-    }
-    if (pathname === '/api/scripts/content') {
-      const scriptId = requestUrl.searchParams.get('scriptId')
-        ?? requestUrl.searchParams.get('id');
-      const result = this.controller.readCustomScriptContent(scriptId);
-      sendJson(res, 200, { ok: true, result });
       return;
     }
     if (pathname === '/api/profiles/create') {

@@ -581,7 +581,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 - Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host console 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
 - Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
 - Client app payload 由 Web deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 的 `selectedSoftware` 順序只安裝被選中的軟體。目前 `Default` profile 發佈 `7zip\7z2601-x64.msi`，`All in One` profile 發佈 7-Zip、`chrome\googlechromestandaloneenterprise64.msi` 與 `SW-4UT7PDID\npp.8.9.5.Installer.x64.msi`（Notepad++ 8.9.5），`Minimal` profile 不安裝 client software。
-- Custom script payload 由同一個 deployment profile 一起發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Scripts`。`Install-Apps.ps1` 會讀 `selected-profile.json` 的 `customScripts` 陣列，先執行 `phase: 'before'` 的 `Scripts\<id>\run.ps1`、再跑 app 安裝、最後執行 `phase: 'after'` 的 scripts，所有錯誤都記在同一個 `apps-install.log`。沒有勾選 custom script 的 profile 仍維持原本只跑 app 的行為。
+- Custom script payload 由同一個 deployment profile 一起發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Scripts`。`Install-Apps.ps1` 會讀 `selected-profile.json` 的 `customScripts` 陣列，先執行 `phase: 'before'` 的 `Scripts\<id>\run.ps1`、再跑 app 安裝、最後執行 `phase: 'after'` 的 scripts。每支 custom script 都會留下獨立 log：`C:\Windows\Temp\osdcloud-logs\custom-scripts\<scriptId>-<phase>-<timestamp>.log`，並彙總到 `C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`；失敗或缺檔會繼續後續項目但最後讓 `Install-Apps.ps1` 失敗。沒有勾選 custom script 的 profile 仍維持原本只跑 app 的行為。
 - 測試時真實環境 DHCP server 必須暫時關閉，避免和本機 PXE DHCP responder 衝突。
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
@@ -654,7 +654,7 @@ git add README.md AGENTS.md OSDCloud-Win11-Automated-Deployment-Test-Report.md c
 git commit -m "Update deployment profile software selection"
 ```
 
-11. 下一次實體 iPXE 部署時，Web console 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log` 和軟體自己的 log。
+11. 下一次實體 iPXE 部署時，Web console 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log`、`custom-scripts-summary.json`、`custom-scripts\*.log` 和軟體自己的 log。
 
 自行新增 custom 部署腳本：
 
@@ -670,7 +670,7 @@ custom script 是「在部署流程中要跑、但又不是傳統 MSI/EXE 安裝
 5. Custom Script Catalog row 的 `View` 會打開唯讀檢視器顯示 `run.ps1` 內容與磁碟位置；`Delete` 只允許刪除未被任何 profile 引用的 script，被引用時必須先到 profile editor 解除勾選並存檔才能刪。
 6. Custom scripts 在 Windows `SetupComplete` 階段由 SYSTEM 執行；`[Environment]::GetFolderPath('Desktop')` 會解析到 `C:\Users\Public\Desktop`。若腳本要寫入目標使用者桌面，請使用部署流程提供的 `$env:OSDCloudTargetDesktopPath`；當 `davis` profile 已存在時它會指向 `C:\Users\davis\Desktop`，若尚未第一次登入則會指向 `C:\Users\Default\Desktop`，讓 Windows 建立新 profile 時帶入。相關欄位還包括 `$env:OSDCloudTargetUser` 與 `$env:OSDCloudTargetProfilePath`。
 7. 手動 fallback（不建議）：在 repo 直接建立 `Scripts\<SC-XXX>\run.ps1` 並把該 id 加進 `config\scripts-catalog.json` 的 `scripts` 陣列（欄位：`id`、`name`、`source`、`fileName`、`defaultPhase`、`bytes`、`sha256`），同樣可以被 profile 引用。
-8. `run.ps1` 必須自己處理 `$ErrorActionPreference`、log 寫到 `C:\Windows\Temp\osdcloud-logs`、靜默失敗回報；`Install-Apps.ps1` 只負責呼叫並把錯誤累加到失敗清單。範例（建立暫存防火牆規則）：
+8. `Install-Apps.ps1` 會為每支 `run.ps1` 建立獨立執行 log 與 `custom-scripts-summary.json`，記錄 start/end、phase、script path、exit code 或 exception、duration。`run.ps1` 仍應設定 `$ErrorActionPreference = 'Stop'`，並在需要時寫自己的細節 log；throw 或非 0 exit code 會被 runner 標記為 failed，缺少 `run.ps1` 會被標記為 missing。範例（建立暫存防火牆規則）：
 
 ```powershell
 $ErrorActionPreference = 'Stop'

@@ -949,6 +949,122 @@ test('installer script fails when selected app is missing', () => {
   }
 });
 
+test('installer script runs custom scripts with per-script logs and summary', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const root = makeRoot('osdcloud-custom-script-success-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const scriptsRoot = path.join(root, 'Scripts');
+    const logRoot = path.join(root, 'Logs');
+    const marker = path.join(root, 'order.marker');
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-BEFORE01'), { recursive: true });
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-AFTER001'), { recursive: true });
+    fs.mkdirSync(appsRoot, { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-BEFORE01', 'run.ps1'), "Add-Content -LiteralPath $env:ORDER_MARKER -Value 'before'\n", 'utf8');
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-AFTER001', 'run.ps1'), "Add-Content -LiteralPath $env:ORDER_MARKER -Value 'after'\n", 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'default',
+      selectedSoftware: [],
+      customScripts: [
+        { id: 'SC-AFTER001', name: 'After Script', phase: 'after' },
+        { id: 'SC-BEFORE01', name: 'Before Script', phase: 'before' },
+      ],
+    });
+
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: logRoot, ORDER_MARKER: marker },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const order = fs.readFileSync(marker, 'utf8').trim().split(/\r?\n/u);
+    assert.deepEqual(order, ['before', 'after']);
+    const summary = JSON.parse(fs.readFileSync(path.join(logRoot, 'custom-scripts-summary.json'), 'utf8'));
+    assert.equal(summary.total, 2);
+    assert.equal(summary.succeeded, 2);
+    assert.equal(summary.failed, 0);
+    assert.equal(summary.missing, 0);
+    assert.deepEqual(summary.scripts.map((script) => script.status), ['succeeded', 'succeeded']);
+    const logFiles = fs.readdirSync(path.join(logRoot, 'custom-scripts'));
+    assert.equal(logFiles.length, 2);
+    assert.ok(logFiles.some((name) => /^SC-BEFORE01-before-/u.test(name)));
+    assert.ok(logFiles.some((name) => /^SC-AFTER001-after-/u.test(name)));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installer script records failed and missing custom scripts before failing', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const root = makeRoot('osdcloud-custom-script-failure-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const scriptsRoot = path.join(root, 'Scripts');
+    const logRoot = path.join(root, 'Logs');
+    const marker = path.join(root, 'order.marker');
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-GOOD000'), { recursive: true });
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-BAD0000'), { recursive: true });
+    fs.mkdirSync(appsRoot, { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-GOOD000', 'run.ps1'), "Add-Content -LiteralPath $env:ORDER_MARKER -Value 'good'\n", 'utf8');
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-BAD0000', 'run.ps1'), "Write-Host 'bad script ran'\nexit 7\n", 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'default',
+      selectedSoftware: [],
+      customScripts: [
+        { id: 'SC-GOOD000', name: 'Good Script', phase: 'before' },
+        { id: 'SC-BAD0000', name: 'Bad Script', phase: 'after' },
+        { id: 'SC-MISS000', name: 'Missing Script', phase: 'after' },
+      ],
+    });
+
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: logRoot, ORDER_MARKER: marker },
+    });
+
+    assert.notEqual(result.status, 0);
+    assert.equal(fs.readFileSync(marker, 'utf8').trim(), 'good');
+    const summary = JSON.parse(fs.readFileSync(path.join(logRoot, 'custom-scripts-summary.json'), 'utf8'));
+    assert.equal(summary.total, 3);
+    assert.equal(summary.succeeded, 1);
+    assert.equal(summary.failed, 1);
+    assert.equal(summary.missing, 1);
+    assert.deepEqual(summary.scripts.map((script) => script.status), ['succeeded', 'failed', 'missing']);
+    const bad = summary.scripts.find((script) => script.id === 'SC-BAD0000');
+    assert.equal(bad.exitCode, 7);
+    assert.match(bad.error, /exited with code 7/);
+    const missing = summary.scripts.find((script) => script.id === 'SC-MISS000');
+    assert.match(missing.error, /not found/);
+    const logFiles = fs.readdirSync(path.join(logRoot, 'custom-scripts'));
+    assert.equal(logFiles.length, 3);
+    const badLog = fs.readFileSync(path.join(logRoot, 'custom-scripts', logFiles.find((name) => /^SC-BAD0000-after-/u.test(name))), 'utf8');
+    assert.match(badLog, /bad script ran/);
+    assert.match(badLog, /ExitCode: 7/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('uploads and creates a custom script package', async () => {
   const root = makeRoot();
   try {

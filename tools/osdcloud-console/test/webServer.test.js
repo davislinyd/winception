@@ -268,6 +268,18 @@ async function makeServer(root, overrides = {}) {
         filePath: path.join(root, 'Softwares', softwareId, 'install.ps1'),
         content: "Write-Host 'script'\n",
       }),
+      readCustomScriptContent: (_config, scriptId) => {
+        if (scriptId !== 'SC-TEST001') {
+          const error = new Error(`Custom script not found: ${scriptId}`);
+          error.statusCode = 404;
+          throw error;
+        }
+        return {
+          scriptId,
+          filePath: path.join(root, 'Scripts', scriptId, 'run.ps1'),
+          content: "Write-Host 'custom script'\n",
+        };
+      },
       openSoftwareInstallScript: (_config, softwareId) => ({
         softwareId,
         filePath: path.join(root, 'Softwares', softwareId, 'install.ps1'),
@@ -425,6 +437,17 @@ test('runs mutating API actions through the controller', async () => {
     payload = await response.json();
     assert.equal(payload.result.softwareId, 'chrome');
     assert.match(payload.result.content, /script/);
+
+    response = await fetch(`${base}/api/scripts/content?scriptId=SC-TEST001`);
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.scriptId, 'SC-TEST001');
+    assert.match(payload.result.content, /custom script/);
+
+    response = await fetch(`${base}/api/scripts/content?scriptId=SC-NOPE001`);
+    assert.equal(response.status, 404);
+    payload = await response.json();
+    assert.equal(payload.ok, false);
 
     response = await fetch(`${base}/api/software/script/open`, {
       method: 'POST',
