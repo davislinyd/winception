@@ -161,7 +161,7 @@ const elements = {
 
 const syncSteps = [
   ['Stop running services', ['stopped running services'], ['selected']],
-  ['Persist config/osdcloud-tui.json', ['saved'], ['updating config']],
+  ['Persist config/osdcloud-console.json', ['saved'], ['updating config']],
   ['Recalculate DHCP pool and subnet guard', ['saved'], ['updating config', 'dhcp']],
   ['Update live boot.ipxe', ['endpoint files synced'], ['syncing boot.ipxe']],
   ['Update WinPE endpoint files', ['endpoint files synced'], ['syncing boot.ipxe']],

@@ -545,21 +545,21 @@ export async function runPreflight(config, services = {}) {
     const udp67 = await checkUdpPortAvailable(config.dhcp.listenIp, config.dhcp.listenPort);
     checks.push(udp67.ok ? pass('UDP 67', udp67.message) : fail('UDP 67', udp67.message));
   } else {
-    checks.push(pass('UDP 67', 'owned by TUI DHCP responder'));
+    checks.push(pass('UDP 67', 'owned by console DHCP responder'));
   }
 
   if (!services.tftp?.running) {
     const udp69 = await checkUdpPortAvailable(config.tftp.listenIp, config.tftp.port);
     checks.push(udp69.ok ? pass('UDP 69', udp69.message) : fail('UDP 69', udp69.message));
   } else {
-    checks.push(pass('UDP 69', 'owned by TUI TFTP responder'));
+    checks.push(pass('UDP 69', 'owned by console TFTP responder'));
   }
 
   if (!services.http?.running) {
     const tcp80 = await checkTcpPortAvailable(config.http.host, config.http.port);
     checks.push(tcp80.ok ? pass('TCP 80', tcp80.message) : fail('TCP 80', tcp80.message));
   } else {
-    checks.push(pass('TCP 80', 'owned by TUI HTTP server'));
+    checks.push(pass('TCP 80', 'owned by console HTTP server'));
   }
 
   fs.mkdirSync(config.http.statusRoot, { recursive: true });

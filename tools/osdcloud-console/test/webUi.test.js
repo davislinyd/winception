@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const webRoot = path.resolve('tools', 'osdcloud-tui', 'web');
+const webRoot = path.resolve('tools', 'osdcloud-console', 'web');
 
 test('web UI exposes dashboard view topology', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');

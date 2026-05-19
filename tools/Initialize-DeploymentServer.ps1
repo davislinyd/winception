@@ -371,7 +371,7 @@ try {
     if (-not $SkipEndpointSync) {
         Write-Step "Syncing deployment endpoint"
         Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Set-OsdCloudIpxeEndpoint.ps1') -ArgumentList @(
-            '-ConfigPath', (Join-Path $RepoRoot 'config\osdcloud-tui.json'),
+            '-ConfigPath', (Join-Path $RepoRoot 'config\osdcloud-console.json'),
             '-InterfaceAlias', $InterfaceAlias,
             '-ServerIp', $ServerIp,
             '-PrefixLength', [string] $PrefixLength,

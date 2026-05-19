@@ -255,7 +255,7 @@ test('validates DHCP reservations', () => {
 
 test('saves public config without losing existing fields', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-config-save-'));
-  const configPath = path.join(root, 'osdcloud-tui.json');
+  const configPath = path.join(root, 'osdcloud-console.json');
   const config = {
     adapter: { interfaceAlias: '乙太網路 3', serverIp: '192.168.100.100', prefixLength: 24 },
     dhcp: {

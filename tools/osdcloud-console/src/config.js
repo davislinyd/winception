@@ -6,9 +6,9 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..', '..');
 
 export const defaultRepoRoot = repoRoot;
-export const defaultConfigPath = path.join(repoRoot, 'config', 'osdcloud-tui.json');
+export const defaultConfigPath = path.join(repoRoot, 'config', 'osdcloud-console.json');
 
-export function loadConfig(configPath = process.env.OSDCLOUD_TUI_CONFIG || defaultConfigPath) {
+export function loadConfig(configPath = process.env.OSDCLOUD_CONSOLE_CONFIG || defaultConfigPath) {
   const resolved = path.resolve(configPath);
   const config = JSON.parse(fs.readFileSync(resolved, 'utf8'));
   config.__configPath = resolved;

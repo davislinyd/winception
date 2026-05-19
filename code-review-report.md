@@ -14,7 +14,7 @@
 
 ### [P2] Start all 失敗時未回滾已啟動服務
 
-- 位置：`tools/osdcloud-tui/src/serviceController.js:462`
+- 位置：`tools/osdcloud-console/src/serviceController.js:462`
 - 相關邏輯：`startAll()` 依序啟動 HTTP、TFTP、DHCP，但任一後續服務啟動失敗時，前面已啟動的服務不會自動停止。
 - 影響：operator 看到批次啟動失敗後，仍可能留下部分 responder 或 process running。對 PXE lab 來說，這會造成服務狀態與 UI 操作結果不一致，也可能讓後續 preflight / service start / endpoint sync 判斷變得混亂。
 - 驗證：用 fake services 讓 TFTP 啟動失敗時，HTTP 仍保持 `running: true`。
@@ -23,9 +23,9 @@
 ### [P2] OS image 背景下載未納入 controller operation lock
 
 - 位置：
-  - `tools/osdcloud-tui/src/serviceController.js:262`
-  - `tools/osdcloud-tui/src/serviceController.js:588`
-  - `tools/osdcloud-tui/web/app.js:1867`
+  - `tools/osdcloud-console/src/serviceController.js:262`
+  - `tools/osdcloud-console/src/serviceController.js:588`
+  - `tools/osdcloud-console/web/app.js:1867`
 - 相關邏輯：一般 mutating operation 會透過 `runOperation()` 做互斥，但 `startOsDownload()` 只檢查 `osDownloadStatus.running`，沒有佔用 controller operation lock。前端 download action 也直接呼叫 `/api/os-download`，未使用一般 `mutate()` busy gate。
 - 影響：OS image download running 時，其他 mutating actions 仍可能同時執行，例如 endpoint sync、profile publish、OS upload/import、service start/stop。這些操作可能與 OS cache、catalog、runtime endpoint 或 service state 寫入交錯，造成狀態不一致或 operator 難以判斷實際完成順序。
 - 驗證：用 fake controller 啟動 download running 狀態後，仍可執行其他 controller operation。
@@ -33,7 +33,7 @@
 
 ### [P3] Web UI 測試主要是 source regex，互動行為覆蓋不足
 
-- 位置：`tools/osdcloud-tui/test/webUi.test.js:177`
+- 位置：`tools/osdcloud-console/test/webUi.test.js:177`
 - 相關邏輯：目前 Web UI 測試大多檢查 HTML/CSS/JS source string、字串存在與順序。新的 interface drawer loading/error/backdrop 行為也主要靠 source-shape assertion。
 - 影響：測試能抓到文字或結構被移除，但無法確認實際 DOM 行為，例如 drawer 是否先打開、`/api/interfaces` 是否非同步載入、loading/error row 是否真的渲染、backdrop click 是否正確 cancel、dialog 內點擊是否不會穿透關閉。
 - 驗證：review 現有測試型態後，未看到真正執行 DOM 行為的測試 harness。
@@ -62,7 +62,7 @@
 ## Additional Observations
 
 - 目前 repo snapshot / live config 仍顯示 endpoint 為 `Ethernet` / `192.168.100.1`。依 AGENTS 規則，這不是單獨 code defect；但在下一次 physical-laptop validation 前，必須透過 Web console 或 endpoint sync 明確切回目標 physical LAN endpoint 並重新驗證。
-- `config/osdcloud-tui.json` 與 `osdcloud-assets/manifest.json` 有大量格式、timestamp 或 manifest churn。若不是刻意保存 runtime snapshot，建議後續提交時與功能變更分開處理，降低 review 雜訊。
+- `config/osdcloud-console.json` 與 `osdcloud-assets/manifest.json` 有大量格式、timestamp 或 manifest churn。若不是刻意保存 runtime snapshot，建議後續提交時與功能變更分開處理，降低 review 雜訊。
 - repo 內 lab credentials 與 `pxeinstall` / `davis` 設定符合目前私有 lab 文件假設；本次不列為意外漏洞，但仍應維持 repo private 與部署網段限制。
 
 ## Recommended Next Steps

@@ -14,15 +14,15 @@ Physical-laptop path:
 
 - This is the active production-like validation path.
 - Use the Web-console-selected service interface and service IP for the current run. Do not hard-code a physical NIC name or a `192.168.100.x` address as the required production path.
-- Read the active service IP, DHCP lease range, router, HTTP base, and SMB share from `config\osdcloud-tui.json`, live `boot.ipxe`, and host adapter state immediately before starting services.
+- Read the active service IP, DHCP lease range, router, HTTP base, and SMB share from `config\osdcloud-console.json`, live `boot.ipxe`, and host adapter state immediately before starting services.
 - Use `npm run web` as the host console. The old Node TUI CLI was retired in version `0.3.0`; do not plan or execute the retired TUI command.
-- Do not use VM, `vSwitch`, `192.168.100.1`, VMConnect, PowerShell Direct, or `tools\osdcloud-tui\src\headless.js` as evidence for this path.
+- Do not use VM, `vSwitch`, `192.168.100.1`, VMConnect, PowerShell Direct, or `tools\osdcloud-console\src\headless.js` as evidence for this path.
 
 VM VM regression path:
 
 - Use this only when the user explicitly asks for VM, VM, vSwitch, or regression validation.
 - Use `Ethernet`, service IP `192.168.100.1`, DHCP leases `192.168.100.200-250`, and SMB share `\\192.168.100.1\OSDCloudiPXE`.
-- `tools\osdcloud-tui\src\headless.js` is allowed for VM regression automation, but it must be stopped after the test so DHCP does not keep responding.
+- `tools\osdcloud-console\src\headless.js` is allowed for VM regression automation, but it must be stopped after the test so DHCP does not keep responding.
 - VM success proves the WinPE/OOBE/status workflow still works in VM. It does not prove the physical-laptop path is ready.
 - VM evidence must not overwrite or replace the latest physical validation evidence block.
 
@@ -49,8 +49,8 @@ Current host WAN/LAN topology:
 - `WAN` is the host default internet NIC. Current observed host IP is `192.168.100.1/24`, gateway `192.168.100.1`, metric `5`.
 - `LAN` is the physical client / PXE lab NIC. Current planned host IP is `192.168.88.1/24`, no gateway, metric `500`, IP forwarding enabled.
 - Windows NAT `OSDCloud-PhysicalClient-NAT` maps `192.168.88.0/24` out through the host WAN path.
-- The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-tui.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the Web console or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
-- If `config\osdcloud-tui.json` still references `乙太網路 2`, `乙太網路 3`, or `192.168.100.x` after the rename, treat it as a stale endpoint until it is deliberately resynced.
+- The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-console.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the Web console or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
+- If `config\osdcloud-console.json` still references `乙太網路 2`, `乙太網路 3`, or `192.168.100.x` after the rename, treat it as a stale endpoint until it is deliberately resynced.
 
 Fresh-clone / new-host rules:
 
@@ -58,7 +58,7 @@ Fresh-clone / new-host rules:
 - Live deployment still runs from `C:\OSDCloud`; a Git clone alone is not a deployable PXE runtime because large artifacts are intentionally excluded from Git.
 - A new host must restore or rebuild `C:\OSDCloud\Win11-Lab` and `C:\OSDCloud\Win11-iPXE-Lab`, including `boot.wim`, published HTTP boot files, iPXE binaries, Windows boot binaries, and the active Windows ESD/WIM listed in `osdcloud-assets\manifest.json`.
 - Preferred new-host bootstrap is restore-based: export `deployment-server-bundle` with `tools\Export-DeploymentServerBundle.ps1` on a verified host, then run `Deploy-DeploymentServer.cmd` or `tools\Initialize-DeploymentServer.ps1` on the new host. The bootstrap may restore `C:\OSDCloud`, verify artifact hashes, sync endpoint, run preflight, and start the Web console, but it must not auto-start DHCP/TFTP/HTTP deployment services.
-- Treat committed `config\osdcloud-tui.json` as the last synced lab snapshot, not as a guaranteed production endpoint. It may be left on `Ethernet` / `192.168.100.1`; before a physical-laptop deployment on a newly cloned host, use the Web console `Select service interface`, rerun endpoint sync, and pass preflight.
+- Treat committed `config\osdcloud-console.json` as the last synced lab snapshot, not as a guaranteed production endpoint. It may be left on `Ethernet` / `192.168.100.1`; before a physical-laptop deployment on a newly cloned host, use the Web console `Select service interface`, rerun endpoint sync, and pass preflight.
 - When updating setup or deployment docs, keep the README `新主機 Clone 後啟動流程` current so another operator can clone, restore `C:\OSDCloud`, start `npm run web`, select the service endpoint, run preflight, start services, and validate completion without reading prior chats.
 
 Local account:
@@ -125,7 +125,7 @@ C:\OSDCloud\Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1
 C:\OSDCloud\Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs
 <repo-root>\tools\Set-IpxePhysicalNic.ps1
 <repo-root>\tools\Set-OsdCloudIpxeEndpoint.ps1
-<repo-root>\tools\osdcloud-tui\src\headless.js
+<repo-root>\tools\osdcloud-console\src\headless.js
 ```
 
 Physical-laptop iPXE SMB image source:
@@ -403,8 +403,8 @@ http://127.0.0.1:8080
 The host console code lives under:
 
 ```text
-tools\osdcloud-tui
-config\osdcloud-tui.json
+tools\osdcloud-console
+config\osdcloud-console.json
 ```
 
 Use the Web console for the active physical-laptop path unless the user explicitly requests lower-level helper scripts. Web owns the host-side DHCP responder, TFTP responder, HTTP media/status server, live status display, log tailing, and validation summary.
@@ -413,9 +413,9 @@ Current Web layout implementation and references:
 
 - As of 2026-05-13, the local Web console layout originated from Google Stitch project `8339077576655082414`, but Stitch is now a historical/reference source only. Do not treat Google Stitch as the mandatory design authority for future Web console changes.
 - The Stitch FINAL screen set (`FINAL - Operations Dashboard`, `FINAL - Endpoints & Profiles`, `FINAL - Endpoint Sync Progress`, profile modals, and `FINAL - Client Validation Evidence (Optimized)`) may be used as reference material when helpful, but local operator usability and the checked-in Web code are the source of truth.
-- `tools\osdcloud-tui\web\index.html` currently keeps the Stitch-derived HTML/Tailwind utility structure, inline `tailwind-config`, Inter / JetBrains Mono fonts, Material Symbols, top nav, endpoint bar, dense cards, tables, dialogs, and validation evidence grouping. Desktop dashboard placement is finalized in local CSS with named grid areas rather than only the Tailwind 12-column classes. Future layout changes may evolve this structure directly when that produces a simpler or clearer operator workflow.
-- `tools\osdcloud-tui\web\styles.css` owns the local fallback and interaction layer for dialog behavior, stateful live-rendered nodes, status badges, switches, no-network visual fallback, and practical layout fixes. Keep the styling consistent with the admin-console direction, but do not force it to remain a thin Stitch-only layer.
-- `tools\osdcloud-tui\web\app.js` owns live data binding. It must fill the local DOM from `/api/state`, `/api/interfaces`, `/api/profiles`, and existing mutating API routes without hard-coding Stitch sample runs, fake logs, or fake profile rows.
+- `tools\osdcloud-console\web\index.html` currently keeps the Stitch-derived HTML/Tailwind utility structure, inline `tailwind-config`, Inter / JetBrains Mono fonts, Material Symbols, top nav, endpoint bar, dense cards, tables, dialogs, and validation evidence grouping. Desktop dashboard placement is finalized in local CSS with named grid areas rather than only the Tailwind 12-column classes. Future layout changes may evolve this structure directly when that produces a simpler or clearer operator workflow.
+- `tools\osdcloud-console\web\styles.css` owns the local fallback and interaction layer for dialog behavior, stateful live-rendered nodes, status badges, switches, no-network visual fallback, and practical layout fixes. Keep the styling consistent with the admin-console direction, but do not force it to remain a thin Stitch-only layer.
+- `tools\osdcloud-console\web\app.js` owns live data binding. It must fill the local DOM from `/api/state`, `/api/interfaces`, `/api/profiles`, and existing mutating API routes without hard-coding Stitch sample runs, fake logs, or fake profile rows.
 - The Web console uses Tailwind CDN as a visual enhancement. The console must remain functionally usable if the CDN is unavailable; pixel matching against Stitch is not required.
 - Current local Web behavior verified on 2026-05-17: the single Dashboard workbench renders Operations, endpoint summary, Endpoint Sync Progress, active profile, active OS image, service cards, Preflight Summary, Client Fleet, System Log, dialogs/drawers, and selected-run validation evidence from live API state. On desktop, `Preflight Summary` and `Client Fleet` span the Operations column plus the main column below the upper workbench; on narrow viewports, the layout remains stacked.
 - Operations color semantics are part of the UI contract: `Run preflight` is a neutral diagnostic action, not a blue primary CTA; endpoint sync, deployment-profile `Set active` / `Edit active`, and OS image download/import are warning actions; DHCP/start-all/clear-status/delete actions are danger actions. OS images no longer have an independent `Set active` / `Republish` control — selection is driven by the active profile's `osImage` field. Use result colors only for state: ready/running green, blocked/error red, review/working yellow, stopped/idle/not-run neutral.
@@ -432,17 +432,17 @@ Safety contract:
 
 - Web layout changes may be planned directly in code, a lightweight local mockup, screenshots, or Google Stitch when it is useful. Google Stitch planning screens are optional, not required. For broad or high-risk UI redesigns, provide a concise plan or visual checkpoint for user review before heavy implementation.
 - Text-only web UI copy changes may proceed directly when they do not change layout, navigation, screen structure, or component behavior.
-- Start the Web console from elevated PowerShell when it will control services. The Web console is served by `tools\osdcloud-tui\src\webServer.js` and uses the shared `serviceController.js`.
-- Web management config defaults to `web.host=127.0.0.1` and `web.port=8080`; if `config\osdcloud-tui.json` omits `web`, the defaults apply.
+- Start the Web console from elevated PowerShell when it will control services. The Web console is served by `tools\osdcloud-console\src\webServer.js` and uses the shared `serviceController.js`.
+- Web management config defaults to `web.host=127.0.0.1` and `web.port=8080`; if `config\osdcloud-console.json` omits `web`, the defaults apply.
 - Starting `npm run web`, opening the browser UI, and reading state/status/logs/validation must not modify `C:\OSDCloud`.
 - Web mutating actions can modify live deployment state: endpoint sync can modify live `boot.ipxe`, WinPE endpoint files, `boot.wim`, SMB firewall, and `osdcloud-assets`; OS image cache can download/stage cached Windows images, import browser-uploaded ISO/ESD/WIM sources into cache, switch or republish the active image, publish `selected-os.json`, and update SMB image path; deployment profile publish can replace live `Media\OSDCloud\Apps`; clear status deletes configured status JSON/JSONL/screenshot metadata; service start/stop changes live network responders.
 - Do not run Web console and headless services at the same time to control services. They are separate Node processes and can conflict on ports 67/69/80.
 - Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter.
-- Use `Select service interface` when the service bind interface/IP must change. Opening the endpoint settings drawer is read-only and must not wait for `/api/interfaces`; applying a selected endpoint must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist `config\osdcloud-tui.json`, recalculate DHCP lease pool / subnet mask / router for the selected prefix, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, update the SMB firewall, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
+- Use `Select service interface` when the service bind interface/IP must change. Opening the endpoint settings drawer is read-only and must not wait for `/api/interfaces`; applying a selected endpoint must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist `config\osdcloud-console.json`, recalculate DHCP lease pool / subnet mask / router for the selected prefix, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, update the SMB firewall, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
 - While `Select service interface` is applying an endpoint, the Web console must show human-visible progress, stream sync script output into Logs, and automatically run preflight after the sync completes.
 - After changing the selected service interface, preflight must fail if the DHCP lease range or router is outside the selected service IP prefix. Treat this as a stale/manual config guard; the Web selection path should update DHCP settings automatically.
 - After changing the selected service interface, DHCP must not retain leases from the previous endpoint. If a physical client receives a `192.168.100.x` lease while services are running on `192.168.100.x`, treat it as stale in-memory DHCP lease state and restart on code that rebuilds the lease pool for the current `dhcp.leaseStartIp` / `dhcp.leaseEndIp`.
-- DHCP reservations may pin known physical client MAC addresses to fixed IPs. Endpoint switching must drop reservations outside the newly selected service IP prefix; stale reservations from WAN or vSwitch subnets must not remain in `config\osdcloud-tui.json`.
+- DHCP reservations may pin known physical client MAC addresses to fixed IPs. Endpoint switching must drop reservations outside the newly selected service IP prefix; stale reservations from WAN or vSwitch subnets must not remain in `config\osdcloud-console.json`.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
 - Do not add a Web `Configure physical NIC` action. If Windows adapter IP assignment must be changed, keep it as an explicit script step such as `tools\Set-IpxePhysicalNic.ps1`.
 - Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
@@ -454,7 +454,7 @@ Safety contract:
 - Web `Profiles` > `Software Catalog` > `Add software` is the operator-facing path for adding a new optional client software package. It accepts one MSI/EXE upload, generates the software id server-side, writes repo `Softwares\<software-id>\`, generates or stores `install.ps1`, appends `config\software-catalog.json`, and returns installer size/SHA256 evidence. Operators do not type the software id. It must not stop services, publish live `Apps`, change active profile, sync endpoint, mount `boot.wim`, or touch `C:\OSDCloud`.
 - Web `Profiles` > `Custom Scripts` > `Add script` is the operator-facing path for adding an arbitrary PowerShell task (e.g. firewall rules, registry tweaks) that must run on the client during deployment. It accepts one `.ps1` upload (≤1 MB), generates the script id server-side with `SC-` prefix, writes repo `Scripts\<script-id>\run.ps1` (1:1 copy, no template rewriting), appends `config\scripts-catalog.json` with `defaultPhase` ∈ `{before, after}`, and returns size/SHA256. Operators do not type the script id. Same isolation contract as software-add: must not stop services, publish live `Scripts`, change profiles, sync endpoint, mount `boot.wim`, or touch `C:\OSDCloud`. Profile editor lets each profile pick which scripts to include and override the phase per script.
 - Publishing a deployment profile must also publish its `customScripts`: copy each selected `Scripts\<id>\` into `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Scripts\<id>\`, write `customScripts: [{id, phase}]` into `selected-profile.json` ordered before→after, and let `Install-Apps.ps1` run `Scripts\<id>\run.ps1` in the matching phase (before-apps loop, after-apps loop). Profiles without any selected custom scripts must remain backward-compatible — `Install-Apps.ps1` skips both phases when `customScripts` is absent or empty.
-- Web deployment profile selection publishes profile-filtered client software payloads. Use `Select deployment profile` before starting services when the software set or install order changes; it must stop running HTTP/TFTP/DHCP services, write the active profile to `config\osdcloud-tui.json`, clear stale live `Apps` content, copy only selected software from `Softwares\<software-id>` in profile order, write `selected-profile.json`, and let preflight verify the live payload matches the active profile.
+- Web deployment profile selection publishes profile-filtered client software payloads. Use `Select deployment profile` before starting services when the software set or install order changes; it must stop running HTTP/TFTP/DHCP services, write the active profile to `config\osdcloud-console.json`, clear stale live `Apps` content, copy only selected software from `Softwares\<software-id>` in profile order, write `selected-profile.json`, and let preflight verify the live payload matches the active profile.
 - Keep the normal `Default` profile on 7-Zip only unless the user deliberately selects a Chrome-enabled profile.
 - Endpoint sync hash verification must tolerate host PowerShell sessions where `Get-FileHash` is unavailable by falling back to .NET SHA256 hashing.
 - Deployment profile management supports `Add profile`, per-row `Edit` / `Set active` / `Delete`, and the `Edit active` / `Delete inactive` toolbar shortcuts. Add copies the current active profile software list and order but does not switch or publish. Edit preserves id/name/description/unknown fields unless explicitly changed and lets the operator reorder selected software per profile; editing the **active** profile then republishes live `Apps` and reruns preflight, while editing an **inactive** profile only rewrites that profile's JSON (services keep running, the live `Apps` payload is untouched) and the changes take effect the next time it is set active. Delete can only remove inactive profile JSON files.
@@ -470,7 +470,7 @@ Validation contract:
 - `npm test` must pass for host console code changes.
 - `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN or live `C:\OSDCloud`.
 - Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
-- Web layout or visual changes must also run `node --check tools/osdcloud-tui/web/app.js`, `node --test tools/osdcloud-tui/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/`. The read-only check may fetch `/`, `styles.css`, `app.js`, `/api/state`, `/api/interfaces`, and `/api/profiles`; it must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
+- Web layout or visual changes must also run `node --check tools/osdcloud-console/web/app.js`, `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/`. The read-only check may fetch `/`, `styles.css`, `app.js`, `/api/state`, `/api/interfaces`, and `/api/profiles`; it must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
 - A live deployment remains the final hardware validation when host-console networking behavior changes.
 - Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.
@@ -521,7 +521,7 @@ Historical iPXE VM notes:
 - Full iPXE deployment succeeded with PXE-stage Secure Boot temporarily off. Hard-disk boot was verified with Secure Boot `MicrosoftWindows` and vTPM.
 - For VM first-stage TFTP, do not disable `.efi` OACK/options handling. VM can send paired RRQs where one transfer logs `OACK not acknowledged` and the other succeeds with `SENT snponly.efi`; success is confirmed by later HTTP `boot.ipxe`. If the VM stays at `Downloading NBP file...`, debug TFTP service state before changing WinPE or OSDCloud.
 - After `osdcloud-finished`, do not force power off the VM. Let WinPE run `wpeutil reboot`; premature power-off can leave `Unattend.xml` or `SetupComplete.ps1` NUL-filled and cause Windows Setup unattend parse errors.
-- `tools\osdcloud-tui\src\headless.js` starts the same HTTP/status, TFTP, and DHCP services without Web UI. Use it only for VM regression or automation, and stop the owning `node.exe` after the test so DHCP does not keep responding.
+- `tools\osdcloud-console\src\headless.js` starts the same HTTP/status, TFTP, and DHCP services without Web UI. Use it only for VM regression or automation, and stop the owning `node.exe` after the test so DHCP does not keep responding.
 - Record VM runs under VM / VM regression documentation only. Keep VM names, vSwitch IPs, VHDX details, VMConnect screenshots, and PowerShell Direct results out of the physical-laptop runbook.
 - Signed shim PXE remains a caveat: `snponly-shim.efi` and `ipxe-shim.efi` were both tested with `MicrosoftUEFICertificateAuthority`, but the probe did not reach HTTP and stopped during TFTP shim transfer.
 
@@ -572,7 +572,7 @@ tools\Set-OsdCloudIpxeEndpoint.ps1
 tools\Sync-OsdCloudAssets.ps1
 package.json
 package-lock.json
-config\osdcloud-tui.json
+config\osdcloud-console.json
 config\os-image-catalog.json
 config\os-download-sources.json
 config\software-catalog.json
@@ -580,8 +580,8 @@ config\scripts-catalog.json
 config\deployment-profiles\...
 Softwares\...
 Scripts\...
-tools\osdcloud-tui\...
-TUI-REWRITE-PLAN.md
+tools\osdcloud-console\...
+docs/history/TUI-REWRITE-PLAN.md
 osdcloud-assets\README.md
 osdcloud-assets\manifest.json
 osdcloud-assets\Win11-Lab\...

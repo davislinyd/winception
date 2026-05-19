@@ -15,7 +15,7 @@ import { ServiceController } from './serviceController.js';
 import { TftpResponder } from './tftp.js';
 import { WebManagementServer } from './webServer.js';
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-tui-smoke-'));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-console-smoke-'));
 const httpRoot = path.join(root, 'http');
 const tftpRoot = path.join(root, 'tftp');
 const statusRoot = path.join(httpRoot, 'status');
@@ -151,7 +151,7 @@ const config = {
     host: '127.0.0.1',
     port: 0,
   },
-  __configPath: path.join(root, 'osdcloud-tui.json'),
+  __configPath: path.join(root, 'osdcloud-console.json'),
 };
 
 const publishedOsImage = await publishSelectedOsImage(config, null, { validateDism: false });

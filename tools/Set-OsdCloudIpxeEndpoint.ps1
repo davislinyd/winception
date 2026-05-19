@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\osdcloud-tui.json'),
+    [string] $ConfigPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\osdcloud-console.json'),
     [string] $InterfaceAlias,
     [string] $ServerIp,
     [int] $PrefixLength = 24,

@@ -11,7 +11,7 @@ downloads/
 deployment-server-bundle/
 *.deployment-server.zip
 node_modules/
-.osdcloud-tui/
+.osdcloud-console/
 *.tmp
 *.temp
 

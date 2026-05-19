@@ -38,12 +38,12 @@ function deploymentProfileDefaults(root) {
     softwareSourceRoot: path.join(root, 'Softwares'),
     appsRoot: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps',
     installerScript: path.join(root, 'Softwares', 'Install-Apps.ps1'),
-    softwareUploadRoot: path.join(root, '.osdcloud-tui', 'software-uploads'),
+    softwareUploadRoot: path.join(root, '.osdcloud-console', 'software-uploads'),
     softwareUploadMaxBytes: defaultSoftwareUploadMaxBytes,
     customScriptsCatalogPath: path.join(root, 'config', 'scripts-catalog.json'),
     customScriptsSourceRoot: path.join(root, 'Scripts'),
     customScriptsAppsRoot: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Scripts',
-    customScriptUploadRoot: path.join(root, '.osdcloud-tui', 'script-uploads'),
+    customScriptUploadRoot: path.join(root, '.osdcloud-console', 'script-uploads'),
     customScriptUploadMaxBytes: defaultCustomScriptUploadMaxBytes,
   };
 }
