@@ -296,3 +296,48 @@ test('desktop-ready reporter returns success only after status upload', () => {
   assert.match(sendStatus, /UploadString[\s\S]*return \$true/);
   assert.match(sendStatus, /return \$false/);
 });
+
+test('desktop-ready reporter targets davis profile desktop instead of Public Desktop', () => {
+  const setupCompletePath = path.resolve(
+    'osdcloud-assets',
+    'Win11-iPXE-Lab',
+    'Config',
+    'Scripts',
+    'SetupComplete',
+    'SetupComplete.ps1',
+  );
+  const setupComplete = fs.readFileSync(setupCompletePath, 'utf8');
+
+  assert.doesNotMatch(setupComplete, /C:\\Users\\Public\\Desktop\\OSDCloud-Desktop-Ready\.txt/);
+  assert.match(setupComplete, /\$targetUser = 'davis'/);
+  assert.match(setupComplete, /function Test-TargetUserIdentity/);
+  assert.match(setupComplete, /function Get-ExplorerOwner/);
+  assert.match(setupComplete, /function Get-TargetUserProfilePath/);
+  assert.match(setupComplete, /Join-Path \$targetUserDesktopPath 'OSDCloud-Desktop-Ready\.txt'/);
+  assert.match(setupComplete, /\$facts\.explorerRunning -and \$facts\.interactiveUserIsTarget -and \$facts\.desktopReadyFile/);
+});
+
+test('desktop-ready status includes resolved davis desktop evidence fields', () => {
+  const setupCompletePath = path.resolve(
+    'osdcloud-assets',
+    'Win11-iPXE-Lab',
+    'Config',
+    'Scripts',
+    'SetupComplete',
+    'SetupComplete.ps1',
+  );
+  const setupComplete = fs.readFileSync(setupCompletePath, 'utf8');
+  const factsStart = setupComplete.indexOf('function Get-DesktopReadyFacts');
+  const factsEnd = setupComplete.indexOf('try {', factsStart);
+
+  assert.ok(factsStart > 0);
+  assert.ok(factsEnd > factsStart);
+
+  const facts = setupComplete.slice(factsStart, factsEnd);
+  assert.match(facts, /loggedOnUser = \$loggedOnUser/);
+  assert.match(facts, /explorerOwner = \$explorerOwner/);
+  assert.match(facts, /targetUserProfilePath = \$targetUserProfilePath/);
+  assert.match(facts, /targetUserDesktopPath = \$targetUserDesktopPath/);
+  assert.match(facts, /desktopReadyFilePath = \$desktopReadyFilePath/);
+  assert.match(facts, /desktopReadyFile = \(-not \[string\]::IsNullOrWhiteSpace\(\$desktopReadyFilePath\)/);
+});

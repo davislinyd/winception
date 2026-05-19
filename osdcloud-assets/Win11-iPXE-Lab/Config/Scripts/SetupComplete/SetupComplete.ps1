@@ -176,6 +176,51 @@ function Send-DriverPackCacheRequest {
     }
 }
 
+function Resolve-TargetUserProfilePath {
+    param(
+        [Parameter(Mandatory)][string] $TargetUser
+    )
+
+    $profileList = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+    if (-not (Test-Path -LiteralPath $profileList)) {
+        return $null
+    }
+
+    Get-ChildItem -LiteralPath $profileList -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue
+        } |
+        Where-Object {
+            $_.ProfileImagePath -and (Split-Path -Leaf $_.ProfileImagePath) -ieq $TargetUser
+        } |
+        Select-Object -ExpandProperty ProfileImagePath -First 1
+}
+
+function Set-TargetUserEnvironment {
+    param(
+        [Parameter(Mandatory)][string] $TargetUser
+    )
+
+    $profilePath = Resolve-TargetUserProfilePath -TargetUser $TargetUser
+    $desktopPath = if ($profilePath) {
+        Join-Path $profilePath 'Desktop'
+    }
+    else {
+        Join-Path $env:SystemDrive 'Users\Default\Desktop'
+    }
+
+    New-Item -ItemType Directory -Path $desktopPath -Force -ErrorAction SilentlyContinue | Out-Null
+    [Environment]::SetEnvironmentVariable('OSDCloudTargetUser', $TargetUser, 'Process')
+    [Environment]::SetEnvironmentVariable('OSDCloudTargetProfilePath', $profilePath, 'Process')
+    [Environment]::SetEnvironmentVariable('OSDCloudTargetDesktopPath', $desktopPath, 'Process')
+
+    [ordered]@{
+        targetUser = $TargetUser
+        targetUserProfilePath = $profilePath
+        targetUserDesktopPath = $desktopPath
+    }
+}
+
 function Invoke-ClientAppInstallers {
     $appsRoot = 'C:\ProgramData\OSDCloud\Apps'
     $installer = Join-Path $appsRoot 'Install-Apps.ps1'
@@ -219,6 +264,7 @@ $ErrorActionPreference = 'Continue'
 $metadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
 $defaultStatusUrl = 'http://192.168.100.1/osdcloud/status'
 $taskName = 'OSDCloudDesktopReadyReport'
+$targetUser = 'davis'
 $logDir = 'C:\Windows\Temp\osdcloud-logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 Start-Transcript -Path (Join-Path $logDir 'desktop-ready-reporter.log') -Append -ErrorAction SilentlyContinue | Out-Null
@@ -295,16 +341,120 @@ function Send-Status {
     return $false
 }
 
+function Test-TargetUserIdentity {
+    param([string] $Identity)
+
+    if ([string]::IsNullOrWhiteSpace($Identity)) {
+        return $false
+    }
+
+    return ($Identity -ieq $targetUser -or $Identity -match "\\$([regex]::Escape($targetUser))$")
+}
+
+function Get-LoggedOnUser {
+    try {
+        return (Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop).UserName
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-ExplorerOwner {
+    try {
+        $owners = @(Get-CimInstance Win32_Process -Filter "name = 'explorer.exe'" -ErrorAction Stop |
+            ForEach-Object {
+                $owner = Invoke-CimMethod -InputObject $_ -MethodName GetOwner -ErrorAction SilentlyContinue
+                if ($owner -and $owner.ReturnValue -eq 0 -and $owner.User) {
+                    if ($owner.Domain) {
+                        "$($owner.Domain)\$($owner.User)"
+                    }
+                    else {
+                        $owner.User
+                    }
+                }
+            } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+        $targetOwner = @($owners | Where-Object { Test-TargetUserIdentity -Identity $_ } | Select-Object -First 1)
+        if ($targetOwner.Count -gt 0) {
+            return $targetOwner[0]
+        }
+
+        return @($owners | Select-Object -First 1)[0]
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-TargetUserProfilePath {
+    $profileList = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+    if (-not (Test-Path -LiteralPath $profileList)) {
+        return $null
+    }
+
+    Get-ChildItem -LiteralPath $profileList -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue
+        } |
+        Where-Object {
+            $_.ProfileImagePath -and (Split-Path -Leaf $_.ProfileImagePath) -ieq $targetUser
+        } |
+        Select-Object -ExpandProperty ProfileImagePath -First 1
+}
+
+function Get-TargetUserDesktopPath {
+    $profilePath = Get-TargetUserProfilePath
+    if ([string]::IsNullOrWhiteSpace($profilePath)) {
+        return $null
+    }
+
+    return (Join-Path $profilePath 'Desktop')
+}
+
+function Set-DesktopReadyMarker {
+    param([string] $DesktopPath)
+
+    if ([string]::IsNullOrWhiteSpace($DesktopPath)) {
+        return $null
+    }
+
+    New-Item -ItemType Directory -Path $DesktopPath -Force -ErrorAction SilentlyContinue | Out-Null
+    $markerPath = Join-Path $DesktopPath 'OSDCloud-Desktop-Ready.txt'
+    "OSDCloud desktop ready $(Get-Date -Format o)" | Out-File $markerPath -Encoding ascii -Force
+    return $markerPath
+}
+
 function Get-DesktopReadyFacts {
     $oobe = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE'
     $au = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
     $currentVersion = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
     $explorer = @(Get-Process explorer -ErrorAction SilentlyContinue)
     $oobeProcesses = @(Get-Process CloudExperienceHost, msoobe -ErrorAction SilentlyContinue | ForEach-Object { $_.ProcessName })
+    $loggedOnUser = Get-LoggedOnUser
+    $explorerOwner = Get-ExplorerOwner
+    $interactiveUserIsTarget = ((Test-TargetUserIdentity -Identity $loggedOnUser) -or (Test-TargetUserIdentity -Identity $explorerOwner))
+    $targetUserProfilePath = Get-TargetUserProfilePath
+    $targetUserDesktopPath = Get-TargetUserDesktopPath
+    $desktopReadyFilePath = $null
+
+    if ($interactiveUserIsTarget -and -not [string]::IsNullOrWhiteSpace($targetUserDesktopPath)) {
+        $desktopReadyFilePath = Set-DesktopReadyMarker -DesktopPath $targetUserDesktopPath
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($targetUserDesktopPath)) {
+        $desktopReadyFilePath = Join-Path $targetUserDesktopPath 'OSDCloud-Desktop-Ready.txt'
+    }
 
     [ordered]@{
         explorerRunning = ($explorer.Count -gt 0)
-        desktopReadyFile = (Test-Path -LiteralPath 'C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt')
+        desktopReadyFile = (-not [string]::IsNullOrWhiteSpace($desktopReadyFilePath) -and (Test-Path -LiteralPath $desktopReadyFilePath))
+        loggedOnUser = $loggedOnUser
+        explorerOwner = $explorerOwner
+        interactiveUserIsTarget = $interactiveUserIsTarget
+        targetUserProfilePath = $targetUserProfilePath
+        targetUserDesktopPath = $targetUserDesktopPath
+        desktopReadyFilePath = $desktopReadyFilePath
         oobeProcesses = @($oobeProcesses)
         launchUserOobe = (Get-ItemProperty -Path $oobe -Name LaunchUserOOBE -ErrorAction SilentlyContinue).LaunchUserOOBE
         skipUserOobe = (Get-ItemProperty -Path $oobe -Name SkipUserOOBE -ErrorAction SilentlyContinue).SkipUserOOBE
@@ -323,7 +473,7 @@ try {
     $desktopReadyReported = $false
     do {
         $facts = Get-DesktopReadyFacts
-        if ($facts.explorerRunning -and $facts.desktopReadyFile -and @($facts.oobeProcesses).Count -eq 0) {
+        if ($facts.explorerRunning -and $facts.interactiveUserIsTarget -and $facts.desktopReadyFile -and @($facts.oobeProcesses).Count -eq 0) {
             if (Send-Status -Stage 'windows-desktop-ready' -Message 'Windows desktop is ready for davis.' -Percent 100 -Extra $facts) {
                 $desktopReadyReported = $true
                 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
@@ -406,14 +556,14 @@ try {
         New-ItemProperty -Path $LogonUI -Name SelectedUserSID -PropertyType String -Value $Sid -Force | Out-Null
     }
 
+    $targetUserEnvironment = Set-TargetUserEnvironment -TargetUser $UserName
     $clientAppsResult = Invoke-ClientAppInstallers
-    New-Item -ItemType Directory -Path 'C:\Users\Public\Desktop' -Force | Out-Null
-    "OSDCloud desktop ready $(Get-Date -Format o)" | Out-File 'C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt' -Encoding ascii -Force
     $reporterPath = Install-DesktopReadyReporter
     $driverPackCacheRequestSent = Send-DriverPackCacheRequest
     [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'SetupComplete finished; desktop ready reporter installed.' -Percent 96 -Extra @{
         reporterPath = $reporterPath
         clientApps = $clientAppsResult
+        targetUserEnvironment = $targetUserEnvironment
         driverPackCacheRequestSent = $driverPackCacheRequestSent
         selectedOs = $SelectedOs
     })

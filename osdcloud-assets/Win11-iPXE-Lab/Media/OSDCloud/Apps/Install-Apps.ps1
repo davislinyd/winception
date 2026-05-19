@@ -82,6 +82,43 @@ function Get-CustomScripts {
     return @($Profile.customScripts | Where-Object { $_.phase -eq $Phase })
 }
 
+function Resolve-TargetUserProfilePath {
+    param([Parameter(Mandatory)][string] $TargetUser)
+
+    $profileList = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+    if (-not (Test-Path -LiteralPath $profileList)) {
+        return $null
+    }
+
+    Get-ChildItem -LiteralPath $profileList -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue
+        } |
+        Where-Object {
+            $_.ProfileImagePath -and (Split-Path -Leaf $_.ProfileImagePath) -ieq $TargetUser
+        } |
+        Select-Object -ExpandProperty ProfileImagePath -First 1
+}
+
+function Initialize-TargetUserEnvironment {
+    $targetUser = if ($env:OSDCloudTargetUser) { $env:OSDCloudTargetUser } else { 'davis' }
+    $profilePath = if ($env:OSDCloudTargetProfilePath) { $env:OSDCloudTargetProfilePath } else { Resolve-TargetUserProfilePath -TargetUser $targetUser }
+    $desktopPath = if ($env:OSDCloudTargetDesktopPath) {
+        $env:OSDCloudTargetDesktopPath
+    }
+    elseif ($profilePath) {
+        Join-Path $profilePath 'Desktop'
+    }
+    else {
+        Join-Path $env:SystemDrive 'Users\Default\Desktop'
+    }
+
+    New-Item -ItemType Directory -Path $desktopPath -Force -ErrorAction SilentlyContinue | Out-Null
+    [Environment]::SetEnvironmentVariable('OSDCloudTargetUser', $targetUser, 'Process')
+    [Environment]::SetEnvironmentVariable('OSDCloudTargetProfilePath', $profilePath, 'Process')
+    [Environment]::SetEnvironmentVariable('OSDCloudTargetDesktopPath', $desktopPath, 'Process')
+}
+
 function Invoke-CustomScript {
     param(
         [Parameter(Mandatory)][string] $ScriptsRoot,
@@ -107,6 +144,7 @@ try {
     $appsRoot = $PSScriptRoot
     $scriptsRoot = Join-Path (Split-Path -Parent $appsRoot) 'Scripts'
     $failures = New-Object System.Collections.ArrayList
+    Initialize-TargetUserEnvironment
 
     $profile = Get-SelectedProfile -AppsRoot $appsRoot
     $beforeScripts = Get-CustomScripts -Profile $profile -Phase 'before'

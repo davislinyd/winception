@@ -152,6 +152,7 @@ Mode : read-only SMB, firewall limited to the selected service subnet on the sel
 - When changing iPXE `SetupComplete`, update both `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete` and the embedded `X:\OSDCloud\Config\Scripts\SetupComplete` inside `boot.wim`. If the embedded copy is stale, the laptop can reach the Windows desktop while the Web console remains at `awaiting-windows` / `rebooting` because no `windows-setupcomplete-*` or `windows-desktop-ready` callback exists.
 - Client app payloads are published by Web deployment profile selection into `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`. WinPE shutdown copies only the published payload into deployed Windows at `C:\ProgramData\OSDCloud\Apps`; `SetupComplete` then runs `Install-Apps.ps1`, which reads `selected-profile.json` and installs only selected software in `selectedSoftware` order before the desktop-ready marker. Current `Default` profile installs `7zip\7z2601-x64.msi`; `All in One` installs 7-Zip plus `chrome\googlechromestandaloneenterprise64.msi`; `Minimal` installs no client software.
 - The desktop-ready scheduled task must use an any-user `New-ScheduledTaskTrigger -AtLogOn` with a SYSTEM principal. Do not set the trigger user to `$env:COMPUTERNAME\davis`; during SetupComplete the computer name / local account SID mapping can be unstable and fail with `HRESULT 0x80070534`.
+- The desktop-ready marker must be created by the logon-triggered reporter after it confirms the interactive user is `davis`. Do not use `C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt` as proof of `davis` desktop readiness; readiness evidence should include `loggedOnUser` or `explorerOwner`, `targetUserDesktopPath`, and `desktopReadyFilePath` under the resolved `davis` profile Desktop.
 - The desktop-ready scheduled task must not unregister until `windows-desktop-ready` is successfully POSTed. Windows networking can lag behind Explorer; if the first POST fails, keep retrying instead of losing the final Web completion event. The intended retry loop is every 5 seconds for up to 30 minutes from `windows-logon-start`.
 - The desktop-ready reporter's `Send-Status` helper must return `$true` after a successful HTTP POST or WebClient fallback and `$false` only after both fail. If it returns `$null`, the host can show `completed` while the client keeps POSTing identical `windows-desktop-ready` events every 5 seconds until the 30-minute reporter deadline. To stop an already-deployed old client immediately, run `Unregister-ScheduledTask -TaskName OSDCloudDesktopReadyReport -Confirm:$false` on that client.
 - Screenshot progress evidence is best-effort only. Keep JSON deployment status as the source of truth; screenshot upload failures must not block OSDCloud, SetupComplete, reboot, or desktop-ready reporting.
@@ -334,6 +335,7 @@ Final validation should include:
 User             : <computer>\davis
 ExplorerRunning  : True
 DesktopReadyFile : True
+DesktopReadyPath : C:\Users\davis\Desktop\OSDCloud-Desktop-Ready.txt
 OobeProcesses    :
 LaunchUserOOBE   : 0
 SkipUserOOBE     : 1
