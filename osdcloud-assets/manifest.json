@@ -96,9 +96,9 @@
                         "source":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\selected-profile.json",
                         "sourceKind":  "filesystem",
                         "repoPath":  "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/selected-profile.json",
-                        "length":  726,
-                        "lastWriteTimeUtc":  "2026-05-18T06:40:23.5613234Z",
-                        "sha256":  "E724A58B3BAFD9E918FA2D98ED12BBC80C4AB7D07A1D5CDF941AECC6F49FD386"
+                        "length":  659,
+                        "lastWriteTimeUtc":  "2026-05-19T08:39:33.5161419Z",
+                        "sha256":  "82AA55E65E45225C8A38EB6E6E5835EA745FEBA2CA693BACB046B5B133E250CE"
                     },
                     {
                         "source":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\SW-4UT7PDID\\install.ps1",
@@ -120,9 +120,9 @@
                         "source":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\selected-os.json",
                         "sourceKind":  "filesystem",
                         "repoPath":  "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/OS/selected-os.json",
-                        "length":  899,
-                        "lastWriteTimeUtc":  "2026-05-18T06:40:23.4849790Z",
-                        "sha256":  "CC43D27CE27ED9105DE40855BBDCCC4AD9903FE75A9BE83EA92F5C64F15D7948"
+                        "length":  903,
+                        "lastWriteTimeUtc":  "2026-05-19T08:39:33.4470546Z",
+                        "sha256":  "31BA6ECC8EEB21E65878B56EBF710A7484B9788288F2B1BEB250CDC1FA3FCAF6"
                     },
                     {
                         "source":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\osdcloud\\boot.ipxe",
@@ -279,9 +279,9 @@
                                   "source":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\selected-os.json",
                                   "exists":  true,
                                   "reason":  "cached Windows image, too large for Git",
-                                  "length":  899,
-                                  "lastWriteTimeUtc":  "2026-05-18T06:40:23.4849790Z",
-                                  "sha256":  "CC43D27CE27ED9105DE40855BBDCCC4AD9903FE75A9BE83EA92F5C64F15D7948",
+                                  "length":  903,
+                                  "lastWriteTimeUtc":  "2026-05-19T08:39:33.4470546Z",
+                                  "sha256":  "31BA6ECC8EEB21E65878B56EBF710A7484B9788288F2B1BEB250CDC1FA3FCAF6",
                                   "hashStatus":  "sha256"
                               },
                               {

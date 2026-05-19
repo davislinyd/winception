@@ -386,12 +386,13 @@ try {
     assert.equal(response.status, 200);
     assert.equal(JSON.parse(fs.readFileSync(config.__configPath, 'utf8')).deploymentProfiles.activeProfile, 'default');
 
-    response = await fetch(`${webBase}/api/os-image`, {
+    response = await fetch(`${webBase}/api/profile/software`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ imageId: 'SMOKE-WIN11-PRO' }),
+      body: JSON.stringify({ profileId: 'default', osImageId: 'SMOKE-WIN11-PRO' }),
     });
     assert.equal(response.status, 200);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(profilesRoot, 'default.json'), 'utf8')).osImage, 'SMOKE-WIN11-PRO');
 
     response = await fetch(`${webBase}/api/os-download`, {
       method: 'POST',

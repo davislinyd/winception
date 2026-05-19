@@ -53,11 +53,11 @@
                                         ],
                   "statusLatest":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status\\latest.json",
                   "statusEvents":  "C:\\OSDCloud\\Win11-iPXE-Lab\\PXE-HttpRoot\\status\\progress.jsonl",
-                  "imageNamePattern":  "26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_en-us.esd"
+                  "imageNamePattern":  "26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
               },
     "smb":  {
                 "share":  "\\\\192.168.100.1\\OSDCloudiPXE",
-                "imagePath":  "\\\\192.168.100.1\\OSDCloudiPXE\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_en-us.esd"
+                "imagePath":  "\\\\192.168.100.1\\OSDCloudiPXE\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd"
             },
     "driverPackCache":  {
                             "enabled":  true,
@@ -67,7 +67,7 @@
                                              ]
                         },
     "osImage":  {
-                    "activeImage":  "WINDOWS-11-25H2-X64-EN-US-RETAIL-26200-6584-EN-US-PRO-RETAIL-6-2",
+                    "activeImage":  "WIN11-25H2-ZHTW-PRO",
                     "catalogPath":  "config\\os-image-catalog.json",
                     "downloadSourcesPath":  "config\\os-download-sources.json",
                     "cacheRoot":  "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS",

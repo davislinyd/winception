@@ -21,10 +21,10 @@
       "name": "Notepad++ 8.9.5"
     }
   ],
-  "osImageId": "WINDOWS-11-25H2-X64-EN-US-RETAIL-26200-6584-EN-US-PRO-RETAIL-6-2",
+  "osImageId": "WIN11-25H2-ZHTW-PRO",
   "osImage": {
-    "id": "WINDOWS-11-25H2-X64-EN-US-RETAIL-26200-6584-EN-US-PRO-RETAIL-6-2",
-    "fileName": "26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_en-us.esd",
+    "id": "WIN11-25H2-ZHTW-PRO",
+    "fileName": "26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd",
     "imageIndex": 6
   }
 }
