@@ -654,7 +654,7 @@ git add README.md AGENTS.md OSDCloud-Win11-Automated-Deployment-Test-Report.md c
 git commit -m "Update deployment profile software selection"
 ```
 
-11. 下一次實體 iPXE 部署時，Web console 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log`、`custom-scripts-summary.json`、`custom-scripts\*.log` 和軟體自己的 log。
+11. 下一次實體 iPXE 部署時，Web console 應看到 `windows-apps-start` 和 `windows-apps-finished`。若失敗，檢查 client 的 `C:\Windows\Temp\osdcloud-logs\apps-install.log`、`C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`、`C:\Windows\Temp\osdcloud-logs\custom-scripts\*.log` 和軟體自己的 log。
 
 自行新增 custom 部署腳本：
 
@@ -670,7 +670,7 @@ custom script 是「在部署流程中要跑、但又不是傳統 MSI/EXE 安裝
 5. Custom Script Catalog row 的 `View` 會打開唯讀檢視器顯示 `run.ps1` 內容與磁碟位置；`Delete` 只允許刪除未被任何 profile 引用的 script，被引用時必須先到 profile editor 解除勾選並存檔才能刪。
 6. Custom scripts 在 Windows `SetupComplete` 階段由 SYSTEM 執行；`[Environment]::GetFolderPath('Desktop')` 會解析到 `C:\Users\Public\Desktop`。若腳本要寫入目標使用者桌面，請使用部署流程提供的 `$env:OSDCloudTargetDesktopPath`；當 `davis` profile 已存在時它會指向 `C:\Users\davis\Desktop`，若尚未第一次登入則會指向 `C:\Users\Default\Desktop`，讓 Windows 建立新 profile 時帶入。相關欄位還包括 `$env:OSDCloudTargetUser` 與 `$env:OSDCloudTargetProfilePath`。
 7. 手動 fallback（不建議）：在 repo 直接建立 `Scripts\<SC-XXX>\run.ps1` 並把該 id 加進 `config\scripts-catalog.json` 的 `scripts` 陣列（欄位：`id`、`name`、`source`、`fileName`、`defaultPhase`、`bytes`、`sha256`），同樣可以被 profile 引用。
-8. `Install-Apps.ps1` 會為每支 `run.ps1` 建立獨立執行 log 與 `custom-scripts-summary.json`，記錄 start/end、phase、script path、exit code 或 exception、duration。`run.ps1` 仍應設定 `$ErrorActionPreference = 'Stop'`，並在需要時寫自己的細節 log；throw 或非 0 exit code 會被 runner 標記為 failed，缺少 `run.ps1` 會被標記為 missing。範例（建立暫存防火牆規則）：
+8. `Install-Apps.ps1` 會為每支 `run.ps1` 在 client 端建立獨立執行 log 與 summary：`C:\Windows\Temp\osdcloud-logs\custom-scripts\<scriptId>-<phase>-<timestamp>.log`、`C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`，並保留整體 transcript `C:\Windows\Temp\osdcloud-logs\apps-install.log`。這些 stdout/stderr log 目前不會自動回傳到 host 的 `C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status`；Web console 只會看到 `windows-apps-start`、`windows-apps-finished` 或錯誤 stage。Summary 記錄 start/end、phase、script path、exit code 或 exception、duration。`run.ps1` 仍應設定 `$ErrorActionPreference = 'Stop'`，並在需要時寫自己的細節 log；throw 或非 0 exit code 會被 runner 標記為 failed，缺少 `run.ps1` 會被標記為 missing。若中文 `Write-Host` 在 redirected log 內顯示亂碼，通常是 Windows PowerShell stdout/stderr redirect encoding 問題；要保留可讀中文內容時，腳本應自行用 `[System.IO.File]::WriteAllText(..., [System.Text.Encoding]::UTF8)` 或明確 `-Encoding UTF8` 寫入自己的 log/輸出檔。範例（建立暫存防火牆規則）：
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -781,7 +781,7 @@ windows-desktop-ready
 
 `windows-driverpack-cache-request` 只帶 driver pack metadata，不帶 driver pack 本體。host 端收到後會在背景處理 cache backfill；即使下載失敗，也不會阻斷 `windows-setupcomplete-finished` 或 `windows-desktop-ready`。
 
-`windows-apps-start` / `windows-apps-finished` 代表 SetupComplete 正在安裝 `C:\ProgramData\OSDCloud\Apps` 內的 client app payload。若 installer 回傳非成功碼，會送出 `windows-apps-error` 與 `windows-setupcomplete-error`，log 在 `C:\Windows\Temp\osdcloud-logs\apps-install.log` 和各軟體自己的 log。
+`windows-apps-start` / `windows-apps-finished` 代表 SetupComplete 正在安裝 `C:\ProgramData\OSDCloud\Apps` 內的 client app payload，並在同一個 `Install-Apps.ps1` run 內執行 `C:\ProgramData\OSDCloud\Scripts` 內被 profile 選中的 custom scripts。若 installer 或 custom script 回傳非成功碼，會送出 `windows-apps-error` 與 `windows-setupcomplete-error`。client 端 log 在 `C:\Windows\Temp\osdcloud-logs\apps-install.log`、`C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`、`C:\Windows\Temp\osdcloud-logs\custom-scripts\*.log` 和各軟體自己的 log；host status JSON 不保存 custom script 的完整 stdout/stderr。
 
 `windows-desktop-ready` 代表已看到 Explorer、桌面 ready marker，且沒有 `CloudExperienceHost` / `msoobe`。
 Desktop-ready reporter 會等到 `windows-desktop-ready` 成功 POST 到 host 後才移除 scheduled task；如果 Windows 桌面先出現但網路尚未連上目前 host status endpoint，它會每 `5` 秒重試，最多 `30` 分鐘，避免 Web console 永遠停在 `awaiting-windows`。`Send-Status` 必須在 HTTP POST 或 WebClient fallback 成功後回傳 `$true`，否則 reporter 會把 HTTP `204` 當成未完成並每 5 秒重送相同 `windows-desktop-ready`，直到 30 分鐘 deadline。
