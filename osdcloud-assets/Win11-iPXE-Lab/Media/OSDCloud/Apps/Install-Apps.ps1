@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$LogDir = 'C:\Windows\Temp\osdcloud-logs'
+$LogDir = if ($env:OSDCloudLogDir) { $env:OSDCloudLogDir } else { 'C:\Windows\Temp\osdcloud-logs' }
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 Start-Transcript -Path (Join-Path $LogDir 'apps-install.log') -Append -ErrorAction SilentlyContinue | Out-Null
 
@@ -119,47 +119,173 @@ function Initialize-TargetUserEnvironment {
     [Environment]::SetEnvironmentVariable('OSDCloudTargetDesktopPath', $desktopPath, 'Process')
 }
 
+function New-CustomScriptLogPath {
+    param(
+        [Parameter(Mandatory)][string] $ScriptId,
+        [Parameter(Mandatory)][string] $Phase
+    )
+
+    $scriptLogRoot = Join-Path $LogDir 'custom-scripts'
+    New-Item -ItemType Directory -Path $scriptLogRoot -Force | Out-Null
+    $safeId = $ScriptId -replace '[^A-Za-z0-9._-]', '_'
+    $safePhase = $Phase -replace '[^A-Za-z0-9._-]', '_'
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+    Join-Path $scriptLogRoot "$safeId-$safePhase-$stamp.log"
+}
+
+function Write-CustomScriptLog {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $Message
+    )
+
+    Add-Content -LiteralPath $Path -Value $Message -Encoding UTF8
+}
+
+function Invoke-CustomScriptProcess {
+    param(
+        [Parameter(Mandatory)][string] $Script,
+        [Parameter(Mandatory)][string] $LogPath
+    )
+
+    $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$Script`""
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    try {
+        $process = Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $stdout = if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) { Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue } else { '' }
+        $stderr = if (Test-Path -LiteralPath $stderrPath -PathType Leaf) { Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue } else { '' }
+
+        if (-not [string]::IsNullOrWhiteSpace($stdout)) {
+            Write-CustomScriptLog -Path $LogPath -Message '--- stdout ---'
+            Write-CustomScriptLog -Path $LogPath -Message $stdout.TrimEnd()
+        }
+        if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+            Write-CustomScriptLog -Path $LogPath -Message '--- stderr ---'
+            Write-CustomScriptLog -Path $LogPath -Message $stderr.TrimEnd()
+        }
+
+        return $process.ExitCode
+    }
+    finally {
+        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-CustomScript {
     param(
         [Parameter(Mandatory)][string] $ScriptsRoot,
         [Parameter(Mandatory)] $Entry,
-        [Parameter(Mandatory)][System.Collections.ArrayList] $Failures
+        [System.Collections.ArrayList] $Failures,
+        [System.Collections.ArrayList] $Results
     )
 
     $scriptId = [string] $Entry.id
-    Write-Host "Running custom script ($($Entry.phase)): $scriptId"
+    $phase = [string] $Entry.phase
+    $started = Get-Date
+    $logPath = New-CustomScriptLogPath -ScriptId $scriptId -Phase $phase
+    $result = [ordered]@{
+        id = $scriptId
+        name = if ($Entry.name) { [string] $Entry.name } else { $null }
+        phase = $phase
+        status = 'running'
+        startedAt = $started.ToString('o')
+        endedAt = $null
+        durationSeconds = $null
+        script = $null
+        logPath = $logPath
+        exitCode = $null
+        error = $null
+    }
+
+    Write-Host "Running custom script ($phase): $scriptId"
+    Write-CustomScriptLog -Path $logPath -Message "StartedAt: $($result.startedAt)"
+    Write-CustomScriptLog -Path $logPath -Message "Id: $scriptId"
+    Write-CustomScriptLog -Path $logPath -Message "Name: $($result.name)"
+    Write-CustomScriptLog -Path $logPath -Message "Phase: $phase"
     try {
         $script = Resolve-PackageScript -Root $ScriptsRoot -PackageId $scriptId -ScriptName 'run.ps1' -Label 'custom script'
-        & $script
-        Write-Host "Completed custom script: $scriptId"
+        $result.script = $script
+        Write-CustomScriptLog -Path $logPath -Message "Script: $script"
+
+        $exitCode = Invoke-CustomScriptProcess -Script $script -LogPath $logPath
+        $result.exitCode = $exitCode
+        if ($exitCode -eq 0) {
+            $result.status = 'succeeded'
+            Write-Host "Completed custom script: $scriptId"
+        }
+        else {
+            $result.status = 'failed'
+            $result.error = "Custom script exited with code $exitCode"
+            $message = "Failed custom script ${scriptId}: $($result.error)"
+            Write-Host $message
+            [void] $Failures.Add($message)
+        }
     }
     catch {
+        if ($_.Exception.Message -match 'not found') {
+            $result.status = 'missing'
+        }
+        else {
+            $result.status = 'failed'
+        }
+        $result.error = $_.Exception.Message
         $message = "Failed custom script ${scriptId}: $($_.Exception.Message)"
         Write-Host $message
+        Write-CustomScriptLog -Path $logPath -Message "Exception: $($_.Exception.Message)"
         [void] $Failures.Add($message)
     }
+    finally {
+        $ended = Get-Date
+        $result.endedAt = $ended.ToString('o')
+        $result.durationSeconds = [Math]::Round(($ended - $started).TotalSeconds, 3)
+        Write-CustomScriptLog -Path $logPath -Message "EndedAt: $($result.endedAt)"
+        Write-CustomScriptLog -Path $logPath -Message "DurationSeconds: $($result.durationSeconds)"
+        Write-CustomScriptLog -Path $logPath -Message "Status: $($result.status)"
+        if ($null -ne $result.exitCode) {
+            Write-CustomScriptLog -Path $logPath -Message "ExitCode: $($result.exitCode)"
+        }
+        if ($result.error) {
+            Write-CustomScriptLog -Path $logPath -Message "Error: $($result.error)"
+        }
+        [void] $Results.Add([pscustomobject] $result)
+    }
+}
+
+function Write-CustomScriptSummary {
+    param([Parameter(Mandatory)][System.Collections.ArrayList] $Results)
+
+    $summaryPath = Join-Path $LogDir 'custom-scripts-summary.json'
+    $summary = [ordered]@{
+        generatedAt = (Get-Date).ToString('o')
+        total = $Results.Count
+        succeeded = @($Results | Where-Object { $_.status -eq 'succeeded' }).Count
+        failed = @($Results | Where-Object { $_.status -eq 'failed' }).Count
+        missing = @($Results | Where-Object { $_.status -eq 'missing' }).Count
+        scripts = @($Results)
+    }
+    $summaryJson = $summary | ConvertTo-Json -Depth 8
+    [System.IO.File]::WriteAllText($summaryPath, $summaryJson, [System.Text.UTF8Encoding]::new($false))
+    return $summaryPath
 }
 
 try {
     $appsRoot = $PSScriptRoot
     $scriptsRoot = Join-Path (Split-Path -Parent $appsRoot) 'Scripts'
     $failures = New-Object System.Collections.ArrayList
+    $customScriptResults = New-Object System.Collections.ArrayList
     Initialize-TargetUserEnvironment
 
     $profile = Get-SelectedProfile -AppsRoot $appsRoot
-    $beforeScripts = Get-CustomScripts -Profile $profile -Phase 'before'
-    $afterScripts = Get-CustomScripts -Profile $profile -Phase 'after'
+    $beforeScripts = @(Get-CustomScripts -Profile $profile -Phase 'before')
+    $afterScripts = @(Get-CustomScripts -Profile $profile -Phase 'after')
     $selectedIds = @(Get-SelectedSoftwareIds -AppsRoot $appsRoot -Profile $profile)
 
-    if ($beforeScripts.Count -gt 0 -and (Test-Path -LiteralPath $scriptsRoot -PathType Container)) {
+    if ($beforeScripts.Count -gt 0) {
         foreach ($entry in $beforeScripts) {
-            Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -Failures $failures
+            Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -Failures $failures -Results $customScriptResults
         }
-    }
-    elseif ($beforeScripts.Count -gt 0) {
-        $message = "Custom scripts root not found: $scriptsRoot"
-        Write-Host $message
-        [void] $failures.Add($message)
     }
 
     if ($selectedIds.Count -eq 0) {
@@ -180,15 +306,15 @@ try {
         }
     }
 
-    if ($afterScripts.Count -gt 0 -and (Test-Path -LiteralPath $scriptsRoot -PathType Container)) {
+    if ($afterScripts.Count -gt 0) {
         foreach ($entry in $afterScripts) {
-            Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -Failures $failures
+            Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -Failures $failures -Results $customScriptResults
         }
     }
-    elseif ($afterScripts.Count -gt 0) {
-        $message = "Custom scripts root not found: $scriptsRoot"
-        Write-Host $message
-        [void] $failures.Add($message)
+
+    if ($customScriptResults.Count -gt 0) {
+        $summaryPath = Write-CustomScriptSummary -Results $customScriptResults
+        Write-Host "Custom script summary: $summaryPath"
     }
 
     if ($failures.Count -gt 0) {
