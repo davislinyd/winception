@@ -171,6 +171,15 @@ try {
         Copy-Item -Path (Join-Path $sourceApps '*') -Destination $targetApps -Recurse -Force
         Write-Host "Client apps source: $sourceApps"
         Write-Host "Client apps target: $targetApps"
+
+        $sourceScripts = Join-Path (Split-Path -Parent $sourceApps) 'Scripts'
+        if (Test-Path -LiteralPath $sourceScripts -PathType Container) {
+            $targetScripts = Join-Path $windowsRoot 'ProgramData\OSDCloud\Scripts'
+            New-Item -ItemType Directory -Path $targetScripts -Force | Out-Null
+            Copy-Item -Path (Join-Path $sourceScripts '*') -Destination $targetScripts -Recurse -Force
+            Write-Host "Client scripts source: $sourceScripts"
+            Write-Host "Client scripts target: $targetScripts"
+        }
     }
 
     $cmdPath = Join-Path $setupScripts 'SetupComplete.cmd'
