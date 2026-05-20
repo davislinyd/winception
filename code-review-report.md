@@ -1,7 +1,7 @@
 # Code Review 報告
 
 產出日期：2026-05-14（2026-05-19 修訂：line number drift correction + Finding #2 重寫）
-工作目錄：`C:\Users\Davis\Documents\New project`
+工作目錄：`<repo-root>`
 報告範圍：本報告整理本次 read-only code review 的結果。檢查過程允許驗證，但未修改任何既有 code、docs、config 或 deployment runtime。
 
 ## Executive Summary
@@ -62,7 +62,7 @@
 
 - 目前 repo snapshot / live config 仍顯示 endpoint 為 `Ethernet` / `192.168.100.1`。依 AGENTS 規則，這不是單獨 code defect；但在下一次 physical-laptop validation 前，必須透過 Web console 或 endpoint sync 明確切回目標 physical LAN endpoint 並重新驗證。
 - `config/osdcloud-console.json` 與 `osdcloud-assets/manifest.json` 有大量格式、timestamp 或 manifest churn。若不是刻意保存 runtime snapshot，建議後續提交時與功能變更分開處理，降低 review 雜訊。
-- repo 內 lab credentials 與 `pxeinstall` / `davis` 設定符合目前私有 lab 文件假設；本次不列為意外漏洞，但仍應維持 repo private 與部署網段限制。
+- repo 內只應保留 `pxeinstall` / `davis` 這類 lab account names；真實密碼需留在未提交的本機 secret 來源，並維持 repo private 與部署網段限制。
 
 ## Recommended Next Steps
 

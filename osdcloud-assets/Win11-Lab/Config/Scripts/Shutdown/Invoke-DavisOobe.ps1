@@ -19,16 +19,77 @@ function Get-TargetWindowsRoot {
     throw 'Unable to locate the deployed Windows volume.'
 }
 
+function ConvertTo-XmlText {
+    param(
+        [string] $Value
+    )
+
+    [System.Security.SecurityElement]::Escape($Value)
+}
+
+function Get-DeploymentSecretPathCandidates {
+    $candidates = @()
+    if ($PSScriptRoot) {
+        $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+        $candidates += Join-Path $root 'secrets.json'
+        $candidates += Join-Path $root 'Config\secrets.json'
+    }
+
+    $candidates += Get-PSDrive -PSProvider FileSystem |
+        Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
+        ForEach-Object {
+            "$($_.Name):\OSDCloud\secrets.json"
+            "$($_.Name):\OSDCloud\Config\secrets.json"
+        }
+
+    $candidates | Where-Object { $_ } | Select-Object -Unique
+}
+
+function Get-DeploymentSecret {
+    param(
+        [Parameter(Mandatory)][string] $JsonName,
+        [Parameter(Mandatory)][string] $EnvironmentName
+    )
+
+    foreach ($scope in @('Process', 'Machine')) {
+        $value = [Environment]::GetEnvironmentVariable($EnvironmentName, $scope)
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return [string] $value
+        }
+    }
+
+    foreach ($candidate in Get-DeploymentSecretPathCandidates) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            continue
+        }
+
+        try {
+            $secrets = Get-Content -LiteralPath $candidate -Raw | ConvertFrom-Json
+            $value = $secrets.$JsonName
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                return [string] $value
+            }
+        }
+        catch {
+            Write-Warning "Unable to read deployment secrets from $candidate`: $($_.Exception.Message)"
+        }
+    }
+
+    throw "Missing required deployment secret '$JsonName'. Provide an untracked secrets.json in the OSDCloud runtime or set $EnvironmentName."
+}
+
 try {
     $windowsRoot = Get-TargetWindowsRoot
     Write-Host "Target Windows root: $windowsRoot"
+    $accountPassword = Get-DeploymentSecret -JsonName 'davisPassword' -EnvironmentName 'OSDCLOUD_DAVIS_PASSWORD'
+    $accountPasswordXml = ConvertTo-XmlText -Value $accountPassword
 
     $panther = Join-Path $windowsRoot 'Windows\Panther'
     $sysprep = Join-Path $windowsRoot 'Windows\System32\Sysprep'
     $setupScripts = Join-Path $windowsRoot 'Windows\Setup\Scripts'
     New-Item -ItemType Directory -Path $panther, $sysprep, $setupScripts -Force | Out-Null
 
-    $unattend = @'
+    $unattend = @"
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
   <settings pass="oobeSystem">
@@ -55,7 +116,7 @@ try {
         <LocalAccounts>
           <LocalAccount wcm:action="add">
             <Password>
-              <Value>password</Value>
+              <Value>$accountPasswordXml</Value>
               <PlainText>true</PlainText>
             </Password>
             <Description>Local administrator account</Description>
@@ -67,7 +128,7 @@ try {
       </UserAccounts>
       <AutoLogon>
         <Password>
-          <Value>password</Value>
+          <Value>$accountPasswordXml</Value>
           <PlainText>true</PlainText>
         </Password>
         <Enabled>true</Enabled>
@@ -77,11 +138,16 @@ try {
     </component>
   </settings>
 </unattend>
-'@
+"@
 
     $unattendPath = Join-Path $panther 'Unattend.xml'
     Set-Content -LiteralPath $unattendPath -Value $unattend -Encoding UTF8 -Force
     Set-Content -LiteralPath (Join-Path $sysprep 'Unattend.xml') -Value $unattend -Encoding UTF8 -Force
+
+    $secretTargetRoot = Join-Path $windowsRoot 'ProgramData\OSDCloud'
+    New-Item -ItemType Directory -Path $secretTargetRoot -Force | Out-Null
+    ([ordered]@{ davisPassword = $accountPassword } | ConvertTo-Json -Depth 4) |
+        Set-Content -LiteralPath (Join-Path $secretTargetRoot 'secrets.json') -Encoding UTF8 -Force
 
     $sourceSetup = Get-PSDrive -PSProvider FileSystem |
         Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
@@ -121,7 +187,7 @@ exit /b 0
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoAdminLogon /t REG_SZ /d '1' /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v ForceAutoLogon /t REG_SZ /d '1' /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultUserName /t REG_SZ /d 'davis' /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultPassword /t REG_SZ /d 'password' /f | Out-Null
+    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultPassword /t REG_SZ /d $accountPassword /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoLogonCount /t REG_DWORD /d 5 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v NoAutoUpdate /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v AUOptions /t REG_DWORD /d 2 /f | Out-Null

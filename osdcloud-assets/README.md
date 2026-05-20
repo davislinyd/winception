@@ -95,4 +95,4 @@ The current iPXE `SetupComplete.ps1` installs the client app payload and the JSO
 
 The app payload is now profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes `selected-profile.json`; `Install-Apps.ps1` reads it and installs only the selected software. The current `Default` profile publishes 7-Zip from `Apps\7zip\7z2601-x64.msi`; `All in One` publishes 7-Zip plus Google Chrome Enterprise from `Apps\chrome\googlechromestandaloneenterprise64.msi`; `Minimal` publishes no client software. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
 
-The files include lab-only credentials such as the local `davis` account and SMB `pxeinstall` account. Keep this repository private.
+The files name the lab-only accounts such as local `davis` and SMB `pxeinstall`, but real passwords must stay outside Git. Keep `config\osdcloud-secrets.json` local, ignored, and inject it into live `boot.wim` during endpoint sync.

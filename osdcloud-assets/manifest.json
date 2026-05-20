@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-05-20T05:12:41.7789111Z",
+  "generatedAt": "2026-05-20T09:41:08.8938115Z",
   "sourceRoot": "C:\\OSDCloud",
-  "assetsRoot": "C:\\Users\\Davis\\Documents\\New project\\osdcloud-assets",
+  "assetsRoot": "<repo-root>\\osdcloud-assets",
   "hashLargeArtifacts": true,
   "exports": [
     {
       "source": "C:\\OSDCloud\\Win11-Lab\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-Lab/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
-      "length": 6784,
-      "lastWriteTimeUtc": "2026-05-06T15:07:54.5298753Z",
-      "sha256": "3298A798BA69E4547AD9FCFDE7AAB4A7CF9B44FF9D1B23D34C4F1038C3FA1CF2"
+      "length": 9186,
+      "lastWriteTimeUtc": "2026-05-20T09:38:30.1801247Z",
+      "sha256": "41C05ED9C29A3B2F089EB2D61B6E4632E279DA70943BF888FD579981DBDB583B"
     },
     {
       "source": "C:\\OSDCloud\\Win11-Lab\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
@@ -24,17 +24,17 @@
       "source": "C:\\OSDCloud\\Win11-Lab\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-Lab/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 9556,
-      "lastWriteTimeUtc": "2026-05-19T16:39:21.4817730Z",
-      "sha256": "6367F62DA6C73CD11777458B6E63A4B44A58CE66E7B27B03664949A5962C25BC"
+      "length": 10684,
+      "lastWriteTimeUtc": "2026-05-20T09:36:41.8253802Z",
+      "sha256": "CB25FC0B7C3718F4F606EA1EC1535AE84B72ACAF4EA06F52F46BA3BF39D66D77"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
-      "length": 10138,
-      "lastWriteTimeUtc": "2026-05-20T05:05:15.3184114Z",
-      "sha256": "E70AE7A1089EE06538F5812D7C1C2908383060899187E8F19E7680A1E9915768"
+      "length": 12412,
+      "lastWriteTimeUtc": "2026-05-20T09:38:13.4622702Z",
+      "sha256": "6AA1EB09F41EDDBD618CB00873BA4B807EF34054CA1C584B7EB2739A597A245C"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
@@ -48,9 +48,9 @@
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 22777,
-      "lastWriteTimeUtc": "2026-05-19T16:32:16.2727259Z",
-      "sha256": "7A1BAD876D2AD9E31854C0DA0C29B7F8A75DC99B6031C2B5DDA9E32443C815C5"
+      "length": 23905,
+      "lastWriteTimeUtc": "2026-05-20T09:36:41.8253802Z",
+      "sha256": "D765BE337B49B87DB8C7C4105F49DFA38EE94E53A7506BDB7E6D2C75240D0E88"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\7zip\\7z2601-x64.msi",
@@ -200,9 +200,9 @@
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\MountReadOnly\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
-      "length": 10138,
-      "lastWriteTimeUtc": "2026-05-20T05:05:15.3184114Z",
-      "sha256": "E70AE7A1089EE06538F5812D7C1C2908383060899187E8F19E7680A1E9915768"
+      "length": 12412,
+      "lastWriteTimeUtc": "2026-05-20T09:38:13.4632722Z",
+      "sha256": "6AA1EB09F41EDDBD618CB00873BA4B807EF34054CA1C584B7EB2739A597A245C"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
@@ -216,9 +216,9 @@
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 22777,
-      "lastWriteTimeUtc": "2026-05-19T16:32:16.2727259Z",
-      "sha256": "7A1BAD876D2AD9E31854C0DA0C29B7F8A75DC99B6031C2B5DDA9E32443C815C5"
+      "length": 23905,
+      "lastWriteTimeUtc": "2026-05-20T09:36:41.8253802Z",
+      "sha256": "D765BE337B49B87DB8C7C4105F49DFA38EE94E53A7506BDB7E6D2C75240D0E88"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\MountReadOnly\\OSDCloud\\Report-OSDCloudProgress.ps1",
@@ -232,9 +232,9 @@
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\MountReadOnly\\OSDCloud\\Start-OSDCloud-iPXE.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1",
-      "length": 15766,
-      "lastWriteTimeUtc": "2026-05-19T14:26:38.8974149Z",
-      "sha256": "213500A60D85DE8FB145E6ABC91C85BC93F285C628243CC0EE0351C283799DFF"
+      "length": 17538,
+      "lastWriteTimeUtc": "2026-05-20T09:38:46.2868041Z",
+      "sha256": "60DD9EBBDCD3196F0A5FFF0C1BFF6885F006B8E23CCDAF7AEE243E76E5CBEA53"
     }
   ],
   "excludedArtifacts": [
@@ -297,7 +297,7 @@
       "exists": true,
       "reason": "generated Windows boot binary",
       "length": 262144,
-      "lastWriteTimeUtc": "2024-11-16T05:22:58.0000000Z",
+      "lastWriteTimeUtc": "2024-11-16T05:22:58Z",
       "sha256": "21BF8054ADFE0614BABA6F21A4BAD0B7BFE71DBE9169D2422DE42A79258BEBA0",
       "hashStatus": "sha256"
     },
@@ -306,7 +306,7 @@
       "exists": true,
       "reason": "generated Windows boot binary",
       "length": 3170304,
-      "lastWriteTimeUtc": "2024-11-16T05:22:52.0000000Z",
+      "lastWriteTimeUtc": "2024-11-16T05:22:52Z",
       "sha256": "CD2C00CE027687CE4A8BDC967F26A8AB82F651C9BECD703658BA282EC49702BD",
       "hashStatus": "sha256"
     },
@@ -315,7 +315,7 @@
       "exists": true,
       "reason": "generated Windows boot binary",
       "length": 478366,
-      "lastWriteTimeUtc": "2024-11-16T05:22:36.0000000Z",
+      "lastWriteTimeUtc": "2024-11-16T05:22:36Z",
       "sha256": "D5855B74F40D1C4CE212549A868BF3939BA4B7206CB8CB7FC17A9A0F03E8F0DB",
       "hashStatus": "sha256"
     },
@@ -324,7 +324,7 @@
       "exists": true,
       "reason": "generated Windows boot binary",
       "length": 2772912,
-      "lastWriteTimeUtc": "2024-11-16T05:22:46.0000000Z",
+      "lastWriteTimeUtc": "2024-11-16T05:22:46Z",
       "sha256": "B2355C3E8A5FA140AFB147D16646A7AA497A87D41937254B4925811614BA78A6",
       "hashStatus": "sha256"
     },
@@ -342,7 +342,7 @@
       "exists": true,
       "reason": "upstream iPXE binary",
       "length": 295784,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59.0000000Z",
+      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
       "sha256": "B1E67C3E4A1E8708DDFD0079AD4505E3A02245ACB55EE9A95437AB3C507BE82A",
       "hashStatus": "sha256"
     },
@@ -351,7 +351,7 @@
       "exists": true,
       "reason": "upstream iPXE Secure Boot binary",
       "length": 1038920,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59.0000000Z",
+      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
       "sha256": "83AD71C7D4F2CF328B75B653D09BF3BEA5F29BEE2E67CA058F37D83C07133885",
       "hashStatus": "sha256"
     },
@@ -360,7 +360,7 @@
       "exists": true,
       "reason": "upstream iPXE Secure Boot binary",
       "length": 1038920,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59.0000000Z",
+      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
       "sha256": "83AD71C7D4F2CF328B75B653D09BF3BEA5F29BEE2E67CA058F37D83C07133885",
       "hashStatus": "sha256"
     },
@@ -369,7 +369,7 @@
       "exists": true,
       "reason": "upstream shim binary",
       "length": 1038920,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59.0000000Z",
+      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
       "sha256": "83AD71C7D4F2CF328B75B653D09BF3BEA5F29BEE2E67CA058F37D83C07133885",
       "hashStatus": "sha256"
     },
@@ -378,7 +378,7 @@
       "exists": true,
       "reason": "upstream iPXE binary",
       "length": 397160,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59.0000000Z",
+      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
       "sha256": "6558E37887516B246D6A97122E8D18BEDFE4197B7BA7F67BF1BF102A16678D33",
       "hashStatus": "sha256"
     }

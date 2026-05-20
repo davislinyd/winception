@@ -17,6 +17,56 @@ $share = "\\$server\OSDCloudiPXE"
 $statusUrl = "http://$server/osdcloud/status"
 $screenshotUrl = "http://$server/osdcloud/screenshot"
 
+function Get-DeploymentSecretPathCandidates {
+    $candidates = @()
+    if ($PSScriptRoot) {
+        $candidates += Join-Path $PSScriptRoot 'secrets.json'
+        $candidates += Join-Path $PSScriptRoot 'Config\secrets.json'
+    }
+
+    $candidates += Get-PSDrive -PSProvider FileSystem |
+        Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
+        ForEach-Object {
+            "$($_.Name):\OSDCloud\secrets.json"
+            "$($_.Name):\OSDCloud\Config\secrets.json"
+        }
+
+    $candidates | Where-Object { $_ } | Select-Object -Unique
+}
+
+function Get-DeploymentSecret {
+    param(
+        [Parameter(Mandatory)][string] $JsonName,
+        [Parameter(Mandatory)][string] $EnvironmentName
+    )
+
+    foreach ($scope in @('Process', 'Machine')) {
+        $value = [Environment]::GetEnvironmentVariable($EnvironmentName, $scope)
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return [string] $value
+        }
+    }
+
+    foreach ($candidate in Get-DeploymentSecretPathCandidates) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            continue
+        }
+
+        try {
+            $secrets = Get-Content -LiteralPath $candidate -Raw | ConvertFrom-Json
+            $value = $secrets.$JsonName
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                return [string] $value
+            }
+        }
+        catch {
+            Write-Warning "Unable to read deployment secrets from $candidate`: $($_.Exception.Message)"
+        }
+    }
+
+    throw "Missing required deployment secret '$JsonName'. Provide an untracked secrets.json in the OSDCloud runtime or set $EnvironmentName."
+}
+
 function Get-DeploymentClientId {
     try {
         $serial = (Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop).SerialNumber
@@ -367,7 +417,8 @@ else {
 Import-Module OSD -Force
 
 cmd.exe /c 'net use Z: /delete /y' | Out-Null
-$netUse = cmd.exe /c "net use Z: $share /user:$server\pxeinstall password /persistent:no"
+$smbPassword = Get-DeploymentSecret -JsonName 'pxeinstallPassword' -EnvironmentName 'OSDCLOUD_PXEINSTALL_PASSWORD'
+$netUse = & net.exe use Z: $share "/user:$server\pxeinstall" $smbPassword /persistent:no 2>&1
 $netUse | ForEach-Object { Write-Host $_ }
 
 $osRoot = 'Z:\OSDCloud\OS'

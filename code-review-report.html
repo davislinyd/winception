@@ -276,7 +276,7 @@
         </div>
         <div>
           <span class="label">工作目錄</span>
-          <span class="value"><code>C:\Users\Davis\Documents\New project</code></span>
+          <span class="value"><code>&lt;repo-root&gt;</code></span>
         </div>
         <div>
           <span class="label">範圍</span>
@@ -403,7 +403,7 @@
       <ul>
         <li>目前 repo snapshot / live config 仍顯示 endpoint 為 <code>Ethernet</code> / <code>192.168.100.1</code>。依 AGENTS 規則，這不是單獨 code defect；但在下一次 physical-laptop validation 前，必須透過 Web console 或 endpoint sync 明確切回目標 physical LAN endpoint 並重新驗證。</li>
         <li><code>config/osdcloud-console.json</code> 與 <code>osdcloud-assets/manifest.json</code> 有大量格式、timestamp 或 manifest churn。若不是刻意保存 runtime snapshot，建議後續提交時與功能變更分開處理，降低 review 雜訊。</li>
-        <li>repo 內 lab credentials 與 <code>pxeinstall</code> / <code>davis</code> 設定符合目前私有 lab 文件假設；本次不列為意外漏洞，但仍應維持 repo private 與部署網段限制。</li>
+        <li>repo 內只應保留 <code>pxeinstall</code> / <code>davis</code> 這類 lab account names；真實密碼需留在未提交的本機 secret 來源，並維持 repo private 與部署網段限制。</li>
       </ul>
     </section>
 

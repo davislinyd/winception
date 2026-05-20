@@ -11,11 +11,31 @@
 - 從 iPXE 網路開機下載 WinPE，WinPE 再從 host SMB share 直接套用 Windows 11 ESD
 - 第一次從硬碟開機後自動略過 OOBE
 - 建立本地帳號 `davis`
-- 密碼為 `password`
+- 密碼由本機未提交的 deployment secret 提供
 - 自動登入桌面
 - 語系為 `zh-TW`
 - 時區為 `Taipei Standard Time`
 - 停用 OOBE 更新檢查
+
+## 本機 Deployment Secrets
+
+Repo 不提交真實密碼。需要部署前，先在 lab host 建立本機檔案：
+
+```powershell
+Copy-Item .\config\osdcloud-secrets.example.json .\config\osdcloud-secrets.json
+notepad .\config\osdcloud-secrets.json
+```
+
+`config\osdcloud-secrets.json` 已被 `.gitignore` 排除，必須包含：
+
+```json
+{
+  "davisPassword": "<local-account-password>",
+  "pxeinstallPassword": "<smb-account-password>"
+}
+```
+
+可改用 PowerShell session 環境變數 `OSDCLOUD_DAVIS_PASSWORD` 與 `OSDCLOUD_PXEINSTALL_PASSWORD`，但不要把真實值寫進文件、報告、commit message 或測試輸出。執行 `tools\Set-OsdCloudIpxeEndpoint.ps1 -CommitWinPe` 時，工具會把本機 secret 注入 live `boot.wim`，讓 WinPE 可以掛載 SMB 並把 SetupComplete 需要的本地帳號密碼交給已部署的 Windows。
 
 ## 流程分界
 
@@ -72,6 +92,7 @@ DNS     : 1.1.1.1 / 8.8.8.8
 - Windows ADK 與 Windows PE Add-on，版本需能處理 Windows 11 25H2 WinPE；目前驗證過 `10.1.26100.2454`。
 - PowerShell OSD / OSDCloud module；目前驗證過 OSD `26.4.23.1`、OSDCloud `26.4.17.1`。
 - 一張可上網的 host NIC，以及一張服務 PXE client 的隔離 LAN NIC；目前範例為 `WAN` 上網、`LAN` = `192.168.88.1/24`。
+- 本機 `config\osdcloud-secrets.json`；它不在 Git 內，但 endpoint sync / WinPE SMB mapping / SetupComplete 都需要它或等效環境變數。
 
 ### 一鍵部署 deployment server（建議）
 
@@ -87,7 +108,7 @@ DNS     : 1.1.1.1 / 8.8.8.8
 Deploy-DeploymentServer.cmd
 ```
 
-或用系統管理員 PowerShell 執行：
+第一次執行前先建立本機 `config\osdcloud-secrets.json`，或在該 PowerShell session 設定 `OSDCLOUD_DAVIS_PASSWORD` / `OSDCLOUD_PXEINSTALL_PASSWORD`。也可用系統管理員 PowerShell 執行：
 
 ```powershell
 .\tools\Initialize-DeploymentServer.ps1 -ArtifactBundle '.\deployment-server-bundle'
@@ -106,6 +127,8 @@ git lfs pull
 npm install
 npm test
 npm run smoke
+Copy-Item .\config\osdcloud-secrets.example.json .\config\osdcloud-secrets.json
+notepad .\config\osdcloud-secrets.json
 ```
 
 `npm run smoke` 只使用暫存目錄與測試 port，不會啟動真實 LAN DHCP，也不會修改 `C:\OSDCloud`。
@@ -570,7 +593,7 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
     - `SetupComplete.cmd/.ps1`
     - client app payload `C:\ProgramData\OSDCloud\Apps`
 15. `Start-OSDCloud-iPXE.ps1` 在 `Invoke-OSDCloud` 返回後送出完成狀態，等待 10 秒並執行 `wpeutil reboot`。
-16. Windows 第一次開機執行 SetupComplete，建立/修正 `davis/password`，依 selected OS metadata 設定 locale/timezone、OOBE registry，靜默安裝 client apps，並寫入桌面 marker。
+16. Windows 第一次開機執行 SetupComplete，建立/修正 `davis` 並使用本機 deployment secret 設定密碼，依 selected OS metadata 設定 locale/timezone、OOBE registry，靜默安裝 client apps，並寫入桌面 marker。
 17. 在實體筆電本機或遠端管理通道驗證桌面、版本、語系、時區、OOBE registry、OSDCloud log、HTTP access log。
 
 目前實作中特別重要的限制：

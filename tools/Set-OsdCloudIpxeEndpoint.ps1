@@ -398,6 +398,25 @@ function Copy-IfPresent {
     return $false
 }
 
+function Get-DeploymentSecretSource {
+    param(
+        [Parameter(Mandatory)]
+        [string] $RepoRoot,
+        [Parameter(Mandatory)]
+        [string] $IpxeLab
+    )
+
+    $candidates = @(
+        (Join-Path $RepoRoot 'config\osdcloud-secrets.json'),
+        (Join-Path $IpxeLab 'secrets.json'),
+        (Join-Path $IpxeLab 'Config\secrets.json')
+    )
+
+    $candidates |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+}
+
 function Set-SmbFirewallEndpoint {
     param(
         [Parameter(Mandatory)]
@@ -558,6 +577,15 @@ if ($CommitWinPe) {
         Copy-IfPresent `
             -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1') `
             -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') | Out-Null
+
+        $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $repoRoot -IpxeLab $ipxeLab
+        if ($deploymentSecretSource) {
+            Copy-Item -LiteralPath $deploymentSecretSource -Destination (Join-Path $mountDir 'OSDCloud\secrets.json') -Force
+            Write-Host "Injected local deployment secrets into boot.wim from $deploymentSecretSource"
+        }
+        else {
+            Write-Warning "No local deployment secrets found. Create config\osdcloud-secrets.json before deployment so WinPE can map SMB and configure autologon."
+        }
 
         Set-StartOsdCloudEndpoint -Path (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1')
         Set-ProgressReporterEndpoint -Path (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1')

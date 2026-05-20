@@ -65,8 +65,15 @@ Local account:
 
 ```text
 Username: davis
-Password: password
+Password: supplied from an untracked local deployment secret
 ```
+
+Deployment secrets:
+
+- Do not commit real account or SMB passwords. Keep `config\osdcloud-secrets.json` local and ignored by Git; use `config\osdcloud-secrets.example.json` only as the committed schema.
+- Expected local secret keys are `davisPassword` for the deployed local account and `pxeinstallPassword` for the WinPE SMB mapping account.
+- `tools\Set-OsdCloudIpxeEndpoint.ps1 -CommitWinPe` injects the local secret file into live `boot.wim` as `X:\OSDCloud\secrets.json`; `Invoke-DavisOobe.ps1` copies only the Windows account secret into deployed `C:\ProgramData\OSDCloud\secrets.json` for `SetupComplete`.
+- Environment fallbacks are `OSDCLOUD_DAVIS_PASSWORD` and `OSDCLOUD_PXEINSTALL_PASSWORD`. Do not document real values in repo files, test logs, reports, commit messages, or PR text.
 
 Primary tested ISO:
 
@@ -613,4 +620,4 @@ git status --short --branch
 
 For normal documentation/process updates, commit only the intended text files and leave generated artifacts untracked or ignored.
 
-For OSDCloud behavior changes, the intended commit set must include the synchronized `osdcloud-assets` files. The sync mirror may contain lab-only credentials and must remain in private repositories only.
+For OSDCloud behavior changes, the intended commit set must include the synchronized `osdcloud-assets` files. The sync mirror must not contain real deployment secrets; use ignored local secret files or environment variables for account and SMB passwords.

@@ -12,6 +12,9 @@ deployment-server-bundle/
 *.deployment-server.zip
 node_modules/
 .osdcloud-console/
+.claude/
+config/osdcloud-secrets.json
+osdcloud-assets/**/secrets.json
 *.tmp
 *.temp
 

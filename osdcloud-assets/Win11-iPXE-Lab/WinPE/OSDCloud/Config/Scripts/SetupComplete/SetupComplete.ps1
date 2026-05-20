@@ -4,7 +4,38 @@ New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 Start-Transcript -Path (Join-Path $LogDir 'davis-oobe-transcript.log') -Append -ErrorAction SilentlyContinue
 
 $UserName = 'davis'
-$PlainPassword = 'password'
+
+function Get-DeploymentSecret {
+    param(
+        [Parameter(Mandatory)][string] $JsonName,
+        [Parameter(Mandatory)][string] $EnvironmentName
+    )
+
+    foreach ($scope in @('Process', 'Machine')) {
+        $value = [Environment]::GetEnvironmentVariable($EnvironmentName, $scope)
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return [string] $value
+        }
+    }
+
+    $secretPath = 'C:\ProgramData\OSDCloud\secrets.json'
+    if (Test-Path -LiteralPath $secretPath -PathType Leaf) {
+        try {
+            $secrets = Get-Content -LiteralPath $secretPath -Raw | ConvertFrom-Json
+            $value = $secrets.$JsonName
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                return [string] $value
+            }
+        }
+        catch {
+            Write-Warning "Unable to read deployment secrets from $secretPath`: $($_.Exception.Message)"
+        }
+    }
+
+    throw "Missing required deployment secret '$JsonName'. Provide $secretPath or set $EnvironmentName before SetupComplete runs."
+}
+
+$PlainPassword = Get-DeploymentSecret -JsonName 'davisPassword' -EnvironmentName 'OSDCLOUD_DAVIS_PASSWORD'
 $SecurePassword = ConvertTo-SecureString $PlainPassword -AsPlainText -Force
 $DeploymentMetadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
 $DefaultStatusUrl = 'http://192.168.100.1/osdcloud/status'
