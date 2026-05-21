@@ -1,2 +1,2 @@
-*.msi filter=lfs diff=lfs merge=lfs -text
-*.exe filter=lfs diff=lfs merge=lfs -text
+# Repo-only handoff does not track installer payloads with Git LFS.
+# Keep MSI/EXE payloads ignored and rebuild them from config/runtime-artifacts.json.

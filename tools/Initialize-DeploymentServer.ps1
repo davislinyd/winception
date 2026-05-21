@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $ArtifactBundle,
+    [string] $RuntimeCatalogPath,
     [string] $ManifestPath,
     [string] $LiveRoot = 'C:\OSDCloud',
     [string] $InterfaceAlias = 'LAN',
@@ -13,24 +14,20 @@ param(
     [switch] $SkipEndpointSync,
     [switch] $SkipPreflight,
     [switch] $NoLaunch,
-    [switch] $SkipAdminCheck
+    [switch] $SkipAdminCheck,
+    [switch] $IncludeOptionalArtifacts,
+    [switch] $SkipOsImageDownload,
+    [switch] $SkipWinPeBuild
 )
 
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-if ([string]::IsNullOrWhiteSpace($ArtifactBundle)) {
-    $defaultBundle = Join-Path $RepoRoot 'deployment-server-bundle'
-    $defaultZip = Join-Path $RepoRoot 'deployment-server-bundle.deployment-server.zip'
-    $ArtifactBundle = if ((-not (Test-Path -LiteralPath $defaultBundle)) -and (Test-Path -LiteralPath $defaultZip -PathType Leaf)) {
-        $defaultZip
-    }
-    else {
-        $defaultBundle
-    }
-}
 if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
     $ManifestPath = Join-Path $RepoRoot 'osdcloud-assets\manifest.json'
+}
+if ([string]::IsNullOrWhiteSpace($RuntimeCatalogPath)) {
+    $RuntimeCatalogPath = Join-Path $RepoRoot 'config\runtime-artifacts.json'
 }
 if ([string]::IsNullOrWhiteSpace($ClientGateway)) {
     $ClientGateway = $ServerIp
@@ -329,26 +326,44 @@ try {
         throw "-LiveRoot outside C:\OSDCloud is only supported with -NoLaunch."
     }
 
-    Write-Step "Loading manifest and artifact bundle"
-    $manifest = Read-Manifest -Path $ManifestPath
-    $bundle = Resolve-ArtifactBundle -Path $ArtifactBundle
-
-    try {
-        Write-Step "Restoring C:\OSDCloud runtime"
-        New-Item -ItemType Directory -Path $liveRootFull -Force | Out-Null
-        Restore-VersionedAssets -AssetsRoot (Join-Path $RepoRoot 'osdcloud-assets') -TargetRoot $liveRootFull
-        $restored = Restore-ExcludedArtifacts -Manifest $manifest -BundleRoot $bundle.Root -TargetRoot $liveRootFull
-        Write-Host "Restored and verified $restored excluded artifact(s)."
+    if ([string]::IsNullOrWhiteSpace($ArtifactBundle)) {
+        Write-Step "Rebuilding C:\OSDCloud runtime from repo artifact catalog"
+        $restoreArgs = @(
+            '-CatalogPath', $RuntimeCatalogPath,
+            '-LiveRoot', $liveRootFull
+        )
+        if ($IncludeOptionalArtifacts) {
+            $restoreArgs += '-IncludeOptional'
+        }
+        if ($SkipOsImageDownload) {
+            $restoreArgs += '-SkipOsImageDownload'
+        }
+        if ($SkipWinPeBuild) {
+            $restoreArgs += '-SkipWinPeBuild'
+        }
+        Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Restore-DeploymentArtifacts.ps1') -ArgumentList $restoreArgs
     }
-    finally {
-        if ($bundle.TempRoot) {
-            Remove-Item -LiteralPath $bundle.TempRoot -Recurse -Force
+    else {
+        Write-Step "Loading manifest and legacy artifact bundle"
+        $manifest = Read-Manifest -Path $ManifestPath
+        $bundle = Resolve-ArtifactBundle -Path $ArtifactBundle
+
+        try {
+            Write-Step "Restoring C:\OSDCloud runtime from legacy bundle"
+            New-Item -ItemType Directory -Path $liveRootFull -Force | Out-Null
+            Restore-VersionedAssets -AssetsRoot (Join-Path $RepoRoot 'osdcloud-assets') -TargetRoot $liveRootFull
+            $restored = Restore-ExcludedArtifacts -Manifest $manifest -BundleRoot $bundle.Root -TargetRoot $liveRootFull
+            Write-Host "Restored and verified $restored excluded artifact(s)."
+        }
+        finally {
+            if ($bundle.TempRoot) {
+                Remove-Item -LiteralPath $bundle.TempRoot -Recurse -Force
+            }
         }
     }
 
     if (-not $SkipTests) {
         Write-Step "Installing repo dependencies and running validation"
-        Invoke-ExternalCommand -FilePath 'git' -ArgumentList @('lfs', 'pull')
         Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('install')
         Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('test')
         Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('run', 'smoke')

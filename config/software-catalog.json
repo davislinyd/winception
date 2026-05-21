@@ -3,17 +3,29 @@
     {
       "id": "7zip",
       "name": "7-Zip 26.01 x64",
-      "source": "7zip"
+      "source": "7zip",
+      "installerFileName": "7z2601-x64.msi",
+      "installerBytes": 2002432,
+      "installerSha256": "A47EA8DCF8BC08E6DE474CAE77C828E031FA22CB528F6095DEFFFEBF11CD02F2",
+      "downloadUrl": "https://www.7-zip.org/a/7z2601-x64.msi"
     },
     {
       "id": "chrome",
       "name": "Google Chrome Enterprise 64-bit",
-      "source": "chrome"
+      "source": "chrome",
+      "installerFileName": "googlechromestandaloneenterprise64.msi",
+      "installerBytes": 152477696,
+      "installerSha256": "0CD7ACED744C0F42A4BCEF6FA5A9D8C9C15DAD2B54A0D4C5E76B323CC93231EC",
+      "downloadUrl": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi"
     },
     {
       "id": "SW-4UT7PDID",
       "name": "Notepad++ 8.9.5",
-      "source": "SW-4UT7PDID"
+      "source": "SW-4UT7PDID",
+      "installerFileName": "npp.8.9.5.Installer.x64.msi",
+      "installerBytes": 7700480,
+      "installerSha256": "64915E83689AD55EA527BBF6C97C9A6471707B74DF48E0ACB80D957C669953F5",
+      "downloadUrl": "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9.5/npp.8.9.5.Installer.x64.msi"
     }
   ]
 }

@@ -2,7 +2,7 @@
 
 This folder is a Git-friendly mirror of the deployment files that actually live under `C:\OSDCloud`.
 
-It is not a complete runnable backup. A fresh clone still needs a restored or rebuilt live `C:\OSDCloud` tree before PXE deployment can start.
+It is not a complete runnable backup. A fresh clone still needs the repo-only bootstrap to rebuild the live `C:\OSDCloud` tree before PXE deployment can start.
 
 The live lab still runs from:
 
@@ -15,7 +15,7 @@ C:\OSDCloud\Win11-iPXE-Lab
 The repo tracks the small source/config files that define deployment behavior:
 
 - iPXE OOBE injection scripts under `Win11-iPXE-Lab\Config\Scripts`
-- iPXE client app payload under `Win11-iPXE-Lab\Media\OSDCloud\Apps`
+- iPXE client app scripts and selected profile metadata under `Win11-iPXE-Lab\Media\OSDCloud\Apps`
 - PXE helper scripts under `Win11-iPXE-Lab\Tools`
 - iPXE boot script under `Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.ipxe`
 - Disabled TFTP `autoexec.ipxe` files that document the currently bypassed chain path
@@ -28,31 +28,26 @@ The repo tracks the small source/config files that define deployment behavior:
 Large generated or upstream binary artifacts are not committed:
 
 - ISO / WIM / ESD / VHDX
+- client app installer payloads such as MSI / EXE files
 - Windows boot binaries such as `bootmgr`, `bootx64.efi`, `BCD`, and `boot.sdi`
 - iPXE / shim / wimboot binaries
 - timing logs, transcripts, and screenshots
 
-Those excluded files are recorded in `manifest.json` with path, size, timestamp, and SHA-256 when `-HashLargeArtifacts` is used.
+Runtime downloads and generated artifacts are recorded in `config\runtime-artifacts.json` with source, target, size, SHA-256, and required/optional status. `manifest.json` remains a snapshot of mirrored small files plus generated/excluded boot and OS evidence.
 
 ## Using This Mirror On A New Host
 
-After cloning the repo on another Windows host:
-
-The preferred path is to export a deployment-server bundle from a verified host:
+After cloning the repo on another Windows host, run the repo-only bootstrap:
 
 ```powershell
-.\tools\Export-DeploymentServerBundle.ps1 -Force -CreateZip
+.\tools\Initialize-DeploymentServer.ps1
 ```
 
-Move either `deployment-server-bundle` or `deployment-server-bundle.deployment-server.zip` to the new host's repo root, then run:
+The initializer restores this mirror, downloads cataloged installers/iPXE binaries/OS image artifacts through `.downloads` staging, verifies size and SHA-256, rebuilds or publishes WinPE boot files, syncs the selected endpoint, runs server preflight, and starts the Web console. It does not start DHCP/TFTP/HTTP deployment services.
 
-```powershell
-.\tools\Initialize-DeploymentServer.ps1 -ArtifactBundle '.\deployment-server-bundle'
-```
+`-ArtifactBundle` remains a legacy fallback for offline or bit-for-bit restore only. It is not the formal handoff path.
 
-The initializer restores this mirror plus the excluded artifacts into `C:\OSDCloud`, verifies size and SHA-256, syncs the selected endpoint, runs server preflight, and starts the Web console. It does not start DHCP/TFTP/HTTP deployment services.
-
-1. Restore or rebuild the live runtime folder:
+1. Rebuild the live runtime folder:
 
 ```text
 C:\OSDCloud\Win11-iPXE-Lab
@@ -60,7 +55,7 @@ C:\OSDCloud\Win11-iPXE-Lab
 
 2. Copy versioned scripts/config from this mirror only after the live folder exists. The mirror can repopulate the small deployment logic files, but it does not contain the large boot and OS artifacts.
 
-3. Restore or regenerate every required `manifest.json` `excludedArtifacts` entry that is needed for the selected path. For physical iPXE deployment this includes at least:
+3. Download or regenerate every required `config\runtime-artifacts.json` entry that is needed for the selected path. For physical iPXE deployment this includes at least:
 
 ```text
 C:\OSDCloud\Win11-iPXE-Lab\Media\sources\boot.wim
@@ -76,7 +71,7 @@ C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\OS\<active-image>.esd
 
 4. Start the repo Web console with `npm run web`, then use `Select service interface` before physical deployment. The committed config may reflect the last synced lab endpoint, including a VM regression endpoint, so it must not be treated as a new host default.
 
-5. Run preflight. If OS image preflight fails because the active image file is missing, use Web `OS Image Cache` to download/import the image on the host and then `Set active`. If the active image is already correct but preflight reports `selected manifest stale`, use the active row `Republish` action to rewrite `selected-os.json` and refresh the SMB image path.
+5. Run preflight. If OS image preflight fails because the active image file is missing and the OSD catalog download could not resolve it automatically, use Web `OS Image Cache` to download/import the image on the host, then republish the profile-bound OS image. If the active image is already correct but preflight reports `selected manifest stale`, use `Deployment Profiles` > re-`Set active` current profile or `Edit active` to republish `selected-os.json` and refresh the SMB image path.
 
 The `assetsRoot` value inside `manifest.json` is the source machine path used when the mirror was generated. It is evidence, not a required clone path.
 
@@ -92,6 +87,6 @@ For iPXE, `Invoke-DavisOobe.ps1` copies SetupComplete from inside `boot.wim` fir
 
 The current iPXE `SetupComplete.ps1` installs the client app payload and the JSON desktop-ready reporter for Windows completion. It does not install a desktop screenshot Startup helper, because that path was blocked by Defender/AMSI as `ScriptContainedMaliciousContent`. The desktop-ready reporter retries every 5 seconds for up to 30 minutes from `windows-logon-start`; after a successful HTTP POST or WebClient fallback it must return success and unregister `OSDCloudDesktopReadyReport`.
 
-The app payload is now profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes `selected-profile.json`; `Install-Apps.ps1` reads it and installs only the selected software. The current `Default` profile publishes 7-Zip from `Apps\7zip\7z2601-x64.msi`; `All in One` publishes 7-Zip plus Google Chrome Enterprise from `Apps\chrome\googlechromestandaloneenterprise64.msi`; `Minimal` publishes no client software. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
+The app payload is profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes `selected-profile.json` and install scripts, but not MSI/EXE installer payloads. `Install-Apps.ps1` reads the selected profile and installs only the selected software after bootstrap has downloaded the cataloged installers into live `Apps`. The current `Default` profile publishes 7-Zip; `All in One` publishes 7-Zip plus Google Chrome Enterprise and Notepad++; `Minimal` publishes no client software. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
 
 The files name the lab-only accounts such as local `davis` and SMB `pxeinstall`, but real passwords must stay outside Git. Keep `config\osdcloud-secrets.json` local, ignored, and inject it into live `boot.wim` during endpoint sync.

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-21T06:37:29.5750514Z",
+  "generatedAt": "2026-05-21T11:17:57.183Z",
   "sourceRoot": "C:\\OSDCloud",
   "assetsRoot": "<repo-root>\\osdcloud-assets",
   "hashLargeArtifacts": true,
@@ -29,28 +29,12 @@
       "sha256": "D765BE337B49B87DB8C7C4105F49DFA38EE94E53A7506BDB7E6D2C75240D0E88"
     },
     {
-      "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\7zip\\7z2601-x64.msi",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/7zip/7z2601-x64.msi",
-      "length": 2002432,
-      "lastWriteTimeUtc": "2026-05-13T05:20:50.5467119Z",
-      "sha256": "A47EA8DCF8BC08E6DE474CAE77C828E031FA22CB528F6095DEFFFEBF11CD02F2"
-    },
-    {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\7zip\\install.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/7zip/install.ps1",
       "length": 938,
       "lastWriteTimeUtc": "2026-05-10T17:55:51.4262479Z",
       "sha256": "0BF698D3BE6511987B2E4E71B7D88F6EA5646AAD26D1BA6BDC26D7127335E3E8"
-    },
-    {
-      "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\chrome\\googlechromestandaloneenterprise64.msi",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/chrome/googlechromestandaloneenterprise64.msi",
-      "length": 152477696,
-      "lastWriteTimeUtc": "2026-05-10T18:25:33.506297Z",
-      "sha256": "0CD7ACED744C0F42A4BCEF6FA5A9D8C9C15DAD2B54A0D4C5E76B323CC93231EC"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\chrome\\install.ps1",
@@ -83,14 +67,6 @@
       "length": 912,
       "lastWriteTimeUtc": "2026-05-18T03:31:21.7997091Z",
       "sha256": "E54B63A2444616DF422593E3DF973879EE468103B0381C9371ED3BDE9E0A487E"
-    },
-    {
-      "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\SW-4UT7PDID\\npp.8.9.5.Installer.x64.msi",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/SW-4UT7PDID/npp.8.9.5.Installer.x64.msi",
-      "length": 7700480,
-      "lastWriteTimeUtc": "2026-05-18T03:31:21.7621485Z",
-      "sha256": "64915E83689AD55EA527BBF6C97C9A6471707B74DF48E0ACB80D957C669953F5"
     },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Scripts\\SC-J5GF07Y2\\run.ps1",

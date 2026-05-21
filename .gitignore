@@ -8,6 +8,7 @@
 
 # Local download and cache folders
 downloads/
+.downloads/
 deployment-server-bundle/
 *.deployment-server.zip
 node_modules/
@@ -15,6 +16,10 @@ node_modules/
 .claude/
 config/osdcloud-secrets.json
 osdcloud-assets/**/secrets.json
+Softwares/**/*.msi
+Softwares/**/*.exe
+osdcloud-assets/**/Apps/**/*.msi
+osdcloud-assets/**/Apps/**/*.exe
 *.tmp
 *.temp
 

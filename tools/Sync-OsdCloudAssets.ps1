@@ -63,6 +63,13 @@ function Get-FileMetadata {
     }
 }
 
+function Test-IsRepoOnlyDownloadPayload {
+    param([Parameter(Mandatory)][string] $Path)
+
+    $extension = [System.IO.Path]::GetExtension($Path)
+    $extension -in @('.msi', '.exe')
+}
+
 function Copy-VersionedAsset {
     param(
         [Parameter(Mandatory)]
@@ -128,7 +135,9 @@ $mountedByScript = $false
 $appsRoot = Join-Path $ipxeLab 'Media\OSDCloud\Apps'
 $appExports = @()
 if (Test-Path -LiteralPath $appsRoot -PathType Container) {
-    $appExports = @(Get-ChildItem -LiteralPath $appsRoot -File -Recurse | Sort-Object FullName | ForEach-Object {
+    $appExports = @(Get-ChildItem -LiteralPath $appsRoot -File -Recurse | Where-Object {
+        -not (Test-IsRepoOnlyDownloadPayload -Path $_.FullName)
+    } | Sort-Object FullName | ForEach-Object {
         $relativePath = $_.FullName.Substring($appsRoot.Length).TrimStart('\')
         @{
             Source = $_.FullName
