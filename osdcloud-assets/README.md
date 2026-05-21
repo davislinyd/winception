@@ -7,13 +7,13 @@ It is not a complete runnable backup. A fresh clone still needs a restored or re
 The live lab still runs from:
 
 ```text
-C:\OSDCloud\Win11-Lab
 C:\OSDCloud\Win11-iPXE-Lab
 ```
 
+`C:\OSDCloud\Win11-Lab` and the old ISO boot path are retired historical evidence. They are not restored by the fresh-host bootstrap and are not required for the active physical-laptop iPXE deployment path.
+
 The repo tracks the small source/config files that define deployment behavior:
 
-- ISO OOBE injection scripts under `Win11-Lab\Config\Scripts`
 - iPXE OOBE injection scripts under `Win11-iPXE-Lab\Config\Scripts`
 - iPXE client app payload under `Win11-iPXE-Lab\Media\OSDCloud\Apps`
 - PXE helper scripts under `Win11-iPXE-Lab\Tools`
@@ -52,14 +52,13 @@ Move either `deployment-server-bundle` or `deployment-server-bundle.deployment-s
 
 The initializer restores this mirror plus the excluded artifacts into `C:\OSDCloud`, verifies size and SHA-256, syncs the selected endpoint, runs server preflight, and starts the Web console. It does not start DHCP/TFTP/HTTP deployment services.
 
-1. Restore or rebuild the live runtime folders:
+1. Restore or rebuild the live runtime folder:
 
 ```text
-C:\OSDCloud\Win11-Lab
 C:\OSDCloud\Win11-iPXE-Lab
 ```
 
-2. Copy versioned scripts/config from this mirror only after the live folders exist. The mirror can repopulate the small deployment logic files, but it does not contain the large boot and OS artifacts.
+2. Copy versioned scripts/config from this mirror only after the live folder exists. The mirror can repopulate the small deployment logic files, but it does not contain the large boot and OS artifacts.
 
 3. Restore or regenerate every required `manifest.json` `excludedArtifacts` entry that is needed for the selected path. For physical iPXE deployment this includes at least:
 

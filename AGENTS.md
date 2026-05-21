@@ -35,7 +35,7 @@ Endpoint switching:
 
 Previously validated VM paths:
 
-- ISO path: VM VM boots from `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso`
+- Retired ISO path: VM VM previously booted from retired `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso`
 - iPXE path: VM VM boots from PXE/iPXE, loads WinPE over HTTP, and applies the Windows ESD directly from a host SMB share
 - vSwitch regression path: VM VM `OSDCloud-Win11-vSwitch-04` boots from PXE/iPXE on `vSwitch`, applies the Windows ESD directly from `\\192.168.100.1\OSDCloudiPXE`, and reaches `DESKTOP-BM8R03K\davis` with `windows-desktop-ready`
 
@@ -56,7 +56,8 @@ Fresh-clone / new-host rules:
 
 - The repository may be cloned to any folder. Do not reintroduce committed `paths.repoRoot` or `paths.endpointSyncScript` values that point to one operator's clone path.
 - Live deployment still runs from `C:\OSDCloud`; a Git clone alone is not a deployable PXE runtime because large artifacts are intentionally excluded from Git.
-- A new host must restore or rebuild `C:\OSDCloud\Win11-Lab` and `C:\OSDCloud\Win11-iPXE-Lab`, including `boot.wim`, published HTTP boot files, iPXE binaries, Windows boot binaries, and the active Windows ESD/WIM listed in `osdcloud-assets\manifest.json`.
+- A new host must restore or rebuild `C:\OSDCloud\Win11-iPXE-Lab`, including `boot.wim`, published HTTP boot files, iPXE binaries, Windows boot binaries, and the active Windows ESD/WIM listed in `osdcloud-assets\manifest.json`.
+- `C:\OSDCloud\Win11-Lab` and `OSDCloud_NoPrompt.iso` are retired historical ISO-path evidence. Do not require them for fresh-host setup, physical-laptop deployment, endpoint sync, asset sync, or bundle restore.
 - Preferred new-host bootstrap is restore-based: export `deployment-server-bundle` with `tools\Export-DeploymentServerBundle.ps1` on a verified host, then run `Deploy-DeploymentServer.cmd` or `tools\Initialize-DeploymentServer.ps1` on the new host. The bootstrap may restore `C:\OSDCloud`, verify artifact hashes, sync endpoint, run preflight, and start the Web console, but it must not auto-start DHCP/TFTP/HTTP deployment services.
 - Treat committed `config\osdcloud-console.json` as the last synced lab snapshot, not as a guaranteed production endpoint. It may be left on `Ethernet` / `192.168.100.1`; before a physical-laptop deployment on a newly cloned host, use the Web console `Select service interface`, rerun endpoint sync, and pass preflight.
 - When updating setup or deployment docs, keep the README `新主機 Clone 後啟動流程` current so another operator can clone, restore `C:\OSDCloud`, start `npm run web`, select the service endpoint, run preflight, start services, and validate completion without reading prior chats.
@@ -75,7 +76,7 @@ Deployment secrets:
 - `tools\Set-OsdCloudIpxeEndpoint.ps1 -CommitWinPe` injects the local secret file into live `boot.wim` as `X:\OSDCloud\secrets.json`; `Invoke-DavisOobe.ps1` copies only the Windows account secret into deployed `C:\ProgramData\OSDCloud\secrets.json` for `SetupComplete`.
 - Environment fallbacks are `OSDCLOUD_DAVIS_PASSWORD` and `OSDCLOUD_PXEINSTALL_PASSWORD`. Do not document real values in repo files, test logs, reports, commit messages, or PR text.
 
-Primary tested ISO:
+Retired ISO evidence:
 
 ```text
 C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso
@@ -95,30 +96,30 @@ Versioned asset mirror:
 
 ## Important Paths
 
-OSDCloud workspace:
-
-```text
-C:\OSDCloud\Win11-Lab
-```
-
 iPXE workspace:
 
 ```text
 C:\OSDCloud\Win11-iPXE-Lab
 ```
 
+Retired ISO workspace:
+
+```text
+C:\OSDCloud\Win11-Lab
+```
+
 Cached Windows image:
 
 ```text
-C:\OSDCloud\Win11-Lab\Media\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
+C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
 ```
 
 Deployment automation:
 
 ```text
-C:\OSDCloud\Win11-Lab\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1
-C:\OSDCloud\Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd
-C:\OSDCloud\Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1
+C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1
+C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd
+C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1
 ```
 
 iPXE helper files:
@@ -306,23 +307,9 @@ Final hard-disk boot with MicrosoftWindows Secure Boot + vTPM: verified
 PXE-stage signed shim Secure Boot: not yet verified
 ```
 
-## Rebuild ISO
+## Retired ISO Path
 
-Use this command pattern to rebuild the current ISO:
-
-```powershell
-Import-Module OSD -Force
-Set-OSDCloudWorkspace -WorkspacePath 'C:\OSDCloud\Win11-Lab'
-
-$startArgs = "-OSName 'Windows 11 25H2 x64' -OSLanguage zh-tw -OSEdition Pro -OSActivation Retail -ZTI -SkipAutopilot -SkipODT -Shutdown"
-
-Edit-OSDCloudWinPE `
-  -WorkspacePath 'C:\OSDCloud\Win11-Lab' `
-  -UseDefaultWallpaper `
-  -StartOSDCloud $startArgs
-
-New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
-```
+`C:\OSDCloud\Win11-Lab` and `OSDCloud_NoPrompt.iso` are retired. The active deployment path is Web console + physical-laptop iPXE. If ISO boot is needed again later, create a new ISO workspace in a separate task instead of restoring the retired `Win11-Lab` path.
 
 ## Zero-Touch Test Standard
 
@@ -593,7 +580,6 @@ tools\osdcloud-console\...
 docs/history/TUI-REWRITE-PLAN.md
 osdcloud-assets\README.md
 osdcloud-assets\manifest.json
-osdcloud-assets\Win11-Lab\...
 osdcloud-assets\Win11-iPXE-Lab\...
 .gitignore
 ```

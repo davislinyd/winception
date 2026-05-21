@@ -121,7 +121,6 @@ function Add-ExcludedArtifact {
     }
 }
 
-$win11Lab = Join-Path $SourceRoot 'Win11-Lab'
 $ipxeLab = Join-Path $SourceRoot 'Win11-iPXE-Lab'
 $winPeMount = Join-Path $ipxeLab 'MountReadOnly'
 $bootWim = Join-Path $ipxeLab 'Media\sources\boot.wim'
@@ -170,9 +169,6 @@ if ($MountWinPe -and -not (Test-Path -LiteralPath (Join-Path $winPeMount 'OSDClo
 
 try {
     $exports = @(
-        @{ Source = Join-Path $win11Lab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'Win11-Lab\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1' },
-        @{ Source = Join-Path $win11Lab 'Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd' },
-        @{ Source = Join-Path $win11Lab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1' }
@@ -199,7 +195,6 @@ try {
 
     $osImageExclusions = @()
     foreach ($osImageRoot in @(
-        (Join-Path $win11Lab 'Media\OSDCloud\OS'),
         (Join-Path $ipxeLab 'Media\OSDCloud\OS')
     )) {
         if (Test-Path -LiteralPath $osImageRoot -PathType Container) {
@@ -210,7 +205,6 @@ try {
     }
 
     $excluded = @(
-        Add-ExcludedArtifact -Path (Join-Path $win11Lab 'OSDCloud_NoPrompt.iso') -Reason 'generated ISO, too large for Git'
         $osImageExclusions
         Add-ExcludedArtifact -Path $bootWim -Reason 'generated WinPE boot image, rebuilt from versioned scripts'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.wim') -Reason 'published WinPE boot image hardlink/copy'

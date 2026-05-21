@@ -1,33 +1,9 @@
 {
-  "generatedAt": "2026-05-20T09:41:08.8938115Z",
+  "generatedAt": "2026-05-21T06:37:29.5750514Z",
   "sourceRoot": "C:\\OSDCloud",
   "assetsRoot": "<repo-root>\\osdcloud-assets",
   "hashLargeArtifacts": true,
   "exports": [
-    {
-      "source": "C:\\OSDCloud\\Win11-Lab\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/Win11-Lab/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
-      "length": 9186,
-      "lastWriteTimeUtc": "2026-05-20T09:38:30.1801247Z",
-      "sha256": "41C05ED9C29A3B2F089EB2D61B6E4632E279DA70943BF888FD579981DBDB583B"
-    },
-    {
-      "source": "C:\\OSDCloud\\Win11-Lab\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/Win11-Lab/Config/Scripts/SetupComplete/SetupComplete.cmd",
-      "length": 266,
-      "lastWriteTimeUtc": "2026-05-06T13:52:49.9838653Z",
-      "sha256": "F554CB5F3B2658E6F1132400E1C58B51EB68BC7F45919F0A16A9262DBCA7446B"
-    },
-    {
-      "source": "C:\\OSDCloud\\Win11-Lab\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/Win11-Lab/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 10684,
-      "lastWriteTimeUtc": "2026-05-20T09:36:41.8253802Z",
-      "sha256": "CB25FC0B7C3718F4F606EA1EC1535AE84B72ACAF4EA06F52F46BA3BF39D66D77"
-    },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
       "sourceKind": "filesystem",
@@ -73,7 +49,7 @@
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/chrome/googlechromestandaloneenterprise64.msi",
       "length": 152477696,
-      "lastWriteTimeUtc": "2026-05-10T18:25:33.5062970Z",
+      "lastWriteTimeUtc": "2026-05-10T18:25:33.506297Z",
       "sha256": "0CD7ACED744C0F42A4BCEF6FA5A9D8C9C15DAD2B54A0D4C5E76B323CC93231EC"
     },
     {
@@ -238,24 +214,6 @@
     }
   ],
   "excludedArtifacts": [
-    {
-      "source": "C:\\OSDCloud\\Win11-Lab\\OSDCloud_NoPrompt.iso",
-      "exists": true,
-      "reason": "generated ISO, too large for Git",
-      "length": 5868281856,
-      "lastWriteTimeUtc": "2026-05-06T15:10:22.5911258Z",
-      "sha256": "F7916E7AF0C55D5115EE09654AD2A022FC04042B3768381E19F489F8F7D7CE82",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\Win11-Lab\\Media\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd",
-      "exists": true,
-      "reason": "cached Windows image, too large for Git",
-      "length": 5236476769,
-      "lastWriteTimeUtc": "2026-05-07T06:31:43.0805599Z",
-      "sha256": "7E92E02B2A9BE520004CF20C4941919FF628C04BBD08A1FBFA14356FB39D95DB",
-      "hashStatus": "sha256"
-    },
     {
       "source": "C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_en-us.esd",
       "exists": true,

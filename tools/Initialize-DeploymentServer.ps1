@@ -210,7 +210,7 @@ function Restore-VersionedAssets {
         [Parameter(Mandatory)][string] $TargetRoot
     )
 
-    foreach ($folder in @('Win11-Lab', 'Win11-iPXE-Lab')) {
+    foreach ($folder in @('Win11-iPXE-Lab')) {
         $source = Join-Path $AssetsRoot $folder
         $target = Assert-ChildPath -Root $TargetRoot -Path (Join-Path $TargetRoot $folder) -Label 'live asset path'
         Copy-DirectoryContents -Source $source -Destination $target

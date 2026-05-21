@@ -45,7 +45,7 @@ notepad .\config\osdcloud-secrets.json
 | --- | --- | --- | --- | --- |
 | 實體筆電 iPXE | Active path，用來驗證真實大量部署 | Web console 選定的 service interface / service IP | `npm run web` | 可作為實體部署證據 |
 | VM VM iPXE | Regression path，用來快速驗證 WinPE、OOBE、status callback | `Ethernet` / `192.168.100.1` | `node .\tools\osdcloud-console\src\headless.js` | 只證明 VM regression，不代表實體筆電路徑已準備好 |
-| ISO VM | Historical path，用來驗證 ISO zero-touch | `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso` | VM DVD/ISO boot | 只保留為歷史證據 |
+| ISO VM | Retired historical path，過去用來驗證 ISO zero-touch | retired `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso` | VM DVD/ISO boot | 只保留為歷史證據，不屬於 fresh-host runtime |
 
 切換路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-console.json` 與 `osdcloud-assets`。不要把 VM 的 `192.168.100.1` endpoint 當成實體筆電設定，也不要把某一次實體筆電測試使用的 service IP 當成永久設定。
 
@@ -141,18 +141,18 @@ notepad .\config\osdcloud-secrets.json
 
 若使用一鍵 bootstrap，這一段由 `Initialize-DeploymentServer.ps1` 從 artifact bundle 自動還原並驗證；手動流程如下。
 
-建議方式是從最新已驗證 host 或備份還原整個 `C:\OSDCloud`，保留：
+建議方式是從最新已驗證 host 或備份還原目前 active runtime：
 
 ```text
-C:\OSDCloud\Win11-Lab
 C:\OSDCloud\Win11-iPXE-Lab
 ```
 
-如果只從 repo mirror 重建，先把 `osdcloud-assets\Win11-Lab` 與 `osdcloud-assets\Win11-iPXE-Lab` 的小型腳本/設定複製回相同 live path：
+`C:\OSDCloud\Win11-Lab` / ISO path 已正式退役，只作為歷史證據描述；新 host 不需要 restore 或 rebuild 這個資料夾。
+
+如果只從 repo mirror 重建，先把 `osdcloud-assets\Win11-iPXE-Lab` 的小型腳本/設定複製回相同 live path：
 
 ```powershell
 New-Item -ItemType Directory -Path 'C:\OSDCloud' -Force | Out-Null
-robocopy '.\osdcloud-assets\Win11-Lab' 'C:\OSDCloud\Win11-Lab' /E
 robocopy '.\osdcloud-assets\Win11-iPXE-Lab' 'C:\OSDCloud\Win11-iPXE-Lab' /E
 ```
 
@@ -521,31 +521,13 @@ Repo 內的可版本化 OSDCloud 資產鏡像：
 
 這個目錄保存從 `C:\OSDCloud` 匯出的真實部署腳本、PXE helper、`boot.ipxe`、以及從 iPXE `boot.wim` 抽出的 `Startnet.cmd`、WinPE OSDCloud scripts、WinPE 內嵌 `Config\Scripts`。大型 `ISO/WIM/ESD/VHDX` 和上游 boot binary 不進 Git，只在 `osdcloud-assets\manifest.json` 記錄路徑、大小、時間與 SHA-256。
 
-OSDCloud workspace：
+Retired ISO workspace：
 
 ```text
 C:\OSDCloud\Win11-Lab
 ```
 
-目前主要 ISO：
-
-```text
-C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso
-```
-
-ISO 內建 Windows 11 ESD：
-
-```text
-C:\OSDCloud\Win11-Lab\Media\OSDCloud\OS\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd
-```
-
-自動化腳本：
-
-```text
-C:\OSDCloud\Win11-Lab\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1
-C:\OSDCloud\Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd
-C:\OSDCloud\Win11-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1
-```
+這個資料夾與 `OSDCloud_NoPrompt.iso` 已不屬於 active runtime、新主機 bootstrap、或 asset manifest。若未來需要 ISO path，需另開任務重建新的 ISO workspace。
 
 iPXE 網路安裝 workspace：
 
@@ -952,7 +934,6 @@ npm run smoke
 - `docs\history\TUI-REWRITE-PLAN.md`
 - `osdcloud-assets\README.md`
 - `osdcloud-assets\manifest.json`
-- `osdcloud-assets\Win11-Lab\...`
 - `osdcloud-assets\Win11-iPXE-Lab\...`
 - `.gitignore`
 
@@ -982,23 +963,9 @@ iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts
 - VMConnect 截圖
 - log / transcript
 
-## ISO 重新產生
+## ISO Path Retired
 
-使用目前 workspace 重新產生 ISO：
-
-```powershell
-Import-Module OSD -Force
-Set-OSDCloudWorkspace -WorkspacePath 'C:\OSDCloud\Win11-Lab'
-
-$startArgs = "-OSName 'Windows 11 25H2 x64' -OSLanguage zh-tw -OSEdition Pro -OSActivation Retail -ZTI -SkipAutopilot -SkipODT -Shutdown"
-
-Edit-OSDCloudWinPE `
-  -WorkspacePath 'C:\OSDCloud\Win11-Lab' `
-  -UseDefaultWallpaper `
-  -StartOSDCloud $startArgs
-
-New-OSDCloudISO -WorkspacePath 'C:\OSDCloud\Win11-Lab'
-```
+`C:\OSDCloud\Win11-Lab` 與 `OSDCloud_NoPrompt.iso` 已退役。Active deployment 只支援 Web console + physical-laptop iPXE path；如果之後需要 ISO boot path，請重新建立新的 ISO workspace，而不是恢復舊 `Win11-Lab`。
 
 ## 共通 Windows 完成條件
 
