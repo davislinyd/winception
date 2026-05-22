@@ -176,6 +176,45 @@ function Assert-DownloadUrl {
     }
 }
 
+function Invoke-DownloadFile {
+    param(
+        [Parameter(Mandatory)][string] $Url,
+        [Parameter(Mandatory)][string] $Destination,
+        [int] $MaxAttempts = 3
+    )
+
+    $curl = Get-Command -Name 'curl.exe' -ErrorAction SilentlyContinue
+    $lastError = $null
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt += 1) {
+        Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+        try {
+            if ($curl) {
+                & $curl.Source --location --fail --retry 3 --retry-delay 5 --connect-timeout 30 --output $Destination $Url
+                if ($LASTEXITCODE -ne 0) {
+                    throw "curl.exe failed with exit code $LASTEXITCODE"
+                }
+            }
+            else {
+                Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing -TimeoutSec 900
+            }
+            if (-not (Test-Path -LiteralPath $Destination -PathType Leaf)) {
+                throw "download produced no file"
+            }
+            return
+        }
+        catch {
+            $lastError = $_.Exception.Message
+            Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+            if ($attempt -lt $MaxAttempts) {
+                $delay = [Math]::Min(30, 5 * $attempt)
+                Write-Warning "Download attempt $attempt/$MaxAttempts failed: $lastError. Retrying in $delay seconds."
+                Start-Sleep -Seconds $delay
+            }
+        }
+    }
+    throw "Download failed after $MaxAttempts attempts: $lastError"
+}
+
 function Save-DownloadArtifact {
     param([Parameter(Mandatory)] $Artifact)
 
@@ -207,7 +246,7 @@ function Save-DownloadArtifact {
     Remove-Item -LiteralPath $stagingFile -Force -ErrorAction SilentlyContinue
 
     Write-Host "Downloading $($Artifact.id)"
-    Invoke-WebRequest -Uri ([string] $Artifact.url) -OutFile $stagingFile -UseBasicParsing
+    Invoke-DownloadFile -Url ([string] $Artifact.url) -Destination $stagingFile
     Assert-ArtifactMatches -Path $stagingFile -Artifact $Artifact -Label "Downloaded artifact $($Artifact.id)"
     foreach ($target in $targets) {
         New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
