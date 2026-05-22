@@ -123,12 +123,13 @@
       "sourceType": "download",
       "required": true,
       "url": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",
+      "sourceNote": "Google serves the current Chrome Enterprise MSI at this URL. Hash mismatch is a safety stop; review and update this catalog when Google publishes a new MSI.",
       "targets": [
         "Softwares\\chrome\\googlechromestandaloneenterprise64.msi",
         "Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\chrome\\googlechromestandaloneenterprise64.msi"
       ],
-      "length": 152477696,
-      "sha256": "0CD7ACED744C0F42A4BCEF6FA5A9D8C9C15DAD2B54A0D4C5E76B323CC93231EC"
+      "length": 152973312,
+      "sha256": "F92C6C5A21CAC1073AC1380CBC36A0D13CE206DF6EFF5380EA1EAA433529B79A"
     },
     {
       "id": "notepad-plus-plus-8.9.5",
