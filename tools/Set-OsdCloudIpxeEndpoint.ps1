@@ -445,6 +445,27 @@ function Restore-RequiredEndpointFiles {
     }
 }
 
+function Restore-BootWimSourceIfMissing {
+    param(
+        [Parameter(Mandatory)]
+        [string] $BootWim,
+        [Parameter(Mandatory)]
+        [string] $PublishedBootWim
+    )
+
+    if (Test-Path -LiteralPath $BootWim -PathType Leaf) {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $PublishedBootWim -PathType Leaf)) {
+        throw "boot.wim not found: $BootWim. Published copy is also missing: $PublishedBootWim. Re-run tools\Restore-DeploymentArtifacts.ps1 before endpoint sync."
+    }
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $BootWim) -Force | Out-Null
+    Copy-Item -LiteralPath $PublishedBootWim -Destination $BootWim -Force
+    Write-Host "Restored missing source boot.wim from published HTTP copy: $BootWim"
+    return $true
+}
+
 function Get-DeploymentSecretSource {
     param(
         [Parameter(Mandatory)]
@@ -595,7 +616,7 @@ if ($CommitWinPe) {
     $commit = $false
 
     if (-not (Test-Path -LiteralPath $bootWim -PathType Leaf)) {
-        throw "boot.wim not found: $bootWim"
+        Restore-BootWimSourceIfMissing -BootWim $bootWim -PublishedBootWim $publishedBootWim | Out-Null
     }
     if (Test-Path -LiteralPath $mountDir) {
         $children = @(Get-ChildItem -LiteralPath $mountDir -Force -ErrorAction SilentlyContinue)

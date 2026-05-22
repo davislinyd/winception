@@ -155,3 +155,10 @@ test('endpoint sync restores missing live endpoint templates from repo mirror', 
   assert.match(script, /Config\\Scripts\\SetupComplete\\SetupComplete\.ps1/);
   assert.match(script, /osdcloud-assets\\Win11-iPXE-Lab/);
 });
+
+test('endpoint sync restores missing source boot.wim from published HTTP copy', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  assert.match(script, /Restore-BootWimSourceIfMissing/);
+  assert.match(script, /Restored missing source boot\.wim from published HTTP copy/);
+  assert.match(script, /Published copy is also missing/);
+});
