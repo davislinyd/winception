@@ -639,6 +639,9 @@ if ($CommitWinPe) {
             -Source (Join-Path $repoRoot 'osdcloud-assets\Win11-iPXE-Lab\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') `
             -Destination (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1') | Out-Null
         Copy-IfPresent `
+            -Source (Join-Path $repoRoot 'osdcloud-assets\Win11-iPXE-Lab\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') `
+            -Destination (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1') | Out-Null
+        Copy-IfPresent `
             -Source (Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') `
             -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') | Out-Null
         Copy-IfPresent `
