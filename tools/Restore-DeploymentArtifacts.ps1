@@ -64,7 +64,25 @@ function Join-ChildPath {
 function Get-Sha256Hash {
     param([Parameter(Mandatory)][string] $LiteralPath)
 
-    (Get-FileHash -LiteralPath $LiteralPath -Algorithm SHA256).Hash.ToUpperInvariant()
+    $resolvedPath = (Resolve-Path -LiteralPath $LiteralPath -ErrorAction Stop).ProviderPath
+    $hashCommand = Get-Command -Name Get-FileHash -ErrorAction SilentlyContinue
+    if ($hashCommand) {
+        return (& $hashCommand -LiteralPath $resolvedPath -Algorithm SHA256).Hash.ToUpperInvariant()
+    }
+
+    $stream = [System.IO.File]::OpenRead($resolvedPath)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            return (-join ($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString('x2') })).ToUpperInvariant()
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
 }
 
 function Test-ArtifactMatches {
