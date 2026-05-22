@@ -89,7 +89,7 @@ DNS     : 1.1.1.1 / 8.8.8.8
 - Windows 11，使用系統管理員 PowerShell 操作。
 - Git；不需要 `git lfs pull`。
 - Node.js / npm，可執行 ESM 與 `node --test`。
-- Windows ADK 與 Windows PE Add-on，版本需能處理 Windows 11 25H2 WinPE；目前驗證過 `10.1.26100.2454`。
+- Windows ADK 與 Windows PE Add-on，版本需能處理 Windows 11 25H2 WinPE；目前驗證過 `10.1.26100.2454`。若缺少這兩項，repo-only bootstrap 會從 Microsoft 官方 fwlink 下載並靜默安裝 ADK Deployment Tools 與 matching WinPE Add-on；要改成只檢查不安裝，可加 `-NoAdkAutoInstall`。
 - PowerShell OSD / OSDCloud module；目前驗證過 OSD `26.4.23.1`、OSDCloud `26.4.17.1`。
 - 一張可上網的 host NIC，以及一張服務 PXE client 的隔離 LAN NIC；目前範例為 `WAN` 上網、`LAN` = `192.168.88.1/24`。
 - 本機 `config\osdcloud-secrets.json`；它不在 Git 內，但 endpoint sync / WinPE SMB mapping / SetupComplete 都需要它或等效環境變數。
@@ -108,9 +108,9 @@ Deploy-DeploymentServer.cmd
 .\tools\Initialize-DeploymentServer.ps1
 ```
 
-此 bootstrap 預設走 repo-only rebuild：讀取 `config\runtime-artifacts.json`，把 `osdcloud-assets\Win11-iPXE-Lab` 小型 mirror 還原到 `C:\OSDCloud\Win11-iPXE-Lab`，下載並驗證 client app installers、iPXE `snponly.efi`、`wimboot`，透過 OSD/ADK 重建或發布 WinPE `boot.wim` 與 Windows boot binaries，下載/發布 active zh-TW OS image，執行 `npm install` / `npm test` / `npm run smoke`，把 endpoint 同步到預設 `LAN 192.168.88.1/24`，跑 `npm run server:preflight`，最後啟動 Web console。它不會自動啟動 DHCP/TFTP/HTTP deployment services；實際 PXE 部署仍要在 Web console 確認真實 LAN DHCP server 已停用後手動 `Start all services`。
+此 bootstrap 預設走 repo-only rebuild：先檢查並在缺少時自動安裝 Windows ADK Deployment Tools / Windows PE Add-on，讀取 `config\runtime-artifacts.json`，把 `osdcloud-assets\Win11-iPXE-Lab` 小型 mirror 還原到 `C:\OSDCloud\Win11-iPXE-Lab`，下載並驗證 client app installers、iPXE `snponly.efi`、`wimboot`，透過 OSD/ADK 重建或發布 WinPE `boot.wim` 與 Windows boot binaries，下載/發布 active zh-TW OS image，執行 `npm install` / `npm test` / `npm run smoke`，把 endpoint 同步到預設 `LAN 192.168.88.1/24`，跑 `npm run server:preflight`，最後啟動 Web console。它不會自動啟動 DHCP/TFTP/HTTP deployment services；實際 PXE 部署仍要在 Web console 確認真實 LAN DHCP server 已停用後手動 `Start all services`。
 
-所有下載都先進 `.downloads` staging，size 與 SHA-256 驗證成功才移入 live path。若前置條件缺失、下載 URL 缺失、size/hash 不符，bootstrap 會 fail closed 並列出具體修復方向，不會啟服務。要覆蓋預設 endpoint，可傳入 `-InterfaceAlias`、`-ServerIp`、`-PrefixLength`；只有明確加上 `-ConfigureNic` 時才會修改 Windows NIC IP。
+runtime artifact 下載都先進 `.downloads` staging，size 與 SHA-256 驗證成功才移入 live path。ADK installer 下載到 `.downloads\prerequisites\windows-adk`，執行前會檢查 Microsoft Authenticode 簽章。若前置條件缺失、下載 URL 缺失、size/hash 不符，bootstrap 會 fail closed 並列出具體修復方向，不會啟服務。要覆蓋預設 endpoint，可傳入 `-InterfaceAlias`、`-ServerIp`、`-PrefixLength`；只有明確加上 `-ConfigureNic` 時才會修改 Windows NIC IP。
 
 `-ArtifactBundle` 仍保留為 legacy fallback：
 

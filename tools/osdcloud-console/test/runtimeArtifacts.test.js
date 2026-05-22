@@ -135,3 +135,13 @@ test('checked-in runtime artifact catalog is valid', () => {
   assert.ok(catalog.artifacts.some((artifact) => artifact.id === 'win11-25h2-zh-tw-pro-esd'));
   assert.ok(catalog.artifacts.some((artifact) => artifact.id === '7zip'));
 });
+
+test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft installers', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+  assert.match(script, /linkid=2289980/);
+  assert.match(script, /linkid=2289981/);
+  assert.match(script, /Get-AuthenticodeSignature/);
+  assert.match(script, /OptionId\.DeploymentTools/);
+  assert.match(script, /OptionId\.WindowsPreinstallationEnvironment/);
+  assert.match(script, /NoAdkAutoInstall/);
+});

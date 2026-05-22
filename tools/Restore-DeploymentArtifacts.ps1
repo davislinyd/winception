@@ -6,7 +6,8 @@ param(
     [switch] $IncludeOptional,
     [switch] $SkipOsImageDownload,
     [switch] $SkipWinPeBuild,
-    [switch] $SkipPrerequisiteCheck
+    [switch] $SkipPrerequisiteCheck,
+    [switch] $NoAdkAutoInstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,6 +16,10 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($CatalogPath)) {
     $CatalogPath = Join-Path $RepoRoot 'config\runtime-artifacts.json'
 }
+
+$AdkVersion = '10.1.26100.2454'
+$AdkSetupUrl = 'https://go.microsoft.com/fwlink/?linkid=2289980'
+$WinPeSetupUrl = 'https://go.microsoft.com/fwlink/?linkid=2289981'
 
 function Write-Step {
     param([Parameter(Mandatory)][string] $Message)
@@ -262,7 +267,122 @@ function Test-IsAdministrator {
     $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 }
 
+function Get-AdkPrerequisiteState {
+    $adkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Assessment and Deployment Kit'
+    $deploymentToolsRoot = Join-Path $adkRoot 'Deployment Tools'
+    $winPeRoot = Join-Path $adkRoot 'Windows Preinstallation Environment\amd64'
+    $hasDeploymentTools = Test-Path -LiteralPath $deploymentToolsRoot -PathType Container
+    $hasWinPe = Test-Path -LiteralPath $winPeRoot -PathType Container
+    $missing = New-Object System.Collections.Generic.List[string]
+    if (-not $hasDeploymentTools) {
+        $missing.Add("Windows ADK Deployment Tools were not found: $deploymentToolsRoot")
+    }
+    if (-not $hasWinPe) {
+        $missing.Add("Windows PE Add-on amd64 files were not found: $winPeRoot")
+    }
+    [pscustomobject]@{
+        AdkRoot = $adkRoot
+        DeploymentToolsRoot = $deploymentToolsRoot
+        WinPeRoot = $winPeRoot
+        HasDeploymentTools = $hasDeploymentTools
+        HasWinPe = $hasWinPe
+        Missing = $missing.ToArray()
+    }
+}
+
+function Assert-MicrosoftSignedFile {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $Label
+    )
+
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($signature.Status -ne 'Valid') {
+        throw "$Label Authenticode signature is not valid: $($signature.Status) $Path"
+    }
+    if ($null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') {
+        throw "$Label is not signed by a Microsoft certificate: $Path"
+    }
+}
+
+function Invoke-Installer {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string[]] $ArgumentList,
+        [Parameter(Mandatory)][string] $Label
+    )
+
+    Write-Host "+ $Path $($ArgumentList -join ' ')"
+    $process = Start-Process -FilePath $Path -ArgumentList $ArgumentList -Wait -PassThru
+    if ($process.ExitCode -notin @(0, 3010)) {
+        throw "$Label installer failed with exit code $($process.ExitCode)."
+    }
+    if ($process.ExitCode -eq 3010) {
+        Write-Warning "$Label installer requested a reboot. Continuing only if required files are already present."
+    }
+}
+
+function Install-AdkPrerequisites {
+    param([Parameter(Mandatory)] $InitialState)
+
+    if ($InitialState.Missing.Count -eq 0) {
+        return
+    }
+
+    Write-Step "Installing Windows ADK prerequisites"
+    Write-Host "Missing ADK prerequisite(s):"
+    foreach ($item in @($InitialState.Missing)) {
+        Write-Host " - $item"
+    }
+    Write-Host "Downloading Microsoft Windows ADK $AdkVersion installers."
+
+    $stagingRoot = Join-ChildPath -Root $RepoRoot -RelativePath '.downloads\prerequisites\windows-adk' -Label 'ADK prerequisite staging path'
+    New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+
+    if (-not $InitialState.HasDeploymentTools) {
+        $adkInstaller = Join-ChildPath -Root $stagingRoot -RelativePath 'adksetup.exe' -Label 'ADK installer path'
+        Invoke-DownloadFile -Url $AdkSetupUrl -Destination $adkInstaller -MaxAttempts 3
+        Assert-MicrosoftSignedFile -Path $adkInstaller -Label 'Windows ADK installer'
+        Invoke-Installer -Path $adkInstaller -Label 'Windows ADK' -ArgumentList @(
+            '/quiet',
+            '/norestart',
+            '/ceip',
+            'off',
+            '/features',
+            'OptionId.DeploymentTools'
+        )
+    }
+    else {
+        Write-Host "Windows ADK Deployment Tools already present."
+    }
+
+    $stateAfterAdk = Get-AdkPrerequisiteState
+    if (-not $stateAfterAdk.HasWinPe) {
+        $winPeInstaller = Join-ChildPath -Root $stagingRoot -RelativePath 'adkwinpesetup.exe' -Label 'WinPE Add-on installer path'
+        Invoke-DownloadFile -Url $WinPeSetupUrl -Destination $winPeInstaller -MaxAttempts 3
+        Assert-MicrosoftSignedFile -Path $winPeInstaller -Label 'Windows PE Add-on installer'
+        Invoke-Installer -Path $winPeInstaller -Label 'Windows PE Add-on' -ArgumentList @(
+            '/quiet',
+            '/norestart',
+            '/ceip',
+            'off',
+            '/features',
+            'OptionId.WindowsPreinstallationEnvironment'
+        )
+    }
+    else {
+        Write-Host "Windows PE Add-on already present."
+    }
+
+    $finalState = Get-AdkPrerequisiteState
+    if ($finalState.Missing.Count -gt 0) {
+        throw "Windows ADK prerequisite auto-install did not produce the required path(s):`n - $($finalState.Missing -join "`n - ")"
+    }
+}
+
 function Assert-Prerequisites {
+    param([switch] $InstallAdkIfMissing)
+
     $missing = New-Object System.Collections.Generic.List[string]
     if (-not (Get-Command -Name node -ErrorAction SilentlyContinue)) {
         $missing.Add('Install Node.js LTS and make node.exe available in PATH.')
@@ -273,10 +393,17 @@ function Assert-Prerequisites {
     if (-not (Get-Module -ListAvailable -Name OSD)) {
         $missing.Add("Install the OSD PowerShell module: Install-Module OSD -Scope CurrentUser -Force")
     }
-    $adkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Assessment and Deployment Kit'
-    $winPeRoot = Join-Path $adkRoot 'Windows Preinstallation Environment\amd64'
-    if (-not (Test-Path -LiteralPath $winPeRoot -PathType Container)) {
-        $missing.Add('Install Windows ADK and the Windows PE Add-on. Required WinPE path was not found: ' + $winPeRoot)
+
+    $adkState = Get-AdkPrerequisiteState
+    if ($adkState.Missing.Count -gt 0) {
+        if ($InstallAdkIfMissing) {
+            Install-AdkPrerequisites -InitialState $adkState
+        }
+        else {
+            foreach ($item in @($adkState.Missing)) {
+                $missing.Add("$item. Re-run without -NoAdkAutoInstall to download and install ADK/WinPE automatically, or install Windows ADK $AdkVersion and the matching Windows PE Add-on manually.")
+            }
+        }
     }
     if ($missing.Count -gt 0) {
         throw "Missing bootstrap prerequisite(s):`n - $($missing -join "`n - ")"
@@ -395,7 +522,7 @@ try {
     }
     if (-not $DryRun -and -not $SkipPrerequisiteCheck) {
         Write-Step "Checking bootstrap prerequisites"
-        Assert-Prerequisites
+        Assert-Prerequisites -InstallAdkIfMissing:(-not $NoAdkAutoInstall)
     }
 
     Write-Step "Reading runtime artifact catalog"

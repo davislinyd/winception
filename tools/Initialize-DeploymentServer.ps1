@@ -17,7 +17,8 @@ param(
     [switch] $SkipAdminCheck,
     [switch] $IncludeOptionalArtifacts,
     [switch] $SkipOsImageDownload,
-    [switch] $SkipWinPeBuild
+    [switch] $SkipWinPeBuild,
+    [switch] $NoAdkAutoInstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -340,6 +341,9 @@ try {
         }
         if ($SkipWinPeBuild) {
             $restoreArgs += '-SkipWinPeBuild'
+        }
+        if ($NoAdkAutoInstall) {
+            $restoreArgs += '-NoAdkAutoInstall'
         }
         Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Restore-DeploymentArtifacts.ps1') -ArgumentList $restoreArgs
     }
