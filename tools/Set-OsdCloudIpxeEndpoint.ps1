@@ -398,6 +398,53 @@ function Copy-IfPresent {
     return $false
 }
 
+function Restore-EndpointFileIfMissing {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path,
+        [Parameter(Mandatory)]
+        [string] $TemplatePath,
+        [Parameter(Mandatory)]
+        [string] $Label
+    )
+
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $TemplatePath -PathType Leaf)) {
+        throw "Required endpoint file not found: $Path. Repo mirror template also missing: $TemplatePath"
+    }
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
+    Copy-Item -LiteralPath $TemplatePath -Destination $Path -Force
+    Write-Host "Restored missing endpoint file from repo mirror: $Label -> $Path"
+    return $true
+}
+
+function Restore-RequiredEndpointFiles {
+    param(
+        [Parameter(Mandatory)]
+        [string] $RepoRoot,
+        [Parameter(Mandatory)]
+        [string] $IpxeLab
+    )
+
+    $mirrorRoot = Join-Path $RepoRoot 'osdcloud-assets\Win11-iPXE-Lab'
+    $required = @(
+        'PXE-HttpRoot\osdcloud\boot.ipxe',
+        'Config\Scripts\SetupComplete\SetupComplete.ps1',
+        'Config\Scripts\SetupComplete\SetupComplete.cmd',
+        'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'
+    )
+
+    foreach ($relativePath in $required) {
+        Restore-EndpointFileIfMissing `
+            -Path (Join-Path $IpxeLab $relativePath) `
+            -TemplatePath (Join-Path $mirrorRoot $relativePath) `
+            -Label $relativePath | Out-Null
+    }
+}
+
 function Get-DeploymentSecretSource {
     param(
         [Parameter(Mandatory)]
@@ -524,6 +571,8 @@ if ($removedReservations.Count -gt 0) {
     }
     Write-Host "Removed DHCP reservations outside ${ServerIp}/${PrefixLength}: $($removedDescriptions -join ', ')"
 }
+
+Restore-RequiredEndpointFiles -RepoRoot $repoRoot -IpxeLab $ipxeLab
 
 Set-BootIpxeEndpoint -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe')
 Set-AutoexecEndpoint -Path (Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled')

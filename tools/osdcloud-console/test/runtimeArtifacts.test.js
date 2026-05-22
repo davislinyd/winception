@@ -147,3 +147,11 @@ test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft in
   assert.match(script, /OptionId\.WindowsPreinstallationEnvironment/);
   assert.match(script, /NoAdkAutoInstall/);
 });
+
+test('endpoint sync restores missing live endpoint templates from repo mirror', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  assert.match(script, /Restore-RequiredEndpointFiles/);
+  assert.match(script, /PXE-HttpRoot\\osdcloud\\boot\.ipxe/);
+  assert.match(script, /Config\\Scripts\\SetupComplete\\SetupComplete\.ps1/);
+  assert.match(script, /osdcloud-assets\\Win11-iPXE-Lab/);
+});
