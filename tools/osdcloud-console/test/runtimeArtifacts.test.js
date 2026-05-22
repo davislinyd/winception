@@ -162,3 +162,11 @@ test('endpoint sync restores missing source boot.wim from published HTTP copy', 
   assert.match(script, /Restored missing source boot\.wim from published HTTP copy/);
   assert.match(script, /Published copy is also missing/);
 });
+
+test('deployment bootstrap refreshes endpoint runtime files after validation', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Initialize-DeploymentServer.ps1'), 'utf8');
+  assert.match(script, /Repair-EndpointRuntimeIfMissing/);
+  assert.match(script, /Media\\sources\\boot\.wim/);
+  assert.match(script, /PXE-HttpRoot\\osdcloud\\boot\.wim/);
+  assert.match(script, /Refreshing runtime files required for endpoint sync/);
+});

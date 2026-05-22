@@ -311,6 +311,71 @@ function Start-WebConsole {
     Start-Process $webUrl
 }
 
+function Get-RepoOnlyRestoreArgs {
+    param([switch] $SkipPrerequisiteCheck)
+
+    $restoreArgs = @(
+        '-CatalogPath', $RuntimeCatalogPath,
+        '-LiveRoot', $liveRootFull
+    )
+    if ($IncludeOptionalArtifacts) {
+        $restoreArgs += '-IncludeOptional'
+    }
+    if ($SkipOsImageDownload) {
+        $restoreArgs += '-SkipOsImageDownload'
+    }
+    if ($SkipWinPeBuild) {
+        $restoreArgs += '-SkipWinPeBuild'
+    }
+    if ($NoAdkAutoInstall) {
+        $restoreArgs += '-NoAdkAutoInstall'
+    }
+    if ($SkipPrerequisiteCheck) {
+        $restoreArgs += '-SkipPrerequisiteCheck'
+    }
+    $restoreArgs
+}
+
+function Get-MissingEndpointRuntimeFiles {
+    param([Parameter(Mandatory)][string] $Root)
+
+    $ipxeLab = Join-Path $Root 'Win11-iPXE-Lab'
+    $required = @(
+        'Media\sources\boot.wim',
+        'PXE-HttpRoot\osdcloud\boot.wim',
+        'PXE-HttpRoot\osdcloud\boot.ipxe',
+        'Config\Scripts\SetupComplete\SetupComplete.ps1',
+        'Config\Scripts\SetupComplete\SetupComplete.cmd',
+        'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'
+    )
+    @($required | Where-Object {
+        -not (Test-Path -LiteralPath (Join-Path $ipxeLab $_) -PathType Leaf)
+    })
+}
+
+function Repair-EndpointRuntimeIfMissing {
+    if (-not [string]::IsNullOrWhiteSpace($ArtifactBundle)) {
+        return
+    }
+
+    $missing = @(Get-MissingEndpointRuntimeFiles -Root $liveRootFull)
+    if ($missing.Count -eq 0) {
+        return
+    }
+
+    Write-Step "Refreshing runtime files required for endpoint sync"
+    Write-Host "Missing endpoint runtime file(s):"
+    foreach ($item in $missing) {
+        Write-Host " - Win11-iPXE-Lab\$item"
+    }
+    Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Restore-DeploymentArtifacts.ps1') -ArgumentList (Get-RepoOnlyRestoreArgs -SkipPrerequisiteCheck)
+
+    $remaining = @(Get-MissingEndpointRuntimeFiles -Root $liveRootFull)
+    if ($remaining.Count -gt 0) {
+        throw "Endpoint runtime remains incomplete after restore:`n - Win11-iPXE-Lab\$($remaining -join "`n - Win11-iPXE-Lab\")"
+    }
+}
+
 try {
     if (-not $SkipAdminCheck -and -not (Test-IsAdministrator)) {
         throw "Run this bootstrap from an elevated PowerShell session or use Deploy-DeploymentServer.cmd."
@@ -329,23 +394,7 @@ try {
 
     if ([string]::IsNullOrWhiteSpace($ArtifactBundle)) {
         Write-Step "Rebuilding C:\OSDCloud runtime from repo artifact catalog"
-        $restoreArgs = @(
-            '-CatalogPath', $RuntimeCatalogPath,
-            '-LiveRoot', $liveRootFull
-        )
-        if ($IncludeOptionalArtifacts) {
-            $restoreArgs += '-IncludeOptional'
-        }
-        if ($SkipOsImageDownload) {
-            $restoreArgs += '-SkipOsImageDownload'
-        }
-        if ($SkipWinPeBuild) {
-            $restoreArgs += '-SkipWinPeBuild'
-        }
-        if ($NoAdkAutoInstall) {
-            $restoreArgs += '-NoAdkAutoInstall'
-        }
-        Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Restore-DeploymentArtifacts.ps1') -ArgumentList $restoreArgs
+        Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Restore-DeploymentArtifacts.ps1') -ArgumentList (Get-RepoOnlyRestoreArgs)
     }
     else {
         Write-Step "Loading manifest and legacy artifact bundle"
@@ -388,6 +437,8 @@ try {
     }
 
     if (-not $SkipEndpointSync) {
+        Repair-EndpointRuntimeIfMissing
+
         Write-Step "Syncing deployment endpoint"
         Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Set-OsdCloudIpxeEndpoint.ps1') -ArgumentList @(
             '-ConfigPath', (Join-Path $RepoRoot 'config\osdcloud-console.json'),
