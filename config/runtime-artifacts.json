@@ -95,9 +95,10 @@
       "sourceType": "download",
       "required": true,
       "url": "https://boot.ipxe.org/x86_64-efi/snponly.efi",
+      "sourceNote": "boot.ipxe.org publishes current prebuilt binaries. Hash mismatch is a safety stop; review and update this catalog only after validating the new binary.",
       "target": "Win11-iPXE-Lab\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi",
-      "length": 287744,
-      "sha256": "4939C7D22F479E34EF8BF37396FC7D2722620D65C9D245AFB1009050EB1FD7C5"
+      "length": 288256,
+      "sha256": "940EFA5E8D1D777A65786AF3D69D6391CC93290DDF9C65E0BADB7B828C6D8D74"
     }
   ],
   "software": [
