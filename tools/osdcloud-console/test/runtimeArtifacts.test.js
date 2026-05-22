@@ -148,6 +148,15 @@ test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft in
   assert.match(script, /NoAdkAutoInstall/);
 });
 
+test('restore bootstrap creates missing OSDCloud template before workspace build', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+  assert.match(script, /Ensure-OsdCloudTemplate/);
+  assert.match(script, /Test-OsdCloudTemplateReady/);
+  assert.match(script, /New-OSDCloudTemplate -Name 'default'/);
+  assert.match(script, /Media\\sources\\boot\.wim/);
+  assert.match(script, /workspace build did not produce required boot\.wim/);
+});
+
 test('endpoint sync restores missing live endpoint templates from repo mirror', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
   assert.match(script, /Restore-RequiredEndpointFiles/);

@@ -582,6 +582,70 @@ function Invoke-ExternalCommand {
     }
 }
 
+function Test-OsdCloudTemplateReady {
+    param([string] $TemplatePath)
+
+    if ([string]::IsNullOrWhiteSpace($TemplatePath)) {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $TemplatePath -PathType Container)) {
+        return $false
+    }
+
+    $required = @(
+        'Media\sources\boot.wim',
+        'Media\bootmgr',
+        'Media\EFI\Boot\bootx64.efi',
+        'Media\Boot\BCD',
+        'Media\Boot\boot.sdi'
+    )
+    foreach ($relativePath in $required) {
+        if (-not (Test-Path -LiteralPath (Join-Path $TemplatePath $relativePath) -PathType Leaf)) {
+            return $false
+        }
+    }
+    $true
+}
+
+function Get-CurrentOsdCloudTemplatePath {
+    try {
+        $templatePath = [string] (Get-OSDCloudTemplate -ErrorAction Stop)
+        if (-not [string]::IsNullOrWhiteSpace($templatePath)) {
+            return $templatePath
+        }
+    }
+    catch {
+        return $null
+    }
+    $null
+}
+
+function Ensure-OsdCloudTemplate {
+    Import-Module OSD -Force
+
+    $templatePath = Get-CurrentOsdCloudTemplatePath
+    if (Test-OsdCloudTemplateReady -TemplatePath $templatePath) {
+        Write-Host "Using existing OSDCloud Template: $templatePath"
+        return $templatePath
+    }
+
+    if ([string]::IsNullOrWhiteSpace($templatePath)) {
+        Write-Host "No usable OSDCloud Template found. Creating the default template from ADK WinPE media."
+    }
+    else {
+        Write-Host "OSDCloud Template is incomplete: $templatePath"
+        Write-Host "Rebuilding the default template from ADK WinPE media."
+    }
+
+    New-OSDCloudTemplate -Name 'default' | Out-Null
+    $templatePath = Get-CurrentOsdCloudTemplatePath
+    if (-not (Test-OsdCloudTemplateReady -TemplatePath $templatePath)) {
+        throw "OSDCloud Template build did not produce required WinPE media: $templatePath"
+    }
+    Write-Host "Created OSDCloud Template: $templatePath"
+    $templatePath
+}
+
 function Ensure-OsdCloudWorkspace {
     if ($SkipWinPeBuild) {
         Write-Host "Skipping WinPE/workspace rebuild by request."
@@ -594,9 +658,15 @@ function Ensure-OsdCloudWorkspace {
 
     $ipxeLab = Join-Path $LiveRoot 'Win11-iPXE-Lab'
     New-Item -ItemType Directory -Path $ipxeLab -Force | Out-Null
-    Import-Module OSD -Force
+    $templatePath = Ensure-OsdCloudTemplate
+    Write-Host "Building OSDCloud workspace from template: $templatePath"
     New-OSDCloudWorkspace -WorkspacePath $ipxeLab -Public | Out-Null
     Set-OSDCloudWorkspace -WorkspacePath $ipxeLab | Out-Null
+
+    $workspaceBootWim = Join-Path $ipxeLab 'Media\sources\boot.wim'
+    if (-not (Test-Path -LiteralPath $workspaceBootWim -PathType Leaf)) {
+        throw "OSDCloud workspace build did not produce required boot.wim: $workspaceBootWim"
+    }
 }
 
 function Publish-BootFiles {
