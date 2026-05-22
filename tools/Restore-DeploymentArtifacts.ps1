@@ -620,8 +620,76 @@ function Get-CurrentOsdCloudTemplatePath {
     $null
 }
 
+function Set-OsdCloudTemplateGalleryFallback {
+    $osdModule = Get-Module -Name OSD
+    if ($null -eq $osdModule) {
+        throw "OSD module is not loaded."
+    }
+
+    & $osdModule {
+        Set-Item -Path Function:\Enable-PEWindowsImagePSGallery -Force -Value {
+            [CmdletBinding()]
+            param (
+                [Parameter(ValueFromPipelineByPropertyName = $true)]
+                [string[]] $Path
+            )
+
+            begin {
+                Block-WinPE
+                Block-StandardUser
+                if ($null -eq $Path) {
+                    $Path = (Get-WindowsImage -Mounted | Select-Object -Property Path).Path
+                }
+            }
+            process {
+                foreach ($inputPath in $Path) {
+                    $mountPath = (Get-Item -Path $inputPath | Select-Object FullName).FullName
+                    if (-not (Test-Path $mountPath -ErrorAction SilentlyContinue)) {
+                        Write-Warning "Unable to locate Mounted WindowsImage at $inputPath"
+                        break
+                    }
+
+                    $infContent = @'
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4D36E97d-E325-11CE-BFC1-08002BE10318}
+Provider    = OSDeploy
+DriverVer   = 03/08/2021,2021.03.08.0
+
+[DefaultInstall]
+AddReg      = AddReg
+
+[AddReg]
+HKLM,"SYSTEM\ControlSet001\Control\Session Manager\Environment",APPDATA,0x00000,"%SystemRoot%\System32\Config\SystemProfile\AppData\Roaming"
+HKLM,"SYSTEM\ControlSet001\Control\Session Manager\Environment",HOMEDRIVE,0x00000,"X:"
+HKLM,"SYSTEM\ControlSet001\Control\Session Manager\Environment",HOMEPATH,0x00000,"Windows\System32\Config\SystemProfile"
+HKLM,"SYSTEM\ControlSet001\Control\Session Manager\Environment",LOCALAPPDATA,0x00000,"%SystemRoot%\System32\Config\SystemProfile\AppData\Local"
+'@
+                    $infFile = Join-Path $env:TEMP 'Set-WinPEEnvironment.inf'
+                    New-Item -Path $infFile -Force | Out-Null
+                    Set-Content -Path $infFile -Value $infContent -Encoding Unicode -Force
+                    Add-WindowsDriver -Path $mountPath -Driver $infFile -ForceUnsigned
+
+                    try {
+                        Import-Module PowerShellGet -ErrorAction Stop
+                        Save-Module -Name PackageManagement -Path "$mountPath\Program Files\WindowsPowerShell\Modules" -Force -ErrorAction Stop
+                        Save-Module -Name PowerShellGet -Path "$mountPath\Program Files\WindowsPowerShell\Modules" -Force -ErrorAction Stop
+                    }
+                    catch {
+                        Write-Warning "Skipping WinPE PowerShell Gallery module injection because PowerShellGet/Save-Module failed: $($_.Exception.Message)"
+                    }
+
+                    Get-WindowsImage -Mounted | Where-Object { $_.Path -eq $mountPath }
+                }
+            }
+        }
+    }
+}
+
 function Ensure-OsdCloudTemplate {
     Import-Module OSD -Force
+    Set-OsdCloudTemplateGalleryFallback
 
     $templatePath = Get-CurrentOsdCloudTemplatePath
     if (Test-OsdCloudTemplateReady -TemplatePath $templatePath) {

@@ -152,7 +152,9 @@ test('restore bootstrap creates missing OSDCloud template before workspace build
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
   assert.match(script, /Ensure-OsdCloudTemplate/);
   assert.match(script, /Test-OsdCloudTemplateReady/);
+  assert.match(script, /Set-OsdCloudTemplateGalleryFallback/);
   assert.match(script, /New-OSDCloudTemplate -Name 'default'/);
+  assert.match(script, /Skipping WinPE PowerShell Gallery module injection/);
   assert.match(script, /Media\\sources\\boot\.wim/);
   assert.match(script, /workspace build did not produce required boot\.wim/);
 });
