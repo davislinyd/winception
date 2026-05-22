@@ -141,6 +141,8 @@ test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft in
   assert.match(script, /linkid=2289980/);
   assert.match(script, /linkid=2289981/);
   assert.match(script, /Get-AuthenticodeSignature/);
+  assert.match(script, /WinVerifyTrust/);
+  assert.match(script, /CreateFromSignedFile/);
   assert.match(script, /OptionId\.DeploymentTools/);
   assert.match(script, /OptionId\.WindowsPreinstallationEnvironment/);
   assert.match(script, /NoAdkAutoInstall/);

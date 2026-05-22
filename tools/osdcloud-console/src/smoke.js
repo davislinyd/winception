@@ -26,6 +26,9 @@ const osCatalogPath = path.join(root, 'os-image-catalog.json');
 const appsRoot = path.join(root, 'Apps');
 const softwareRoot = path.join(root, 'Softwares');
 const profilesRoot = path.join(root, 'profiles');
+const customScriptsRoot = path.join(root, 'Scripts');
+const customScriptsAppsRoot = path.join(root, 'Media', 'Scripts');
+const customScriptsCatalogPath = path.join(root, 'scripts-catalog.json');
 const driverPackFileName = 'PA14250-YWNJX_Win11_1.0_A06.exe';
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -42,6 +45,7 @@ fs.writeFileSync(path.join(osCacheRoot, 'install.esd'), 'install image');
 fs.mkdirSync(path.join(softwareRoot, 'smoke-app'), { recursive: true });
 fs.mkdirSync(path.join(softwareRoot, 'smoke-extra'), { recursive: true });
 fs.mkdirSync(profilesRoot, { recursive: true });
+fs.mkdirSync(customScriptsRoot, { recursive: true });
 fs.writeFileSync(path.join(root, 'Install-Apps.ps1'), "Write-Host 'smoke installer'\n", 'utf8');
 fs.writeFileSync(path.join(softwareRoot, 'smoke-app', 'install.ps1'), "Write-Host 'smoke app'\n", 'utf8');
 fs.writeFileSync(path.join(softwareRoot, 'smoke-extra', 'install.ps1'), "Write-Host 'smoke extra'\n", 'utf8');
@@ -51,6 +55,7 @@ fs.writeFileSync(path.join(root, 'software-catalog.json'), JSON.stringify({
     { id: 'smoke-extra', name: 'Smoke Extra', source: 'smoke-extra' },
   ],
 }, null, 2));
+fs.writeFileSync(customScriptsCatalogPath, JSON.stringify({ scripts: [] }, null, 2));
 fs.writeFileSync(path.join(profilesRoot, 'default.json'), JSON.stringify({
   id: 'default',
   name: 'Default',
@@ -146,6 +151,9 @@ const config = {
     softwareSourceRoot: softwareRoot,
     appsRoot,
     installerScript: path.join(root, 'Install-Apps.ps1'),
+    customScriptsCatalogPath,
+    customScriptsSourceRoot: customScriptsRoot,
+    customScriptsAppsRoot,
   },
   web: {
     host: '127.0.0.1',

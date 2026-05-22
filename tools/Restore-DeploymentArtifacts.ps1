@@ -290,19 +290,171 @@ function Get-AdkPrerequisiteState {
     }
 }
 
+function Assert-MicrosoftSignerCertificate {
+    param(
+        [Parameter(Mandatory)] $Certificate,
+        [Parameter(Mandatory)][string] $Label
+    )
+
+    if ($null -eq $Certificate) {
+        throw "$Label has no signer certificate."
+    }
+    if ([string] $Certificate.Subject -notmatch 'Microsoft Corporation|Microsoft Windows') {
+        throw "$Label is not signed by a Microsoft certificate. Subject=$($Certificate.Subject)"
+    }
+}
+
+function Get-EmbeddedSignerCertificate {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $Label
+    )
+
+    try {
+        $rawCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($Path)
+        [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($rawCertificate)
+    }
+    catch {
+        throw "$Label has no readable embedded signer certificate: $($_.Exception.Message)"
+    }
+}
+
+function Ensure-WinTrustType {
+    if ('OSDCloudBootstrap.WinTrust' -as [type]) {
+        return
+    }
+
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+namespace OSDCloudBootstrap
+{
+    public static class WinTrust
+    {
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct WINTRUST_FILE_INFO
+        {
+            public UInt32 cbStruct;
+            public string pcwszFilePath;
+            public IntPtr hFile;
+            public IntPtr pgKnownSubject;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct WINTRUST_DATA
+        {
+            public UInt32 cbStruct;
+            public IntPtr pPolicyCallbackData;
+            public IntPtr pSIPClientData;
+            public UInt32 dwUIChoice;
+            public UInt32 fdwRevocationChecks;
+            public UInt32 dwUnionChoice;
+            public IntPtr pFile;
+            public UInt32 dwStateAction;
+            public IntPtr hWVTStateData;
+            public IntPtr pwszURLReference;
+            public UInt32 dwProvFlags;
+            public UInt32 dwUIContext;
+            public IntPtr pSignatureSettings;
+        }
+
+        public const UInt32 WTD_UI_NONE = 2;
+        public const UInt32 WTD_REVOKE_NONE = 0;
+        public const UInt32 WTD_CHOICE_FILE = 1;
+        public const UInt32 WTD_STATEACTION_IGNORE = 0;
+        public const UInt32 WTD_REVOCATION_CHECK_NONE = 0x00000010;
+
+        [DllImport("wintrust.dll", ExactSpelling = true, PreserveSig = true, SetLastError = false)]
+        public static extern UInt32 WinVerifyTrust(
+            IntPtr hwnd,
+            [MarshalAs(UnmanagedType.LPStruct)] Guid pgActionID,
+            IntPtr pWVTData);
+    }
+}
+"@
+}
+
+function Assert-WinTrustSignature {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $Label
+    )
+
+    Ensure-WinTrustType
+    $fileInfoType = [OSDCloudBootstrap.WinTrust+WINTRUST_FILE_INFO]
+    $dataType = [OSDCloudBootstrap.WinTrust+WINTRUST_DATA]
+    $fileInfo = [OSDCloudBootstrap.WinTrust+WINTRUST_FILE_INFO]::new()
+    $fileInfoSize = [System.Runtime.InteropServices.Marshal]::SizeOf($fileInfo)
+    $fileInfo.cbStruct = [uint32] $fileInfoSize
+    $fileInfo.pcwszFilePath = $Path
+    $fileInfo.hFile = [IntPtr]::Zero
+    $fileInfo.pgKnownSubject = [IntPtr]::Zero
+
+    $data = [OSDCloudBootstrap.WinTrust+WINTRUST_DATA]::new()
+    $dataSize = [System.Runtime.InteropServices.Marshal]::SizeOf($data)
+    $data.cbStruct = [uint32] $dataSize
+    $data.pPolicyCallbackData = [IntPtr]::Zero
+    $data.pSIPClientData = [IntPtr]::Zero
+    $data.dwUIChoice = [OSDCloudBootstrap.WinTrust]::WTD_UI_NONE
+    $data.fdwRevocationChecks = [OSDCloudBootstrap.WinTrust]::WTD_REVOKE_NONE
+    $data.dwUnionChoice = [OSDCloudBootstrap.WinTrust]::WTD_CHOICE_FILE
+    $data.dwStateAction = [OSDCloudBootstrap.WinTrust]::WTD_STATEACTION_IGNORE
+    $data.hWVTStateData = [IntPtr]::Zero
+    $data.pwszURLReference = [IntPtr]::Zero
+    $data.dwProvFlags = [OSDCloudBootstrap.WinTrust]::WTD_REVOCATION_CHECK_NONE
+    $data.dwUIContext = 0
+    $data.pSignatureSettings = [IntPtr]::Zero
+
+    $fileInfoPtr = [IntPtr]::Zero
+    $dataPtr = [IntPtr]::Zero
+    try {
+        $fileInfoPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($fileInfoSize)
+        [System.Runtime.InteropServices.Marshal]::StructureToPtr($fileInfo, $fileInfoPtr, $false)
+        $data.pFile = $fileInfoPtr
+
+        $dataPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($dataSize)
+        [System.Runtime.InteropServices.Marshal]::StructureToPtr($data, $dataPtr, $false)
+
+        $genericVerifyV2 = [Guid] '00AAC56B-CD44-11d0-8CC2-00C04FC295EE'
+        $result = [OSDCloudBootstrap.WinTrust]::WinVerifyTrust([IntPtr]::Zero, $genericVerifyV2, $dataPtr)
+        if ($result -ne 0) {
+            $code = '{0:X8}' -f [uint32] $result
+            throw "$Label Authenticode verification failed through WinVerifyTrust: 0x$code $Path"
+        }
+    }
+    finally {
+        if ($dataPtr -ne [IntPtr]::Zero) {
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($dataPtr)
+        }
+        if ($fileInfoPtr -ne [IntPtr]::Zero) {
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($fileInfoPtr)
+        }
+    }
+}
+
 function Assert-MicrosoftSignedFile {
     param(
         [Parameter(Mandatory)][string] $Path,
         [Parameter(Mandatory)][string] $Label
     )
 
-    $signature = Get-AuthenticodeSignature -LiteralPath $Path
-    if ($signature.Status -ne 'Valid') {
-        throw "$Label Authenticode signature is not valid: $($signature.Status) $Path"
+    try {
+        Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
+        $signature = Get-AuthenticodeSignature -FilePath $Path -ErrorAction Stop
+        if ($signature.Status -ne 'Valid') {
+            throw "$Label Authenticode signature is not valid: $($signature.Status) $Path"
+        }
+        Assert-MicrosoftSignerCertificate -Certificate $signature.SignerCertificate -Label $Label
+        return
     }
-    if ($null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') {
-        throw "$Label is not signed by a Microsoft certificate: $Path"
+    catch {
+        Write-Warning "$Label could not be validated with Get-AuthenticodeSignature; using WinVerifyTrust fallback. $($_.Exception.Message)"
     }
+
+    Assert-WinTrustSignature -Path $Path -Label $Label
+    $certificate = Get-EmbeddedSignerCertificate -Path $Path -Label $Label
+    Assert-MicrosoftSignerCertificate -Certificate $certificate -Label $Label
 }
 
 function Invoke-Installer {
