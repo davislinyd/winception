@@ -13,12 +13,15 @@ param(
     [switch] $SkipTests,
     [switch] $SkipEndpointSync,
     [switch] $SkipPreflight,
+    [switch] $SkipHostShareSetup,
     [switch] $NoLaunch,
     [switch] $SkipAdminCheck,
     [switch] $IncludeOptionalArtifacts,
     [switch] $SkipOsImageDownload,
     [switch] $SkipWinPeBuild,
-    [switch] $NoAdkAutoInstall
+    [switch] $NoAdkAutoInstall,
+    [string] $SmbShareName = 'OSDCloudiPXE',
+    [string] $SmbUserName = 'pxeinstall'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -353,6 +356,94 @@ function Get-MissingEndpointRuntimeFiles {
     })
 }
 
+function Get-DeploymentSecretValue {
+    param(
+        [Parameter(Mandatory)][string] $JsonName,
+        [Parameter(Mandatory)][string] $EnvironmentName
+    )
+
+    $envValue = [Environment]::GetEnvironmentVariable($EnvironmentName, 'Process')
+    if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+        return $envValue
+    }
+
+    $secretPath = Join-Path $RepoRoot 'config\osdcloud-secrets.json'
+    if (-not (Test-Path -LiteralPath $secretPath -PathType Leaf)) {
+        throw "Missing local deployment secrets: $secretPath. Create it from config\osdcloud-secrets.example.json or set $EnvironmentName."
+    }
+
+    $secret = Get-Content -Raw -LiteralPath $secretPath | ConvertFrom-Json
+    $value = [string] $secret.$JsonName
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        throw "Missing required deployment secret '$JsonName' in $secretPath or $EnvironmentName."
+    }
+    $value
+}
+
+function Set-FolderReadAccess {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $AccountName
+    )
+
+    $acl = Get-Acl -LiteralPath $Path
+    $rights = [System.Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
+        [System.Security.AccessControl.FileSystemRights]::Synchronize
+    $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+        $AccountName,
+        $rights,
+        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
+        [System.Security.AccessControl.PropagationFlags]::None,
+        [System.Security.AccessControl.AccessControlType]::Allow
+    )
+    $acl.SetAccessRule($rule)
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+function Ensure-DeploymentSmbShare {
+    $sharePath = Join-ChildPath -Root $liveRootFull -RelativePath 'Win11-iPXE-Lab\Media' -Label 'SMB share path'
+    if (-not (Test-Path -LiteralPath $sharePath -PathType Container)) {
+        throw "SMB share path missing: $sharePath"
+    }
+
+    $password = Get-DeploymentSecretValue -JsonName 'pxeinstallPassword' -EnvironmentName 'OSDCLOUD_PXEINSTALL_PASSWORD'
+    $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+    $localAccount = "$env:COMPUTERNAME\$SmbUserName"
+
+    $user = Get-LocalUser -Name $SmbUserName -ErrorAction SilentlyContinue
+    if ($user) {
+        Set-LocalUser -Name $SmbUserName -Password $securePassword -PasswordNeverExpires $true
+        Enable-LocalUser -Name $SmbUserName
+    }
+    else {
+        New-LocalUser -Name $SmbUserName -Password $securePassword -Description 'OSDCloud WinPE SMB read-only account' -PasswordNeverExpires | Out-Null
+    }
+
+    Set-FolderReadAccess -Path $sharePath -AccountName $localAccount
+
+    $share = Get-SmbShare -Name $SmbShareName -ErrorAction SilentlyContinue
+    if ($share -and -not ([string] $share.Path).Equals($sharePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Remove-SmbShare -Name $SmbShareName -Force
+        $share = $null
+    }
+
+    if (-not $share) {
+        New-SmbShare -Name $SmbShareName -Path $sharePath -ReadAccess $localAccount -CachingMode None -FolderEnumerationMode AccessBased | Out-Null
+    }
+    else {
+        $existingAccess = @(Get-SmbShareAccess -Name $SmbShareName -ErrorAction Stop | Where-Object {
+            $_.AccountName -eq $localAccount -and
+            $_.AccessControlType -eq 'Allow' -and
+            $_.AccessRight -in @('Read', 'Change', 'Full')
+        })
+        if ($existingAccess.Count -eq 0) {
+            Grant-SmbShareAccess -Name $SmbShareName -AccountName $localAccount -AccessRight Read -Force | Out-Null
+        }
+    }
+
+    Write-Host "Prepared SMB share '$SmbShareName' at $sharePath for read-only account $localAccount."
+}
+
 function Repair-EndpointRuntimeIfMissing {
     if (-not [string]::IsNullOrWhiteSpace($ArtifactBundle)) {
         return
@@ -434,6 +525,11 @@ try {
             $nicArgs += @('-DefaultGateway', $NicDefaultGateway)
         }
         Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Set-IpxePhysicalNic.ps1') -ArgumentList $nicArgs
+    }
+
+    if (-not $SkipHostShareSetup) {
+        Write-Step "Preparing host SMB share"
+        Ensure-DeploymentSmbShare
     }
 
     if (-not $SkipEndpointSync) {

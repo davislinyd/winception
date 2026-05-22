@@ -190,3 +190,14 @@ test('deployment bootstrap refreshes endpoint runtime files after validation', (
   assert.match(script, /PXE-HttpRoot\\osdcloud\\boot\.wim/);
   assert.match(script, /Refreshing runtime files required for endpoint sync/);
 });
+
+test('deployment bootstrap prepares host SMB share from local secrets', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Initialize-DeploymentServer.ps1'), 'utf8');
+  assert.match(script, /Ensure-DeploymentSmbShare/);
+  assert.match(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
+  assert.match(script, /New-LocalUser/);
+  assert.match(script, /New-SmbShare/);
+  assert.match(script, /Get-SmbShareAccess/);
+  assert.match(script, /Grant-SmbShareAccess/);
+  assert.match(script, /SkipHostShareSetup/);
+});
