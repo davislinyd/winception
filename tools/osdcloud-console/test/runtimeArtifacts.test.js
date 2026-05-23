@@ -441,6 +441,14 @@ test('checked-in runtime artifact catalog is valid', () => {
   assert.ok(catalog.artifacts.some((artifact) => artifact.id === '7zip' && artifact.prepareGroup === 'software-payloads'));
 });
 
+test('runtime restore creates SMB account password without Security module cmdlets', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+  assert.match(script, /function New-PlainTextSecureString/);
+  assert.match(script, /\[System\.Security\.SecureString\]::new\(\)/);
+  assert.match(script, /New-PlainTextSecureString -PlainText \$password/);
+  assert.doesNotMatch(script, /ConvertTo-SecureString \$password/);
+});
+
 test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft installers', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
   assert.match(script, /linkid=2289980/);

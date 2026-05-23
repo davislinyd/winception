@@ -89,6 +89,17 @@ function Get-Sha256Hash {
     }
 }
 
+function New-PlainTextSecureString {
+    param([Parameter(Mandatory)][string] $PlainText)
+
+    $secureString = [System.Security.SecureString]::new()
+    foreach ($character in $PlainText.ToCharArray()) {
+        $secureString.AppendChar($character)
+    }
+    $secureString.MakeReadOnly()
+    $secureString
+}
+
 function Test-ArtifactMatches {
     param(
         [Parameter(Mandatory)][string] $Path,
@@ -874,7 +885,7 @@ function Ensure-RuntimeSkeletonAndShare {
         throw "Missing pxeinstallPassword. Create ignored config\osdcloud-secrets.json or set OSDCLOUD_PXEINSTALL_PASSWORD before Web Prepare runtime can create the SMB share."
     }
 
-    $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+    $securePassword = New-PlainTextSecureString -PlainText $password
     $localAccount = "$env:COMPUTERNAME\$smbUserName"
     $user = Get-LocalUser -Name $smbUserName -ErrorAction SilentlyContinue
     if ($user) {
