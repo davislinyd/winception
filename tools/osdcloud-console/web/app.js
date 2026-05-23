@@ -19,6 +19,10 @@ const state = {
   initializationAutoOpened: false,
   initializationPendingAction: null,
   initializationOperationAction: null,
+  initializationSecretsDraft: {
+    davisPassword: '',
+    pxeinstallPassword: '',
+  },
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -761,6 +765,17 @@ function initializationSecretsControls() {
   };
 }
 
+function captureInitializationSecretsDraft() {
+  const controls = initializationSecretsControls();
+  state.initializationSecretsDraft.davisPassword = controls.davisPassword?.value ?? state.initializationSecretsDraft.davisPassword;
+  state.initializationSecretsDraft.pxeinstallPassword = controls.pxeinstallPassword?.value ?? state.initializationSecretsDraft.pxeinstallPassword;
+}
+
+function clearInitializationSecretsDraft() {
+  state.initializationSecretsDraft.davisPassword = '';
+  state.initializationSecretsDraft.pxeinstallPassword = '';
+}
+
 function createInitializationSecretField(id, name, labelText) {
   const label = document.createElement('label');
   label.textContent = labelText;
@@ -770,6 +785,10 @@ function createInitializationSecretField(id, name, labelText) {
   input.type = 'password';
   input.autocomplete = 'new-password';
   input.required = true;
+  input.value = state.initializationSecretsDraft[name] ?? '';
+  input.addEventListener('input', () => {
+    state.initializationSecretsDraft[name] = input.value;
+  });
   input.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') {
       return;
@@ -890,6 +909,7 @@ function renderInitialization(appState) {
   if (!initialization || !elements.initializationDialog) {
     return;
   }
+  captureInitializationSecretsDraft();
 
   const initialized = initialization.initialized === true;
   const activeOperation = activeInitializationOperation(appState);
@@ -3443,6 +3463,7 @@ async function saveInitializationSecrets() {
     });
     state.current = payload.state;
     state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
+    clearInitializationSecretsDraft();
     controls.davisPassword.value = '';
     controls.pxeinstallPassword.value = '';
     render();

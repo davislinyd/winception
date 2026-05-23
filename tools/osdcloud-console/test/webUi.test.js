@@ -144,6 +144,12 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /statusClass/);
   assert.match(script, /item\.status/);
   assert.match(script, /function appendInitializationSecretsForm\(body\)/);
+  assert.match(script, /initializationSecretsDraft: \{[\s\S]*davisPassword: ''[\s\S]*pxeinstallPassword: ''/);
+  assert.match(script, /function captureInitializationSecretsDraft\(\)/);
+  assert.match(script, /function clearInitializationSecretsDraft\(\)/);
+  assert.match(script, /input\.value = state\.initializationSecretsDraft\[name\] \?\? ''/);
+  assert.match(script, /input\.addEventListener\('input', \(\) => \{[\s\S]*state\.initializationSecretsDraft\[name\] = input\.value;/);
+  assert.match(script, /clearInitializationSecretsDraft\(\);[\s\S]*controls\.davisPassword\.value = ''/);
   assert.match(script, /function renderInitializationOperation\(appState\)/);
   assert.match(script, /function renderInitialization\(appState\)/);
   assert.match(script, /initializationPendingAction/);
