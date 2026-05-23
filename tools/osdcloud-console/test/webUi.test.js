@@ -133,6 +133,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /data-action="prepare-runtime"/);
   assert.match(html, /data-action="initialization" data-icon="checklist"/);
   assert.match(html, /id="initialization-dialog"/);
+  assert.match(html, /id="initialization-operation" class="initialization-operation-panel"/);
   assert.match(html, /id="initialization-steps"/);
   assert.doesNotMatch(html, /<h4>Deployment Secrets<\/h4>/);
   assert.doesNotMatch(html, /id="init-secrets-form"/);
@@ -143,7 +144,10 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /statusClass/);
   assert.match(script, /item\.status/);
   assert.match(script, /function appendInitializationSecretsForm\(body\)/);
+  assert.match(script, /function renderInitializationOperation\(appState\)/);
   assert.match(script, /function renderInitialization\(appState\)/);
+  assert.match(script, /initializationPendingAction/);
+  assert.match(script, /initializationOperationAction/);
   assert.match(script, /step\.id === 'secrets' && !step\.done/);
   assert.match(script, /appendInitializationSecretsForm\(body\)/);
   assert.match(script, /!hasInlineSecretsForm/);
@@ -152,9 +156,15 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /\/api\/secrets/);
   assert.match(script, /dataset\.initAction/);
   assert.match(script, /\/api\/runtime\/prepare/);
+  assert.match(script, /function handleInitializationLongAction\(action\)/);
+  assert.match(script, /await mutate\('\/api\/runtime\/prepare', null, \{ alertOnError: false \}\)/);
+  assert.match(script, /closeDialog\(elements\.initializationDialog\);[\s\S]*const ok = await confirmPrepareRuntime\(runtime\);[\s\S]*if \(!ok\) \{[\s\S]*openDialog\(elements\.initializationDialog\);/);
+  assert.match(script, /state\.initializationPendingAction = action;[\s\S]*state\.initializationOperationAction = action;[\s\S]*openDialog\(elements\.initializationDialog\);/);
   assert.match(script, /Prepare runtime/);
   assert.match(styles, /\.runtime-readiness-panel/);
   assert.match(styles, /\.initialization-dialog \{\s*width: min\(1180px, calc\(100vw - 32px\)\);/);
+  assert.match(styles, /\.initialization-operation-panel/);
+  assert.match(styles, /\.initialization-operation-log/);
   assert.match(styles, /\.initialization-step-list/);
   assert.match(styles, /\.initialization-secrets-form/);
   assert.match(styles, /\.initialization-detail-list/);

@@ -17,6 +17,8 @@ const state = {
   logsText: null,
   fleetExpanded: false,
   initializationAutoOpened: false,
+  initializationPendingAction: null,
+  initializationOperationAction: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -61,6 +63,7 @@ const elements = {
   initializationDialog: $('#initialization-dialog'),
   initializationSummary: $('#initialization-summary'),
   initializationBadge: $('#initialization-badge'),
+  initializationOperation: $('#initialization-operation'),
   initializationSteps: $('#initialization-steps'),
   initializationNext: $('#initialization-next'),
   endpointSettingsDialog: $('#endpoint-settings-dialog'),
@@ -340,10 +343,11 @@ async function loadOsDownloadCatalog() {
   }
 }
 
-async function mutate(path, body = null) {
+async function mutate(path, body = null, options = {}) {
   if (state.busy) {
     return;
   }
+  const alertOnError = options.alertOnError !== false;
   state.busy = true;
   setControlsDisabled(true);
   try {
@@ -356,17 +360,33 @@ async function mutate(path, body = null) {
     render();
     return payload;
   } catch (error) {
-    window.alert(error.message);
+    if (alertOnError) {
+      window.alert(error.message);
+    } else {
+      await refresh();
+    }
     return null;
   } finally {
     state.busy = false;
     setControlsDisabled(false);
+    render();
   }
 }
 
 function setControlsDisabled(disabled) {
   $$('button[data-action], dialog button, dialog input, dialog select, dialog textarea').forEach((control) => {
-    control.disabled = disabled;
+    if (control instanceof HTMLButtonElement && control.value === 'cancel') {
+      return;
+    }
+    if (disabled) {
+      if (!control.disabled) {
+        control.dataset.busyDisabled = 'true';
+      }
+      control.disabled = true;
+    } else if (control.dataset.busyDisabled === 'true') {
+      control.disabled = false;
+      delete control.dataset.busyDisabled;
+    }
   });
 }
 
@@ -785,6 +805,86 @@ function appendInitializationSecretsForm(body) {
   body.append(form);
 }
 
+function initializationActionForOperation(operation) {
+  if (!operation?.label) {
+    return null;
+  }
+  if (operation.label === 'Preparing runtime artifacts') {
+    return 'prepare-runtime';
+  }
+  if (operation.label === 'Running preflight') {
+    return 'preflight';
+  }
+  return null;
+}
+
+function activeInitializationOperation(appState) {
+  const operation = appState.operation ?? null;
+  const operationAction = initializationActionForOperation(operation);
+  if (state.initializationPendingAction) {
+    return {
+      action: state.initializationPendingAction,
+      operation: operationAction === state.initializationPendingAction ? operation : null,
+    };
+  }
+  if (operation?.running && operationAction) {
+    return { action: operationAction, operation };
+  }
+  if (state.initializationOperationAction && operationAction === state.initializationOperationAction) {
+    return { action: state.initializationOperationAction, operation };
+  }
+  return null;
+}
+
+function renderInitializationOperation(appState) {
+  const panel = elements.initializationOperation;
+  if (!panel) {
+    return;
+  }
+  const activeOperation = activeInitializationOperation(appState);
+  if (!activeOperation) {
+    panel.hidden = true;
+    panel.replaceChildren();
+    return;
+  }
+
+  const { action, operation } = activeOperation;
+  const running = Boolean(operation?.running || state.initializationPendingAction === action);
+  const status = running ? 'running' : operation?.status ?? 'running';
+  const statusText = status === 'completed' ? 'Completed' : status === 'failed' ? 'Failed' : 'Running';
+  const titleText = operation?.label ?? (action === 'prepare-runtime' ? 'Preparing runtime artifacts' : 'Running preflight');
+  const lines = (operation?.lines ?? []).filter((line) => String(line).trim()).slice(-8);
+
+  panel.hidden = false;
+  panel.className = `initialization-operation-panel ${status}`;
+  panel.replaceChildren();
+
+  const header = document.createElement('div');
+  header.className = 'initialization-operation-header';
+  const title = document.createElement('strong');
+  title.className = 'initialization-operation-title';
+  title.textContent = titleText;
+  const badge = document.createElement('span');
+  badge.className = `status-pill ${status === 'completed' ? 'ok' : status === 'failed' ? 'fail' : 'working'}`;
+  badge.textContent = statusText;
+  header.append(title, badge);
+  panel.append(header);
+
+  if (operation?.error) {
+    const error = document.createElement('div');
+    error.className = 'initialization-operation-error';
+    error.textContent = operation.error;
+    panel.append(error);
+  }
+
+  const log = document.createElement('pre');
+  log.className = 'initialization-operation-log';
+  log.textContent = lines.length
+    ? lines.join('\n')
+    : running ? 'Starting operation...' : 'No operation output captured.';
+  panel.append(log);
+}
+
 function renderInitialization(appState) {
   const initialization = appState.initialization;
   if (!initialization || !elements.initializationDialog) {
@@ -792,18 +892,26 @@ function renderInitialization(appState) {
   }
 
   const initialized = initialization.initialized === true;
+  const activeOperation = activeInitializationOperation(appState);
+  const initializationBusy = state.busy || Boolean(state.initializationPendingAction) || appState.operation?.running === true;
   elements.initializationBadge.textContent = initialized ? 'Initialized' : 'Guided setup';
   elements.initializationBadge.className = `status-pill ${initialized ? 'ok' : 'working'}`;
   const nextStep = (initialization.steps ?? []).find((step) => step.id === initialization.nextStepId);
   elements.initializationSummary.textContent = initialized
     ? 'Deployment prerequisites are complete. Run preflight before starting services.'
     : `Next: ${nextStep?.label ?? 'Run preflight'}`;
+  renderInitializationOperation(appState);
   elements.initializationSteps.replaceChildren();
 
   for (const step of initialization.steps ?? []) {
     const hasInlineSecretsForm = step.id === 'secrets' && !step.done;
+    const stepIsRunning = (step.id === 'runtime' && activeOperation?.action === 'prepare-runtime' && initializationBusy)
+      || (step.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy);
     const row = document.createElement('div');
     row.className = `initialization-step ${step.done ? 'done' : step.required ? 'blocked' : 'optional'}`;
+    if (stepIsRunning) {
+      row.classList.add('working');
+    }
     if (Array.isArray(step.detailItems) && step.detailItems.length > 0) {
       row.classList.add('has-details');
     }
@@ -811,8 +919,10 @@ function renderInitialization(appState) {
       row.classList.add('has-form');
     }
     const status = document.createElement('span');
-    status.className = `status-pill ${step.done ? 'ok' : step.required ? 'fail' : 'neutral'}`;
-    status.textContent = step.done ? 'Done' : step.required ? 'Required' : 'Optional';
+    status.className = `status-pill ${stepIsRunning ? 'working' : step.done ? 'ok' : step.required ? 'fail' : 'neutral'}`;
+    status.textContent = stepIsRunning && step.id === 'runtime'
+      ? 'Preparing'
+      : stepIsRunning ? 'Running' : step.done ? 'Done' : step.required ? 'Required' : 'Optional';
     const body = document.createElement('div');
     body.className = 'initialization-step-body';
     const title = document.createElement('strong');
@@ -832,6 +942,7 @@ function renderInitialization(appState) {
       button.dataset.initAction = step.action;
       button.dataset.icon = initializationActionIcon(step.action);
       button.textContent = initializationActionLabel(step.action);
+      button.disabled = initializationBusy;
       row.append(button);
     }
     elements.initializationSteps.append(row);
@@ -843,11 +954,13 @@ function renderInitialization(appState) {
     elements.initializationNext.dataset.nextAction = nextStep.action;
     elements.initializationNext.dataset.icon = initializationActionIcon(nextStep.action);
     elements.initializationNext.textContent = initializationActionLabel(nextStep.action);
+    elements.initializationNext.disabled = initializationBusy;
   } else {
     elements.initializationNext.hidden = initialized;
     elements.initializationNext.dataset.nextAction = 'preflight';
     elements.initializationNext.dataset.icon = 'fact_check';
     elements.initializationNext.textContent = 'Run preflight';
+    elements.initializationNext.disabled = initializationBusy;
   }
 
   if (!initialized && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
@@ -2159,6 +2272,7 @@ function render() {
   renderSync(appState);
   renderValidation(appState);
   renderLogs(appState);
+  setControlsDisabled(state.busy || appState.operation?.running === true);
 }
 
 function validateProfileInput(name) {
@@ -3342,6 +3456,52 @@ async function saveInitializationSecrets() {
   }
 }
 
+function confirmPrepareRuntime(runtime) {
+  return confirmAction({
+    title: 'Prepare runtime',
+    message: 'This downloads or rebuilds missing runtime artifacts on the host. Deployment services remain stopped.',
+    details: [
+      `${runtime?.missingCount ?? 'Unknown'} artifact group(s) need preparation.`,
+      'After this completes, sync endpoint and run preflight from the Web console.',
+    ],
+    confirmLabel: 'Prepare runtime',
+    severity: 'warning',
+  });
+}
+
+async function handleInitializationLongAction(action) {
+  const runtime = state.current?.runtime;
+  if (action === 'prepare-runtime' && runtime?.ready) {
+    return;
+  }
+  closeDialog(elements.initializationDialog);
+  if (action === 'prepare-runtime') {
+    const ok = await confirmPrepareRuntime(runtime);
+    if (!ok) {
+      openDialog(elements.initializationDialog);
+      render();
+      return;
+    }
+  }
+
+  state.initializationPendingAction = action;
+  state.initializationOperationAction = action;
+  openDialog(elements.initializationDialog);
+  render();
+  try {
+    if (action === 'prepare-runtime') {
+      await mutate('/api/runtime/prepare', null, { alertOnError: false });
+    } else if (action === 'preflight') {
+      await mutate('/api/preflight', null, { alertOnError: false });
+    }
+    await refresh();
+  } finally {
+    state.initializationPendingAction = null;
+    openDialog(elements.initializationDialog);
+    render();
+  }
+}
+
 async function handleInitializationAction(action, source = null) {
   const resolvedAction = action === 'next'
     ? (source?.dataset?.nextAction ?? state.current?.initialization?.nextStepId)
@@ -3361,11 +3521,12 @@ async function handleInitializationAction(action, source = null) {
   if (!resolvedAction || resolvedAction === 'setup') {
     return;
   }
+  if (resolvedAction === 'prepare-runtime' || resolvedAction === 'preflight') {
+    await handleInitializationLongAction(resolvedAction);
+    return;
+  }
   closeDialog(elements.initializationDialog);
   await handleAction(resolvedAction, source);
-  if (resolvedAction === 'prepare-runtime' || resolvedAction === 'preflight') {
-    openDialog(elements.initializationDialog);
-  }
 }
 
 async function handleAction(action, source = null) {
@@ -3398,16 +3559,7 @@ async function handleAction(action, source = null) {
     if (runtime?.ready) {
       return;
     }
-    const ok = await confirmAction({
-      title: 'Prepare runtime',
-      message: 'This downloads or rebuilds missing runtime artifacts on the host. Deployment services remain stopped.',
-      details: [
-        `${runtime?.missingCount ?? 'Unknown'} artifact group(s) need preparation.`,
-        'After this completes, sync endpoint and run preflight from the Web console.',
-      ],
-      confirmLabel: 'Prepare runtime',
-      severity: 'warning',
-    });
+    const ok = await confirmPrepareRuntime(runtime);
     if (ok) {
       await mutate('/api/runtime/prepare');
     }

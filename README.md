@@ -189,6 +189,8 @@ Web console 每次載入 `/api/state` 都會從 live state 重新計算 `initial
 
 Runtime Readiness 面板仍會顯示 `C:\OSDCloud` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot / installer artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。
 
+從 Initialization Wizard 按 `Prepare runtime` 時，確認後 wizard 會保持開啟並顯示 `Preparing runtime artifacts` 的 running/completed/failed 狀態、錯誤訊息與最近 operation log。這只是 UI 進度呈現；實際仍沿用同一個 `/api/runtime/prepare` 長任務，不新增取消功能，也不啟動 HTTP/TFTP/DHCP。若從主畫面 Runtime Readiness 卡片按 `Prepare runtime`，仍維持主畫面流程並可從 operation badge / System Log 監看。
+
 Initialization Wizard 的 `Prepare runtime` 步驟會在按下執行前展開缺失 artifact 摘要，列出名稱、類型、來源/處理方式、原因與第一個目標路徑；多個 target 缺失時會顯示 target 數量。這只是執行前資訊揭露，不代表已啟動 HTTP/TFTP/DHCP，也不能逐項勾選或跳過。
 
 Runtime catalog 支援 optional dependency graph 欄位：`dependsOn` 表示 artifact 依賴的其他 artifact id，`prepareGroup` 表示 `Prepare runtime` 實際會處理的修復群組，`prepareReason` 是給 operator 的簡短原因。Readiness 會驗證 dependency id、拒絕循環依賴，並在 Wizard 明細中顯示 `blocked by ...` 與對應 prepare group。這個 graph 只改善檢查與說明；`Prepare runtime` 的執行模型仍維持現有順序。
@@ -880,7 +882,7 @@ Web console 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/stat
 使用原則：
 
 - 優先用 `Setup-DeploymentServer.cmd` 選定 Web service IP 並啟動 `npm run web`；若要手動啟動，使用 `npm run web` 後開 `http://<web-service-ip>:8080`
-- 第一次進入若 initialization wizard 自動開啟，依序完成 secrets、runtime、endpoint、OS image、profile publish、preflight；完成前不要啟動 deployment services
+- 第一次進入若 initialization wizard 自動開啟，依序完成 secrets、runtime、endpoint、OS image、profile publish、preflight；wizard 內的 `Prepare runtime` 會留在 wizard 顯示長任務狀態與 log；完成前不要啟動 deployment services
 - Web 版使用 `serviceController.js` 控制服務；同一時間只開一個 host console 或 headless process 來操作服務，避免兩個 Node process 同時嘗試控制 HTTP/TFTP/DHCP
 - Web 版 read-only state/status/logs/validation 不會寫入 `C:\OSDCloud`；endpoint sync、profile publish、clear status、service start/stop 是明確的 mutating 操作
 - 所有 Web dialog/drawer 的灰色背景點擊都等同 `Cancel` / `Close`，使用 pointer down 立即關閉；點擊內容區不會關閉。Confirmation dialog 背景點擊只會回傳取消，不會執行危險或 warning action。

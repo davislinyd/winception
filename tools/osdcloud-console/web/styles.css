@@ -118,6 +118,66 @@ body {
   gap: 6px;
 }
 
+.initialization-operation-panel {
+  background: var(--surface-container-low);
+  border: 1px solid var(--outline-variant);
+  border-radius: 2px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.initialization-operation-panel[hidden] {
+  display: none;
+}
+
+.initialization-operation-panel.running {
+  background: #fff7ed;
+}
+
+.initialization-operation-panel.completed {
+  background: var(--ok-bg);
+}
+
+.initialization-operation-panel.failed {
+  background: var(--error-container);
+}
+
+.initialization-operation-header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.initialization-operation-title {
+  font: 600 13px/16px Inter, sans-serif;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.initialization-operation-error {
+  color: var(--error);
+  font: 500 12px/16px Inter, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.initialization-operation-log {
+  background: var(--surface);
+  border: 1px solid var(--outline-variant);
+  color: var(--on-surface);
+  font: 400 11px/16px "JetBrains Mono", monospace;
+  margin: 0;
+  max-height: 144px;
+  min-width: 0;
+  overflow: auto;
+  padding: 6px;
+  white-space: pre-wrap;
+}
+
 .initialization-step {
   align-items: flex-start;
   border: 1px solid var(--outline-variant);
@@ -135,6 +195,10 @@ body {
 
 .initialization-step.blocked {
   background: #fff7ed;
+}
+
+.initialization-step.working {
+  background: var(--warn-bg);
 }
 
 .initialization-step.optional {
