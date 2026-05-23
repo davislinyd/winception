@@ -137,6 +137,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="init-davis-password"/);
   assert.match(html, /id="init-pxeinstall-password"/);
   assert.match(script, /function renderRuntimeReadiness\(appState\)/);
+  assert.match(script, /function appendInitializationDetailItems\(body, detailItems = \[\]\)/);
   assert.match(script, /function renderInitialization\(appState\)/);
   assert.match(script, /initializationAutoOpened/);
   assert.match(script, /\/api\/secrets/);
@@ -145,6 +146,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Prepare runtime/);
   assert.match(styles, /\.runtime-readiness-panel/);
   assert.match(styles, /\.initialization-step-list/);
+  assert.match(styles, /\.initialization-detail-list/);
+  assert.match(styles, /\.initialization-detail-item/);
   assert.match(styles, /grid-area: runtime;/);
   assert.match(html, /data-action="preflight" data-icon="fact_check" type="button">Run preflight/);
   assert.doesNotMatch(html, /data-action="preflight"[^>]*primary-action/);

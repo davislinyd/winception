@@ -280,6 +280,25 @@ function preflightStatus(preflight) {
   };
 }
 
+function runtimeInitializationDetailItems(runtime) {
+  if (!runtime || runtime.ready === true || runtime.error || !Array.isArray(runtime.missing)) {
+    return undefined;
+  }
+  const items = runtime.missing.map((artifact) => {
+    const targets = Array.isArray(artifact.targets) ? artifact.targets : [];
+    const firstTarget = targets[0] ?? {};
+    const reason = firstTarget.reason ?? 'needs preparation';
+    const filePath = firstTarget.filePath ?? '';
+    const targetCount = targets.length > 1 ? ` (${targets.length} targets)` : '';
+    return {
+      title: artifact.name ?? artifact.id,
+      meta: [artifact.kind, artifact.sourceType].filter(Boolean).join(' / '),
+      detail: `${reason}${filePath ? ` ${filePath}` : ''}${targetCount}`.trim(),
+    };
+  });
+  return items.length > 0 ? items : undefined;
+}
+
 function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight }) {
   const web = webServerConfig(config);
   const webReady = Boolean(web.host) && Number.isInteger(web.port) && web.port >= 0;
@@ -312,6 +331,7 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       detail: runtime?.ready
         ? `${runtime.readyCount}/${runtime.requiredCount} required artifact group(s) are ready.`
         : runtime?.error ?? `${runtime?.missingCount ?? 'Unknown'} runtime artifact group(s) need preparation.`,
+      detailItems: runtimeInitializationDetailItems(runtime),
     },
     {
       id: 'endpoint',

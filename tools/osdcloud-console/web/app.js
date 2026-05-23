@@ -708,6 +708,30 @@ function initializationActionIcon(action) {
   return icons[action] ?? 'arrow_forward';
 }
 
+function appendInitializationDetailItems(body, detailItems = []) {
+  if (!Array.isArray(detailItems) || detailItems.length === 0) {
+    return;
+  }
+  const list = document.createElement('div');
+  list.className = 'initialization-detail-list';
+  for (const item of detailItems) {
+    const row = document.createElement('div');
+    row.className = 'initialization-detail-item';
+    const title = document.createElement('span');
+    title.className = 'initialization-detail-title';
+    title.textContent = item.title ?? 'Runtime artifact';
+    const meta = document.createElement('span');
+    meta.className = 'initialization-detail-meta';
+    meta.textContent = item.meta ?? '';
+    const detail = document.createElement('span');
+    detail.className = 'initialization-detail-text';
+    detail.textContent = item.detail ?? '';
+    row.append(title, meta, detail);
+    list.append(row);
+  }
+  body.append(list);
+}
+
 function renderInitialization(appState) {
   const initialization = appState.initialization;
   if (!initialization || !elements.initializationDialog) {
@@ -726,6 +750,9 @@ function renderInitialization(appState) {
   for (const step of initialization.steps ?? []) {
     const row = document.createElement('div');
     row.className = `initialization-step ${step.done ? 'done' : step.required ? 'blocked' : 'optional'}`;
+    if (Array.isArray(step.detailItems) && step.detailItems.length > 0) {
+      row.classList.add('has-details');
+    }
     const status = document.createElement('span');
     status.className = `status-pill ${step.done ? 'ok' : step.required ? 'fail' : 'neutral'}`;
     status.textContent = step.done ? 'Done' : step.required ? 'Required' : 'Optional';
@@ -736,6 +763,7 @@ function renderInitialization(appState) {
     const detail = document.createElement('span');
     detail.textContent = step.detail ?? '';
     body.append(title, detail);
+    appendInitializationDetailItems(body, step.detailItems);
     row.append(status, body);
     if (!step.done && step.action && step.action !== 'setup') {
       const button = document.createElement('button');

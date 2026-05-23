@@ -153,9 +153,41 @@ body {
   overflow-wrap: anywhere;
 }
 
+.initialization-detail-list {
+  border-top: 1px solid var(--outline-variant);
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  max-height: 176px;
+  overflow: auto;
+  padding-top: 6px;
+}
+
+.initialization-detail-item {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.initialization-step-body .initialization-detail-title {
+  color: var(--on-surface);
+  font: 600 12px/15px Inter, sans-serif;
+}
+
+.initialization-step-body .initialization-detail-meta,
+.initialization-step-body .initialization-detail-text {
+  color: var(--on-surface-variant);
+  font: 400 11px/15px "JetBrains Mono", monospace;
+  overflow-wrap: anywhere;
+}
+
 .initialization-step button {
   align-self: center;
   white-space: nowrap;
+}
+
+.initialization-step.has-details button {
+  align-self: start;
 }
 
 .operations-stack button,

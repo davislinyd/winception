@@ -845,7 +845,16 @@ test('runtime readiness is exposed and prepare runtime runs without starting ser
           requiredCount: 1,
           readyCount: prepared ? 1 : 0,
           missingCount: prepared ? 0 : 1,
-          missing: prepared ? [] : [{ id: 'boot-wim', targets: [{ reason: 'missing', filePath: 'boot.wim' }] }],
+          missing: prepared ? [] : [{
+            id: 'boot-wim',
+            name: 'WinPE boot image',
+            kind: 'winpe',
+            sourceType: 'generated-winpe',
+            targets: [
+              { reason: 'missing', filePath: 'boot.wim' },
+              { reason: 'missing', filePath: 'published\\boot.wim' },
+            ],
+          }],
           artifacts: [],
         }),
         prepareRuntimeArtifacts: async (_config, options = {}) => {
@@ -856,10 +865,22 @@ test('runtime readiness is exposed and prepare runtime runs without starting ser
       },
     });
 
-    assert.equal(controller.getState().runtime.ready, false);
+    const blockedState = controller.getState();
+    assert.equal(blockedState.runtime.ready, false);
+    const runtimeStep = blockedState.initialization.steps.find((step) => step.id === 'runtime');
+    assert.deepEqual(runtimeStep.detailItems, [{
+      title: 'WinPE boot image',
+      meta: 'winpe / generated-winpe',
+      detail: 'missing boot.wim (2 targets)',
+    }]);
     const result = await controller.prepareRuntime();
     assert.equal(result.readiness.ready, true);
-    assert.equal(controller.getState().runtime.ready, true);
+    const readyState = controller.getState();
+    assert.equal(readyState.runtime.ready, true);
+    assert.equal(
+      readyState.initialization.steps.find((step) => step.id === 'runtime').detailItems,
+      undefined,
+    );
     assert.equal(services.http.running, false);
     assert.equal(services.tftp.running, false);
     assert.equal(services.dhcp.running, false);
