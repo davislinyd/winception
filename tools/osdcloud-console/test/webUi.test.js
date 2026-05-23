@@ -128,6 +128,14 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.os-import-table \{\s*min-width: 960px;/);
   assert.match(styles, /\.local-import-grid/);
   assert.match(html, /Endpoint Sync Progress/);
+  assert.match(html, /Runtime Readiness/);
+  assert.match(html, /id="runtime-readiness-badge"/);
+  assert.match(html, /data-action="prepare-runtime"/);
+  assert.match(script, /function renderRuntimeReadiness\(appState\)/);
+  assert.match(script, /\/api\/runtime\/prepare/);
+  assert.match(script, /Prepare runtime/);
+  assert.match(styles, /\.runtime-readiness-panel/);
+  assert.match(styles, /grid-area: runtime;/);
   assert.match(html, /data-action="preflight" data-icon="fact_check" type="button">Run preflight/);
   assert.doesNotMatch(html, /data-action="preflight"[^>]*primary-action/);
   assert.match(html, /data-action="endpoint-sync" data-icon="sync_alt" class="warning"/);
@@ -419,7 +427,7 @@ test('web UI keeps local component layer', () => {
   assert.match(styles, /\.service-switch/);
   assert.match(styles, /\.preflight-summary-list/);
   assert.match(styles, /-webkit-line-clamp: 2/);
-  assert.match(styles, /grid-template-areas:\s*"operations endpoint log"\s*"operations sync log"\s*"operations summary log"\s*"preflight preflight log"\s*"fleet fleet log";/);
+  assert.match(styles, /grid-template-areas:\s*"operations endpoint log"\s*"operations runtime log"\s*"operations sync log"\s*"operations summary log"\s*"preflight preflight log"\s*"fleet fleet log";/);
   assert.match(styles, /#view-dashboard\.active \.dashboard-grid \{[\s\S]*grid-template-columns: clamp\(168px, 10vw, 190px\) minmax\(0, 1fr\) minmax\(280px, 24vw\);/);
   assert.match(styles, /#view-dashboard\.active \.dashboard-operations-column \{[\s\S]*grid-area: operations;/);
   assert.match(styles, /#view-dashboard\.active \.dashboard-status-column \{\s*display: contents;/);

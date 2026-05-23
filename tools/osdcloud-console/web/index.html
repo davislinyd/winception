@@ -125,6 +125,17 @@
           <div class="dashboard-status-column col-span-12 xl:col-span-7 flex flex-col gap-sm">
             <section id="endpoint-summary" class="bg-surface-container-lowest border border-outline-variant rounded p-sm flex flex-wrap gap-md items-center font-technical-string text-technical-string" aria-label="Endpoint summary"></section>
 
+            <section class="runtime-readiness-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
+              <div class="panel-title-row">
+                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3>
+                <span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span>
+              </div>
+              <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
+              <div class="runtime-readiness-actions">
+                <button data-action="prepare-runtime" data-icon="deployed_code_update" class="warning" type="button">Prepare runtime</button>
+              </div>
+            </section>
+
             <section class="sync-progress-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
               <div class="panel-title-row">
                 <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Endpoint Sync Progress</h3>

@@ -94,6 +94,17 @@ body {
   padding-top: 8px;
 }
 
+.runtime-readiness-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.runtime-missing-row {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .operations-stack button,
 .operations-secondary button,
 .operations-danger button {
@@ -883,12 +894,13 @@ pre {
     flex: 1 1 auto;
     grid-template-areas:
       "operations endpoint log"
+      "operations runtime log"
       "operations sync log"
       "operations summary log"
       "preflight preflight log"
       "fleet fleet log";
     grid-template-columns: clamp(168px, 10vw, 190px) minmax(0, 1fr) minmax(280px, 24vw);
-    grid-template-rows: auto auto auto auto minmax(220px, 1fr);
+    grid-template-rows: auto auto auto auto auto minmax(220px, 1fr);
     max-height: calc(100vh - 124px);
     overflow: hidden;
   }
@@ -904,6 +916,10 @@ pre {
 
   #view-dashboard.active #endpoint-summary {
     grid-area: endpoint;
+  }
+
+  #view-dashboard.active .runtime-readiness-panel {
+    grid-area: runtime;
   }
 
   #view-dashboard.active .sync-progress-panel {

@@ -41,8 +41,12 @@ import {
   listIpv4ServiceInterfaces,
   removeStatusFiles,
   runPreflight,
+  prepareRuntimeArtifacts,
   syncIpxeEndpoint,
 } from './windows.js';
+import {
+  getRuntimeReadiness,
+} from './runtimeArtifacts.js';
 import {
   deleteStatusRun,
   readFleetStatus,
@@ -237,6 +241,7 @@ export class ServiceController extends EventEmitter {
       openSoftwareInstallScript,
       publishSelectedOsImage,
       publishDeploymentProfile,
+      prepareRuntimeArtifacts,
       readCustomScriptContent,
       readSoftwareInstallScript,
       readFleetStatus,
@@ -251,6 +256,7 @@ export class ServiceController extends EventEmitter {
       saveConfig,
       summarizeValidation,
       syncIpxeEndpoint,
+      getRuntimeReadiness,
       tailFile,
       updateDeploymentProfile,
       uploadCustomScript,
@@ -463,6 +469,7 @@ export class ServiceController extends EventEmitter {
 
     const profileResult = safeRead(() => this.getProfiles(), null);
     const osImageResult = safeRead(() => this.getOsImages(), null);
+    const runtimeResult = safeRead(() => this.dependencies.getRuntimeReadiness(this.config), null);
     const validationResult = safeRead(() => this.dependencies.summarizeValidation(this.config), []);
     const statusEventsResult = safeRead(() => this.dependencies.readStatusEvents(this.config, 80), []);
     const selectedRunEventsResult = safeRead(
@@ -509,6 +516,7 @@ export class ServiceController extends EventEmitter {
       services: this.servicesState(),
       profile: profileResult.error ? { error: profileResult.error } : profileResult.value,
       osImage: osImageResult.error ? { error: osImageResult.error } : osImageResult.value,
+      runtime: runtimeResult.error ? { ready: false, error: runtimeResult.error } : runtimeResult.value,
       osDownloadStatus: this.osDownloadStatus,
       osImportStatus: this.osImportStatus,
       preflight: this.preflightResults,
@@ -539,6 +547,24 @@ export class ServiceController extends EventEmitter {
     return this.runOperation('Running preflight', async () => {
       this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
       return this.preflightResults;
+    });
+  }
+
+  async prepareRuntime() {
+    return this.runOperation('Preparing runtime artifacts', async () => {
+      const stream = makeOutputLogger((line) => this.addLog(line), '[runtime]');
+      try {
+        const output = await this.dependencies.prepareRuntimeArtifacts(this.config, {
+          onOutput: stream.write,
+        });
+        const readiness = this.dependencies.getRuntimeReadiness(this.config);
+        return {
+          output,
+          readiness,
+        };
+      } finally {
+        stream.flush();
+      }
     });
   }
 

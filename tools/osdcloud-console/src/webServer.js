@@ -212,6 +212,11 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/runtime/prepare') {
+      const result = await this.controller.prepareRuntime();
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/endpoint') {
       const body = await readJsonBody(req);
       const result = await this.controller.changeEndpoint(body.interface ?? body);

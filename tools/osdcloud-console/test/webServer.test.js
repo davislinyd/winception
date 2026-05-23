@@ -75,6 +75,14 @@ async function makeServer(root, overrides = {}) {
       readRecentScreenshotMetadata: () => [],
       readRunLatestScreenshot: () => null,
       readStatusEvents: () => [],
+      getRuntimeReadiness: () => ({
+        ready: false,
+        requiredCount: 1,
+        readyCount: 0,
+        missingCount: 1,
+        missing: [{ id: 'boot-wim', targetPath: path.join(root, 'http', 'osdcloud', 'boot.wim') }],
+        artifacts: [],
+      }),
       resolveDeploymentProfileState: () => ({
         catalog: {
           software: [
@@ -351,6 +359,29 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.deepEqual(payload.result, [{ name: 'Smoke', ok: true, detail: 'test' }]);
+
+    let prepareCalled = false;
+    server.controller.dependencies.prepareRuntimeArtifacts = async () => {
+      prepareCalled = true;
+      return 'runtime prepared';
+    };
+    server.controller.dependencies.getRuntimeReadiness = () => ({
+      ready: true,
+      requiredCount: 1,
+      readyCount: 1,
+      missingCount: 0,
+      missing: [],
+      artifacts: [{ id: 'boot-wim', exists: true }],
+    });
+    response = await fetch(`${base}/api/runtime/prepare`, { method: 'POST' });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(prepareCalled, true);
+    assert.match(payload.result.output, /runtime prepared/);
+    assert.equal(payload.result.readiness.ready, true);
+    assert.equal(payload.state.runtime.ready, true);
+    assert.equal(payload.state.services.tftp.running, false);
+    assert.equal(payload.state.services.dhcp.running, false);
 
     response = await fetch(`${base}/api/interfaces`);
     assert.equal(response.status, 200);

@@ -833,3 +833,38 @@ test('endpoint changes stop services, save config, sync assets, and run prefligh
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('runtime readiness is exposed and prepare runtime runs without starting services', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-runtime-'));
+  try {
+    let prepared = false;
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        getRuntimeReadiness: () => ({
+          ready: prepared,
+          requiredCount: 1,
+          readyCount: prepared ? 1 : 0,
+          missingCount: prepared ? 0 : 1,
+          missing: prepared ? [] : [{ id: 'boot-wim', targets: [{ reason: 'missing', filePath: 'boot.wim' }] }],
+          artifacts: [],
+        }),
+        prepareRuntimeArtifacts: async (_config, options = {}) => {
+          options.onOutput?.('runtime ok\n', 'stdout');
+          prepared = true;
+          return 'runtime ok';
+        },
+      },
+    });
+
+    assert.equal(controller.getState().runtime.ready, false);
+    const result = await controller.prepareRuntime();
+    assert.equal(result.readiness.ready, true);
+    assert.equal(controller.getState().runtime.ready, true);
+    assert.equal(services.http.running, false);
+    assert.equal(services.tftp.running, false);
+    assert.equal(services.dhcp.running, false);
+    assert.match(controller.getLogs().join('\n'), /runtime ok/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

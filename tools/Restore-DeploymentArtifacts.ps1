@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $CatalogPath,
+    [string] $ConfigPath,
     [string] $LiveRoot = 'C:\OSDCloud',
     [switch] $DryRun,
     [switch] $IncludeOptional,
@@ -15,6 +16,9 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($CatalogPath)) {
     $CatalogPath = Join-Path $RepoRoot 'config\runtime-artifacts.json'
+}
+if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+    $ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
 }
 
 $AdkVersion = '10.1.26100.2454'
@@ -811,7 +815,7 @@ function Restore-OsImageArtifact {
     Invoke-ExternalCommand -FilePath 'node' -ArgumentList @(
         'tools/osdcloud-console/src/osImageDownloadCli.js',
         '--config',
-        (Join-Path $RepoRoot 'config\osdcloud-console.json'),
+        $ConfigPath,
         '--image-id',
         ([string] $Artifact.osImageId)
     )

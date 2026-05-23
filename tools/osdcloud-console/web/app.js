@@ -31,6 +31,8 @@ const elements = {
   refreshButton: $('#refresh-button'),
   updatedAt: $('#updated-at'),
   endpointSummary: $('#endpoint-summary'),
+  runtimeReadinessBadge: $('#runtime-readiness-badge'),
+  runtimeReadinessSummary: $('#runtime-readiness-summary'),
   servicesGrid: $('#services-grid'),
   activeProfileDetails: $('#active-profile-details'),
   activeOsDetails: $('#active-os-details'),
@@ -533,6 +535,46 @@ function renderOperation(appState) {
   } else if (operation.status === 'failed') {
     elements.operationBadge.className = 'badge failed';
   }
+}
+
+function renderRuntimeReadiness(appState) {
+  const runtime = appState.runtime;
+  elements.runtimeReadinessSummary.replaceChildren();
+  if (!runtime || runtime.error) {
+    elements.runtimeReadinessBadge.textContent = 'Blocked';
+    elements.runtimeReadinessBadge.className = 'status-pill fail';
+    const row = document.createElement('div');
+    row.className = 'check-row fail';
+    row.textContent = runtime?.error ?? 'Runtime readiness is unavailable.';
+    elements.runtimeReadinessSummary.append(row);
+    setActionLabel('prepare-runtime', 'Prepare runtime');
+    setActionIcon('prepare-runtime', 'deployed_code_update');
+    return;
+  }
+
+  elements.runtimeReadinessBadge.textContent = runtime.ready ? 'Ready' : 'Blocked';
+  elements.runtimeReadinessBadge.className = `status-pill ${runtime.ready ? 'ok' : 'fail'}`;
+  const summary = document.createElement('div');
+  summary.className = `check-row ${runtime.ready ? 'ok' : 'fail'}`;
+  summary.textContent = runtime.ready
+    ? `${runtime.readyCount}/${runtime.requiredCount} required runtime artifact(s) are present.`
+    : `${runtime.missingCount} runtime artifact group(s) need preparation.`;
+  elements.runtimeReadinessSummary.append(summary);
+
+  for (const artifact of (runtime.missing ?? []).slice(0, 4)) {
+    const row = document.createElement('div');
+    row.className = 'check-row fail runtime-missing-row';
+    const firstTarget = artifact.targets?.[0];
+    row.textContent = `${artifact.id}: ${firstTarget?.reason ?? 'missing'} ${firstTarget?.filePath ?? ''}`.trim();
+    row.title = row.textContent;
+    elements.runtimeReadinessSummary.append(row);
+  }
+
+  setActionLabel('prepare-runtime', runtime.ready ? 'Runtime ready' : 'Prepare runtime');
+  setActionIcon('prepare-runtime', runtime.ready ? 'check_circle' : 'deployed_code_update');
+  actionButtons('prepare-runtime').forEach((button) => {
+    button.disabled = state.busy || runtime.ready;
+  });
 }
 
 function serviceAddress(service) {
@@ -1920,6 +1962,7 @@ function render() {
   elements.updatedAt.textContent = `Updated ${localTime(appState.generatedAt)}`;
   renderOperation(appState);
   renderEndpointSummary(appState);
+  renderRuntimeReadiness(appState);
   renderServices(appState);
   renderProfileSummary(appState);
   renderOsImageSummary(appState);
@@ -3105,6 +3148,24 @@ async function handleAction(action, source = null) {
       return;
     }
     await confirmEndpointSync(choice);
+  } else if (action === 'prepare-runtime') {
+    const runtime = state.current?.runtime;
+    if (runtime?.ready) {
+      return;
+    }
+    const ok = await confirmAction({
+      title: 'Prepare runtime',
+      message: 'This downloads or rebuilds missing runtime artifacts on the host. Deployment services remain stopped.',
+      details: [
+        `${runtime?.missingCount ?? 'Unknown'} artifact group(s) need preparation.`,
+        'After this completes, sync endpoint and run preflight from the Web console.',
+      ],
+      confirmLabel: 'Prepare runtime',
+      severity: 'warning',
+    });
+    if (ok) {
+      await mutate('/api/runtime/prepare');
+    }
   } else if (action === 'profiles') {
     openDialog(elements.deploymentProfilesDialog);
   } else if (action === 'os-images') {

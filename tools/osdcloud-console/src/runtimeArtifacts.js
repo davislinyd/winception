@@ -265,3 +265,88 @@ export function verifyArtifactFile(filePath, artifact) {
     length: stat.size,
   };
 }
+
+export function resolveRuntimeArtifactTarget(catalog, artifact, relativeTarget) {
+  const target = String(relativeTarget ?? '');
+  if (target.replace(/\//gu, '\\').toLowerCase().startsWith('softwares\\')) {
+    return resolveArtifactTarget(catalog.options.repoRoot, target);
+  }
+  return resolveArtifactTarget(catalog.options.liveRoot, target);
+}
+
+export function inspectRuntimeArtifactFile(filePath, artifact) {
+  if (!fs.existsSync(filePath)) {
+    return {
+      ok: false,
+      reason: 'missing',
+      filePath,
+    };
+  }
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) {
+    return {
+      ok: false,
+      reason: 'not-file',
+      filePath,
+    };
+  }
+  if (artifact.length && stat.size !== artifact.length) {
+    return {
+      ok: false,
+      reason: 'size-mismatch',
+      filePath,
+      actualLength: stat.size,
+      expectedLength: artifact.length,
+    };
+  }
+  return {
+    ok: true,
+    reason: 'present',
+    filePath,
+    length: stat.size,
+  };
+}
+
+export function getRuntimeReadiness(config = {}, overrides = {}) {
+  const catalog = loadRuntimeArtifactCatalog(config, overrides);
+  const artifacts = planRuntimeArtifacts(catalog, { includeOptional: overrides.includeOptional === true });
+  const rows = artifacts.map((artifact) => {
+    const targetResults = artifact.targets.map((target) => {
+      const filePath = resolveRuntimeArtifactTarget(catalog, artifact, target);
+      return {
+        target,
+        ...inspectRuntimeArtifactFile(filePath, artifact),
+      };
+    });
+    const ok = targetResults.every((result) => result.ok);
+    return {
+      id: artifact.id,
+      name: artifact.name,
+      kind: artifact.kind,
+      sourceType: artifact.sourceType,
+      action: artifact.action,
+      required: artifact.required,
+      ok,
+      status: ok ? 'ready' : 'blocked',
+      targets: targetResults,
+    };
+  });
+  const missing = rows.filter((artifact) => !artifact.ok);
+  return {
+    ready: missing.length === 0,
+    catalogPath: catalog.path,
+    liveRoot: catalog.options.liveRoot,
+    downloadStagingRoot: catalog.options.downloadStagingRoot,
+    requiredCount: rows.length,
+    readyCount: rows.length - missing.length,
+    missingCount: missing.length,
+    artifacts: rows,
+    missing: missing.map((artifact) => ({
+      id: artifact.id,
+      name: artifact.name,
+      kind: artifact.kind,
+      sourceType: artifact.sourceType,
+      targets: artifact.targets.filter((target) => !target.ok),
+    })),
+  };
+}

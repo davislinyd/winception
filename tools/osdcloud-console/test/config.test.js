@@ -5,11 +5,17 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   applyServiceEndpoint,
+  loadConfig,
   mediaHttpServerConfig,
   saveConfig,
   validateConfig,
   webServerConfig,
 } from '../src/config.js';
+
+function writeJson(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
 
 test('rejects incomplete config', () => {
   assert.throws(() => validateConfig({}), /Missing required config values/);
@@ -288,6 +294,64 @@ test('saves public config without losing existing fields', () => {
     assert.equal(saved.__configPath, undefined);
     assert.equal(saved.dhcp.leaseSeconds, 3600);
     assert.equal(saved.paths.endpointSyncScript, 'C:\\repo\\tools\\Set-OsdCloudIpxeEndpoint.ps1');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('local config overlay overrides endpoint without rewriting tracked config', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-config-local-'));
+  const configPath = path.join(root, 'osdcloud-console.json');
+  const localConfigPath = path.join(root, 'osdcloud-console.local.json');
+  const base = {
+    adapter: { interfaceAlias: 'Ethernet', serverIp: '192.168.100.1', prefixLength: 24 },
+    dhcp: {
+      listenIp: '192.168.100.1',
+      leaseStartIp: '192.168.100.200',
+      leaseEndIp: '192.168.100.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.100.1',
+      bootFile: 'snponly.efi',
+      ipxeBootUrl: 'http://192.168.100.1/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\PXE-TFTP', listenIp: '192.168.100.1' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.1', statusRoot: 'C:\\status' },
+    paths: {
+      expectedHttpFiles: ['osdcloud\\boot.ipxe'],
+      imageNamePattern: 'install.esd',
+    },
+    smb: {
+      share: '\\\\192.168.100.1\\OSDCloudiPXE',
+      imagePath: '\\\\192.168.100.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+    },
+  };
+  try {
+    writeJson(configPath, base);
+    writeJson(localConfigPath, {
+      adapter: { interfaceAlias: 'LAN', serverIp: '192.168.88.1', prefixLength: 24 },
+      dhcp: {
+        listenIp: '192.168.88.1',
+        leaseStartIp: '192.168.88.200',
+        leaseEndIp: '192.168.88.250',
+        subnetMask: '255.255.255.0',
+        router: '192.168.88.1',
+        ipxeBootUrl: 'http://192.168.88.1/osdcloud/boot.ipxe',
+      },
+      tftp: { listenIp: '192.168.88.1' },
+      http: { host: '192.168.88.1' },
+      smb: {
+        share: '\\\\192.168.88.1\\OSDCloudiPXE',
+        imagePath: '\\\\192.168.88.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+      },
+    });
+    const config = loadConfig(configPath, { localConfigPath });
+    assert.equal(config.adapter.interfaceAlias, 'LAN');
+    assert.equal(config.dhcp.bootFile, 'snponly.efi');
+    config.adapter.serverIp = '192.168.88.2';
+    const savedPath = saveConfig(config);
+    assert.equal(savedPath, localConfigPath);
+    assert.equal(JSON.parse(fs.readFileSync(configPath, 'utf8')).adapter.serverIp, '192.168.100.1');
+    assert.equal(JSON.parse(fs.readFileSync(localConfigPath, 'utf8')).adapter.serverIp, '192.168.88.2');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

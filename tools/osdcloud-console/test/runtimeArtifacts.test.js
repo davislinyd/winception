@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
 import {
+  getRuntimeReadiness,
   loadRuntimeArtifactCatalog,
   planRuntimeArtifacts,
   sha256File,
@@ -127,6 +129,104 @@ test('runtime artifact verification catches size and hash mismatch', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('runtime readiness reports missing required artifacts without hashing large files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-readiness-'));
+  try {
+    const catalogPath = makeCatalog(root, {
+      schemaVersion: 1,
+      artifacts: [{
+        id: 'required-boot',
+        sourceType: 'download',
+        url: 'https://example.test/boot.wim',
+        target: 'Win11-iPXE-Lab\\PXE-HttpRoot\\osdcloud\\boot.wim',
+        length: 1024,
+        sha256: 'A'.repeat(64),
+      }],
+    });
+    const readiness = getRuntimeReadiness(
+      { paths: { repoRoot: root }, runtimeArtifacts: { liveRoot: path.join(root, 'OSDCloud') } },
+      { catalogPath },
+    );
+    assert.equal(readiness.ready, false);
+    assert.equal(readiness.missingCount, 1);
+    assert.equal(readiness.missing[0].id, 'required-boot');
+    assert.equal(readiness.missing[0].targets[0].reason, 'missing');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('setup wizard stays lightweight and leaves runtime preparation to Web', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'), 'utf8');
+  assert.match(script, /npm' -ArgumentList @\('install'\)/);
+  assert.match(script, /npm' -ArgumentList @\('run', 'smoke'\)/);
+  assert.match(script, /OSDCLOUD_DAVIS_PASSWORD/);
+  assert.match(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
+  assert.match(script, /osdcloud-console\.local\.json/);
+  assert.match(script, /New-SmbShare/);
+  assert.match(script, /New-LocalUser/);
+  assert.doesNotMatch(script, /Restore-DeploymentArtifacts\.ps1/);
+  assert.doesNotMatch(script, /Set-OsdCloudIpxeEndpoint\.ps1/);
+  assert.doesNotMatch(script, /server:preflight/);
+  assert.doesNotMatch(script, /Start-Pxe|Start-Dhcp|Start-Tftp|Start-Http/);
+});
+
+test('setup dry-run is non-network and does not create local state files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-dryrun-'));
+  try {
+    fs.mkdirSync(path.join(root, 'tools'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+    fs.copyFileSync(
+      path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'),
+      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
+    );
+    fs.copyFileSync(
+      path.join(process.cwd(), 'config', 'osdcloud-console.json'),
+      path.join(root, 'config', 'osdcloud-console.json'),
+    );
+    const localConfig = path.join(root, 'config', 'osdcloud-console.local.json');
+    const setupState = path.join(root, 'config', 'deployment-server-setup.local.json');
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
+      '-DryRun',
+      '-NoLaunch',
+      '-SkipNpmInstall',
+      '-SkipSmoke',
+      '-SkipHostShareSetup',
+      '-InterfaceAlias',
+      'PXE-DRYRUN',
+      '-ServerIp',
+      '192.168.88.1',
+      '-PrefixLength',
+      '24',
+    ], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        OSDCLOUD_DAVIS_PASSWORD: 'dry-run-davis',
+        OSDCLOUD_PXEINSTALL_PASSWORD: 'dry-run-pxe',
+      },
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /Runtime artifacts are not downloaded during setup/);
+    assert.equal(fs.existsSync(localConfig), false);
+    assert.equal(fs.existsSync(setupState), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runtime restore can use the effective Web config path', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+  assert.match(script, /\[string\] \$ConfigPath/);
+  assert.match(script, /--config[\s\S]*\$ConfigPath/);
 });
 
 test('checked-in runtime artifact catalog is valid', () => {

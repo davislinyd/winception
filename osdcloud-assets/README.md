@@ -2,7 +2,7 @@
 
 This folder is a Git-friendly mirror of the deployment files that actually live under `C:\OSDCloud`.
 
-It is not a complete runnable backup. A fresh clone still needs the repo-only bootstrap to rebuild the live `C:\OSDCloud` tree before PXE deployment can start.
+It is not a complete runnable backup. A fresh clone first runs the lightweight setup wizard, then uses Web Runtime Readiness / Prepare runtime to rebuild the live `C:\OSDCloud` tree before PXE deployment can start.
 
 The live lab still runs from:
 
@@ -10,7 +10,7 @@ The live lab still runs from:
 C:\OSDCloud\Win11-iPXE-Lab
 ```
 
-`C:\OSDCloud\Win11-Lab` and the old ISO boot path are retired historical evidence. They are not restored by the fresh-host bootstrap and are not required for the active physical-laptop iPXE deployment path.
+`C:\OSDCloud\Win11-Lab` and the old ISO boot path are retired historical evidence. They are not restored by fresh-host setup or runtime preparation and are not required for the active physical-laptop iPXE deployment path.
 
 The repo tracks the small source/config files that define deployment behavior:
 
@@ -37,13 +37,15 @@ Runtime downloads and generated artifacts are recorded in `config\runtime-artifa
 
 ## Using This Mirror On A New Host
 
-After cloning the repo on another Windows host, run the repo-only bootstrap:
+After cloning the repo on another Windows host, run the lightweight setup wizard:
 
 ```powershell
-.\tools\Initialize-DeploymentServer.ps1
+.\Setup-DeploymentServer.cmd
 ```
 
-The initializer restores this mirror, downloads cataloged installers/iPXE binaries/OS image artifacts through `.downloads` staging, verifies size and SHA-256, rebuilds or publishes WinPE boot files, syncs the selected endpoint, runs server preflight, and starts the Web console. It does not start DHCP/TFTP/HTTP deployment services.
+Setup installs the Node dependencies, runs the lightweight smoke check, captures local secrets, records the intended service endpoint in ignored local overlay state, creates the minimum `C:\OSDCloud` directory skeleton, and starts the Web console. It does not download cataloged installers, iPXE binaries, OS image artifacts, ADK/WinPE content, or `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
+
+In the Web console, use `Runtime Readiness` > `Prepare runtime` to restore this mirror, download cataloged installers/iPXE binaries/OS image artifacts through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. After runtime readiness is ready, select/sync the service endpoint and run preflight before manually starting services.
 
 `-ArtifactBundle` remains a legacy fallback for offline or bit-for-bit restore only. It is not the formal handoff path.
 
@@ -87,6 +89,6 @@ For iPXE, `Invoke-DavisOobe.ps1` copies SetupComplete from inside `boot.wim` fir
 
 The current iPXE `SetupComplete.ps1` installs the client app payload and the JSON desktop-ready reporter for Windows completion. It does not install a desktop screenshot Startup helper, because that path was blocked by Defender/AMSI as `ScriptContainedMaliciousContent`. The desktop-ready reporter retries every 5 seconds for up to 30 minutes from `windows-logon-start`; after a successful HTTP POST or WebClient fallback it must return success and unregister `OSDCloudDesktopReadyReport`.
 
-The app payload is profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes `selected-profile.json` and install scripts, but not MSI/EXE installer payloads. `Install-Apps.ps1` reads the selected profile and installs only the selected software after bootstrap has downloaded the cataloged installers into live `Apps`. The current `Default` profile publishes 7-Zip; `All in One` publishes 7-Zip plus Google Chrome Enterprise and Notepad++; `Minimal` publishes no client software. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
+The app payload is profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes `selected-profile.json` and install scripts, but not MSI/EXE installer payloads. `Install-Apps.ps1` reads the selected profile and installs only the selected software after Web runtime preparation has downloaded the cataloged installers into live `Apps`. The current `Default` profile publishes 7-Zip; `All in One` publishes 7-Zip plus Google Chrome Enterprise and Notepad++; `Minimal` publishes no client software. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
 
 The files name the lab-only accounts such as local `davis` and SMB `pxeinstall`, but real passwords must stay outside Git. Keep `config\osdcloud-secrets.json` local, ignored, and inject it into live `boot.wim` during endpoint sync.

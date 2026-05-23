@@ -7,11 +7,48 @@ const repoRoot = path.resolve(moduleDir, '..', '..', '..');
 
 export const defaultRepoRoot = repoRoot;
 export const defaultConfigPath = path.join(repoRoot, 'config', 'osdcloud-console.json');
+export const defaultLocalConfigPath = path.join(repoRoot, 'config', 'osdcloud-console.local.json');
 
-export function loadConfig(configPath = process.env.OSDCLOUD_CONSOLE_CONFIG || defaultConfigPath) {
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function mergeConfig(base, overlay) {
+  if (!overlay || typeof overlay !== 'object' || Array.isArray(overlay)) {
+    return cloneJson(base);
+  }
+  const merged = cloneJson(base);
+  for (const [key, value] of Object.entries(overlay)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && merged[key] && typeof merged[key] === 'object' && !Array.isArray(merged[key])) {
+      merged[key] = mergeConfig(merged[key], value);
+    } else {
+      merged[key] = cloneJson(value);
+    }
+  }
+  return merged;
+}
+
+export function localConfigPathFor(configPath) {
   const resolved = path.resolve(configPath);
-  const config = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+  const parsed = path.parse(resolved);
+  return path.join(parsed.dir, `${parsed.name}.local${parsed.ext || '.json'}`);
+}
+
+export function loadConfig(configPath = process.env.OSDCLOUD_CONSOLE_CONFIG || defaultConfigPath, options = {}) {
+  const resolved = path.resolve(configPath);
+  const baseConfig = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+  const localConfigPath = options.localConfigPath === false
+    ? null
+    : path.resolve(options.localConfigPath ?? process.env.OSDCLOUD_CONSOLE_LOCAL_CONFIG ?? localConfigPathFor(resolved));
+  const localConfig = localConfigPath && fs.existsSync(localConfigPath)
+    ? JSON.parse(fs.readFileSync(localConfigPath, 'utf8'))
+    : null;
+  const config = localConfig ? mergeConfig(baseConfig, localConfig) : baseConfig;
   config.__configPath = resolved;
+  if (localConfigPath) {
+    config.__localConfigPath = localConfigPath;
+    config.__savePath = localConfigPath;
+  }
   validateConfig(config);
   return config;
 }
@@ -22,10 +59,16 @@ function publicConfig(config) {
   );
 }
 
-export function saveConfig(config, configPath = config.__configPath || defaultConfigPath) {
+export function saveConfig(config, configPath = config.__savePath || config.__configPath || defaultConfigPath) {
   const resolved = path.resolve(configPath);
+  fs.mkdirSync(path.dirname(resolved), { recursive: true });
   fs.writeFileSync(resolved, `${JSON.stringify(publicConfig(config), null, 2)}\n`, 'utf8');
-  config.__configPath = resolved;
+  if (config.__savePath || config.__localConfigPath) {
+    config.__savePath = resolved;
+    config.__localConfigPath = resolved;
+  } else {
+    config.__configPath = resolved;
+  }
   validateConfig(config);
   return resolved;
 }

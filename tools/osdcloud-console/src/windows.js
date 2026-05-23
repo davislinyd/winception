@@ -378,6 +378,7 @@ export function resolveEndpointSyncScript(config = {}) {
 export async function syncIpxeEndpoint(config, options = {}) {
   const repoRoot = resolveRepoRoot(config);
   const scriptPath = resolveEndpointSyncScript(config);
+  const effectiveConfigPath = config.__savePath ?? config.__localConfigPath ?? config.__configPath ?? path.join(repoRoot, 'config', 'osdcloud-console.json');
   const shareName = String(config.smb.share).split('\\').filter(Boolean).at(-1) || 'OSDCloudiPXE';
   const args = [
     '-NoProfile',
@@ -386,7 +387,7 @@ export async function syncIpxeEndpoint(config, options = {}) {
     '-File',
     scriptPath,
     '-ConfigPath',
-    config.__configPath,
+    effectiveConfigPath,
     '-InterfaceAlias',
     config.adapter.interfaceAlias,
     '-ServerIp',
@@ -411,6 +412,44 @@ export async function syncIpxeEndpoint(config, options = {}) {
   }
   if (options.hashLargeArtifacts !== false) {
     args.push('-HashLargeArtifacts');
+  }
+
+  const result = await runPowerShell(args, {
+    cwd: repoRoot,
+    onStdout: options.onOutput ? (text) => options.onOutput(text, 'stdout') : undefined,
+    onStderr: options.onOutput ? (text) => options.onOutput(text, 'stderr') : undefined,
+  });
+  return result.stdout.trim();
+}
+
+export async function prepareRuntimeArtifacts(config, options = {}) {
+  const repoRoot = resolveRepoRoot(config);
+  const scriptPath = path.join(repoRoot, 'tools', 'Restore-DeploymentArtifacts.ps1');
+  const effectiveConfigPath = config.__savePath ?? config.__localConfigPath ?? config.__configPath ?? path.join(repoRoot, 'config', 'osdcloud-console.json');
+  const args = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    scriptPath,
+    '-CatalogPath',
+    config.runtimeArtifacts?.catalogPath ?? path.join(repoRoot, 'config', 'runtime-artifacts.json'),
+    '-LiveRoot',
+    config.runtimeArtifacts?.liveRoot ?? 'C:\\OSDCloud',
+    '-ConfigPath',
+    effectiveConfigPath,
+  ];
+  if (options.includeOptional === true) {
+    args.push('-IncludeOptional');
+  }
+  if (options.noAdkAutoInstall === true) {
+    args.push('-NoAdkAutoInstall');
+  }
+  if (options.skipOsImageDownload === true) {
+    args.push('-SkipOsImageDownload');
+  }
+  if (options.skipWinPeBuild === true) {
+    args.push('-SkipWinPeBuild');
   }
 
   const result = await runPowerShell(args, {
