@@ -77,7 +77,7 @@ async function main() {
     if (!catalogItem) {
       throw new Error(
         `Official OSD catalog item not found for ${requested.id}. ` +
-        'Open the Web console OS Image Cache, download/import the active image, or add a direct URL to config/os-image-catalog.json.',
+        'Open the Web console OS Image Cache, download/import the source image, export a WIM, or add a direct URL to config/os-image-catalog.json.',
       );
     }
   }

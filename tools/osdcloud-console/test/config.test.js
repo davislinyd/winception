@@ -89,7 +89,7 @@ test('builds HTTP server config with root driver pack cache settings', () => {
     },
     driverPackCache: {
       enabled: true,
-      root: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\DriverPacks',
+      root: 'C:\\OSDCloud\\Media\\OSDCloud\\DriverPacks',
       allowedHosts: ['downloads.dell.com'],
     },
   };

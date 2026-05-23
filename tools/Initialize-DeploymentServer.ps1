@@ -211,9 +211,9 @@ function Restore-VersionedAssets {
         [Parameter(Mandatory)][string] $TargetRoot
     )
 
-    foreach ($folder in @('Win11-iPXE-Lab')) {
+    foreach ($folder in @('OSDCloud')) {
         $source = Join-Path $AssetsRoot $folder
-        $target = Assert-ChildPath -Root $TargetRoot -Path (Join-Path $TargetRoot $folder) -Label 'live asset path'
+        $target = if ($folder -eq 'OSDCloud') { $TargetRoot } else { Assert-ChildPath -Root $TargetRoot -Path (Join-Path $TargetRoot $folder) -Label 'live asset path' }
         Copy-DirectoryContents -Source $source -Destination $target
     }
 }
@@ -342,7 +342,7 @@ function Get-RepoOnlyRestoreArgs {
 function Get-MissingEndpointRuntimeFiles {
     param([Parameter(Mandatory)][string] $Root)
 
-    $ipxeLab = Join-Path $Root 'Win11-iPXE-Lab'
+    $ipxeLab = $Root
     $required = @(
         'Media\sources\boot.wim',
         'PXE-HttpRoot\osdcloud\boot.wim',
@@ -401,7 +401,7 @@ function Set-FolderReadAccess {
 }
 
 function Ensure-DeploymentSmbShare {
-    $sharePath = Join-ChildPath -Root $liveRootFull -RelativePath 'Win11-iPXE-Lab\Media' -Label 'SMB share path'
+    $sharePath = Join-ChildPath -Root $liveRootFull -RelativePath 'Media' -Label 'SMB share path'
     if (-not (Test-Path -LiteralPath $sharePath -PathType Container)) {
         throw "SMB share path missing: $sharePath"
     }
@@ -457,13 +457,13 @@ function Repair-EndpointRuntimeIfMissing {
     Write-Step "Refreshing runtime files required for endpoint sync"
     Write-Host "Missing endpoint runtime file(s):"
     foreach ($item in $missing) {
-        Write-Host " - Win11-iPXE-Lab\$item"
+        Write-Host " - $item"
     }
     Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Restore-DeploymentArtifacts.ps1') -ArgumentList (Get-RepoOnlyRestoreArgs -SkipPrerequisiteCheck)
 
     $remaining = @(Get-MissingEndpointRuntimeFiles -Root $liveRootFull)
     if ($remaining.Count -gt 0) {
-        throw "Endpoint runtime remains incomplete after restore:`n - Win11-iPXE-Lab\$($remaining -join "`n - Win11-iPXE-Lab\")"
+        throw "Endpoint runtime remains incomplete after restore:`n - $($remaining -join "`n - ")"
     }
 }
 

@@ -38,9 +38,10 @@ http://127.0.0.1:8080
 
 | 階段 | 做什麼 | 不做什麼 |
 | --- | --- | --- |
-| `Setup-DeploymentServer.cmd` | 安裝/檢查 Node/npm、`npm install`、smoke、local secrets、local endpoint overlay、最低 `C:\OSDCloud` 骨架、SMB 帳號/share metadata | 不下載 ADK/WinPE/ESD/MSI，不跑 endpoint sync/preflight，不啟 HTTP/TFTP/DHCP |
-| `Prepare runtime` | 下載或重建 `C:\OSDCloud\Win11-iPXE-Lab` 所需 artifact，包含 OS image、installer payload、iPXE/wimboot/boot binaries、WinPE `boot.wim` | 不自動啟動 deployment services |
-| Endpoint sync / preflight | 把本次 NIC/IP 寫入 live `boot.ipxe`、WinPE `boot.wim`、SMB firewall 與 local overlay，並檢查 runtime 可部署 | 不替你確認外部 LAN DHCP 已關閉 |
+| `Setup-DeploymentServer.cmd` | 檢查 Git/Node/npm、必要時提示安裝 Node.js LTS、執行 `npm install`、`npm run smoke`，最後啟動 `npm run web` | 不建立 `C:\OSDCloud`、不要求 deployment secrets、不建立 SMB、不跑 endpoint sync/preflight、不啟 HTTP/TFTP/DHCP |
+| `Prepare runtime` | 建立 `C:\OSDCloud` 結構、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建 installer payload、iPXE/wimboot/boot binaries、WinPE `boot.wim` | 不自動啟動 deployment services，不替 operator 選 OS image |
+| OS Image Cache / profile publish | 下載或匯入 ISO/ESD/WIM、讀取 DISM indexes、匯出選定 index 成單一 WIM、發佈 `selected-os.json` | 不在 fresh clone 預設固定 Windows 版本 |
+| Endpoint sync / preflight | 把本次 NIC/IP 寫入 live `boot.ipxe`、WinPE `boot.wim`、SMB firewall 與 local overlay，並檢查 runtime / OS WIM 可部署 | 不替你確認外部 LAN DHCP 已關閉 |
 | Start services | operator 明確確認後才啟 HTTP/TFTP/DHCP responders | 不自動開始部署 |
 
 ## 目前狀態
@@ -142,21 +143,17 @@ cd '<repo-root>'
 - Node.js / npm，可執行 ESM 與 `node --test`。若缺少，setup 會詢問是否安裝 Node.js LTS；npm 會隨 Node.js 一起安裝。
 - Windows ADK、Windows PE Add-on、PowerShell OSD / OSDCloud module 後續由 Web `Prepare runtime` 檢查或使用；setup 階段不下載或重建 WinPE。
 - 一張可上網的 host NIC，以及一張服務 PXE client 的隔離 LAN NIC；目前範例為 `WAN` 上網、`LAN` = `192.168.88.1/24`。
-- 本機 `config\osdcloud-secrets.json`；setup 會用安全 prompt 建立或更新這個 ignored 檔案，不會把密碼輸出到 console。
+- 本機 `config\osdcloud-secrets.json` 可等到 Web `Prepare runtime` / endpoint sync 前再建立；setup 不會要求或寫入 deployment secrets。
 
 ### 2. 執行輕量 setup
 
-`Setup-DeploymentServer.cmd` 會開啟系統管理員 PowerShell 並執行 `tools\Setup-DeploymentServer.ps1`。setup 只做主程式安裝與安全必要本機設定：
+`Setup-DeploymentServer.cmd` 直接執行 `tools\Setup-DeploymentServer.ps1`。除非需要安裝 Node.js LTS，setup 不因部署服務要求系統管理員權限；它只做主程式可啟動所需檢查：
 
-- 檢查 elevated PowerShell、repo root、Git working tree 狀態、Node/npm；若缺少 Node/npm，詢問是否安裝 Node.js LTS。
+- 檢查 repo root、Git、Node/npm；若缺少 Node/npm，詢問是否安裝 Node.js LTS。
 - 執行 `npm install` 與輕量 `npm run smoke`，確認 Web 主程式可啟動。
-- 建立或更新 ignored `config\osdcloud-secrets.json`，安全輸入 `davisPassword` 與 `pxeinstallPassword`。
-- 列出 `Get-NetAdapter` / IPv4 狀態，讓 operator 選擇預期 PXE NIC 與 service IP/prefix；setup 只記錄，不自動修改 Windows NIC IP。
-- 建立 `C:\OSDCloud` 與最低目錄骨架，建立/更新本機 `pxeinstall` 帳號與 `OSDCloudiPXE` read-only SMB share。
-- 寫入 ignored `config\osdcloud-console.local.json` 與 `config\deployment-server-setup.local.json`。
 - 啟動 Web console：`npm run web`。
 
-setup 除了 operator 明確同意安裝 Node.js LTS 之外，不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
+setup 除了 operator 明確同意安裝 Node.js LTS 之外，不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會建立 `C:\OSDCloud`、不會建立 SMB share 或本機 `pxeinstall` 帳號、不會要求 deployment secrets、不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
 
 若要非互動測試 setup 行為，可用：
 
@@ -172,12 +169,12 @@ setup 完成後開啟：
 http://127.0.0.1:8080
 ```
 
-Web console 會在 Runtime Readiness 面板顯示 `C:\OSDCloud\Win11-iPXE-Lab` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會開始下載或重建大型 runtime artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。
+Web console 會在 Runtime Readiness 面板顯示 `C:\OSDCloud` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot / installer artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。
 
 Active runtime 只需要：
 
 ```text
-C:\OSDCloud\Win11-iPXE-Lab
+C:\OSDCloud
 ```
 
 `C:\OSDCloud\Win11-Lab` / ISO path 已正式退役，只作為歷史證據描述；新 host 不需要 restore 或 rebuild 這個資料夾。
@@ -187,12 +184,14 @@ C:\OSDCloud\Win11-iPXE-Lab
 Runtime Readiness 若顯示：
 
 ```text
-winpe-boot-wim: size-mismatch C:\OSDCloud\Win11-iPXE-Lab\Media\sources\boot.wim
+winpe-boot-wim: size-mismatch C:\OSDCloud\Media\sources\boot.wim
 ```
 
 意思是目前 live `boot.wim` 檔案存在但大小與 catalog 預期不一致，常見原因是前一次 ADK/OSDCloud build 中斷、檔案殘缺，或 runtime 版本與目前 catalog 不一致。這不是 HTTP/TFTP/DHCP 已啟動，也不是正在部署；它只是提醒 operator 需要在 Web 中重新 `Prepare runtime`，讓 WinPE boot artifact 回到可部署狀態。
 
 Prepare runtime 會使用 committed base `config\osdcloud-console.json` 加上 ignored `config\osdcloud-console.local.json` overlay。local overlay 只保存本機 endpoint/secrets 周邊狀態，不是完整 config；下游工具不應把 `.local.json` 當成完整設定檔。
+
+OS image 不屬於 `Prepare runtime` 的固定預設。fresh clone 可以沒有 `activeImage`、沒有 profile OS image、也沒有 `selected-os.json`；Web 應顯示「尚未選擇 OS image」。operator 需到 `OS Image Cache` 下載或匯入 ISO/ESD/WIM，選擇 DISM image index，讓 Web 匯出成 `C:\OSDCloud\Media\OSDCloud\OS\<selected-image>.wim` 的單一 WIM，再透過 publish 寫出 `selected-os.json`。部署時使用匯出的 WIM index `1`，原始來源檔名與原始 index 保留在 metadata 供查核。
 
 ### 4. 設定本次 PXE service endpoint
 
@@ -216,7 +215,7 @@ setup 選擇的 NIC/IP 會寫入 ignored `config\osdcloud-console.local.json`，
 
 1. `Runtime Readiness` 為 ready；若不是，先按 `Prepare runtime`。
 2. `Endpoint` 顯示本次 service interface/IP、DHCP pool、HTTP base、SMB share 都一致。
-3. `OS Image Cache` 有 active Windows 11 Pro 25H2 zh-TW image，且 preflight 找得到檔案與 DISM index。
+3. `OS Image Cache` 已下載或匯入來源、選定 image index、匯出單一 deployable WIM，且已發佈 `selected-os.json`。
 4. `Active Profile` 是本次要安裝的 client software 組合：`Minimal` 不裝軟體、`Default` 裝 7-Zip、`All in One` 裝 7-Zip + Chrome Enterprise + Notepad++ 8.9.5。
 5. `Run preflight` 全部通過；若 service IP、DHCP pool、OS image、SMB image、HTTP files、profile payload 或 port 檢查失敗，不要啟動 DHCP。
 6. 確認真實 LAN 上沒有另一台 DHCP server 回答測試 client。
@@ -281,8 +280,8 @@ http://127.0.0.1:8080
 單純啟動 Web 版、打開頁面、刷新 Dashboard workbench、讀取 state/status/logs/validation 不會修改 `C:\OSDCloud`。會改 live deployment 狀態的按鈕會要求確認：
 
 - `Select service interface` 會先開啟 endpoint settings drawer 並背景載入 live Windows 介面清單；真正選定並同步 endpoint 時，才會停止 running services、更新 ignored local overlay、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
-- `Select deployment profile` 會停止 running services，依 profile 內 `software` 陣列順序重建 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps` payload，並同步發佈 profile 綁定的 OS image（覆寫 `selected-os.json` 與 SMB image path）。
-- `OS Image Cache` 會下載或匯入 Windows image 到 host cache。OS image 沒有獨立的 active 狀態，所有 cached image 都會在 SMB share 上同時可用；要切換實際 deploy 的 OS，請在 `Deployment Profiles` 編輯 active profile 的 `osImage`，或切換到綁定其他 OS image 的 profile。被任何 profile 引用的 OS image 不能刪除。
+- `Select deployment profile` 會停止 running services，依 profile 內 `software` 陣列順序重建 live `C:\OSDCloud\Media\OSDCloud\Apps` payload，並要求 profile 已綁定可部署 WIM 才能同步發佈 `selected-os.json`。
+- `OS Image Cache` 會下載或匯入 Windows ISO/ESD/WIM 到 host cache，讀取 DISM indexes，讓 operator 選定 index 後匯出成單一 `.wim`。fresh clone 可以沒有 active OS；要切換實際 deploy 的 OS，請先完成匯出，再在 `Deployment Profiles` 編輯 active profile 的 `osImage` 或切換到綁定其他 OS image 的 profile。被任何 profile 引用的 OS image 不能刪除。
 - `Clear status files` 會清除 configured status root 內的 JSON/JSONL/screenshot metadata。
 - `Start DHCP` / `Start all services` 不改檔案，但會讓 host DHCP responder 開始回答 client；只有確認真實 LAN DHCP server 已停用後才執行。
 
@@ -313,8 +312,8 @@ Web Dashboard 主要區塊：
 1. 如需變更服務網卡，先選 `Select service interface`，選擇這次要服務 client 的 NIC，例如 `LAN 192.168.88.1/24`。
 2. Web console 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
 3. 在 Dashboard 的 Preflight Summary 或 Endpoint Sync Progress 看 endpoint update 進度；在 System Log 看同步腳本輸出。
-4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已 cached。需要新版本/語言時，先用 Web download catalog 或 browser upload 在 host 端下載/匯入並驗證；新版起 OS image 不再需要單獨 `Set active`，所有 cached 映像會同時透過 SMB 供應。實際要 deploy 哪一個由下一步的 deployment profile 決定。部署中不讓 WinPE client 下載 Windows。
-5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。每個 profile 同時綁定 client software 清單與一個 OS image，所以 `Set active` 會同時切換 software payload 與 `selected-os.json`。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise + Notepad++ 8.9.5，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單、安裝順序或 OS image，可按列上的 `Edit`（或上方的 `Edit active` 捷徑）：在 `OS image` 下拉換 image、加入/移除軟體、以上移/下移或拖拉調整 `Selected install order`，存檔後 Web console 會立即重新發佈 live `Apps` payload 與 OS manifest。也可以直接對非 active profile 的列按 `Edit` 預先調整其設定；這類非 active 編輯只改寫該 profile 的 JSON，不停服務、不發佈，等之後對該 profile 按 `Set active` 才會把調整好的內容 publish 出去。若 preflight 顯示 `selected manifest stale`，回 `Deployment Profiles` 再對 active profile 按一次 `Set active` 即可重新發佈。
+4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已完成 cache / export。需要新版本或語言時，先用 Web download catalog 或 browser upload 在 host 端下載/匯入來源 ISO/ESD/WIM，選定 DISM image index，匯出成單一 deployable WIM。部署中不讓 WinPE client 下載 Windows。
+5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。每個可部署 profile 必須綁定一個已匯出的 OS WIM，所以 `Set active` 會同時切換 software payload 與 `selected-os.json`。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise + Notepad++ 8.9.5，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單、安裝順序或 OS image，可按列上的 `Edit`（或上方的 `Edit active` 捷徑）：在 `OS image` 下拉換 image、加入/移除軟體、以上移/下移或拖拉調整 `Selected install order`，存檔後 Web console 會立即重新發佈 live `Apps` payload 與 OS manifest。也可以直接對非 active profile 的列按 `Edit` 預先調整其設定；這類非 active 編輯只改寫該 profile 的 JSON，不停服務、不發佈，等之後對該 profile 按 `Set active` 才會把調整好的內容 publish 出去。若 preflight 顯示 `selected manifest stale`，回 `Deployment Profiles` 再對 active profile 按一次 `Set active` 即可重新發佈。
 6. 在 Web console 選 `Run preflight`。
 7. 如果 service IP、DHCP pool、active OS image、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
 8. 確認真實 LAN DHCP server 已暫時關閉。
@@ -401,9 +400,9 @@ TimeZone         : Taipei Standard Time
 iPXE no-redownload 還要確認：
 
 - HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`。
-- HTTP access log 沒有 active OS ESD/WIM `HEAD` / `GET`。
+- HTTP access log 沒有 active OS WIM `HEAD` / `GET`。
 - OSDCloud log 中 `ImageFileUrl` 為空。
-- `ImageFileDestination` 指向 `selected-os.json` 內的 active image，例如 `Z:\OSDCloud\OS\...zh-tw.esd`。
+- `ImageFileDestination` 指向 `selected-os.json` 內的 exported WIM，例如 `Z:\OSDCloud\OS\<selected-image>.wim`。
 - `ImageFileDestination.PSDrive.DisplayRoot` 是當次 service IP 的 SMB share，例如 `\\192.168.88.1\OSDCloudiPXE`。
 - `OSImageIndex` 符合 active image catalog / `selected-os.json`。
 
@@ -414,8 +413,8 @@ iPXE no-redownload 還要確認：
 | Client 沒拿到 IP | DHCP service 是否 running、真實 LAN DHCP 是否衝突、client 是否接到 `LAN` |
 | Client 拿到 IP 但沒有下載 `boot.ipxe` | TFTP `snponly.efi` 是否成功、DHCP 是否在 iPXE 階段回傳 boot URL |
 | Client 拿到 LAN IP 但 HTTP 跑去 WAN | live `boot.ipxe` 的 `set base` 是否仍是舊 IP；在 Web console 重新 `Select service interface` |
-| 有 `boot.ipxe` / `boot.wim` 但不套用 Windows | WinPE 是否掛到 `\\<service-ip>\OSDCloudiPXE`，ESD 是否存在，SMB firewall 是否允許 |
-| HTTP log 出現 zh-TW ESD `HEAD` / `GET` | 可能誤用 `-ImageFileUrl` 或沒有走 SMB direct image |
+| 有 `boot.ipxe` / `boot.wim` 但不套用 Windows | WinPE 是否掛到 `\\<service-ip>\OSDCloudiPXE`，deployable WIM 與 `selected-os.json` 是否存在，SMB firewall 是否允許 |
+| HTTP log 出現 OS WIM `HEAD` / `GET` | 可能誤用 `-ImageFileUrl` 或沒有走 SMB direct image |
 | WinPE 完成後又進 PXE | Client boot order 或一次性 boot menu 沒有回到內部硬碟 |
 | 第一次 Windows boot 停在 OOBE | 檢查 `Invoke-DavisOobe.ps1`、SetupComplete 注入、OOBE registry |
 | Web console 停在 `awaiting-windows` | 檢查 SetupComplete status URL、desktop-ready scheduled task、Windows 網路是否能連回 service IP |
@@ -516,25 +515,25 @@ C:\OSDCloud\Win11-Lab
 iPXE 網路安裝 workspace：
 
 ```text
-C:\OSDCloud\Win11-iPXE-Lab
+C:\OSDCloud
 ```
 
 iPXE HTTP root：
 
 ```text
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
+C:\OSDCloud\PXE-HttpRoot\osdcloud
 ```
 
-實體筆電 iPXE 版 WinPE 使用的 Windows 映像來源由 active OS catalog 發佈成 `selected-os.json`：
+實體筆電 iPXE 版 WinPE 使用的 Windows 映像來源由 Web `OS Image Cache` 匯出的單一 WIM 與 publish 動作發佈成 `selected-os.json`：
 
 ```text
 \\<service-ip>\OSDCloudiPXE\OSDCloud\OS\selected-os.json
-\\<service-ip>\OSDCloudiPXE\OSDCloud\OS\<active-image>.esd
+\\<service-ip>\OSDCloudiPXE\OSDCloud\OS\<selected-image>.wim
 ```
 
 ## 實體筆電 iPXE 流程
 
-這條流程的重點是：實體筆電不需要 USB 或 ISO，直接用 UEFI PXE 啟動 iPXE，再由 iPXE 用 HTTP 載入 OSDCloud WinPE。WinPE 進入後掛載 `\\<service-ip>\OSDCloudiPXE`，讀取 `Z:\OSDCloud\OS\selected-os.json`，直接用該 SMB share 上的 active cached Windows ESD/WIM 與 image index 套用系統，避免每台機器再把 5GB 映像下載到 WinPE 暫存目錄。
+這條流程的重點是：實體筆電不需要 USB 或 ISO，直接用 UEFI PXE 啟動 iPXE，再由 iPXE 用 HTTP 載入 OSDCloud WinPE。WinPE 進入後掛載 `\\<service-ip>\OSDCloudiPXE`，讀取 `Z:\OSDCloud\OS\selected-os.json`，直接用該 SMB share 上由 Web 匯出的單一 Windows WIM index `1` 套用系統，避免每台機器再把 5GB 映像下載到 WinPE 暫存目錄。
 
 端到端流程：
 
@@ -549,8 +548,8 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 9. OSDCloud WinPE 啟動，`Startnet.cmd` 執行 `Initialize-OSDCloudStartnet`，再呼叫 iPXE 專用 `Start-OSDCloud-iPXE.ps1`。
 10. `Start-OSDCloud-iPXE.ps1` 啟動 `Report-OSDCloudProgress.ps1`，定期 POST 部署狀態到 `http://<service-ip>/osdcloud/status`，並在關鍵階段 best-effort 上傳 PNG 截圖到 `/osdcloud/screenshot`。
 11. `Start-OSDCloud-iPXE.ps1` 用 `net use Z: \\<service-ip>\OSDCloudiPXE` 掛載 read-only SMB share。
-12. 腳本讀取 `Z:\OSDCloud\OS\selected-os.json`，把 `$Global:StartOSDCloud.ImageFileDestination` 指向 active cached file，並使用 manifest 內的 image index / language / edition 後呼叫 `Invoke-OSDCloud`。
-13. OSDCloud 直接用 SMB 上的 ESD/WIM 執行 DISM 套用 Windows，不再執行 `Download Operating System` 的 HTTP ESD 下載。
+12. 腳本讀取 `Z:\OSDCloud\OS\selected-os.json`，把 `$Global:StartOSDCloud.ImageFileDestination` 指向 exported WIM，並使用 manifest 內的 image index `1` / language / edition 後呼叫 `Invoke-OSDCloud`。
+13. OSDCloud 直接用 SMB 上的 WIM 執行 DISM 套用 Windows，不再執行 `Download Operating System` 的 HTTP OS image 下載。
 14. WinPE Shutdown script `Invoke-DavisOobe.ps1` 對新 Windows 離線注入：
     - `Unattend.xml`
     - OOBE skip registry
@@ -564,20 +563,20 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud
 
 目前實作中特別重要的限制：
 
-- iPXE no-redownload 模式不能使用 `-ImageFileUrl`，因為 OSDCloud 會先把 ESD 下載到 WinPE 暫存位置。現在改由 WinPE 掛載 SMB share，設定 `$Global:StartOSDCloud.ImageFileDestination` 為 ESD `FileInfo` 後呼叫 `Invoke-OSDCloud`。
-- Windows 映像取得只在 host/Admin Console 執行。Web `OS Image Cache` 可從官方 OSD module catalog、受控自訂 catalog `config\os-download-sources.json`，或 browser upload `.iso` / `.esd` / `.wim` 匯入。下載/匯入會先寫入 `.downloads\<job-id>.download`，完成 hash/DISM index 驗證後才移入 `Media\OSDCloud\OS` 並更新 catalog；成功後不自動切 active，只有 `Set active` 或 active row 的 `Republish` 會發布 `selected-os.json` 並更新 SMB image path，失敗或取消不會覆蓋既有 active image。
-- 自訂下載來源必須放在 repo 管理的 `config\os-download-sources.json`，且每筆都要有 `id`、版本/語言/edition metadata、`.esd` 或 `.wim` URL、`fileName`、`imageIndex` 與 `sha256`。URL host 必須列在 `allowedHosts`；v1 不接受任意 URL 輸入。
-- Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host console 再自行從官方 URL 下載到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
-- Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
-- Client app payload 由 Web deployment profile 發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 的 `selectedSoftware` 順序只安裝被選中的軟體。Installer payload 不進 Git，Web runtime preparation 依 `config\runtime-artifacts.json` 下載並驗證。目前 `Default` profile 發佈 `7zip\7z2601-x64.msi`，`All in One` profile 發佈 7-Zip、`chrome\googlechromestandaloneenterprise64.msi` 與 `SW-4UT7PDID\npp.8.9.5.Installer.x64.msi`（Notepad++ 8.9.5），`Minimal` profile 不安裝 client software。
-- Custom script payload 由同一個 deployment profile 一起發佈到 `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Scripts`，WinPE shutdown 會把 sibling `Scripts` 子樹同步複製到 client `C:\ProgramData\OSDCloud\Scripts`。`Install-Apps.ps1` 會讀 `selected-profile.json` 的 `customScripts` 陣列，先執行 `phase: 'before'` 的 `Scripts\<id>\run.ps1`、再跑 app 安裝、最後執行 `phase: 'after'` 的 scripts。每支 custom script 都會留下獨立 log：`C:\Windows\Temp\osdcloud-logs\custom-scripts\<scriptId>-<phase>-<timestamp>.log`，並彙總到 `C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`；失敗或缺檔會繼續後續項目但最後讓 `Install-Apps.ps1` 失敗。沒有勾選 custom script 的 profile 仍維持原本只跑 app 的行為。
+- iPXE no-redownload 模式不能使用 `-ImageFileUrl`，因為 OSDCloud 會先把 OS image 下載到 WinPE 暫存位置。現在改由 WinPE 掛載 SMB share，設定 `$Global:StartOSDCloud.ImageFileDestination` 為 exported WIM `FileInfo` 後呼叫 `Invoke-OSDCloud`。
+- Windows 映像取得只在 host/Admin Console 執行。Web `OS Image Cache` 可從官方 OSD module catalog、受控自訂 catalog `config\os-download-sources.json`，或 browser upload `.iso` / `.esd` / `.wim` 匯入。下載/匯入會先寫入 `.downloads\<job-id>.download`，完成 hash/DISM index 驗證後，operator 選定 image index，Web 再匯出成 `Media\OSDCloud\OS\<selected-image>.wim` 並更新 catalog。publish 會產生 `selected-os.json`，部署固定使用 exported WIM 的 index `1`；source file name / source image index / source hash 會保留在 metadata。
+- 自訂下載來源必須放在 repo 管理的 `config\os-download-sources.json`，且每筆都要有 `id`、版本/語言/edition metadata、`.esd` 或 `.wim` URL、`fileName`、`imageIndex` 與 `sha256`。URL host 必須列在 `allowedHosts`；v1 不接受任意 URL 輸入。來源 image index 是匯出來源；發佈後 deployable WIM index 統一是 `1`。
+- Driver pack 採 host-first cache：OSDCloud 先用原生離線搜尋檢查 `Z:\OSDCloud\DriverPacks\<catalog FileName>`；若 host SMB cache 沒有對應檔案，才由 OSDCloud 原生流程從官方來源下載到 client `C:\Drivers` 並套用。Windows `SetupComplete` 只回報 `C:\Drivers\*.json` metadata，host console 再自行從官方 URL 下載到 `C:\OSDCloud\Media\OSDCloud\DriverPacks`，主 SMB share 維持 read-only。
+- Driver pack cache v1 只允許純檔名與 `.exe` / `.cab` / `.zip` / `.msi`，且官方下載 host 預設只允許 `downloads.dell.com`。host 不覆寫既有 cache 檔案，結果記錄在 `C:\OSDCloud\Media\OSDCloud\DriverPacks\driverpack-cache.jsonl`。
+- Client app payload 由 Web deployment profile 發佈到 `C:\OSDCloud\Media\OSDCloud\Apps`。WinPE shutdown 會複製已發佈 payload 到 client `C:\ProgramData\OSDCloud\Apps`，SetupComplete 再執行 `Install-Apps.ps1` 並依 `selected-profile.json` 的 `selectedSoftware` 順序只安裝被選中的軟體。Installer payload 不進 Git，Web runtime preparation 依 `config\runtime-artifacts.json` 下載並驗證。目前 `Default` profile 發佈 `7zip\7z2601-x64.msi`，`All in One` profile 發佈 7-Zip、`chrome\googlechromestandaloneenterprise64.msi` 與 `SW-4UT7PDID\npp.8.9.5.Installer.x64.msi`（Notepad++ 8.9.5），`Minimal` profile 不安裝 client software。
+- Custom script payload 由同一個 deployment profile 一起發佈到 `C:\OSDCloud\Media\OSDCloud\Scripts`，WinPE shutdown 會把 sibling `Scripts` 子樹同步複製到 client `C:\ProgramData\OSDCloud\Scripts`。`Install-Apps.ps1` 會讀 `selected-profile.json` 的 `customScripts` 陣列，先執行 `phase: 'before'` 的 `Scripts\<id>\run.ps1`、再跑 app 安裝、最後執行 `phase: 'after'` 的 scripts。每支 custom script 都會留下獨立 log：`C:\Windows\Temp\osdcloud-logs\custom-scripts\<scriptId>-<phase>-<timestamp>.log`，並彙總到 `C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`；失敗或缺檔會繼續後續項目但最後讓 `Install-Apps.ps1` 失敗。沒有勾選 custom script 的 profile 仍維持原本只跑 app 的行為。
 - 測試時真實環境 DHCP server 必須暫時關閉，避免和本機 PXE DHCP responder 衝突。
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
 - VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
 
 自行新增 client 軟體與 profile：
 
-日常操作優先用 Web console：開 `Profiles`，在 `Software Catalog` 區塊選 `Add software`，上傳單一 `.msi` 或 `.exe`。Web console 會產生安全亂數 software id、建立 `Softwares\<software-id>`、寫入 ignored installer payload 與 `install.ps1`、更新 `config\software-catalog.json`，並顯示 installer size / SHA256。這一步只加入 catalog，不會自動加入 active profile，也不會發佈 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。正式交接前需把可重下載來源補到 `config\runtime-artifacts.json`；不要提交 installer payload。Catalog row 的 `View` 可檢視 installer 檔、silent 參數、success exit codes、verify path / verification mode、source path 與套用到哪些 profiles；若 Script mode 是 `custom install.ps1`，可點擊該文字開啟唯讀 script viewer，查看檔案位置與 PowerShell 內容，或用 `Open with...` 在外部編輯器開啟 repo 內的 `install.ps1`。`Open with...` 會先要求 Windows 顯示 Open With chooser，若 chooser 啟動失敗會 fallback 到系統預設開啟方式，並在 dialog 內顯示送出或錯誤結果；Web UI 本身仍不提供 inline 編輯。
+日常操作優先用 Web console：開 `Profiles`，在 `Software Catalog` 區塊選 `Add software`，上傳單一 `.msi` 或 `.exe`。Web console 會產生安全亂數 software id、建立 `Softwares\<software-id>`、寫入 ignored installer payload 與 `install.ps1`、更新 `config\software-catalog.json`，並顯示 installer size / SHA256。這一步只加入 catalog，不會自動加入 active profile，也不會發佈 live `C:\OSDCloud\Media\OSDCloud\Apps`。正式交接前需把可重下載來源補到 `config\runtime-artifacts.json`；不要提交 installer payload。Catalog row 的 `View` 可檢視 installer 檔、silent 參數、success exit codes、verify path / verification mode、source path 與套用到哪些 profiles；若 Script mode 是 `custom install.ps1`，可點擊該文字開啟唯讀 script viewer，查看檔案位置與 PowerShell 內容，或用 `Open with...` 在外部編輯器開啟 repo 內的 `install.ps1`。`Open with...` 會先要求 Windows 顯示 Open With chooser，若 chooser 啟動失敗會 fallback 到系統預設開啟方式，並在 dialog 內顯示送出或錯誤結果；Web UI 本身仍不提供 inline 編輯。
 
 1. Web `Add software` 的欄位：
 
@@ -632,7 +631,7 @@ if ($process.ExitCode -ne 0) {
 ```
 
 6. 每個 installer 的 silent 參數可能不同；先查該軟體官方文件或用 installer help 確認。常見參數有 `/quiet /norestart`、`/S`、`/silent`、`/verysilent`。
-7. 在 `config\software-catalog.json` 新增軟體 id/name/source、installer file name、size、SHA-256 與 download URL，並在 `config\runtime-artifacts.json` 新增對應 download recipe。不要提交 `.msi` / `.exe` payload；Web runtime preparation 會下載到 `.downloads` staging，驗證成功才放進 repo-local ignored `Softwares\<id>` 與 live `C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\Apps`。
+7. 在 `config\software-catalog.json` 新增軟體 id/name/source、installer file name、size、SHA-256 與 download URL，並在 `config\runtime-artifacts.json` 新增對應 download recipe。不要提交 `.msi` / `.exe` payload；Web runtime preparation 會下載到 `.downloads` staging，驗證成功才放進 repo-local ignored `Softwares\<id>` 與 live `C:\OSDCloud\Media\OSDCloud\Apps`。
 8. 如需建立另一個 profile，可用 `Add deployment profile` 輸入 name；新 profile 會由主控端產生 8 碼 id，複製目前 active profile 的 `software` 清單與順序，但不會切換 active profile，也不會發佈。`Delete deployment profile` 只能刪除非 active profile；若要刪目前 active profile，先用 `Select deployment profile` 切到其他 profile。
 9. 只新增 catalog 軟體不需要重建或重新 commit `boot.wim`；只有真正發佈 profile 後，既有 WinPE shutdown 才會複製已發佈的 `OSDCloud\Apps`。
 10. 提交 repo source。若本次只是新增 catalog 軟體且尚未發佈 profile，不需要同步 `osdcloud-assets`；若已發佈 live `Apps` payload 或改到部署 runtime，再執行 `Sync-OsdCloudAssets.ps1`：
@@ -659,7 +658,7 @@ custom script 是「在部署流程中要跑、但又不是傳統 MSI/EXE 安裝
 5. Custom Script Catalog row 的 `View` 會打開唯讀檢視器顯示 `run.ps1` 內容與磁碟位置；`Delete` 只允許刪除未被任何 profile 引用的 script，被引用時必須先到 profile editor 解除勾選並存檔才能刪。
 6. Custom scripts 在 Windows `SetupComplete` 階段由 SYSTEM 執行；`[Environment]::GetFolderPath('Desktop')` 會解析到 `C:\Users\Public\Desktop`。若腳本要寫入目標使用者桌面，請使用部署流程提供的 `$env:OSDCloudTargetDesktopPath`；當 `davis` profile 已存在時它會指向 `C:\Users\davis\Desktop`，若尚未第一次登入則會指向 `C:\Users\Default\Desktop`，讓 Windows 建立新 profile 時帶入。相關欄位還包括 `$env:OSDCloudTargetUser` 與 `$env:OSDCloudTargetProfilePath`。
 7. 手動 fallback（不建議）：在 repo 直接建立 `Scripts\<SC-XXX>\run.ps1` 並把該 id 加進 `config\scripts-catalog.json` 的 `scripts` 陣列（欄位：`id`、`name`、`source`、`fileName`、`defaultPhase`、`bytes`、`sha256`），同樣可以被 profile 引用。
-8. `Install-Apps.ps1` 會為每支 `run.ps1` 在 client 端建立獨立執行 log 與 summary：`C:\Windows\Temp\osdcloud-logs\custom-scripts\<scriptId>-<phase>-<timestamp>.log`、`C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`，並保留整體 transcript `C:\Windows\Temp\osdcloud-logs\apps-install.log`。這些 stdout/stderr log 目前不會自動回傳到 host 的 `C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status`；Web console 只會看到 `windows-apps-start`、`windows-apps-finished` 或錯誤 stage。Summary 記錄 start/end、phase、script path、exit code 或 exception、duration。`run.ps1` 仍應設定 `$ErrorActionPreference = 'Stop'`，並在需要時寫自己的細節 log；throw 或非 0 exit code 會被 runner 標記為 failed，缺少 `run.ps1` 會被標記為 missing。若中文 `Write-Host` 在 redirected log 內顯示亂碼，通常是 Windows PowerShell stdout/stderr redirect encoding 問題；要保留可讀中文內容時，腳本應自行用 `[System.IO.File]::WriteAllText(..., [System.Text.Encoding]::UTF8)` 或明確 `-Encoding UTF8` 寫入自己的 log/輸出檔。範例（建立暫存防火牆規則）：
+8. `Install-Apps.ps1` 會為每支 `run.ps1` 在 client 端建立獨立執行 log 與 summary：`C:\Windows\Temp\osdcloud-logs\custom-scripts\<scriptId>-<phase>-<timestamp>.log`、`C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`，並保留整體 transcript `C:\Windows\Temp\osdcloud-logs\apps-install.log`。這些 stdout/stderr log 目前不會自動回傳到 host 的 `C:\OSDCloud\PXE-HttpRoot\status`；Web console 只會看到 `windows-apps-start`、`windows-apps-finished` 或錯誤 stage。Summary 記錄 start/end、phase、script path、exit code 或 exception、duration。`run.ps1` 仍應設定 `$ErrorActionPreference = 'Stop'`，並在需要時寫自己的細節 log；throw 或非 0 exit code 會被 runner 標記為 failed，缺少 `run.ps1` 會被標記為 missing。若中文 `Write-Host` 在 redirected log 內顯示亂碼，通常是 Windows PowerShell stdout/stderr redirect encoding 問題；要保留可讀中文內容時，腳本應自行用 `[System.IO.File]::WriteAllText(..., [System.Text.Encoding]::UTF8)` 或明確 `-Encoding UTF8` 寫入自己的 log/輸出檔。範例（建立暫存防火牆規則）：
 
 ```powershell
 $ErrorActionPreference = 'Stop'
@@ -732,15 +731,15 @@ VM 回歸注意事項：
 OSDCloud 進度回報會由 Node HTTP server 接收，並寫入：
 
 ```text
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest.json
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-summary.json
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.summary.json
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\runs-index.json
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\deployment-runs.jsonl
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\latest-screenshot.json
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\<runId>.screenshots.jsonl
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\screenshots\<runId>\*.png
+C:\OSDCloud\PXE-HttpRoot\status\latest.json
+C:\OSDCloud\PXE-HttpRoot\status\progress.jsonl
+C:\OSDCloud\PXE-HttpRoot\status\latest-summary.json
+C:\OSDCloud\PXE-HttpRoot\status\<runId>.summary.json
+C:\OSDCloud\PXE-HttpRoot\status\runs-index.json
+C:\OSDCloud\PXE-HttpRoot\status\deployment-runs.jsonl
+C:\OSDCloud\PXE-HttpRoot\status\latest-screenshot.json
+C:\OSDCloud\PXE-HttpRoot\status\<runId>.screenshots.jsonl
+C:\OSDCloud\PXE-HttpRoot\status\screenshots\<runId>\*.png
 ```
 
 WinPE reporter 目前每 `3` 秒檢查一次部署 log；若階段訊息沒有變化，至少每 `15` 秒送出 heartbeat。Host console 會把每次部署整理成 run summary，明確記錄 `run-start`、`winpe-end`、`windows-start`、`run-end` 或 `run-failed`。
@@ -818,7 +817,7 @@ Internet    : ping 1.1.1.1, DNS, and msftconnecttest all passed
 可用下列方式即時監看：
 
 ```powershell
-Get-Content -Wait 'C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\status\progress.jsonl'
+Get-Content -Wait 'C:\OSDCloud\PXE-HttpRoot\status\progress.jsonl'
 ```
 
 ## Host Console 操作台
@@ -832,7 +831,7 @@ npm run web
 
 預設 URL 是 `http://127.0.0.1:8080`。Web 版是完整 operator console，負責 endpoint、OS image cache、deployment profile、service control、status/log/validation。PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議維持相容；OS image cache 會透過 `selected-os.json` 影響 WinPE deployment script 選用哪個 cached image。
 
-Web console 目前是單一 workbench。桌面版左上 `Operations` 放日常操作入口；中間上方顯示 endpoint summary、Runtime Readiness、Endpoint Sync Progress、active OS image、active profile 與 HTTP/TFTP/DHCP service cards；`Preflight Summary` 與 `Client Fleet` 橫跨左側 Operations 欄和中間主欄下方，避免左下角留下整欄空白；右側是 `System Log`。窄版畫面維持上下堆疊。`Runtime Readiness` 允許 Web 在 `boot.wim`、OS image、installer payload 尚未就緒時正常啟動，operator 明確按 `Prepare runtime` 後才會下載或重建大型 artifact。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Profiles` drawer 內含 profile 管理與 `Software Catalog`；`Add software` 可上傳單一 MSI/EXE，建立 ignored repo-local `Softwares\<id>` installer payload 與 catalog entry，但不會自動加入 active profile 或發佈 live `Apps`；`Edit active` 會用 `Selected install order` 管理該 profile 的 per-profile 安裝順序。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可手動切換 active cached image，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯入 cache。Active cached image row 保留 `Republish` 動作，可在 active image 已正確但 `selected-os.json` / SMB image path stale 時重新發布 manifest；其他 cached image 使用 `Set active` 切換並發布。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍；failed row hover 會用原生 tooltip 顯示 `How to fix:` 建議，例如 `selected manifest stale` 會提示到 `OS images` 對 active image 執行 `Republish`，再重跑 `Run preflight`。`System Log` 只有在 operator 已經停在底部時才會隨新增訊息自動跟到底；如果 operator 往上捲動閱讀舊訊息，refresh 或新 log 不會改變目前閱讀位置。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
+Web console 目前是單一 workbench。桌面版左上 `Operations` 放日常操作入口；中間上方顯示 endpoint summary、Runtime Readiness、Endpoint Sync Progress、active OS image、active profile 與 HTTP/TFTP/DHCP service cards；`Preflight Summary` 與 `Client Fleet` 橫跨左側 Operations 欄和中間主欄下方，避免左下角留下整欄空白；右側是 `System Log`。窄版畫面維持上下堆疊。`Runtime Readiness` 允許 Web 在 `boot.wim`、OS image、installer payload 尚未就緒時正常啟動，operator 明確按 `Prepare runtime` 後才會下載或重建大型 artifact。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Profiles` drawer 內含 profile 管理與 `Software Catalog`；`Add software` 可上傳單一 MSI/EXE，建立 ignored repo-local `Softwares\<id>` installer payload 與 catalog entry，但不會自動加入 active profile 或發佈 live `Apps`；`Edit active` 會用 `Selected install order` 管理該 profile 的 per-profile 安裝順序。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可查看已匯出的 cached WIM，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯出 WIM。`Deployment Profiles` 的 publish / Set active 會發布 `selected-os.json`；若 manifest stale，回 Profiles 重新 Set active 或編輯 active profile 後存檔。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍；failed row hover 會用原生 tooltip 顯示 `How to fix:` 建議，例如 `selected manifest stale` 會提示到 `OS images` 對 active image 執行 `Republish`，再重跑 `Run preflight`。`System Log` 只有在 operator 已經停在底部時才會隨新增訊息自動跟到底；如果 operator 往上捲動閱讀舊訊息，refresh 或新 log 不會改變目前閱讀位置。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
 
 Operations 的視覺語意固定如下：`Run preflight` 是中性 outline 診斷動作，不使用藍色 primary；`Sync endpoint`、profile/OS `Set active`、OS image `Republish`、OS image download/import 使用 warning，表示會修改 live config/cache 但不是破壞性；`Start DHCP`、`Start all services`、`Clear status files`、delete 類動作使用 danger。狀態色只用於結果：running/ready 用綠色，blocked/error 用紅色，review/working 用黃色，stopped/idle/not run 用中性。
 
@@ -918,7 +917,7 @@ npm run smoke
 - `docs\history\TUI-REWRITE-PLAN.md`
 - `osdcloud-assets\README.md`
 - `osdcloud-assets\manifest.json`
-- `osdcloud-assets\Win11-iPXE-Lab\...`
+- `osdcloud-assets\OSDCloud\...`
 - `.gitignore`
 
 當 `C:\OSDCloud` 內的部署腳本、PXE helper、`boot.ipxe` 或 iPXE `boot.wim` 內容改變時，先同步再提交：
@@ -935,7 +934,7 @@ npm run smoke
 
 這個 helper 會同步 config、DHCP pool / mask / router、live PXE endpoint、WinPE 內嵌 status/SMB endpoint、published `boot.wim`，最後再刷新 `osdcloud-assets` mirror。
 
-iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Win11-iPXE-Lab\Config\Scripts\SetupComplete`，也必須確認 `boot.wim` 內的 `X:\OSDCloud\Config\Scripts\SetupComplete` 已同步；否則 client 仍會注入舊版 SetupComplete，Web console 會停在 `awaiting-windows` / `rebooting`，收不到 `windows-setupcomplete-*` 或 `windows-desktop-ready`。
+iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Config\Scripts\SetupComplete`，也必須確認 `boot.wim` 內的 `X:\OSDCloud\Config\Scripts\SetupComplete` 已同步；否則 client 仍會注入舊版 SetupComplete，Web console 會停在 `awaiting-windows` / `rebooting`，收不到 `windows-setupcomplete-*` 或 `windows-desktop-ready`。
 
 `OSDCloudDesktopReadyReport` 使用 any-user logon trigger 並以 SYSTEM 執行。不要把 scheduled task trigger 綁到 `$env:COMPUTERNAME\davis`；SetupComplete 階段可能尚無法穩定解析本機帳號 SID，會造成 `HRESULT 0x80070534`，導致 Web console 停在 `windows-setupcomplete-finished`。
 
@@ -977,11 +976,11 @@ ISO VM 還要確認：
 實體筆電部署還要確認：
 
 - 測試筆電沒有使用 USB/ISO
-- HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`，且沒有 active OS ESD/WIM `HEAD` / `GET`
+- HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`，且沒有 active OS WIM `HEAD` / `GET`
 - `C:\OSDCloud\Logs\OSDCloud.json` 的 `ImageFileUrl` 為空
-- `ImageFileDestination` / `ExpandWindowsImage.ImagePath` 指向 `selected-os.json` 內的 active cached file，例如 `Z:\OSDCloud\OS\...zh-tw.esd`
+- `ImageFileDestination` / `ExpandWindowsImage.ImagePath` 指向 `selected-os.json` 內的 exported WIM，例如 `Z:\OSDCloud\OS\<selected-image>.wim`
 - `ImageFileDestination.PSDrive.DisplayRoot` 為目前實體 endpoint 的 SMB share，例如 `\\<service-ip>\OSDCloudiPXE`
-- `OSImageIndex` 符合 active OS catalog / `selected-os.json`
+- `OSImageIndex` 為 exported WIM index `1`，並符合 `selected-os.json`
 - 硬碟第一次開機直接進入 `davis` 桌面，不停在 OOBE
 
 ## VM VM 驗證重點
@@ -991,9 +990,9 @@ VM 回歸完成後，應確認：
 - VM 網卡接在 `vSwitch`
 - VM endpoint 使用 `192.168.100.1`
 - HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`
-- 本次 run window 沒有 zh-TW ESD `HEAD` / `GET`
+- 本次 run window 沒有 active OS WIM `HEAD` / `GET`
 - `DeploymentStatus.share` 為 `\\192.168.100.1\OSDCloudiPXE`
-- `DeploymentStatus.imagePath` 指向 `Z:\OSDCloud\OS\...zh-tw.esd`
+- `DeploymentStatus.imagePath` 指向 `Z:\OSDCloud\OS\<selected-image>.wim`
 - `windows-desktop-ready` 回報成功
 - PowerShell Direct 驗證 `DESKTOP-...\davis`、Explorer、OOBE registry、版本、語系、時區、網路
 

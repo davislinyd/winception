@@ -116,7 +116,7 @@ test('resolves relative deployment profile paths from derived repo root by defau
       profilesRoot: 'config\\deployment-profiles',
       softwareCatalogPath: 'config\\software-catalog.json',
       softwareSourceRoot: 'Softwares',
-      appsRoot: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps',
+      appsRoot: 'C:\\OSDCloud\\Media\\OSDCloud\\Apps',
       installerScript: 'Softwares\\Install-Apps.ps1',
     },
   });
@@ -125,7 +125,7 @@ test('resolves relative deployment profile paths from derived repo root by defau
   assert.equal(options.softwareCatalogPath, path.resolve('config\\software-catalog.json'));
   assert.equal(options.softwareSourceRoot, path.resolve('Softwares'));
   assert.equal(options.installerScript, path.resolve('Softwares\\Install-Apps.ps1'));
-  assert.equal(options.appsRoot, path.resolve('C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps'));
+  assert.equal(options.appsRoot, path.resolve('C:\\OSDCloud\\Media\\OSDCloud\\Apps'));
 });
 
 test('rejects duplicate software ids', () => {

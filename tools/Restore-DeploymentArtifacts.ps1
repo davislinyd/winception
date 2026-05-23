@@ -742,27 +742,25 @@ function Ensure-OsdCloudWorkspace {
         return
     }
     if ($DryRun) {
-        Write-Host "[dry-run] create/update OSDCloud workspace at $LiveRoot\Win11-iPXE-Lab"
+        Write-Host "[dry-run] create/update OSDCloud workspace at $LiveRoot"
         return
     }
 
-    $ipxeLab = Join-Path $LiveRoot 'Win11-iPXE-Lab'
-    New-Item -ItemType Directory -Path $ipxeLab -Force | Out-Null
+    New-Item -ItemType Directory -Path $LiveRoot -Force | Out-Null
     $templatePath = Ensure-OsdCloudTemplate
     Write-Host "Building OSDCloud workspace from template: $templatePath"
-    New-OSDCloudWorkspace -WorkspacePath $ipxeLab -Public | Out-Null
-    Set-OSDCloudWorkspace -WorkspacePath $ipxeLab | Out-Null
+    New-OSDCloudWorkspace -WorkspacePath $LiveRoot -Public | Out-Null
+    Set-OSDCloudWorkspace -WorkspacePath $LiveRoot | Out-Null
 
-    $workspaceBootWim = Join-Path $ipxeLab 'Media\sources\boot.wim'
+    $workspaceBootWim = Join-Path $LiveRoot 'Media\sources\boot.wim'
     if (-not (Test-Path -LiteralPath $workspaceBootWim -PathType Leaf)) {
         throw "OSDCloud workspace build did not produce required boot.wim: $workspaceBootWim"
     }
 }
 
 function Publish-BootFiles {
-    $ipxeLab = Join-Path $LiveRoot 'Win11-iPXE-Lab'
-    $mediaRoot = Join-Path $ipxeLab 'Media'
-    $httpRoot = Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud'
+    $mediaRoot = Join-Path $LiveRoot 'Media'
+    $httpRoot = Join-Path $LiveRoot 'PXE-HttpRoot\osdcloud'
     $files = @(
         @{ Source = 'sources\boot.wim'; Target = 'boot.wim' },
         @{ Source = 'bootmgr'; Target = 'bootmgr' },
@@ -787,9 +785,125 @@ function Publish-BootFiles {
 }
 
 function Restore-VersionedAssets {
-    $source = Join-Path $RepoRoot 'osdcloud-assets\Win11-iPXE-Lab'
-    $target = Join-Path $LiveRoot 'Win11-iPXE-Lab'
+    $source = Join-Path $RepoRoot 'osdcloud-assets\OSDCloud'
+    $target = $LiveRoot
     Copy-DirectoryContents -Source $source -Destination $target
+}
+
+function Get-ConfiguredSmbShareName {
+    try {
+        $config = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
+        $share = [string] $config.smb.share
+        if ($share -match '^\\\\[^\\]+\\([^\\]+)$') {
+            return $Matches[1]
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string] $config.smb.shareName)) {
+            return [string] $config.smb.shareName
+        }
+    }
+    catch {
+    }
+    'OSDCloudiPXE'
+}
+
+function Get-DeploymentSecrets {
+    $candidates = @(
+        (Join-Path $RepoRoot 'config\osdcloud-secrets.json'),
+        (Join-Path $LiveRoot 'secrets.json'),
+        (Join-Path $LiveRoot 'Config\secrets.json')
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return Get-Content -Raw -LiteralPath $candidate | ConvertFrom-Json
+        }
+    }
+    $envPxe = [Environment]::GetEnvironmentVariable('OSDCLOUD_PXEINSTALL_PASSWORD')
+    if (-not [string]::IsNullOrWhiteSpace($envPxe)) {
+        return [pscustomobject]@{ pxeinstallPassword = $envPxe }
+    }
+    $null
+}
+
+function Set-FolderReadAccess {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $AccountName
+    )
+
+    $acl = Get-Acl -LiteralPath $Path
+    $rights = [System.Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
+        [System.Security.AccessControl.FileSystemRights]::Synchronize
+    $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+        $AccountName,
+        $rights,
+        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
+        [System.Security.AccessControl.PropagationFlags]::None,
+        [System.Security.AccessControl.AccessControlType]::Allow
+    )
+    $acl.SetAccessRule($rule)
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+function Ensure-RuntimeSkeletonAndShare {
+    $mediaRoot = Join-Path $LiveRoot 'Media'
+    $folders = @(
+        (Join-Path $mediaRoot 'OSDCloud\OS'),
+        (Join-Path $mediaRoot 'OSDCloud\Apps'),
+        (Join-Path $mediaRoot 'OSDCloud\Scripts'),
+        (Join-Path $mediaRoot 'OSDCloud\DriverPacks'),
+        (Join-Path $LiveRoot 'PXE-HttpRoot\osdcloud'),
+        (Join-Path $LiveRoot 'PXE-TFTP\ipxeboot\x86_64-sb'),
+        (Join-Path $LiveRoot 'Config\Scripts\Shutdown'),
+        (Join-Path $LiveRoot 'Config\Scripts\SetupComplete'),
+        (Join-Path $LiveRoot 'Tools'),
+        (Join-Path $LiveRoot 'TimingRuns')
+    )
+    if ($DryRun) {
+        Write-Host "[dry-run] create flat C:\OSDCloud runtime skeleton"
+        Write-Host "[dry-run] create/update pxeinstall and SMB share $(Get-ConfiguredSmbShareName) at $mediaRoot"
+        return
+    }
+
+    New-Item -ItemType Directory -Path $folders -Force | Out-Null
+
+    $shareName = Get-ConfiguredSmbShareName
+    $smbUserName = 'pxeinstall'
+    $secrets = Get-DeploymentSecrets
+    $password = [string] $secrets.pxeinstallPassword
+    if ([string]::IsNullOrWhiteSpace($password)) {
+        throw "Missing pxeinstallPassword. Create ignored config\osdcloud-secrets.json or set OSDCLOUD_PXEINSTALL_PASSWORD before Web Prepare runtime can create the SMB share."
+    }
+
+    $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+    $localAccount = "$env:COMPUTERNAME\$smbUserName"
+    $user = Get-LocalUser -Name $smbUserName -ErrorAction SilentlyContinue
+    if ($user) {
+        Set-LocalUser -Name $smbUserName -Password $securePassword -PasswordNeverExpires $true
+        Enable-LocalUser -Name $smbUserName
+    }
+    else {
+        New-LocalUser -Name $smbUserName -Password $securePassword -Description 'OSDCloud WinPE SMB read-only account' -PasswordNeverExpires | Out-Null
+    }
+
+    Set-FolderReadAccess -Path $mediaRoot -AccountName $localAccount
+    $share = Get-SmbShare -Name $shareName -ErrorAction SilentlyContinue
+    if ($share -and -not ([string] $share.Path).Equals($mediaRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Remove-SmbShare -Name $shareName -Force
+        $share = $null
+    }
+    if (-not $share) {
+        New-SmbShare -Name $shareName -Path $mediaRoot -ReadAccess $localAccount -CachingMode None -FolderEnumerationMode AccessBased | Out-Null
+    }
+    else {
+        $existingAccess = @(Get-SmbShareAccess -Name $shareName -ErrorAction Stop | Where-Object {
+            $_.AccountName -eq $localAccount -and
+            $_.AccessControlType -eq 'Allow' -and
+            $_.AccessRight -in @('Read', 'Change', 'Full')
+        })
+        if ($existingAccess.Count -eq 0) {
+            Grant-SmbShareAccess -Name $shareName -AccountName $localAccount -AccessRight Read -Force | Out-Null
+        }
+    }
 }
 
 function Restore-OsImageArtifact {
@@ -809,7 +923,7 @@ function Restore-OsImageArtifact {
         throw "OS catalog artifact $($Artifact.id) must include osImageId"
     }
     if ($DryRun) {
-        Write-Host "[dry-run] download/publish active OS image $($Artifact.osImageId) through OSD catalog"
+        Write-Host "[dry-run] download/import and export OS image $($Artifact.osImageId) through Web OS Image Cache helpers"
         return
     }
     Invoke-ExternalCommand -FilePath 'node' -ArgumentList @(
@@ -840,6 +954,9 @@ try {
     Write-Step "Reading runtime artifact catalog"
     $artifacts = @(Read-RuntimeCatalog -Path $CatalogPath | Where-Object { $_.required -ne $false -or $IncludeOptional })
     Write-Host "Catalog artifacts selected: $($artifacts.Count)"
+
+    Write-Step "Preparing flat runtime skeleton and SMB share"
+    Ensure-RuntimeSkeletonAndShare
 
     Write-Step "Preparing OSDCloud iPXE workspace"
     $generated = @($artifacts | Where-Object { $_.sourceType -in @('generated', 'generated-winpe') })

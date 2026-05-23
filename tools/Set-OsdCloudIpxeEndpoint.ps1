@@ -429,7 +429,7 @@ function Restore-RequiredEndpointFiles {
         [string] $IpxeLab
     )
 
-    $mirrorRoot = Join-Path $RepoRoot 'osdcloud-assets\Win11-iPXE-Lab'
+    $mirrorRoot = Join-Path $RepoRoot 'osdcloud-assets\OSDCloud'
     $required = @(
         'PXE-HttpRoot\osdcloud\boot.ipxe',
         'Config\Scripts\SetupComplete\SetupComplete.ps1',
@@ -537,7 +537,7 @@ if ([string]::IsNullOrWhiteSpace($ImageNamePattern)) {
 }
 
 $osdCloudRoot = if ($config.paths.osdCloudRoot) { [string] $config.paths.osdCloudRoot } else { 'C:\OSDCloud' }
-$ipxeLab = Join-Path $osdCloudRoot 'Win11-iPXE-Lab'
+$ipxeLab = $osdCloudRoot
 $share = "\\$ServerIp\$SmbShareName"
 $statusUrl = "http://$ServerIp/osdcloud/status"
 $existingRouter = [string] $config.dhcp.router
@@ -571,6 +571,9 @@ Set-Property -Object $config.http -Name host -Value $ServerIp
 Set-Property -Object $config.smb -Name share -Value $share
 if (-not [string]::IsNullOrWhiteSpace($ImageNamePattern)) {
     Set-Property -Object $config.smb -Name imagePath -Value "$share\OSDCloud\OS\$ImageNamePattern"
+}
+else {
+    Set-Property -Object $config.smb -Name imagePath -Value ''
 }
 
 Write-Utf8NoBom -Path $ConfigPath -Content (($config | ConvertTo-Json -Depth 12) + [Environment]::NewLine)
@@ -636,10 +639,10 @@ if ($CommitWinPe) {
         $mounted = $true
 
         Copy-IfPresent `
-            -Source (Join-Path $repoRoot 'osdcloud-assets\Win11-iPXE-Lab\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') `
+            -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') `
             -Destination (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1') | Out-Null
         Copy-IfPresent `
-            -Source (Join-Path $repoRoot 'osdcloud-assets\Win11-iPXE-Lab\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') `
+            -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') `
             -Destination (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1') | Out-Null
         Copy-IfPresent `
             -Source (Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') `

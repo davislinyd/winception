@@ -7,27 +7,27 @@ It is not a complete runnable backup. A fresh clone first runs the lightweight s
 The live lab still runs from:
 
 ```text
-C:\OSDCloud\Win11-iPXE-Lab
+C:\OSDCloud
 ```
 
 `C:\OSDCloud\Win11-Lab` and the old ISO boot path are retired historical evidence. They are not restored by fresh-host setup or runtime preparation and are not required for the active physical-laptop iPXE deployment path.
 
 The repo tracks the small source/config files that define deployment behavior:
 
-- iPXE OOBE injection scripts under `Win11-iPXE-Lab\Config\Scripts`
-- iPXE client app scripts and selected profile metadata under `Win11-iPXE-Lab\Media\OSDCloud\Apps`
-- PXE helper scripts under `Win11-iPXE-Lab\Tools`
-- iPXE boot script under `Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.ipxe`
+- iPXE OOBE injection scripts under `OSDCloud\Config\Scripts`
+- iPXE client app scripts under `OSDCloud\Media\OSDCloud\Apps`
+- PXE helper scripts under `OSDCloud\Tools`
+- iPXE boot script under `OSDCloud\PXE-HttpRoot\osdcloud\boot.ipxe`
 - Disabled TFTP `autoexec.ipxe` files that document the currently bypassed chain path
 - WinPE startup files extracted from `boot.wim`:
-  - `Win11-iPXE-Lab\WinPE\Windows\System32\Startnet.cmd`
-  - `Win11-iPXE-Lab\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1`
-  - `Win11-iPXE-Lab\WinPE\OSDCloud\Report-OSDCloudProgress.ps1`
-  - `Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\...`
+  - `OSDCloud\WinPE\Windows\System32\Startnet.cmd`
+  - `OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1`
+  - `OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1`
+  - `OSDCloud\WinPE\OSDCloud\Config\Scripts\...`
 
 Large generated or upstream binary artifacts are not committed and must be downloaded, verified, or rebuilt by Web `Prepare runtime`:
 
-- ISO / WIM / ESD / VHDX, including the active Windows 11 zh-TW image
+- ISO / WIM / ESD / VHDX, including source OS images and Web-exported deployable Windows WIMs
 - WinPE `boot.wim`, both the source copy and the published HTTP copy
 - client app installer payloads such as MSI / EXE files
 - Windows boot binaries such as `bootmgr`, `bootx64.efi`, `BCD`, and `boot.sdi`
@@ -44,9 +44,11 @@ After cloning the repo on another Windows host, run the lightweight setup wizard
 .\Setup-DeploymentServer.cmd
 ```
 
-Setup can ask to install Node.js LTS when `node`/`npm` are missing, installs Node dependencies, runs the lightweight smoke check, captures local secrets, records the intended service endpoint in ignored local overlay state, creates the minimum `C:\OSDCloud` directory skeleton, and starts the Web console. It does not download cataloged installers, iPXE binaries, OS image artifacts, ADK/WinPE content, `boot.wim`, or `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
+Setup can ask to install Node.js LTS when `node`/`npm` are missing, installs Node dependencies, runs the lightweight smoke check, and starts the Web console. It does not capture deployment secrets, record endpoint overlay state, create the `C:\OSDCloud` runtime skeleton, create SMB accounts/shares, download cataloged installers, export OS image artifacts, build ADK/WinPE content, create `boot.wim`, or download `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
 
-In the Web console, use `Runtime Readiness` > `Prepare runtime` to restore this mirror, download cataloged installers/iPXE binaries/OS image artifacts through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. `boot.wim` is required because iPXE loads it over HTTP to enter WinPE, and that WinPE contains the OSDCloud startup scripts, SMB mapping, status callback, SetupComplete handoff, and local secret injection used by the deployment. A readiness `size-mismatch` for `boot.wim` means the file is incomplete or out of sync with the catalog, not that deployment services have been started.
+In the Web console, use `Runtime Readiness` > `Prepare runtime` to create the flat `C:\OSDCloud` structure, prepare `pxeinstall` / `OSDCloudiPXE`, restore this mirror, download cataloged installers/iPXE binaries through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. `boot.wim` is required because iPXE loads it over HTTP to enter WinPE, and that WinPE contains the OSDCloud startup scripts, SMB mapping, status callback, SetupComplete handoff, and local secret injection used by the deployment. A readiness `size-mismatch` for `boot.wim` means the file is incomplete or out of sync with the catalog, not that deployment services have been started.
+
+OS images are prepared separately in Web `OS Image Cache`: download or import ISO/ESD/WIM, inspect DISM indexes, choose one index, export it to one deployable WIM under `C:\OSDCloud\Media\OSDCloud\OS`, then publish `selected-os.json`. Fresh clone can have no active OS image and no selected manifest until the operator completes that flow.
 
 After runtime readiness is ready, select/sync the service endpoint and run preflight before manually starting services.
 
@@ -55,7 +57,7 @@ After runtime readiness is ready, select/sync the service endpoint and run prefl
 1. Rebuild the live runtime folder:
 
 ```text
-C:\OSDCloud\Win11-iPXE-Lab
+C:\OSDCloud
 ```
 
 2. Copy versioned scripts/config from this mirror only after the live folder exists. The mirror can repopulate the small deployment logic files, but it does not contain the large boot and OS artifacts.
@@ -63,22 +65,22 @@ C:\OSDCloud\Win11-iPXE-Lab
 3. Download or regenerate every required `config\runtime-artifacts.json` entry that is needed for the selected path. For physical iPXE deployment this includes at least:
 
 ```text
-C:\OSDCloud\Win11-iPXE-Lab\Media\sources\boot.wim
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.wim
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\wimboot
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\bootmgr
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\bootx64.efi
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\BCD
-C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.sdi
-C:\OSDCloud\Win11-iPXE-Lab\PXE-TFTP\ipxeboot\x86_64-sb\snponly.efi
-C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\OS\<active-image>.esd
+C:\OSDCloud\Media\sources\boot.wim
+C:\OSDCloud\PXE-HttpRoot\osdcloud\boot.wim
+C:\OSDCloud\PXE-HttpRoot\osdcloud\wimboot
+C:\OSDCloud\PXE-HttpRoot\osdcloud\bootmgr
+C:\OSDCloud\PXE-HttpRoot\osdcloud\bootx64.efi
+C:\OSDCloud\PXE-HttpRoot\osdcloud\BCD
+C:\OSDCloud\PXE-HttpRoot\osdcloud\boot.sdi
+C:\OSDCloud\PXE-TFTP\ipxeboot\x86_64-sb\snponly.efi
+C:\OSDCloud\Media\OSDCloud\OS\<selected-image>.wim
 ```
 
 The two `boot.wim` paths are both required: `Media\sources\boot.wim` is the source WinPE image that endpoint sync can mount/update, and `PXE-HttpRoot\osdcloud\boot.wim` is the published file that iPXE downloads. They may be hardlinks or separate files depending on the rebuild path, but readiness and preflight must be able to find a valid image for both roles.
 
 4. Start the repo Web console with `npm run web`, then use `Select service interface` before physical deployment. The committed config may reflect the last synced lab endpoint, including a VM regression endpoint, so it must not be treated as a new host default.
 
-5. Run preflight. If OS image preflight fails because the active image file is missing and the OSD catalog download could not resolve it automatically, use Web `OS Image Cache` to download/import the image on the host, then republish the profile-bound OS image. If the active image is already correct but preflight reports `selected manifest stale`, use `Deployment Profiles` > re-`Set active` current profile or `Edit active` to republish `selected-os.json` and refresh the SMB image path.
+5. Run preflight. If OS image preflight fails because no deployable WIM or `selected-os.json` exists, use Web `OS Image Cache` to download/import a source image, select the source index, export a WIM on the host, then publish the profile-bound OS image. If the selected image is already correct but preflight reports `selected manifest stale`, use `Deployment Profiles` > re-`Set active` current profile or `Edit active` to republish `selected-os.json` and refresh the SMB image path.
 
 The `assetsRoot` value inside `manifest.json` is the source machine path used when the mirror was generated. It is evidence, not a required clone path.
 
@@ -88,12 +90,12 @@ Refresh the mirror after changing anything under `C:\OSDCloud`:
 .\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts
 ```
 
-`-MountWinPe` mounts `C:\OSDCloud\Win11-iPXE-Lab\Media\sources\boot.wim` read-only, copies the current WinPE startup scripts and embedded `OSDCloud\Config\Scripts` into this folder, and unmounts the image with `/Discard`.
+`-MountWinPe` mounts `C:\OSDCloud\Media\sources\boot.wim` read-only, copies the current WinPE startup scripts and embedded `OSDCloud\Config\Scripts` into this folder, and unmounts the image with `/Discard`.
 
 For iPXE, `Invoke-DavisOobe.ps1` copies SetupComplete from inside `boot.wim` first. If `WinPE\OSDCloud\Config\Scripts\SetupComplete` is stale, the deployed Windows can reach the desktop without reporting `windows-desktop-ready` back to the Web console.
 
 The current iPXE `SetupComplete.ps1` installs the client app payload and the JSON desktop-ready reporter for Windows completion. It does not install a desktop screenshot Startup helper, because that path was blocked by Defender/AMSI as `ScriptContainedMaliciousContent`. The desktop-ready reporter retries every 5 seconds for up to 30 minutes from `windows-logon-start`; after a successful HTTP POST or WebClient fallback it must return success and unregister `OSDCloudDesktopReadyReport`.
 
-The app payload is profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes `selected-profile.json` and install scripts, but not MSI/EXE installer payloads. `Install-Apps.ps1` reads the selected profile and installs only the selected software after Web runtime preparation has downloaded the cataloged installers into live `Apps`. The current `Default` profile publishes 7-Zip; `All in One` publishes 7-Zip plus Google Chrome Enterprise and Notepad++; `Minimal` publishes no client software. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
+The app payload is profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes install scripts, but not generated `selected-profile.json` or MSI/EXE installer payloads. `Install-Apps.ps1` reads the selected profile published into the live runtime and installs only the selected software after Web runtime preparation has downloaded the cataloged installers into live `Apps`. The current `Default` profile publishes 7-Zip; `All in One` publishes 7-Zip plus Google Chrome Enterprise and Notepad++; `Minimal` publishes no client software. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
 
 The files name the lab-only accounts such as local `davis` and SMB `pxeinstall`, but real passwords must stay outside Git. Keep `config\osdcloud-secrets.json` local, ignored, and inject it into live `boot.wim` during endpoint sync.

@@ -1,7 +1,7 @@
 param(
-    [string] $Root = 'C:\OSDCloud\Win11-iPXE-Lab\Media',
+    [string] $Root = 'C:\OSDCloud\Media',
     [string] $Prefix = 'http://192.168.100.1:8088/',
-    [string] $LogPath = 'C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\host-http.log'
+    [string] $LogPath = 'C:\OSDCloud\PXE-HttpRoot\host-http.log'
 )
 
 $ErrorActionPreference = 'Stop'

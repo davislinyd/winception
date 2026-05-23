@@ -255,6 +255,8 @@ export function applyServiceEndpoint(config, choice, options = {}) {
   config.smb.share = `\\\\${serverIp}\\${shareName}`;
   if (imageName) {
     config.smb.imagePath = `${config.smb.share}\\OSDCloud\\OS\\${imageName}`;
+  } else {
+    config.smb.imagePath = '';
   }
 
   validateConfig(config);
@@ -278,7 +280,6 @@ export function validateConfig(config) {
     ['http', 'statusRoot'],
     ['paths', 'expectedHttpFiles'],
     ['smb', 'share'],
-    ['smb', 'imagePath'],
   ];
 
   const missing = [];

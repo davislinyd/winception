@@ -63,13 +63,13 @@ function Get-SelectedOsMetadata {
     }
 
     [pscustomobject]@{
-        id = 'WIN11-25H2-ZHTW-PRO'
+        id = 'unpublished'
         language = 'zh-tw'
         locale = 'zh-TW'
         timeZone = 'Taipei Standard Time'
         edition = 'Pro'
         editionId = 'Professional'
-        imageIndex = 6
+        imageIndex = 1
     }
 }
 

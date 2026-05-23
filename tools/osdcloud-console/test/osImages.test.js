@@ -27,7 +27,7 @@ function makeConfig(root) {
   const cacheRoot = path.join(root, 'OS');
   const catalogPath = path.join(root, 'os-image-catalog.json');
   fs.mkdirSync(cacheRoot, { recursive: true });
-  fs.writeFileSync(path.join(cacheRoot, 'install.esd'), 'install image', 'utf8');
+  fs.writeFileSync(path.join(cacheRoot, 'install.wim'), 'install image', 'utf8');
   writeJson(catalogPath, {
     images: [{
       id: 'SMOKE-WIN11-PRO',
@@ -39,20 +39,23 @@ function makeConfig(root) {
       edition: 'Pro',
       editionId: 'Professional',
       activation: 'Retail',
-      imageIndex: 6,
-      fileName: 'install.esd',
+      imageIndex: 1,
+      fileName: 'install.wim',
       size: 'install image'.length,
+      sourceFileName: 'install.esd',
+      sourceImageIndex: 6,
+      sourceType: 'exported-wim',
     }],
   });
 
   return {
     paths: {
       repoRoot: root,
-      imageNamePattern: 'install.esd',
+      imageNamePattern: 'install.wim',
     },
     smb: {
       share: '\\\\10.10.10.1\\OSDCloudiPXE',
-      imagePath: '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+      imagePath: '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.wim',
     },
     osImage: {
       activeImage: 'SMOKE-WIN11-PRO',
@@ -71,10 +74,10 @@ test('OS image catalog loads and cached files are scanned', () => {
     const config = makeConfig(root);
     const catalog = loadOsImageCatalog(config);
     assert.equal(catalog.images[0].id, 'SMOKE-WIN11-PRO');
-    assert.equal(catalog.images[0].imageIndex, 6);
+    assert.equal(catalog.images[0].imageIndex, 1);
 
     const scanned = scanCachedOsImages(config);
-    assert.equal(scanned[0].fileName, 'install.esd');
+    assert.equal(scanned[0].fileName, 'install.wim');
 
     const state = resolveOsImageState(config);
     assert.equal(state.activeImage.cached, true);
@@ -91,12 +94,14 @@ test('selected-os manifest publish updates config and passes preflight', async (
     const result = await publishSelectedOsImage(config, 'SMOKE-WIN11-PRO');
     assert.equal(result.image.id, 'SMOKE-WIN11-PRO');
     assert.equal(config.osImage.activeImage, 'SMOKE-WIN11-PRO');
-    assert.equal(config.paths.imageNamePattern, 'install.esd');
-    assert.equal(config.smb.imagePath, '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd');
+    assert.equal(config.paths.imageNamePattern, 'install.wim');
+    assert.equal(config.smb.imagePath, '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.wim');
 
     const manifest = JSON.parse(fs.readFileSync(result.manifestPath, 'utf8'));
-    assert.equal(manifest.imagePath, 'Z:\\OSDCloud\\OS\\install.esd');
-    assert.equal(manifest.imageIndex, 6);
+    assert.equal(manifest.imagePath, 'Z:\\OSDCloud\\OS\\install.wim');
+    assert.equal(manifest.imageIndex, 1);
+    assert.equal(manifest.sourceFileName, 'install.esd');
+    assert.equal(manifest.sourceImageIndex, 6);
     assert.equal(manifest.language, 'en-us');
 
     const check = await evaluateOsImageCache(config);
@@ -113,8 +118,8 @@ test('OS image preflight reports missing cache and stale manifest', async () => 
     await publishSelectedOsImage(config, 'SMOKE-WIN11-PRO');
     writeJson(path.join(config.osImage.cacheRoot, 'selected-os.json'), {
       id: 'STALE',
-      fileName: 'other.esd',
-      imageIndex: 6,
+      fileName: 'other.wim',
+      imageIndex: 1,
     });
     let check = await evaluateOsImageCache(config);
     assert.equal(check.ok, false);
@@ -122,10 +127,10 @@ test('OS image preflight reports missing cache and stale manifest', async () => 
 
     writeJson(path.join(config.osImage.cacheRoot, 'selected-os.json'), {
       id: 'SMOKE-WIN11-PRO',
-      fileName: 'install.esd',
-      imageIndex: 6,
+      fileName: 'install.wim',
+      imageIndex: 1,
     });
-    fs.rmSync(path.join(config.osImage.cacheRoot, 'install.esd'), { force: true });
+    fs.rmSync(path.join(config.osImage.cacheRoot, 'install.wim'), { force: true });
     check = await evaluateOsImageCache(config);
     assert.equal(check.ok, false);
     assert.match(check.detail, /cached file missing/);
@@ -157,9 +162,9 @@ test('OS image download uses staging and does not overwrite cached files', async
     });
     assert.equal(cacheHit.status, 'cache-hit');
     assert.equal(fetchCalled, false);
-    assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'install.esd'), 'utf8'), 'install image');
+    assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'install.wim'), 'utf8'), 'install image');
 
-    const body = Buffer.from('downloaded image');
+    const body = Buffer.from('downloaded source image');
     const downloaded = await downloadOsImageFromCatalogItem(config, {
       id: 'SMOKE-DOWNLOAD-PRO',
       name: 'Smoke Download Pro',
@@ -177,10 +182,16 @@ test('OS image download uses staging and does not overwrite cached files', async
         headers: { get: () => String(body.length) },
         arrayBuffer: async () => body,
       }),
+      exportImageToWim: async (source, destination) => {
+        fs.writeFileSync(destination, `${fs.readFileSync(source, 'utf8')} exported`, 'utf8');
+      },
       validateImage: false,
     });
     assert.equal(downloaded.status, 'downloaded');
-    assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'download.esd'), 'utf8'), 'downloaded image');
+    assert.equal(downloaded.image.fileName, 'download.wim');
+    assert.equal(downloaded.image.imageIndex, 1);
+    assert.equal(downloaded.image.sourceImageIndex, 6);
+    assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'download.wim'), 'utf8'), 'downloaded source image exported');
     assert.deepEqual(fs.readdirSync(config.osImage.downloadStagingRoot), []);
     assert.match(fs.readFileSync(path.join(config.osImage.cacheRoot, 'os-image-cache.jsonl'), 'utf8'), /SMOKE-DOWNLOAD-PRO/);
 
@@ -222,8 +233,8 @@ test('OS image delete removes non-active cache entries safely', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-osimages-delete-'));
   try {
     const config = makeConfig(root);
-    fs.writeFileSync(path.join(config.osImage.cacheRoot, 'download.esd'), 'download image', 'utf8');
-    fs.writeFileSync(path.join(config.osImage.cacheRoot, 'shared.esd'), 'shared image', 'utf8');
+    fs.writeFileSync(path.join(config.osImage.cacheRoot, 'download.wim'), 'download image', 'utf8');
+    fs.writeFileSync(path.join(config.osImage.cacheRoot, 'shared.wim'), 'shared image', 'utf8');
     writeJson(config.osImage.catalogPath, {
       images: [
         {
@@ -232,8 +243,8 @@ test('OS image delete removes non-active cache entries safely', async () => {
           version: 'Windows 11 Smoke',
           language: 'en-us',
           edition: 'Pro',
-          imageIndex: 6,
-          fileName: 'install.esd',
+          imageIndex: 1,
+          fileName: 'install.wim',
           size: 'install image'.length,
         },
         {
@@ -242,8 +253,8 @@ test('OS image delete removes non-active cache entries safely', async () => {
           version: 'Windows 11 Smoke',
           language: 'en-us',
           edition: 'Pro',
-          imageIndex: 6,
-          fileName: 'download.esd',
+          imageIndex: 1,
+          fileName: 'download.wim',
           size: 'download image'.length,
         },
         {
@@ -252,8 +263,8 @@ test('OS image delete removes non-active cache entries safely', async () => {
           version: 'Windows 11 Smoke',
           language: 'en-us',
           edition: 'Pro',
-          imageIndex: 6,
-          fileName: 'shared.esd',
+          imageIndex: 1,
+          fileName: 'shared.wim',
           size: 'shared image'.length,
         },
         {
@@ -262,8 +273,8 @@ test('OS image delete removes non-active cache entries safely', async () => {
           version: 'Windows 11 Smoke',
           language: 'en-us',
           edition: 'Pro',
-          imageIndex: 6,
-          fileName: 'shared.esd',
+          imageIndex: 1,
+          fileName: 'shared.wim',
           size: 'shared image'.length,
         },
       ],
@@ -272,15 +283,15 @@ test('OS image delete removes non-active cache entries safely', async () => {
     const shared = deleteCachedOsImage(config, 'SHARED-ONE');
     assert.equal(shared.status, 'deleted');
     assert.equal(shared.fileDeleted, false);
-    assert.equal(fs.existsSync(path.join(config.osImage.cacheRoot, 'shared.esd')), true);
+    assert.equal(fs.existsSync(path.join(config.osImage.cacheRoot, 'shared.wim')), true);
     assert.equal(loadOsImageCatalog(config).images.some((image) => image.id === 'SHARED-ONE'), false);
 
     const deleted = deleteCachedOsImage(config, 'SMOKE-DOWNLOAD-PRO');
     assert.equal(deleted.status, 'deleted');
     assert.equal(deleted.fileDeleted, true);
-    assert.equal(fs.existsSync(path.join(config.osImage.cacheRoot, 'download.esd')), false);
+    assert.equal(fs.existsSync(path.join(config.osImage.cacheRoot, 'download.wim')), false);
     assert.equal(loadOsImageCatalog(config).images.some((image) => image.id === 'SMOKE-DOWNLOAD-PRO'), false);
-    assert.equal(fs.existsSync(path.join(config.osImage.cacheRoot, 'install.esd')), true);
+    assert.equal(fs.existsSync(path.join(config.osImage.cacheRoot, 'install.wim')), true);
     assert.match(fs.readFileSync(path.join(config.osImage.cacheRoot, 'os-image-cache.jsonl'), 'utf8'), /"status":"deleted"/);
 
     await publishSelectedOsImage(config, 'SMOKE-WIN11-PRO');
@@ -521,7 +532,7 @@ test('OS download catalog ignores configured custom download sources', async () 
   }
 });
 
-test('local ESD/WIM inspect and import copy into cache without changing active image', async () => {
+test('local ESD/WIM inspect and import export a single-index WIM without changing active image', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-osimages-import-'));
   try {
     const config = makeConfig(root);
@@ -558,11 +569,16 @@ test('local ESD/WIM inspect and import copy into cache without changing active i
       },
     }, {
       inspectWimInfo,
+      exportImageToWim: async (source, destination) => {
+        fs.writeFileSync(destination, `${fs.readFileSync(source, 'utf8')} exported`, 'utf8');
+      },
       validateImage: false,
     });
     assert.equal(imported.status, 'imported');
     assert.equal(config.osImage.activeImage, 'SMOKE-WIN11-PRO');
-    assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'imported-25h1-en-us.wim'), 'utf8'), 'imported image bytes');
+    assert.equal(imported.image.imageIndex, 1);
+    assert.equal(imported.image.sourceImageIndex, 6);
+    assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'imported-25h1-en-us.wim'), 'utf8'), 'imported image bytes exported');
     assert.equal(resolveOsImageState(config, 'IMPORTED-WIN11-25H1-ENUS').activeImage.cached, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -606,10 +622,13 @@ test('browser OS image upload inspects and imports through staging cleanup', asy
       },
     }, {
       inspectWimInfo,
+      exportImageToWim: async (source, destination) => {
+        fs.writeFileSync(destination, `${fs.readFileSync(source, 'utf8')} exported`, 'utf8');
+      },
       validateImage: false,
     });
     assert.equal(imported.status, 'imported');
-    assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'uploaded-26h1-en-us.wim'), 'utf8'), 'uploaded image bytes');
+    assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'uploaded-26h1-en-us.wim'), 'utf8'), 'uploaded image bytes exported');
     assert.equal(fs.existsSync(path.join(config.osImage.downloadStagingRoot, 'uploads', 'upload-test')), false);
 
     await assert.rejects(() => uploadOsImageFile(config, {

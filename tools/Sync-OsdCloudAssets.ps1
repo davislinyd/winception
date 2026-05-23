@@ -128,7 +128,7 @@ function Add-ExcludedArtifact {
     }
 }
 
-$ipxeLab = Join-Path $SourceRoot 'Win11-iPXE-Lab'
+$ipxeLab = $SourceRoot
 $winPeMount = Join-Path $ipxeLab 'MountReadOnly'
 $bootWim = Join-Path $ipxeLab 'Media\sources\boot.wim'
 $mountedByScript = $false
@@ -136,12 +136,13 @@ $appsRoot = Join-Path $ipxeLab 'Media\OSDCloud\Apps'
 $appExports = @()
 if (Test-Path -LiteralPath $appsRoot -PathType Container) {
     $appExports = @(Get-ChildItem -LiteralPath $appsRoot -File -Recurse | Where-Object {
-        -not (Test-IsRepoOnlyDownloadPayload -Path $_.FullName)
+        -not (Test-IsRepoOnlyDownloadPayload -Path $_.FullName) -and
+        $_.Name -ne 'selected-profile.json'
     } | Sort-Object FullName | ForEach-Object {
         $relativePath = $_.FullName.Substring($appsRoot.Length).TrimStart('\')
         @{
             Source = $_.FullName
-            Target = Join-Path 'Win11-iPXE-Lab\Media\OSDCloud\Apps' $relativePath
+            Target = Join-Path 'OSDCloud\Media\OSDCloud\Apps' $relativePath
         }
     })
 }
@@ -152,19 +153,9 @@ if (Test-Path -LiteralPath $scriptsRoot -PathType Container) {
         $relativePath = $_.FullName.Substring($scriptsRoot.Length).TrimStart('\')
         @{
             Source = $_.FullName
-            Target = Join-Path 'Win11-iPXE-Lab\Media\OSDCloud\Scripts' $relativePath
+            Target = Join-Path 'OSDCloud\Media\OSDCloud\Scripts' $relativePath
         }
     })
-}
-$osRoot = Join-Path $ipxeLab 'Media\OSDCloud\OS'
-$osManifestExports = @()
-if (Test-Path -LiteralPath (Join-Path $osRoot 'selected-os.json') -PathType Leaf) {
-    $osManifestExports = @(
-        @{
-            Source = Join-Path $osRoot 'selected-os.json'
-            Target = 'Win11-iPXE-Lab\Media\OSDCloud\OS\selected-os.json'
-        }
-    )
 }
 
 if ($MountWinPe -and -not (Test-Path -LiteralPath (Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1') -PathType Leaf)) {
@@ -178,23 +169,23 @@ if ($MountWinPe -and -not (Test-Path -LiteralPath (Join-Path $winPeMount 'OSDClo
 
 try {
     $exports = @(
-        @{ Source = Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1' },
-        @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.cmd' },
-        @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-iPXE-Lab\Config\Scripts\SetupComplete\SetupComplete.ps1' }
-    ) + $appExports + $scriptExports + $osManifestExports + @(
-        @{ Source = Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe'; Target = 'Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.ipxe' },
-        @{ Source = Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled'; Target = 'Win11-iPXE-Lab\PXE-TFTP\autoexec.ipxe.disabled' },
-        @{ Source = Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled'; Target = 'Win11-iPXE-Lab\PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled' },
-        @{ Source = Join-Path $ipxeLab 'Tools\Serve-OsdCloudMedia.mjs'; Target = 'Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.mjs' },
-        @{ Source = Join-Path $ipxeLab 'Tools\Serve-OsdCloudMedia.ps1'; Target = 'Win11-iPXE-Lab\Tools\Serve-OsdCloudMedia.ps1' },
-        @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeDhcp.ps1'; Target = 'Win11-iPXE-Lab\Tools\Start-PxeDhcp.ps1' },
-        @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeTftp.ps1'; Target = 'Win11-iPXE-Lab\Tools\Start-PxeTftp.ps1' },
-        @{ Source = Join-Path $winPeMount 'Windows\System32\Startnet.cmd'; Target = 'Win11-iPXE-Lab\WinPE\Windows\System32\Startnet.cmd'; SourceKind = 'boot.wim:index1' },
-        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; SourceKind = 'boot.wim:index1' },
-        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; SourceKind = 'boot.wim:index1' },
-        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; SourceKind = 'boot.wim:index1' },
-        @{ Source = Join-Path $winPeMount 'OSDCloud\Report-OSDCloudProgress.ps1'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Report-OSDCloudProgress.ps1'; SourceKind = 'boot.wim:index1' },
-        @{ Source = Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1'; Target = 'Win11-iPXE-Lab\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1'; SourceKind = 'boot.wim:index1' }
+        @{ Source = Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1' },
+        @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd' },
+        @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1' }
+    ) + $appExports + $scriptExports + @(
+        @{ Source = Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe'; Target = 'OSDCloud\PXE-HttpRoot\osdcloud\boot.ipxe' },
+        @{ Source = Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled'; Target = 'OSDCloud\PXE-TFTP\autoexec.ipxe.disabled' },
+        @{ Source = Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled'; Target = 'OSDCloud\PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled' },
+        @{ Source = Join-Path $ipxeLab 'Tools\Serve-OsdCloudMedia.mjs'; Target = 'OSDCloud\Tools\Serve-OsdCloudMedia.mjs' },
+        @{ Source = Join-Path $ipxeLab 'Tools\Serve-OsdCloudMedia.ps1'; Target = 'OSDCloud\Tools\Serve-OsdCloudMedia.ps1' },
+        @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeDhcp.ps1'; Target = 'OSDCloud\Tools\Start-PxeDhcp.ps1' },
+        @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeTftp.ps1'; Target = 'OSDCloud\Tools\Start-PxeTftp.ps1' },
+        @{ Source = Join-Path $winPeMount 'Windows\System32\Startnet.cmd'; Target = 'OSDCloud\WinPE\Windows\System32\Startnet.cmd'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Report-OSDCloudProgress.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1'; SourceKind = 'boot.wim:index1' }
     )
 
     $copied = foreach ($entry in $exports) {

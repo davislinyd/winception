@@ -20,37 +20,28 @@ function sha256(relativePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(path.join(repoRoot, relativePath))).digest('hex').toUpperCase();
 }
 
-test('active deployment profile publishes the zh-TW Windows image', () => {
+test('fresh clone does not commit a preselected Windows image', () => {
   const config = readJson('config/osdcloud-console.json');
   const activeProfileId = config.deploymentProfiles.activeProfile;
   const profile = readJson(path.join('config', 'deployment-profiles', `${activeProfileId}.json`));
   const catalog = readJson('config/os-image-catalog.json');
-  const selectedProfile = readJson('osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/selected-profile.json');
-  const selectedOs = readJson('osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/OS/selected-os.json');
-  const catalogImage = catalog.images.find((image) => image.id === profile.osImage);
 
-  assert.equal(activeProfileId, 'IZVZO7PU');
-  assert.equal(profile.osImage, 'WIN11-25H2-ZHTW-PRO');
-  assert.equal(config.osImage.activeImage, profile.osImage);
-  assert.equal(selectedProfile.profileId, activeProfileId);
-  assert.equal(selectedProfile.osImageId, profile.osImage);
-  assert.equal(selectedProfile.osImage.id, profile.osImage);
-  assert.equal(selectedOs.id, profile.osImage);
-  assert.equal(catalogImage?.language, 'zh-tw');
-  assert.equal(catalogImage?.locale, 'zh-TW');
-  assert.equal(selectedOs.language, 'zh-tw');
-  assert.equal(selectedOs.locale, 'zh-TW');
-  assert.match(config.paths.imageNamePattern, /_zh-tw\.esd$/u);
-  assert.match(config.smb.imagePath, /_zh-tw\.esd$/u);
+  assert.equal(config.osImage.activeImage, null);
+  assert.equal(config.paths.imageNamePattern, undefined);
+  assert.equal(config.smb.imagePath, '');
+  assert.deepEqual(catalog.images, []);
+  assert.equal(profile.osImage, undefined);
+  assert.equal(fs.existsSync(path.join(repoRoot, 'osdcloud-assets/OSDCloud/Media/OSDCloud/OS/selected-os.json')), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, 'osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/selected-profile.json')), false);
 });
 
 test('active custom script is mirrored and handed off to deployed Windows', () => {
-  const selectedProfile = readJson('osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Apps/selected-profile.json');
-  const scriptEntry = selectedProfile.customScripts?.find((entry) => entry.id === 'SC-J5GF07Y2');
+  const profile = readJson('config/deployment-profiles/IZVZO7PU.json');
+  const scriptEntry = profile.customScripts?.find((entry) => entry.id === 'SC-J5GF07Y2');
   const sourceScript = 'Scripts/SC-J5GF07Y2/run.ps1';
-  const mirroredScript = 'osdcloud-assets/Win11-iPXE-Lab/Media/OSDCloud/Scripts/SC-J5GF07Y2/run.ps1';
-  const shutdownScript = readText('osdcloud-assets/Win11-iPXE-Lab/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1');
-  const embeddedShutdownScript = readText('osdcloud-assets/Win11-iPXE-Lab/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1');
+  const mirroredScript = 'osdcloud-assets/OSDCloud/Media/OSDCloud/Scripts/SC-J5GF07Y2/run.ps1';
+  const shutdownScript = readText('osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1');
+  const embeddedShutdownScript = readText('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1');
 
   assert.equal(scriptEntry?.phase, 'after');
   assert.equal(fs.existsSync(path.join(repoRoot, mirroredScript)), true);

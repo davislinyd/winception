@@ -8,4 +8,4 @@ if not exist "%SCRIPT%" (
   exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File','%SCRIPT%') -Verb RunAs"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -NoExit -File "%SCRIPT%"

@@ -1,15 +1,7 @@
 [CmdletBinding()]
 param(
-    [string] $LiveRoot = 'C:\OSDCloud',
-    [string] $InterfaceAlias,
-    [string] $ServerIp = '192.168.88.1',
-    [int] $PrefixLength = 24,
-    [string] $SmbShareName = 'OSDCloudiPXE',
-    [string] $SmbUserName = 'pxeinstall',
-    [switch] $UseExistingSecrets,
     [switch] $SkipNpmInstall,
     [switch] $SkipSmoke,
-    [switch] $SkipHostShareSetup,
     [switch] $NoNodeAutoInstall,
     [switch] $NoLaunch,
     [switch] $DryRun
@@ -18,10 +10,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
-$LocalConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.local.json'
-$SecretsPath = Join-Path $RepoRoot 'config\osdcloud-secrets.json'
-$SetupStatePath = Join-Path $RepoRoot 'config\deployment-server-setup.local.json'
-$NodeDownloadRoot = Join-Path $RepoRoot '.downloads\prerequisites\nodejs'
 
 function Write-Step {
     param([Parameter(Mandatory)][string] $Message)
@@ -29,36 +17,9 @@ function Write-Step {
     Write-Host "== $Message =="
 }
 
-function Test-IsAdministrator {
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-    $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
-}
-
 function Test-CommandAvailable {
     param([Parameter(Mandatory)][string] $Name)
-
     $null -ne (Get-Command -Name $Name -ErrorAction SilentlyContinue)
-}
-
-function Read-YesNo {
-    param(
-        [Parameter(Mandatory)][string] $Prompt,
-        [bool] $DefaultYes = $true
-    )
-
-    if ($DryRun) {
-        Write-Host "[dry-run] prompt: $Prompt"
-        return $DefaultYes
-    }
-
-    $suffix = if ($DefaultYes) { '[Y/n]' } else { '[y/N]' }
-    $answer = Read-Host -Prompt "$Prompt $suffix"
-    if ([string]::IsNullOrWhiteSpace($answer)) {
-        return $DefaultYes
-    }
-    $normalized = $answer.Trim().ToLowerInvariant()
-    $normalized.StartsWith('y')
 }
 
 function Invoke-ExternalCommand {
@@ -82,17 +43,23 @@ function Invoke-ExternalCommand {
     }
 }
 
-function Write-JsonFileNoBom {
+function Read-YesNo {
     param(
-        [Parameter(Mandatory)] $Value,
-        [Parameter(Mandatory)][string] $Path,
-        [int] $Depth = 4
+        [Parameter(Mandatory)][string] $Prompt,
+        [bool] $DefaultYes = $true
     )
 
-    $json = ($Value | ConvertTo-Json -Depth $Depth) + [Environment]::NewLine
-    $encoding = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.Directory]::CreateDirectory((Split-Path -Parent $Path)) | Out-Null
-    [System.IO.File]::WriteAllText($Path, $json, $encoding)
+    if ($DryRun) {
+        Write-Host "[dry-run] prompt: $Prompt"
+        return $DefaultYes
+    }
+
+    $suffix = if ($DefaultYes) { '[Y/n]' } else { '[y/N]' }
+    $answer = Read-Host -Prompt "$Prompt $suffix"
+    if ([string]::IsNullOrWhiteSpace($answer)) {
+        return $DefaultYes
+    }
+    $answer.Trim().ToLowerInvariant().StartsWith('y')
 }
 
 function Refresh-ProcessPath {
@@ -101,489 +68,43 @@ function Refresh-ProcessPath {
     $env:Path = @($machinePath, $userPath, $env:Path) -join ';'
 }
 
-function Get-FileSha256 {
-    param([Parameter(Mandatory)][string] $Path)
-
-    $cmdlet = Get-Command -Name Get-FileHash -ErrorAction SilentlyContinue
-    if ($cmdlet) {
-        return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToUpperInvariant()
-    }
-
-    $stream = [System.IO.File]::OpenRead($Path)
-    try {
-        $sha256 = [System.Security.Cryptography.SHA256]::Create()
-        try {
-            -join ($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString('X2') })
-        }
-        finally {
-            $sha256.Dispose()
-        }
-    }
-    finally {
-        $stream.Dispose()
-    }
-}
-
-function Enable-Tls12 {
-    try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    }
-    catch {
-        Write-Warning "Unable to force TLS 1.2 for downloads: $($_.Exception.Message)"
-    }
-}
-
-function Invoke-DownloadFile {
-    param(
-        [Parameter(Mandatory)][string] $Uri,
-        [Parameter(Mandatory)][string] $Destination
-    )
-
-    New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
-    Write-Host "Downloading $Uri"
-    if ($DryRun) {
-        Write-Host "[dry-run] download to $Destination"
-        return
-    }
-    Enable-Tls12
-    Invoke-WebRequest -Uri $Uri -OutFile $Destination -UseBasicParsing
-}
-
-function Install-NodeJsWithWinget {
-    if (-not (Test-CommandAvailable -Name 'winget')) {
-        return $false
-    }
-
-    Write-Host 'Installing Node.js LTS with winget.'
-    if ($DryRun) {
-        Write-Host '[dry-run] winget install --id OpenJS.NodeJS.LTS --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity'
-        return $true
-    }
-
-    & winget install --id OpenJS.NodeJS.LTS --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity
-    if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 3010) {
-        return $true
-    }
-
-    Write-Warning "winget Node.js install failed with exit code $LASTEXITCODE. Falling back to Node.js official MSI download."
-    $false
-}
-
-function Install-NodeJsFromOfficialMsi {
-    $indexUri = 'https://nodejs.org/dist/index.json'
-    Write-Host "Resolving latest Node.js LTS release from $indexUri"
-    if ($DryRun) {
-        Write-Host "[dry-run] resolve latest LTS release and install signed Node.js x64 MSI"
-        return
-    }
-
-    Enable-Tls12
-    $releases = Invoke-RestMethod -Uri $indexUri
-    $release = @($releases | Where-Object { $_.lts -and $_.files -contains 'win-x64-msi' } | Select-Object -First 1)
-    if ($release.Count -eq 0) {
-        throw 'Unable to find a Node.js LTS x64 MSI release in the official index.'
-    }
-
-    $version = [string] $release[0].version
-    $baseUri = "https://nodejs.org/dist/$version"
-    $msiName = "node-$version-x64.msi"
-    $msiPath = Join-Path $NodeDownloadRoot $msiName
-    $shaPath = Join-Path $NodeDownloadRoot 'SHASUMS256.txt'
-
-    Invoke-DownloadFile -Uri "$baseUri/$msiName" -Destination $msiPath
-    Invoke-DownloadFile -Uri "$baseUri/SHASUMS256.txt" -Destination $shaPath
-
-    $expected = Get-Content -LiteralPath $shaPath |
-        ForEach-Object { if ($_ -match "^\s*([A-Fa-f0-9]{64})\s+$([regex]::Escape($msiName))\s*$") { $Matches[1].ToUpperInvariant() } } |
-        Select-Object -First 1
-    if (-not $expected) {
-        throw "Unable to find $msiName in Node.js SHASUMS256.txt."
-    }
-
-    $actual = Get-FileSha256 -Path $msiPath
-    if ($actual -ne $expected) {
-        throw "Node.js MSI SHA-256 mismatch. Expected $expected, got $actual."
-    }
-
-    Write-Host "Installing $msiName"
-    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/i', $msiPath, '/qn', '/norestart') -Wait -PassThru
-    if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
-        throw "Node.js MSI install failed with exit code $($process.ExitCode)."
-    }
-}
-
 function Install-NodeJsLts {
-    if (Install-NodeJsWithWinget) {
-        return
+    if ($NoNodeAutoInstall) {
+        throw 'Node.js LTS/npm are missing. Install Node.js LTS, then rerun Setup-DeploymentServer.cmd.'
     }
-    Install-NodeJsFromOfficialMsi
+    if (-not (Read-YesNo -Prompt 'Node.js LTS/npm are missing. Install Node.js LTS with winget now?' -DefaultYes $true)) {
+        throw 'Node.js LTS/npm are required before the Web console can run.'
+    }
+    if (-not (Test-CommandAvailable -Name 'winget')) {
+        throw 'winget is not available. Install Node.js LTS manually from https://nodejs.org/, then rerun setup.'
+    }
+
+    Invoke-ExternalCommand -FilePath 'winget' -ArgumentList @(
+        'install',
+        '--id',
+        'OpenJS.NodeJS.LTS',
+        '--exact',
+        '--accept-package-agreements',
+        '--accept-source-agreements'
+    )
+    Refresh-ProcessPath
+}
+
+function Ensure-Command {
+    param([Parameter(Mandatory)][string] $Name)
+    if (-not (Test-CommandAvailable -Name $Name)) {
+        throw "Required command not found: $Name"
+    }
 }
 
 function Ensure-NodeAndNpm {
-    $missing = @()
-    if (-not (Test-CommandAvailable -Name 'node')) {
-        $missing += 'node'
-    }
-    if (-not (Test-CommandAvailable -Name 'npm')) {
-        $missing += 'npm'
-    }
-
-    if ($missing.Count -gt 0) {
-        Write-Warning "Missing setup prerequisite(s): $($missing -join ', '). npm is installed together with Node.js."
-        if ($NoNodeAutoInstall) {
-            throw 'Install Node.js LTS from https://nodejs.org/ or rerun setup without -NoNodeAutoInstall.'
-        }
-        $install = Read-YesNo -Prompt 'Install Node.js LTS now? This will also install npm.' -DefaultYes $true
-        if (-not $install) {
-            throw 'Node.js and npm are required before setup can continue.'
-        }
+    if (-not (Test-CommandAvailable -Name 'node') -or -not (Test-CommandAvailable -Name 'npm')) {
         Install-NodeJsLts
-        Refresh-ProcessPath
     }
-
+    Ensure-Command -Name 'node'
+    Ensure-Command -Name 'npm'
     Invoke-ExternalCommand -FilePath 'node' -ArgumentList @('--version')
     Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('--version')
-}
-
-function ConvertFrom-SecureStringToPlainText {
-    param([Parameter(Mandatory)] [securestring] $Value)
-
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Value)
-    try {
-        [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    }
-    finally {
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    }
-}
-
-function Read-SecretValue {
-    param([Parameter(Mandatory)][string] $Prompt)
-
-    ConvertFrom-SecureStringToPlainText -Value (Read-Host -Prompt $Prompt -AsSecureString)
-}
-
-function Read-ExistingSecrets {
-    if (-not (Test-Path -LiteralPath $SecretsPath -PathType Leaf)) {
-        return $null
-    }
-    Get-Content -Raw -LiteralPath $SecretsPath | ConvertFrom-Json
-}
-
-function Get-DeploymentSecrets {
-    $existing = Read-ExistingSecrets
-    if (-not [string]::IsNullOrWhiteSpace($env:OSDCLOUD_DAVIS_PASSWORD) -and -not [string]::IsNullOrWhiteSpace($env:OSDCLOUD_PXEINSTALL_PASSWORD)) {
-        return [ordered]@{
-            davisPassword = [string] $env:OSDCLOUD_DAVIS_PASSWORD
-            pxeinstallPassword = [string] $env:OSDCLOUD_PXEINSTALL_PASSWORD
-        }
-    }
-
-    if ($existing -and $UseExistingSecrets) {
-        return [ordered]@{
-            davisPassword = [string] $existing.davisPassword
-            pxeinstallPassword = [string] $existing.pxeinstallPassword
-        }
-    }
-
-    if ($existing) {
-        $answer = Read-Host -Prompt "Existing local secrets file found. Keep it? [Y/n]"
-        if ([string]::IsNullOrWhiteSpace($answer) -or $answer.Trim().ToLowerInvariant().StartsWith('y')) {
-            return [ordered]@{
-                davisPassword = [string] $existing.davisPassword
-                pxeinstallPassword = [string] $existing.pxeinstallPassword
-            }
-        }
-    }
-
-    [ordered]@{
-        davisPassword = Read-SecretValue -Prompt 'Enter local davis account password'
-        pxeinstallPassword = Read-SecretValue -Prompt 'Enter WinPE SMB pxeinstall password'
-    }
-}
-
-function ConvertTo-IPv4UInt {
-    param([Parameter(Mandatory)][string] $Address)
-
-    $parts = $Address.Split('.')
-    if ($parts.Count -ne 4) {
-        throw "Invalid IPv4 address: $Address"
-    }
-    $value = [uint64]0
-    foreach ($part in $parts) {
-        $byte = [int] $part
-        if ($byte -lt 0 -or $byte -gt 255) {
-            throw "Invalid IPv4 address: $Address"
-        }
-        $value = (($value -shl 8) -bor [uint64] $byte) -band [uint64]4294967295
-    }
-    $value
-}
-
-function ConvertFrom-IPv4UInt {
-    param([Parameter(Mandatory)][uint64] $Value)
-
-    @(
-        (($Value -shr 24) -band 0xff),
-        (($Value -shr 16) -band 0xff),
-        (($Value -shr 8) -band 0xff),
-        ($Value -band 0xff)
-    ) -join '.'
-}
-
-function Get-SubnetMaskUInt {
-    param([Parameter(Mandatory)][int] $PrefixLength)
-
-    if ($PrefixLength -lt 0 -or $PrefixLength -gt 32) {
-        throw "Invalid prefix length: $PrefixLength"
-    }
-    if ($PrefixLength -eq 0) {
-        return [uint64]0
-    }
-    (([uint64]4294967295 -shl (32 - $PrefixLength)) -band [uint64]4294967295)
-}
-
-function Test-IPv4InPrefix {
-    param(
-        [Parameter(Mandatory)][string] $Address,
-        [Parameter(Mandatory)][string] $NetworkAddress,
-        [Parameter(Mandatory)][int] $PrefixLength
-    )
-
-    $mask = Get-SubnetMaskUInt -PrefixLength $PrefixLength
-    ((ConvertTo-IPv4UInt $Address) -band $mask) -eq ((ConvertTo-IPv4UInt $NetworkAddress) -band $mask)
-}
-
-function Get-DhcpLeaseRange {
-    param(
-        [Parameter(Mandatory)][string] $ServerIp,
-        [Parameter(Mandatory)][int] $PrefixLength
-    )
-
-    $address = ConvertTo-IPv4UInt $ServerIp
-    $mask = Get-SubnetMaskUInt -PrefixLength $PrefixLength
-    $network = $address -band $mask
-    $hostMask = ([uint64]4294967295 -bxor $mask) -band [uint64]4294967295
-    $broadcast = $network -bor $hostMask
-    $firstUsable = if ($PrefixLength -ge 31) { $network } else { $network + 1 }
-    $lastUsable = if ($PrefixLength -ge 31) { $broadcast } else { $broadcast - 1 }
-    $preferredStart = $network + 200
-    $preferredEnd = $network + 250
-
-    if ($preferredStart -ge $firstUsable -and $preferredEnd -le $lastUsable -and ($address -lt $preferredStart -or $address -gt $preferredEnd)) {
-        return [pscustomobject]@{
-            Start = ConvertFrom-IPv4UInt $preferredStart
-            End = ConvertFrom-IPv4UInt $preferredEnd
-        }
-    }
-
-    $end = if ($lastUsable -eq $address) { $address - 1 } else { $lastUsable }
-    $start = [Math]::Max([double] $firstUsable, [double] ($end - 50))
-    if ($address -ge $start -and $address -le $end) {
-        if ($address -eq $start) {
-            $start += 1
-        }
-        else {
-            $end = $address - 1
-        }
-    }
-    if ($start -gt $end) {
-        throw "No DHCP lease range available outside server IP $ServerIp/$PrefixLength"
-    }
-
-    [pscustomobject]@{
-        Start = ConvertFrom-IPv4UInt ([uint64] $start)
-        End = ConvertFrom-IPv4UInt ([uint64] $end)
-    }
-}
-
-function Get-SubnetCidr {
-    param(
-        [Parameter(Mandatory)][string] $ServerIp,
-        [Parameter(Mandatory)][int] $PrefixLength
-    )
-
-    $network = (ConvertTo-IPv4UInt $ServerIp) -band (Get-SubnetMaskUInt -PrefixLength $PrefixLength)
-    "$(ConvertFrom-IPv4UInt $network)/$PrefixLength"
-}
-
-function Get-SubnetMask {
-    param([Parameter(Mandatory)][int] $PrefixLength)
-
-    ConvertFrom-IPv4UInt (Get-SubnetMaskUInt -PrefixLength $PrefixLength)
-}
-
-function Get-ServiceInterfaceChoice {
-    $records = @(Get-NetAdapter | Sort-Object Name | ForEach-Object {
-        $adapter = $_
-        $addresses = @(Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-            Where-Object { $_.IPAddress -and -not $_.IPAddress.StartsWith('169.254.') } |
-            ForEach-Object { "$($_.IPAddress)/$($_.PrefixLength)" })
-        [pscustomobject]@{
-            Name = $adapter.Name
-            Status = $adapter.Status
-            LinkSpeed = $adapter.LinkSpeed
-            IPv4 = if ($addresses.Count) { $addresses -join ', ' } else { '' }
-            Description = $adapter.InterfaceDescription
-        }
-    })
-
-    $records | Format-Table -AutoSize | Out-Host
-    if ([string]::IsNullOrWhiteSpace($InterfaceAlias)) {
-        $script:InterfaceAlias = Read-Host -Prompt 'Enter the PXE/client service interface name'
-    }
-    if ([string]::IsNullOrWhiteSpace($InterfaceAlias)) {
-        throw 'Service interface name is required.'
-    }
-    if (-not $DryRun -and -not (Get-NetAdapter -Name $InterfaceAlias -ErrorAction SilentlyContinue)) {
-        throw "Network adapter not found: $InterfaceAlias"
-    }
-
-    $ipAnswer = Read-Host -Prompt "Service IP to record [$ServerIp]"
-    if (-not [string]::IsNullOrWhiteSpace($ipAnswer)) {
-        $script:ServerIp = $ipAnswer.Trim()
-    }
-    $prefixAnswer = Read-Host -Prompt "Prefix length to record [$PrefixLength]"
-    if (-not [string]::IsNullOrWhiteSpace($prefixAnswer)) {
-        $script:PrefixLength = [int] $prefixAnswer
-    }
-}
-
-function Write-LocalConfigOverlay {
-    $base = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
-    $imageName = [string] $base.paths.imageNamePattern
-    if ([string]::IsNullOrWhiteSpace($imageName)) {
-        $imageName = '*'
-    }
-    $gateway = if (-not [string]::IsNullOrWhiteSpace([string] $base.adapter.defaultGateway) -and (Test-IPv4InPrefix -Address ([string] $base.adapter.defaultGateway) -NetworkAddress $ServerIp -PrefixLength $PrefixLength)) {
-        [string] $base.adapter.defaultGateway
-    }
-    else {
-        $ServerIp
-    }
-    $range = Get-DhcpLeaseRange -ServerIp $ServerIp -PrefixLength $PrefixLength
-    $share = "\\$ServerIp\$SmbShareName"
-    $overlay = [ordered]@{
-        adapter = [ordered]@{
-            interfaceAlias = $InterfaceAlias
-            serverIp = $ServerIp
-            prefixLength = $PrefixLength
-            defaultGateway = $gateway
-            remoteSubnet = Get-SubnetCidr -ServerIp $ServerIp -PrefixLength $PrefixLength
-        }
-        dhcp = [ordered]@{
-            listenIp = $ServerIp
-            leaseStartIp = $range.Start
-            leaseEndIp = $range.End
-            subnetMask = Get-SubnetMask -PrefixLength $PrefixLength
-            router = $gateway
-            ipxeBootUrl = "http://$ServerIp/osdcloud/boot.ipxe"
-        }
-        tftp = [ordered]@{
-            listenIp = $ServerIp
-        }
-        http = [ordered]@{
-            host = $ServerIp
-        }
-        smb = [ordered]@{
-            share = $share
-            imagePath = "$share\OSDCloud\OS\$imageName"
-        }
-    }
-
-    if ($DryRun) {
-        Write-Host "[dry-run] write local config overlay: $LocalConfigPath"
-        $overlay | ConvertTo-Json -Depth 8 | Write-Host
-        return
-    }
-    Write-JsonFileNoBom -Value $overlay -Path $LocalConfigPath -Depth 8
-}
-
-function Set-FolderReadAccess {
-    param(
-        [Parameter(Mandatory)][string] $Path,
-        [Parameter(Mandatory)][string] $AccountName
-    )
-
-    $acl = Get-Acl -LiteralPath $Path
-    $rights = [System.Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
-        [System.Security.AccessControl.FileSystemRights]::Synchronize
-    $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
-        $AccountName,
-        $rights,
-        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
-        [System.Security.AccessControl.PropagationFlags]::None,
-        [System.Security.AccessControl.AccessControlType]::Allow
-    )
-    $acl.SetAccessRule($rule)
-    Set-Acl -LiteralPath $Path -AclObject $acl
-}
-
-function Ensure-HostSkeletonAndShare {
-    param([Parameter(Mandatory)][string] $PxePassword)
-
-    $mediaRoot = Join-Path $LiveRoot 'Win11-iPXE-Lab\Media'
-    $osRoot = Join-Path $mediaRoot 'OSDCloud\OS'
-    $appsRoot = Join-Path $mediaRoot 'OSDCloud\Apps'
-    $scriptsRoot = Join-Path $mediaRoot 'OSDCloud\Scripts'
-
-    if ($DryRun) {
-        Write-Host "[dry-run] create $osRoot, $appsRoot, $scriptsRoot"
-        Write-Host "[dry-run] create/update local user $SmbUserName and SMB share $SmbShareName at $mediaRoot"
-        return
-    }
-
-    New-Item -ItemType Directory -Path $osRoot, $appsRoot, $scriptsRoot -Force | Out-Null
-
-    $securePassword = ConvertTo-SecureString $PxePassword -AsPlainText -Force
-    $localAccount = "$env:COMPUTERNAME\$SmbUserName"
-    $user = Get-LocalUser -Name $SmbUserName -ErrorAction SilentlyContinue
-    if ($user) {
-        Set-LocalUser -Name $SmbUserName -Password $securePassword -PasswordNeverExpires $true
-        Enable-LocalUser -Name $SmbUserName
-    }
-    else {
-        New-LocalUser -Name $SmbUserName -Password $securePassword -Description 'OSDCloud WinPE SMB read-only account' -PasswordNeverExpires | Out-Null
-    }
-
-    Set-FolderReadAccess -Path $mediaRoot -AccountName $localAccount
-    $share = Get-SmbShare -Name $SmbShareName -ErrorAction SilentlyContinue
-    if ($share -and -not ([string] $share.Path).Equals($mediaRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Remove-SmbShare -Name $SmbShareName -Force
-        $share = $null
-    }
-    if (-not $share) {
-        New-SmbShare -Name $SmbShareName -Path $mediaRoot -ReadAccess $localAccount -CachingMode None -FolderEnumerationMode AccessBased | Out-Null
-    }
-    else {
-        $existingAccess = @(Get-SmbShareAccess -Name $SmbShareName -ErrorAction Stop | Where-Object {
-            $_.AccountName -eq $localAccount -and
-            $_.AccessControlType -eq 'Allow' -and
-            $_.AccessRight -in @('Read', 'Change', 'Full')
-        })
-        if ($existingAccess.Count -eq 0) {
-            Grant-SmbShareAccess -Name $SmbShareName -AccountName $localAccount -AccessRight Read -Force | Out-Null
-        }
-    }
-}
-
-function Write-SetupState {
-    $state = [ordered]@{
-        schemaVersion = 1
-        generatedAt = (Get-Date).ToUniversalTime().ToString('o')
-        repoRoot = $RepoRoot
-        liveRoot = $LiveRoot
-        interfaceAlias = $InterfaceAlias
-        serverIp = $ServerIp
-        prefixLength = $PrefixLength
-        localConfigPath = $LocalConfigPath
-        web = 'http://127.0.0.1:8080'
-    }
-    if ($DryRun) {
-        Write-Host "[dry-run] write setup state: $SetupStatePath"
-        return
-    }
-    Write-JsonFileNoBom -Value $state -Path $SetupStatePath -Depth 4
 }
 
 function Start-WebConsole {
@@ -607,12 +128,10 @@ function Start-WebConsole {
 
 try {
     Write-Step 'Checking setup prerequisites'
-    if (-not $DryRun -and -not (Test-IsAdministrator)) {
-        throw 'Run setup from an elevated PowerShell session or use Setup-DeploymentServer.cmd.'
-    }
     if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
         throw "Missing repo config: $ConfigPath"
     }
+    Ensure-Command -Name 'git'
     Ensure-NodeAndNpm
     Invoke-ExternalCommand -FilePath 'git' -ArgumentList @('status', '--short', '--branch')
 
@@ -625,31 +144,12 @@ try {
         Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('run', 'smoke')
     }
 
-    Write-Step 'Collecting local deployment settings'
-    $secrets = Get-DeploymentSecrets
-    if ([string]::IsNullOrWhiteSpace([string] $secrets.davisPassword) -or [string]::IsNullOrWhiteSpace([string] $secrets.pxeinstallPassword)) {
-        throw 'Both davisPassword and pxeinstallPassword are required.'
-    }
-    if (-not $DryRun) {
-        Write-JsonFileNoBom -Value $secrets -Path $SecretsPath -Depth 4
-    }
-
-    Get-ServiceInterfaceChoice
-    Write-LocalConfigOverlay
-
-    if (-not $SkipHostShareSetup) {
-        Write-Step 'Preparing local runtime skeleton and SMB share'
-        Ensure-HostSkeletonAndShare -PxePassword ([string] $secrets.pxeinstallPassword)
-    }
-
-    Write-SetupState
-
     Write-Step 'Starting Web console'
     Start-WebConsole
 
     Write-Step 'Setup completed'
-    Write-Host 'Runtime artifacts are not downloaded during setup.'
-    Write-Host 'Use the Web console Runtime Readiness panel to prepare runtime artifacts, then sync endpoint and run preflight.'
+    Write-Host 'Setup only prepares the Web console.'
+    Write-Host 'Use Web Runtime Readiness > Prepare runtime for C:\OSDCloud, SMB, iPXE, wimboot, boot.wim, OS image selection, endpoint sync, preflight, and service start/stop.'
 }
 catch {
     Write-Error $_.Exception.Message

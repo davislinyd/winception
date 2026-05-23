@@ -34,7 +34,7 @@ test('runtime artifact catalog validates download recipes and plans required art
           id: 'boot-wim',
           kind: 'winpe',
           sourceType: 'generated-winpe',
-          target: 'Win11-iPXE-Lab\\Media\\sources\\boot.wim',
+          target: 'Media\\sources\\boot.wim',
           length: 12,
           sha256: 'A'.repeat(64),
         },
@@ -44,7 +44,7 @@ test('runtime artifact catalog validates download recipes and plans required art
           sourceType: 'download',
           required: false,
           url: 'https://dl.delivery.mp.microsoft.com/install.esd',
-          target: 'Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\en-us.esd',
+          target: 'Media\\OSDCloud\\OS\\en-us.esd',
           length: 10,
           sha256: 'B'.repeat(64),
         },
@@ -56,7 +56,7 @@ test('runtime artifact catalog validates download recipes and plans required art
           url: 'https://www.7-zip.org/a/7z2601-x64.msi',
           targets: [
             'Softwares\\7zip\\7z2601-x64.msi',
-            'Win11-iPXE-Lab\\Media\\OSDCloud\\Apps\\7zip\\7z2601-x64.msi',
+            'Media\\OSDCloud\\Apps\\7zip\\7z2601-x64.msi',
           ],
           length: 9,
           sha256: 'C'.repeat(64),
@@ -84,7 +84,7 @@ test('runtime artifact catalog rejects missing URLs and unsafe targets', () => {
       artifacts: [{
         id: 'bad-download',
         sourceType: 'download',
-        target: 'Win11-iPXE-Lab\\file.bin',
+        target: 'file.bin',
         length: 1,
         sha256: 'A'.repeat(64),
       }],
@@ -140,7 +140,7 @@ test('runtime readiness reports missing required artifacts without hashing large
         id: 'required-boot',
         sourceType: 'download',
         url: 'https://example.test/boot.wim',
-        target: 'Win11-iPXE-Lab\\PXE-HttpRoot\\osdcloud\\boot.wim',
+        target: 'PXE-HttpRoot\\osdcloud\\boot.wim',
         length: 1024,
         sha256: 'A'.repeat(64),
       }],
@@ -163,18 +163,13 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /npm' -ArgumentList @\('install'\)/);
   assert.match(script, /npm' -ArgumentList @\('run', 'smoke'\)/);
   assert.match(script, /function Ensure-NodeAndNpm/);
-  assert.match(script, /Install Node\.js LTS now\? This will also install npm\./);
-  assert.match(script, /winget install --id OpenJS\.NodeJS\.LTS/);
-  assert.match(script, /https:\/\/nodejs\.org\/dist\/index\.json/);
-  assert.match(script, /SHASUMS256\.txt/);
-  assert.match(script, /Node\.js MSI SHA-256 mismatch/);
-  assert.match(script, /function Write-JsonFileNoBom/);
-  assert.match(script, /UTF8Encoding\]::new\(\$false\)/);
-  assert.match(script, /OSDCLOUD_DAVIS_PASSWORD/);
-  assert.match(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
-  assert.match(script, /osdcloud-console\.local\.json/);
-  assert.match(script, /New-SmbShare/);
-  assert.match(script, /New-LocalUser/);
+  assert.match(script, /OpenJS\.NodeJS\.LTS/);
+  assert.doesNotMatch(script, /OSDCLOUD_DAVIS_PASSWORD/);
+  assert.doesNotMatch(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
+  assert.doesNotMatch(script, /osdcloud-console\.local\.json/);
+  assert.doesNotMatch(script, /New-SmbShare/);
+  assert.doesNotMatch(script, /New-LocalUser/);
+  assert.doesNotMatch(script, /New-Item\s+-ItemType\s+Directory/);
   assert.doesNotMatch(script, /Restore-DeploymentArtifacts\.ps1/);
   assert.doesNotMatch(script, /Set-OsdCloudIpxeEndpoint\.ps1/);
   assert.doesNotMatch(script, /server:preflight/);
@@ -206,26 +201,16 @@ test('setup dry-run is non-network and does not create local state files', () =>
       '-NoLaunch',
       '-SkipNpmInstall',
       '-SkipSmoke',
-      '-SkipHostShareSetup',
-      '-InterfaceAlias',
-      'PXE-DRYRUN',
-      '-ServerIp',
-      '192.168.88.1',
-      '-PrefixLength',
-      '24',
     ], {
       cwd: root,
       encoding: 'utf8',
-      env: {
-        ...process.env,
-        OSDCLOUD_DAVIS_PASSWORD: 'dry-run-davis',
-        OSDCLOUD_PXEINSTALL_PASSWORD: 'dry-run-pxe',
-      },
+      env: process.env,
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stdout, /Runtime artifacts are not downloaded during setup/);
+    assert.match(result.stdout, /Setup only prepares the Web console/);
     assert.equal(fs.existsSync(localConfig), false);
     assert.equal(fs.existsSync(setupState), false);
+    assert.equal(fs.existsSync(path.join(root, 'C:\\OSDCloud')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -246,7 +231,7 @@ test('runtime restore uses the base Web config path while preserving local overl
 test('checked-in runtime artifact catalog is valid', () => {
   const catalog = loadRuntimeArtifactCatalog();
   assert.ok(catalog.artifacts.length >= 1);
-  assert.ok(catalog.artifacts.some((artifact) => artifact.id === 'win11-25h2-zh-tw-pro-esd'));
+  assert.equal(catalog.artifacts.some((artifact) => artifact.kind === 'osImage'), false);
   assert.ok(catalog.artifacts.some((artifact) => artifact.id === '7zip'));
 });
 
@@ -280,7 +265,7 @@ test('endpoint sync restores missing live endpoint templates from repo mirror', 
   assert.match(script, /Restore-RequiredEndpointFiles/);
   assert.match(script, /PXE-HttpRoot\\osdcloud\\boot\.ipxe/);
   assert.match(script, /Config\\Scripts\\SetupComplete\\SetupComplete\.ps1/);
-  assert.match(script, /osdcloud-assets\\Win11-iPXE-Lab/);
+  assert.match(script, /osdcloud-assets\\OSDCloud/);
 });
 
 test('endpoint sync restores missing source boot.wim from published HTTP copy', () => {

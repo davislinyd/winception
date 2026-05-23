@@ -36,13 +36,13 @@ function deploymentProfileDefaults(root) {
     profilesRoot: path.join(root, 'config', 'deployment-profiles'),
     softwareCatalogPath: path.join(root, 'config', 'software-catalog.json'),
     softwareSourceRoot: path.join(root, 'Softwares'),
-    appsRoot: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Apps',
+    appsRoot: 'C:\\OSDCloud\\Media\\OSDCloud\\Apps',
     installerScript: path.join(root, 'Softwares', 'Install-Apps.ps1'),
     softwareUploadRoot: path.join(root, '.osdcloud-console', 'software-uploads'),
     softwareUploadMaxBytes: defaultSoftwareUploadMaxBytes,
     customScriptsCatalogPath: path.join(root, 'config', 'scripts-catalog.json'),
     customScriptsSourceRoot: path.join(root, 'Scripts'),
-    customScriptsAppsRoot: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\Scripts',
+    customScriptsAppsRoot: 'C:\\OSDCloud\\Media\\OSDCloud\\Scripts',
     customScriptUploadRoot: path.join(root, '.osdcloud-console', 'script-uploads'),
     customScriptUploadMaxBytes: defaultCustomScriptUploadMaxBytes,
   };
@@ -948,9 +948,9 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
     } else if (defaultOsImageId) {
       osImageId = normalizeId(defaultOsImageId, `deployment profile ${id} osImage`);
     } else {
-      throw new Error(`Profile ${id} has no osImage and no default OS image is configured`);
+      osImageId = null;
     }
-    if (osImageCatalog && !osImageCatalog.byId?.has(osImageId)) {
+    if (osImageId && osImageCatalog && !osImageCatalog.byId?.has(osImageId)) {
       throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
     }
 
@@ -1050,16 +1050,16 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
 
   const softwareIds = [...state.activeProfile.softwareIds];
   const customScripts = (state.activeProfile.customScripts ?? []).map((entry) => ({ ...entry }));
-  const osImageId = normalizeId(
-    input.osImageId ?? state.activeProfile.osImageId,
-    `deployment profile ${id} osImage`,
-  );
+  const rawOsImageId = String(input.osImageId ?? state.activeProfile.osImageId ?? '').trim();
+  const osImageId = rawOsImageId ? normalizeId(rawOsImageId, `deployment profile ${id} osImage`) : null;
   const raw = {
     id,
     name,
     software: softwareIds,
-    osImage: osImageId,
   };
+  if (osImageId) {
+    raw.osImage = osImageId;
+  }
   if (customScripts.length > 0) {
     raw.customScripts = customScripts;
   }
@@ -1106,10 +1106,11 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const name = input.name === undefined
     ? profile.name
     : normalizeProfileName(input.name);
-  const osImageId = input.osImageId === undefined
+  const rawOsImageId = input.osImageId === undefined
     ? profile.osImageId
-    : normalizeId(input.osImageId, `deployment profile ${id} osImage`);
-  if (options.osImageCatalog && !options.osImageCatalog.byId?.has(osImageId)) {
+    : String(input.osImageId ?? '').trim();
+  const osImageId = rawOsImageId ? normalizeId(rawOsImageId, `deployment profile ${id} osImage`) : null;
+  if (osImageId && options.osImageCatalog && !options.osImageCatalog.byId?.has(osImageId)) {
     throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
   }
   const filePath = assertInside(profileOptions.profilesRoot, profile.filePath, 'Deployment profile path');
@@ -1122,7 +1123,11 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   } else {
     delete raw.customScripts;
   }
-  raw.osImage = osImageId;
+  if (osImageId) {
+    raw.osImage = osImageId;
+  } else {
+    delete raw.osImage;
+  }
   if (input.description !== undefined) {
     raw.description = normalizeProfileDescription(input.description);
   }
@@ -1636,6 +1641,9 @@ function removeScriptsRootContents(scriptsRoot) {
 export async function publishDeploymentProfile(config = {}, profileId = null, options = {}) {
   const state = resolveDeploymentProfileState(config, profileId, options);
   const appsRoot = assertSafeAppsRoot(state.options.appsRoot);
+  if (!state.activeProfile.osImageId) {
+    throw new Error('No OS image selected for the active deployment profile. Use Web OS Image Cache to download/import, export a WIM, set it active, then publish the profile.');
+  }
   if (!fs.existsSync(state.options.installerScript)) {
     throw new Error(`Install-Apps.ps1 source not found: ${state.options.installerScript}`);
   }
@@ -1712,6 +1720,9 @@ export function evaluateDeploymentProfilePayload(config = {}, options = {}) {
   try {
     const state = resolveDeploymentProfileState(config, null, options);
     const appsRoot = state.options.appsRoot;
+    if (!state.activeProfile.osImageId) {
+      return fail('Deployment profile', 'no OS image selected; use Web OS Image Cache to export a WIM and publish selected-os.json before publishing the profile');
+    }
     if (!fs.existsSync(appsRoot)) {
       return fail('Deployment profile', `Apps root not found: ${appsRoot}`);
     }

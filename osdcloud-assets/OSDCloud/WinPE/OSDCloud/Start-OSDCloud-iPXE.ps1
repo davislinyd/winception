@@ -230,25 +230,6 @@ function Get-DeployedWindowsRoot {
     return $null
 }
 
-function Get-DefaultSelectedOs {
-    [pscustomobject]@{
-        id = 'WIN11-25H2-ZHTW-PRO'
-        name = 'Windows 11 Pro 25H2 zh-TW'
-        version = 'Windows 11 25H2 x64'
-        releaseId = '25H2'
-        build = '26200.6584'
-        architecture = 'x64'
-        language = 'zh-tw'
-        locale = 'zh-TW'
-        timeZone = 'Taipei Standard Time'
-        edition = 'Pro'
-        editionId = 'Professional'
-        activation = 'Retail'
-        imageIndex = 6
-        fileName = '26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_zh-tw.esd'
-    }
-}
-
 function Get-SelectedOsManifest {
     param(
         [string] $OsRoot
@@ -261,17 +242,15 @@ function Get-SelectedOsManifest {
             if ($manifest.fileName -and $manifest.imageIndex) {
                 return $manifest
             }
-            Write-Warning "selected-os.json is missing fileName or imageIndex: $manifestPath"
+            throw "selected-os.json is missing fileName or imageIndex: $manifestPath"
         }
         catch {
-            Write-Warning "Unable to read selected OS manifest $manifestPath`: $($_.Exception.Message)"
+            throw "Unable to read selected OS manifest $manifestPath`: $($_.Exception.Message)"
         }
     }
     else {
-        Write-Warning "selected-os.json not found: $manifestPath. Falling back to default Windows 11 zh-TW Pro image."
+        throw "selected-os.json not found: $manifestPath. Use Web OS Image Cache to export a deployable WIM and publish selected-os.json before deployment."
     }
-
-    return Get-DefaultSelectedOs
 }
 
 function Get-SelectedOsStatusPayload {

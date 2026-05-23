@@ -76,24 +76,24 @@ test('clears status metadata and screenshot directory', () => {
 });
 
 test('parses SMB UNC image paths and maps them to the share backing path', () => {
-  assert.deepEqual(parseUncPath('\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd'), {
+  assert.deepEqual(parseUncPath('\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.wim'), {
     server: '10.10.10.1',
     shareName: 'OSDCloudiPXE',
-    relativePath: 'OSDCloud\\OS\\install.esd',
+    relativePath: 'OSDCloud\\OS\\install.wim',
   });
 
   assert.equal(
     smbBackingImagePath(
-      '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
-      { Path: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media' },
+      '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.wim',
+      { Path: 'C:\\OSDCloud\\Media' },
     ),
-    'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\install.esd',
+    'C:\\OSDCloud\\Media\\OSDCloud\\OS\\install.wim',
   );
 });
 
 test('SMB image preflight uses the share backing file and pxeinstall access', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-smb-preflight-'));
-  const imagePath = path.join(root, 'OSDCloud', 'OS', 'install.esd');
+  const imagePath = path.join(root, 'OSDCloud', 'OS', 'install.wim');
   fs.mkdirSync(path.dirname(imagePath), { recursive: true });
   fs.writeFileSync(imagePath, 'image');
 
@@ -101,7 +101,7 @@ test('SMB image preflight uses the share backing file and pxeinstall access', as
     const result = await evaluateSmbImage({
       smb: {
         share: '\\\\10.10.10.1\\OSDCloudiPXE',
-        imagePath: '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+        imagePath: '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.wim',
       },
     }, {
       shareInfo: {
@@ -124,7 +124,7 @@ test('SMB image preflight reports missing share, image, and pxeinstall access cl
   const config = {
     smb: {
       share: '\\\\10.10.10.1\\OSDCloudiPXE',
-      imagePath: '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+      imagePath: '\\\\10.10.10.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.wim',
     },
   };
 
@@ -135,7 +135,7 @@ test('SMB image preflight reports missing share, image, and pxeinstall access cl
   result = await evaluateSmbImage(config, {
     shareInfo: {
       Name: 'OSDCloudiPXE',
-      Path: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media',
+      Path: 'C:\\OSDCloud\\Media',
       Access: [{ AccountName: 'DESKTOP-TEST\\pxeinstall', AccessControlType: 'Allow', AccessRight: 'Read' }],
     },
     fileExists: () => false,
@@ -147,7 +147,7 @@ test('SMB image preflight reports missing share, image, and pxeinstall access cl
   result = await evaluateSmbImage(config, {
     shareInfo: {
       Name: 'OSDCloudiPXE',
-      Path: 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media',
+      Path: 'C:\\OSDCloud\\Media',
       Access: [{ AccountName: 'DESKTOP-TEST\\otheruser', AccessControlType: 'Allow', AccessRight: 'Read' }],
     },
     fileExists: () => true,
@@ -278,7 +278,7 @@ test('DHCP subnet preflight catches lease and router mismatch', () => {
 test('desktop-ready reporter returns success only after status upload', () => {
   const setupCompletePath = path.resolve(
     'osdcloud-assets',
-    'Win11-iPXE-Lab',
+    'OSDCloud',
     'Config',
     'Scripts',
     'SetupComplete',
@@ -300,7 +300,7 @@ test('desktop-ready reporter returns success only after status upload', () => {
 test('desktop-ready reporter targets davis profile desktop instead of Public Desktop', () => {
   const setupCompletePath = path.resolve(
     'osdcloud-assets',
-    'Win11-iPXE-Lab',
+    'OSDCloud',
     'Config',
     'Scripts',
     'SetupComplete',
@@ -320,7 +320,7 @@ test('desktop-ready reporter targets davis profile desktop instead of Public Des
 test('desktop-ready status includes resolved davis desktop evidence fields', () => {
   const setupCompletePath = path.resolve(
     'osdcloud-assets',
-    'Win11-iPXE-Lab',
+    'OSDCloud',
     'Config',
     'Scripts',
     'SetupComplete',

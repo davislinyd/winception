@@ -41,7 +41,7 @@ fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.ipxe'), '#!ipxe\n');
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'boot.wim'), 'boot-image');
 fs.writeFileSync(path.join(httpRoot, 'osdcloud', 'driverpack.exe'), 'driver-pack-smoke');
 fs.writeFileSync(path.join(tftpRoot, 'snponly.efi'), 'efi');
-fs.writeFileSync(path.join(osCacheRoot, 'install.esd'), 'install image');
+fs.writeFileSync(path.join(osCacheRoot, 'install.wim'), 'install image');
 fs.mkdirSync(path.join(softwareRoot, 'smoke-app'), { recursive: true });
 fs.mkdirSync(path.join(softwareRoot, 'smoke-extra'), { recursive: true });
 fs.mkdirSync(profilesRoot, { recursive: true });
@@ -72,9 +72,12 @@ fs.writeFileSync(osCatalogPath, JSON.stringify({
     edition: 'Pro',
     editionId: 'Professional',
     activation: 'Retail',
-    imageIndex: 6,
-    fileName: 'install.esd',
+    imageIndex: 1,
+    fileName: 'install.wim',
     size: 'install image'.length,
+    sourceFileName: 'source-install.esd',
+    sourceContainerType: 'esd',
+    sourceImageIndex: 6,
   }],
 }, null, 2));
 
@@ -117,7 +120,7 @@ const config = {
     expectedHttpFiles: ['osdcloud\\boot.ipxe', 'osdcloud\\boot.wim'],
     statusLatest: path.join(statusRoot, 'latest.json'),
     statusEvents: path.join(statusRoot, 'progress.jsonl'),
-    imageNamePattern: 'install.esd',
+    imageNamePattern: 'install.wim',
   },
   http: {
     root: httpRoot,
@@ -128,7 +131,7 @@ const config = {
   },
   smb: {
     share: '\\\\127.0.0.1\\OSDCloudiPXE',
-    imagePath: path.join(osCacheRoot, 'install.esd'),
+    imagePath: '\\\\127.0.0.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.wim',
   },
   driverPackCache: {
     enabled: true,

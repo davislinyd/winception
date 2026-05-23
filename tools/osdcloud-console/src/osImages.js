@@ -13,9 +13,9 @@ const repoRoot = path.resolve(moduleDir, '..', '..', '..');
 export const selectedOsFileName = 'selected-os.json';
 export const osImageCacheLogFileName = 'os-image-cache.jsonl';
 
-const defaultActiveImage = 'WIN11-25H2-ZHTW-PRO';
-const defaultCacheRoot = 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS';
-const defaultDownloadStagingRoot = 'C:\\OSDCloud\\Win11-iPXE-Lab\\Media\\OSDCloud\\OS\\.downloads';
+const defaultActiveImage = null;
+const defaultCacheRoot = 'C:\\OSDCloud\\Media\\OSDCloud\\OS';
+const defaultDownloadStagingRoot = 'C:\\OSDCloud\\Media\\OSDCloud\\OS\\.downloads';
 const defaultDownloadSourcesPath = 'config\\os-download-sources.json';
 const defaultUploadMaxBytes = 16 * 1024 * 1024 * 1024;
 const allowedExtensions = new Set(['.esd', '.wim']);
@@ -129,6 +129,14 @@ function cleanImportFileName(value, label = 'OS import fileName') {
   return fileName;
 }
 
+function cleanWimFileName(value, label = 'OS image WIM fileName') {
+  const fileName = cleanImportFileName(value, label);
+  if (path.extname(fileName).toLowerCase() !== '.wim') {
+    throw new Error(`${label} must end with .wim: ${fileName}`);
+  }
+  return fileName;
+}
+
 function cleanUploadFileName(value, label = 'OS upload fileName') {
   const raw = String(value ?? '').trim();
   if (!raw || raw.includes('/') || raw.includes('\\') || raw.includes('..')) {
@@ -190,7 +198,7 @@ function stableCatalogId(row) {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/gu, '-')
     .replace(/^-+|-+$/gu, '')
-    .slice(0, 64) || defaultActiveImage;
+    .slice(0, 64) || 'WINDOWS-IMAGE';
 }
 
 function normalizeHash(value) {
@@ -389,6 +397,11 @@ export function normalizeOsImage(row = {}) {
     sha1: normalizeHash(firstValue(row, ['sha1', 'SHA1'], '')),
     url,
     sourceType: String(firstValue(row, ['sourceType', 'SourceType'], 'catalog')).trim().toLowerCase() || 'catalog',
+    sourceFileName: String(firstValue(row, ['sourceFileName', 'SourceFileName'], '')).trim(),
+    sourceContainerType: String(firstValue(row, ['sourceContainerType', 'SourceContainerType'], '')).trim(),
+    sourceImageIndex: normalizeNumber(firstValue(row, ['sourceImageIndex', 'SourceImageIndex'], null), `OS image ${id} sourceImageIndex`, { optional: true, min: 1 }),
+    sourceSize: normalizeNumber(firstValue(row, ['sourceSize', 'SourceSize'], null), `OS image ${id} sourceSize`, { optional: true, min: 1 }),
+    sourceSha256: normalizeHash(firstValue(row, ['sourceSha256', 'SourceSha256'], '')),
   };
 }
 
@@ -486,9 +499,10 @@ function annotateCachedImage(options, image) {
 export function resolveOsImageState(config = {}, imageId = null, options = {}) {
   const imageOptions = osImageOptions(config, options);
   const catalog = loadOsImageCatalog(config, options);
-  const selectedId = normalizeId(imageId ?? imageOptions.activeImage, 'active OS image');
+  const rawSelectedId = imageId ?? imageOptions.activeImage;
+  const selectedId = rawSelectedId ? normalizeId(rawSelectedId, 'active OS image') : null;
   const images = catalog.images.map((image) => annotateCachedImage(imageOptions, image));
-  const activeImage = images.find((image) => image.id === selectedId) ?? null;
+  const activeImage = selectedId ? images.find((image) => image.id === selectedId) ?? null : null;
   const selectedOs = fs.existsSync(imageOptions.selectedOsPath)
     ? readJson(imageOptions.selectedOsPath, 'selected OS manifest')
     : null;
@@ -548,6 +562,11 @@ function selectedOsManifest(image, filePath) {
     imagePath: `Z:\\OSDCloud\\OS\\${image.fileName}`,
     size: image.size ?? null,
     sha256: image.sha256 || null,
+    sourceFileName: image.sourceFileName || null,
+    sourceContainerType: image.sourceContainerType || null,
+    sourceImageIndex: image.sourceImageIndex ?? null,
+    sourceSize: image.sourceSize ?? null,
+    sourceSha256: image.sourceSha256 || null,
     publishedAt: new Date().toISOString(),
     cacheFilePath: filePath,
   };
@@ -555,6 +574,9 @@ function selectedOsManifest(image, filePath) {
 
 export async function publishSelectedOsImage(config = {}, imageId = null, options = {}) {
   const state = resolveOsImageState(config, imageId, options);
+  if (!state.activeImageId) {
+    throw new Error('No active OS image selected. Use Web OS Image Cache to download or import a source image, export a deployable WIM, then publish it.');
+  }
   if (!state.activeImage) {
     throw new Error(`Active OS image not found: ${state.activeImageId}`);
   }
@@ -604,7 +626,9 @@ export async function evaluateOsImageCache(config = {}, options = {}) {
     const state = resolveOsImageState(config, null, options);
     const image = state.activeImage;
     if (!image) {
-      return fail('OS image', `active image not found: ${state.activeImageId}`);
+      return fail('OS image', state.activeImageId
+        ? `active image not found: ${state.activeImageId}`
+        : 'no active OS image selected; use Web OS Image Cache to download/import, export a WIM, and publish selected-os.json');
     }
     if (!image.cached) {
       return fail('OS image', `cached file missing: ${image.filePath}`);
@@ -822,14 +846,13 @@ function inferEdition(name) {
 
 function suggestedFileName(sourcePath, imageFilePath, imageIndex, metadata = {}) {
   if (metadata.fileName) {
-    return cleanImportFileName(metadata.fileName);
+    return cleanWimFileName(path.basename(metadata.fileName, path.extname(metadata.fileName)) + '.wim');
   }
-  const extension = path.extname(imageFilePath).toLowerCase();
   const base = path.basename(sourcePath, path.extname(sourcePath))
     .replace(/[^A-Za-z0-9._-]+/gu, '-')
     .replace(/^-+|-+$/gu, '')
     .slice(0, 96) || 'imported-os';
-  return cleanImportFileName(`${base}-index${imageIndex}${extension}`);
+  return cleanWimFileName(`${base}-index${imageIndex}.wim`);
 }
 
 function suggestedImageMetadata(sourcePath, imageFilePath, row, metadata = {}) {
@@ -853,7 +876,67 @@ function suggestedImageMetadata(sourcePath, imageFilePath, row, metadata = {}) {
     imageIndex: row.imageIndex,
     fileName,
     id: metadata.id,
-    sourceType: 'imported',
+    sourceFileName: metadata.sourceFileName,
+    sourceContainerType: metadata.sourceContainerType,
+    sourceImageIndex: metadata.sourceImageIndex,
+    sourceSize: metadata.sourceSize,
+    sourceSha256: metadata.sourceSha256,
+    sourceType: metadata.sourceType ?? 'exported-wim',
+  });
+}
+
+function exportedImageMetadata(image, sourcePath, sourceSize, sourceSha256, sourceType) {
+  const sourceImageIndex = image.imageIndex;
+  const sourceFileName = path.basename(sourcePath);
+  const fileName = cleanWimFileName(path.basename(image.fileName, path.extname(image.fileName)) + '.wim');
+  return normalizeOsImage({
+    ...image,
+    imageIndex: 1,
+    fileName,
+    size: null,
+    sha256: '',
+    sha1: '',
+    sourceType: 'exported-wim',
+    sourceFileName,
+    sourceContainerType: sourceType,
+    sourceImageIndex,
+    sourceSize,
+    sourceSha256,
+  });
+}
+
+async function exportImageToWim(sourcePath, destinationPath, sourceIndex, options = {}) {
+  if (typeof options.exportImageToWim === 'function') {
+    return options.exportImageToWim(sourcePath, destinationPath, sourceIndex, options);
+  }
+  const index = normalizeNumber(sourceIndex, 'OS image export source index', { min: 1 });
+  return new Promise((resolve, reject) => {
+    const args = [
+      '/English',
+      '/Export-Image',
+      `/SourceImageFile:${sourcePath}`,
+      `/SourceIndex:${index}`,
+      `/DestinationImageFile:${destinationPath}`,
+      '/Compress:Max',
+      '/CheckIntegrity',
+    ];
+    const child = spawn(options.dismPath ?? 'dism.exe', args, { windowsHide: true });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ ok: true, stdout, stderr });
+      } else {
+        const error = new Error(stderr.trim() || stdout.trim() || `DISM Export-Image exited with code ${code}`);
+        error.stdout = stdout;
+        error.stderr = stderr;
+        error.code = code;
+        reject(error);
+      }
+    });
   });
 }
 
@@ -928,20 +1011,20 @@ export async function importLocalOsImage(config = {}, input = {}, options = {}) 
       throw new Error(`Image index ${requestedIndex} not found in ${resolved.imagePath}`);
     }
 
-    const image = suggestedImageMetadata(source, resolved.imagePath, selectedRow, {
+    const sourceStat = fs.statSync(resolved.imagePath);
+    const sourceSha256 = await sha256File(resolved.imagePath);
+    const sourceImage = suggestedImageMetadata(source, resolved.imagePath, selectedRow, {
       ...metadata,
       imageIndex: requestedIndex,
     });
+    const image = exportedImageMetadata(sourceImage, resolved.imagePath, sourceStat.size, sourceSha256, resolved.type);
     const destination = cachedImagePath(imageOptions, image);
     if (fs.existsSync(destination)) {
       const existing = await sha256File(destination);
-      const incoming = await sha256File(resolved.imagePath);
-      if (existing !== incoming) {
-        throw new Error(`OS image cache file already exists: ${destination}`);
-      }
+      const existingStat = fs.statSync(destination);
       const cached = {
         ...image,
-        size: fs.statSync(destination).size,
+        size: existingStat.size,
         sha256: existing,
       };
       upsertCatalogImage(config, cached, options);
@@ -950,20 +1033,23 @@ export async function importLocalOsImage(config = {}, input = {}, options = {}) 
     }
 
     const jobId = `${image.id}-${Date.now()}`.replace(/[^A-Za-z0-9._-]/gu, '_');
-    stagingPath = assertInside(imageOptions.downloadStagingRoot, path.join(imageOptions.downloadStagingRoot, `${jobId}.download`), 'OS image import staging path');
-    fs.copyFileSync(resolved.imagePath, stagingPath, fs.constants.COPYFILE_EXCL);
+    stagingPath = assertInside(imageOptions.downloadStagingRoot, path.join(imageOptions.downloadStagingRoot, `${jobId}.wim`), 'OS image import staging path');
+    if (options.validateImage !== false) {
+      await validateImageIndex(resolved.imagePath, requestedIndex, options);
+    }
+    await exportImageToWim(resolved.imagePath, stagingPath, requestedIndex, options);
     const stat = fs.statSync(stagingPath);
     if (stat.size <= 0) {
       throw new Error('OS image import produced an empty file');
     }
     if (options.validateImage !== false) {
-      await validateImageIndex(stagingPath, requestedIndex, options);
+      await validateImageIndex(stagingPath, 1, options);
     }
     const finalImage = {
       ...image,
       size: stat.size,
       sha256: await sha256File(stagingPath),
-      sourceType: 'imported',
+      sourceType: 'exported-wim',
     };
     fs.renameSync(stagingPath, destination);
     stagingPath = null;
@@ -1378,87 +1464,95 @@ const sha1File = (filePath) => hashFile(filePath, 'sha1');
 
 export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, options = {}) {
   const imageOptions = osImageOptions(config, options);
-  const image = normalizeOsImage(catalogItem);
-  if (!image.url) {
-    throw new Error(`OS image catalog item has no URL: ${image.id}`);
+  const sourceImage = normalizeOsImage(catalogItem);
+  if (!sourceImage.url) {
+    throw new Error(`OS image catalog item has no URL: ${sourceImage.id}`);
   }
-  assertMicrosoftDownloadUrl(image.url, config, options, `OS image catalog item ${image.id} URL`);
+  assertMicrosoftDownloadUrl(sourceImage.url, config, options, `OS image catalog item ${sourceImage.id} URL`);
   fs.mkdirSync(imageOptions.cacheRoot, { recursive: true });
   fs.mkdirSync(imageOptions.downloadStagingRoot, { recursive: true });
 
+  const image = exportedImageMetadata(
+    sourceImage,
+    sourceImage.fileName,
+    sourceImage.size,
+    sourceImage.sha256,
+    path.extname(sourceImage.fileName).replace('.', '') || 'download',
+  );
   const destination = cachedImagePath(imageOptions, image);
   if (fs.existsSync(destination) && fs.statSync(destination).size > 0) {
     const existingStat = fs.statSync(destination);
-    let existingSha256 = image.sha256;
-    let existingSha1 = image.sha1;
-    if (image.sha256) {
-      existingSha256 = await sha256File(destination);
-      if (!hashMatches(existingSha256, image.sha256)) {
-        throw new Error(`OS image cache file hash mismatch: ${destination}`);
-      }
-    } else if (image.sha1) {
-      existingSha1 = await sha1File(destination);
-      if (!hashMatches(existingSha1, image.sha1)) {
-        throw new Error(`OS image cache file hash mismatch: ${destination}`);
-      }
-    }
     const cached = {
       ...image,
       size: existingStat.size,
-      sha256: existingSha256,
-      sha1: existingSha1,
+      sha256: await sha256File(destination),
     };
     upsertCatalogImage(config, cached, options);
     appendCacheLog(config, { status: 'cache-hit', imageId: cached.id, fileName: cached.fileName, bytes: cached.size }, options);
     return { status: 'cache-hit', image: cached, filePath: destination, bytes: cached.size };
   }
 
-  const jobId = `${image.id}-${Date.now()}`.replace(/[^A-Za-z0-9._-]/gu, '_');
-  const stagingPath = assertInside(imageOptions.downloadStagingRoot, path.join(imageOptions.downloadStagingRoot, `${jobId}.download`), 'OS image download staging path');
+  const jobId = `${sourceImage.id}-${Date.now()}`.replace(/[^A-Za-z0-9._-]/gu, '_');
+  const sourceStagingPath = assertInside(imageOptions.downloadStagingRoot, path.join(imageOptions.downloadStagingRoot, `${jobId}.source`), 'OS image download staging path');
+  const exportStagingPath = assertInside(imageOptions.downloadStagingRoot, path.join(imageOptions.downloadStagingRoot, `${jobId}.wim`), 'OS image export staging path');
 
   try {
-    await downloadToFile(image.url, stagingPath, {
+    await downloadToFile(sourceImage.url, sourceStagingPath, {
       config,
       fetchImpl: options.fetchImpl,
       microsoftDownloadHosts: options.microsoftDownloadHosts,
       onProgress: options.onProgress,
     });
-    const stat = fs.statSync(stagingPath);
+    const stat = fs.statSync(sourceStagingPath);
     if (stat.size <= 0) {
       throw new Error('OS image download produced an empty file');
     }
-    if (image.size && stat.size !== image.size) {
-      throw new Error(`OS image download size mismatch: ${stat.size} expected ${image.size}`);
+    if (sourceImage.size && stat.size !== sourceImage.size) {
+      throw new Error(`OS image download size mismatch: ${stat.size} expected ${sourceImage.size}`);
     }
-    if (image.sha256) {
-      const actual = await sha256File(stagingPath);
-      if (actual !== image.sha256) {
-        throw new Error(`OS image SHA256 mismatch: ${actual} expected ${image.sha256}`);
+    let sourceSha256 = '';
+    if (sourceImage.sha256) {
+      sourceSha256 = await sha256File(sourceStagingPath);
+      if (sourceSha256 !== sourceImage.sha256) {
+        throw new Error(`OS image SHA256 mismatch: ${sourceSha256} expected ${sourceImage.sha256}`);
       }
-    } else if (image.sha1) {
-      const actual = await sha1File(stagingPath);
-      if (actual !== image.sha1) {
-        throw new Error(`OS image SHA1 mismatch: ${actual} expected ${image.sha1}`);
+    } else if (sourceImage.sha1) {
+      const actual = await sha1File(sourceStagingPath);
+      if (actual !== sourceImage.sha1) {
+        throw new Error(`OS image SHA1 mismatch: ${actual} expected ${sourceImage.sha1}`);
       }
     }
     if (options.validateImage !== false) {
-      await validateImageIndex(stagingPath, image.imageIndex, options);
+      await validateImageIndex(sourceStagingPath, sourceImage.imageIndex, options);
     }
 
+    await exportImageToWim(sourceStagingPath, exportStagingPath, sourceImage.imageIndex, options);
+    const exportStat = fs.statSync(exportStagingPath);
+    if (exportStat.size <= 0) {
+      throw new Error('OS image export produced an empty WIM');
+    }
+    if (options.validateImage !== false) {
+      await validateImageIndex(exportStagingPath, 1, options);
+    }
     const finalImage = {
       ...image,
-      size: stat.size,
+      size: exportStat.size,
+      sha256: await sha256File(exportStagingPath),
+      sourceSize: stat.size,
+      sourceSha256: sourceSha256 || sourceImage.sha256,
     };
-    fs.renameSync(stagingPath, destination);
+    fs.renameSync(exportStagingPath, destination);
     upsertCatalogImage(config, finalImage, options);
     appendCacheLog(config, { status: 'downloaded', imageId: finalImage.id, fileName: finalImage.fileName, bytes: finalImage.size }, options);
     return { status: 'downloaded', image: finalImage, filePath: destination, bytes: finalImage.size };
   } catch (error) {
-    appendCacheLog(config, { status: 'failed', imageId: image.id, fileName: image.fileName, reason: error.message }, options);
+    appendCacheLog(config, { status: 'failed', imageId: sourceImage.id, fileName: sourceImage.fileName, reason: error.message }, options);
     throw error;
   } finally {
-    if (fs.existsSync(stagingPath)) {
-      fs.rmSync(stagingPath, { force: true });
+    for (const stagingPath of [sourceStagingPath, exportStagingPath]) {
+      if (fs.existsSync(stagingPath)) {
+        fs.rmSync(stagingPath, { force: true });
+      }
     }
   }
 }

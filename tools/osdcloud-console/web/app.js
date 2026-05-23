@@ -821,7 +821,7 @@ function renderOsImageSummary(appState) {
   title.textContent = active ? active.id : '-';
   const meta = document.createElement('div');
   meta.className = 'profile-meta';
-  meta.textContent = active ? osImageLabel(active) : 'No active OS image.';
+  meta.textContent = active ? osImageLabel(active) : 'No OS image selected.';
   const cache = document.createElement('div');
   cache.className = 'profile-software active-os-cache-line';
   cache.append(makeStatusPill(active?.cached ? 'Cached' : 'Missing', active?.cached ? 'ok' : 'fail'));

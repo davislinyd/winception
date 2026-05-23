@@ -9,7 +9,7 @@ param(
     [string] $BootFile = 'ipxeboot/x86_64-sb/snponly.efi',
     [string] $IpxeBootUrl = '',
     [int] $LeaseSeconds = 3600,
-    [string] $LogPath = 'C:\OSDCloud\Win11-iPXE-Lab\PXE-TFTP\pxe-dhcp.log'
+    [string] $LogPath = 'C:\OSDCloud\PXE-TFTP\pxe-dhcp.log'
 )
 
 $ErrorActionPreference = 'Stop'

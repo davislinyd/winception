@@ -1,8 +1,8 @@
 param(
-    [string] $Root = 'C:\OSDCloud\Win11-iPXE-Lab\PXE-TFTP',
+    [string] $Root = 'C:\OSDCloud\PXE-TFTP',
     [string] $ListenIp = '192.168.100.1',
     [int] $Port = 69,
-    [string] $LogPath = 'C:\OSDCloud\Win11-iPXE-Lab\PXE-TFTP\pxe-tftp.log'
+    [string] $LogPath = 'C:\OSDCloud\PXE-TFTP\pxe-tftp.log'
 )
 
 $ErrorActionPreference = 'Stop'
