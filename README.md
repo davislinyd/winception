@@ -159,6 +159,8 @@ cd '<repo-root>'
 
 setup 除了 operator 明確同意安裝 Node.js LTS 之外，不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會建立 `C:\OSDCloud`、不會建立 SMB share 或本機 `pxeinstall` 帳號、不會要求 deployment secrets、不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
 
+如果 setup 呼叫 `winget install OpenJS.NodeJS.LTS` 時顯示 Node.js 已安裝且沒有可更新版本，通常是目前 PowerShell session 還沒刷新 PATH。新版 setup 會重新讀取 machine/user PATH 並探測標準 `C:\Program Files\nodejs` 位置後續跑；如果仍失敗，關閉 PowerShell、重新開系統管理員 PowerShell，再執行 `node --version`、`npm --version` 與 `.\Setup-DeploymentServer.cmd`。
+
 若要非互動測試 setup 行為，可用；`-DryRun` 仍會保存唯一允許的 Web local overlay，但不執行 npm install/smoke、launch、secrets、runtime、SMB、PXE 或服務動作：
 
 ```powershell

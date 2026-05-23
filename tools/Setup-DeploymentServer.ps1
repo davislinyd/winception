@@ -77,7 +77,44 @@ function Read-YesNo {
 function Refresh-ProcessPath {
     $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    $env:Path = @($machinePath, $userPath, $env:Path) -join ';'
+    $paths = @($machinePath, $userPath, $env:Path) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $env:Path = $paths -join ';'
+    Add-NodeInstallPaths
+}
+
+function Add-PathEntry {
+    param([Parameter(Mandatory)][string] $Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        return
+    }
+
+    $entries = @($env:Path -split ';') |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    if ($entries -notcontains $Path) {
+        $env:Path = (@($Path) + $entries) -join ';'
+    }
+}
+
+function Add-NodeInstallPaths {
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+        $candidates += (Join-Path $env:ProgramFiles 'nodejs')
+    }
+
+    $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+    if (-not [string]::IsNullOrWhiteSpace($programFilesX86)) {
+        $candidates += (Join-Path $programFilesX86 'nodejs')
+    }
+
+    foreach ($candidate in $candidates) {
+        Add-PathEntry -Path $candidate
+    }
+}
+
+function Test-NodeAndNpmAvailable {
+    (Test-CommandAvailable -Name 'node') -and (Test-CommandAvailable -Name 'npm')
 }
 
 function Install-NodeJsLts {
@@ -91,7 +128,7 @@ function Install-NodeJsLts {
         throw 'winget is not available. Install Node.js LTS manually from https://nodejs.org/, then rerun setup.'
     }
 
-    Invoke-ExternalCommand -FilePath 'winget' -ArgumentList @(
+    $wingetArgs = @(
         'install',
         '--id',
         'OpenJS.NodeJS.LTS',
@@ -99,6 +136,24 @@ function Install-NodeJsLts {
         '--accept-package-agreements',
         '--accept-source-agreements'
     )
+    Push-Location -LiteralPath $RepoRoot
+    try {
+        Write-Host "+ winget $($wingetArgs -join ' ')"
+        if (-not $DryRun) {
+            & winget @wingetArgs
+            $wingetExitCode = $LASTEXITCODE
+            Refresh-ProcessPath
+            if ($wingetExitCode -ne 0 -and -not (Test-NodeAndNpmAvailable)) {
+                throw "Command failed with exit code ${wingetExitCode}: winget $($wingetArgs -join ' ')"
+            }
+            if ($wingetExitCode -ne 0) {
+                Write-Warning 'winget did not install or upgrade Node.js, but node/npm are available now. Continuing setup.'
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
     Refresh-ProcessPath
 }
 
@@ -110,9 +165,11 @@ function Ensure-Command {
 }
 
 function Ensure-NodeAndNpm {
-    if (-not (Test-CommandAvailable -Name 'node') -or -not (Test-CommandAvailable -Name 'npm')) {
+    Refresh-ProcessPath
+    if (-not (Test-NodeAndNpmAvailable)) {
         Install-NodeJsLts
     }
+    Refresh-ProcessPath
     Ensure-Command -Name 'node'
     Ensure-Command -Name 'npm'
     Invoke-ExternalCommand -FilePath 'node' -ArgumentList @('--version')
