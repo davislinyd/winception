@@ -44,6 +44,8 @@ http://127.0.0.1:8080
 | Endpoint sync / preflight | 把本次 NIC/IP 寫入 live `boot.ipxe`、WinPE `boot.wim`、SMB firewall 與 local overlay，並檢查 runtime / OS WIM 可部署 | 不替你確認外部 LAN DHCP 已關閉 |
 | Start services | operator 明確確認後才啟 HTTP/TFTP/DHCP responders | 不自動開始部署 |
 
+若 first-run Initialization Wizard 已開啟，直接從 wizard 執行 `Prepare runtime` 即可；確認後 wizard 會留在畫面上顯示 running/completed/failed 狀態與最近 operation log。從主畫面 Runtime Readiness 卡片執行時，則用主畫面的 operation badge 與 System Log 監看。
+
 ## 目前狀態
 
 已驗證成功的目標：
