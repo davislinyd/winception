@@ -408,7 +408,17 @@ test('loads JSON config files with UTF-8 BOM from Windows PowerShell', () => {
 
     assert.equal(config.adapter.interfaceAlias, 'PXE');
     assert.equal(config.adapter.serverIp, '192.168.88.1');
+    assert.equal(config.__configPath, configPath);
     assert.equal(config.__savePath, localConfigPath);
+
+    const configFromLocalPath = loadConfig(localConfigPath);
+
+    assert.equal(configFromLocalPath.adapter.interfaceAlias, 'PXE');
+    assert.equal(configFromLocalPath.dhcp.bootFile, 'snponly.efi');
+    assert.equal(configFromLocalPath.tftp.root, 'C:\\PXE-TFTP');
+    assert.equal(configFromLocalPath.http.statusRoot, 'C:\\status');
+    assert.equal(configFromLocalPath.__configPath, configPath);
+    assert.equal(configFromLocalPath.__savePath, localConfigPath);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

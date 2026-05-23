@@ -231,10 +231,16 @@ test('setup dry-run is non-network and does not create local state files', () =>
   }
 });
 
-test('runtime restore can use the effective Web config path', () => {
+test('runtime restore uses the base Web config path while preserving local overlay merge', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+  const windows = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
+
   assert.match(script, /\[string\] \$ConfigPath/);
   assert.match(script, /--config[\s\S]*\$ConfigPath/);
+  assert.match(windows, /function resolveBaseConfigPath/);
+  assert.match(windows, /const baseConfigPath = resolveBaseConfigPath\(config, repoRoot\)/);
+  assert.match(windows, /'-ConfigPath'[\s\S]*baseConfigPath/);
+  assert.doesNotMatch(windows, /prepareRuntimeArtifacts[\s\S]*const effectiveConfigPath = config\.__savePath/);
 });
 
 test('checked-in runtime artifact catalog is valid', () => {

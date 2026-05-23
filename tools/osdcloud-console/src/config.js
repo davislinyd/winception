@@ -9,6 +9,17 @@ export const defaultRepoRoot = repoRoot;
 export const defaultConfigPath = path.join(repoRoot, 'config', 'osdcloud-console.json');
 export const defaultLocalConfigPath = path.join(repoRoot, 'config', 'osdcloud-console.local.json');
 
+function splitLocalConfigPath(configPath) {
+  const parsed = path.parse(configPath);
+  if (!parsed.name.endsWith('.local')) {
+    return null;
+  }
+  return {
+    basePath: path.join(parsed.dir, `${parsed.name.slice(0, -'.local'.length)}${parsed.ext}`),
+    localPath: configPath,
+  };
+}
+
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -40,11 +51,13 @@ export function localConfigPathFor(configPath) {
 }
 
 export function loadConfig(configPath = process.env.OSDCLOUD_CONSOLE_CONFIG || defaultConfigPath, options = {}) {
-  const resolved = path.resolve(configPath);
+  const passedPath = path.resolve(configPath);
+  const inferredLocal = options.localConfigPath === false ? null : splitLocalConfigPath(passedPath);
+  const resolved = inferredLocal?.basePath ?? passedPath;
   const baseConfig = parseJsonFile(resolved);
   const localConfigPath = options.localConfigPath === false
     ? null
-    : path.resolve(options.localConfigPath ?? process.env.OSDCLOUD_CONSOLE_LOCAL_CONFIG ?? localConfigPathFor(resolved));
+    : path.resolve(options.localConfigPath ?? process.env.OSDCLOUD_CONSOLE_LOCAL_CONFIG ?? inferredLocal?.localPath ?? localConfigPathFor(resolved));
   const localConfig = localConfigPath && fs.existsSync(localConfigPath)
     ? parseJsonFile(localConfigPath)
     : null;

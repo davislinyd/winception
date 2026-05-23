@@ -375,6 +375,10 @@ export function resolveEndpointSyncScript(config = {}) {
   return path.join(root, 'tools', 'Set-OsdCloudIpxeEndpoint.ps1');
 }
 
+function resolveBaseConfigPath(config, repoRoot) {
+  return config.__configPath ?? path.join(repoRoot, 'config', 'osdcloud-console.json');
+}
+
 export async function syncIpxeEndpoint(config, options = {}) {
   const repoRoot = resolveRepoRoot(config);
   const scriptPath = resolveEndpointSyncScript(config);
@@ -425,7 +429,7 @@ export async function syncIpxeEndpoint(config, options = {}) {
 export async function prepareRuntimeArtifacts(config, options = {}) {
   const repoRoot = resolveRepoRoot(config);
   const scriptPath = path.join(repoRoot, 'tools', 'Restore-DeploymentArtifacts.ps1');
-  const effectiveConfigPath = config.__savePath ?? config.__localConfigPath ?? config.__configPath ?? path.join(repoRoot, 'config', 'osdcloud-console.json');
+  const baseConfigPath = resolveBaseConfigPath(config, repoRoot);
   const args = [
     '-NoProfile',
     '-ExecutionPolicy',
@@ -437,7 +441,7 @@ export async function prepareRuntimeArtifacts(config, options = {}) {
     '-LiveRoot',
     config.runtimeArtifacts?.liveRoot ?? 'C:\\OSDCloud',
     '-ConfigPath',
-    effectiveConfigPath,
+    baseConfigPath,
   ];
   if (options.includeOptional === true) {
     args.push('-IncludeOptional');
