@@ -147,8 +147,12 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /initializationSecretsDraft: \{[\s\S]*davisPassword: ''[\s\S]*pxeinstallPassword: ''/);
   assert.match(script, /function captureInitializationSecretsDraft\(\)/);
   assert.match(script, /function clearInitializationSecretsDraft\(\)/);
+  assert.match(script, /function focusedInitializationSecretControl\(\)/);
+  assert.match(script, /function restoreInitializationSecretFocus\(focusedControl\)/);
   assert.match(script, /input\.value = state\.initializationSecretsDraft\[name\] \?\? ''/);
   assert.match(script, /input\.addEventListener\('input', \(\) => \{[\s\S]*state\.initializationSecretsDraft\[name\] = input\.value;/);
+  assert.match(script, /const focusedSecretControl = focusedInitializationSecretControl\(\);/);
+  assert.match(script, /restoreInitializationSecretFocus\(focusedSecretControl\);/);
   assert.match(script, /clearInitializationSecretsDraft\(\);[\s\S]*controls\.davisPassword\.value = ''/);
   assert.match(script, /function renderInitializationOperation\(appState\)/);
   assert.match(script, /function renderInitialization\(appState\)/);

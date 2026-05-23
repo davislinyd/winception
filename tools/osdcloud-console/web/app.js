@@ -776,6 +776,32 @@ function clearInitializationSecretsDraft() {
   state.initializationSecretsDraft.pxeinstallPassword = '';
 }
 
+function focusedInitializationSecretControl() {
+  const activeId = document.activeElement?.id;
+  if (activeId !== 'init-davis-password' && activeId !== 'init-pxeinstall-password') {
+    return null;
+  }
+  return {
+    id: activeId,
+    selectionStart: document.activeElement.selectionStart,
+    selectionEnd: document.activeElement.selectionEnd,
+  };
+}
+
+function restoreInitializationSecretFocus(focusedControl) {
+  if (!focusedControl?.id) {
+    return;
+  }
+  const input = elements.initializationDialog?.querySelector(`#${focusedControl.id}`);
+  if (!input) {
+    return;
+  }
+  input.focus({ preventScroll: true });
+  if (typeof focusedControl.selectionStart === 'number' && typeof focusedControl.selectionEnd === 'number') {
+    input.setSelectionRange(focusedControl.selectionStart, focusedControl.selectionEnd);
+  }
+}
+
 function createInitializationSecretField(id, name, labelText) {
   const label = document.createElement('label');
   label.textContent = labelText;
@@ -910,6 +936,7 @@ function renderInitialization(appState) {
     return;
   }
   captureInitializationSecretsDraft();
+  const focusedSecretControl = focusedInitializationSecretControl();
 
   const initialized = initialization.initialized === true;
   const activeOperation = activeInitializationOperation(appState);
@@ -987,6 +1014,7 @@ function renderInitialization(appState) {
     state.initializationAutoOpened = true;
     openDialog(elements.initializationDialog);
   }
+  restoreInitializationSecretFocus(focusedSecretControl);
 }
 
 function renderProfileSummary(appState) {
