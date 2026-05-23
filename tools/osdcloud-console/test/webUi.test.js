@@ -154,6 +154,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /\/api\/runtime\/prepare/);
   assert.match(script, /Prepare runtime/);
   assert.match(styles, /\.runtime-readiness-panel/);
+  assert.match(styles, /\.initialization-dialog \{\s*width: min\(1180px, calc\(100vw - 32px\)\);/);
   assert.match(styles, /\.initialization-step-list/);
   assert.match(styles, /\.initialization-secrets-form/);
   assert.match(styles, /\.initialization-detail-list/);

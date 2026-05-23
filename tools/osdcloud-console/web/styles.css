@@ -105,8 +105,12 @@ body {
   white-space: nowrap;
 }
 
+.initialization-dialog {
+  width: min(1180px, calc(100vw - 32px));
+}
+
 .initialization-dialog .drawer-card {
-  max-width: 760px;
+  max-width: 100%;
 }
 
 .initialization-step-list {
