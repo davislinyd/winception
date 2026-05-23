@@ -2,6 +2,47 @@
 
 這個資料夾記錄 OSDCloud + iPXE 自動部署 Windows 11 的測試結果與交接資訊。現在的 active path 是實體筆電從真實有線內網 PXE 開機，不使用 VM；既有 VM 內容只作為歷史驗證紀錄。
 
+## 交接快速流程
+
+另一台 Windows host 接手時，只需要 GitHub repo URL。不要搬 `deployment-server-bundle`，不要跑 `git lfs pull`，也不要先手動複製大型 MSI/ESD/WIM/ISO 檔。
+
+```powershell
+git clone <repo-url> <repo-root>
+cd '<repo-root>'
+.\Setup-DeploymentServer.cmd
+```
+
+若 repo 已經 clone 在該主機上，先更新再啟動：
+
+```powershell
+git pull
+.\Setup-DeploymentServer.cmd
+```
+
+setup 完成後 Web console 會啟動在：
+
+```text
+http://127.0.0.1:8080
+```
+
+在 Web console 內依序操作：
+
+1. `Runtime Readiness` > `Prepare runtime`
+2. `Select service interface` 並 sync endpoint
+3. `Run preflight`
+4. 確認測試 LAN 沒有其他 DHCP server
+5. 手動 `Start all services`
+6. 實體 client 從 UEFI IPv4 PXE 開機
+
+分工固定如下：
+
+| 階段 | 做什麼 | 不做什麼 |
+| --- | --- | --- |
+| `Setup-DeploymentServer.cmd` | 安裝/檢查 Node/npm、`npm install`、smoke、local secrets、local endpoint overlay、最低 `C:\OSDCloud` 骨架、SMB 帳號/share metadata | 不下載 ADK/WinPE/ESD/MSI，不跑 endpoint sync/preflight，不啟 HTTP/TFTP/DHCP |
+| `Prepare runtime` | 下載或重建 `C:\OSDCloud\Win11-iPXE-Lab` 所需 artifact，包含 OS image、installer payload、iPXE/wimboot/boot binaries、WinPE `boot.wim` | 不自動啟動 deployment services |
+| Endpoint sync / preflight | 把本次 NIC/IP 寫入 live `boot.ipxe`、WinPE `boot.wim`、SMB firewall 與 local overlay，並檢查 runtime 可部署 | 不替你確認外部 LAN DHCP 已關閉 |
+| Start services | operator 明確確認後才啟 HTTP/TFTP/DHCP responders | 不自動開始部署 |
+
 ## 目前狀態
 
 已驗證成功的目標：
@@ -80,9 +121,9 @@ DNS     : 1.1.1.1 / 8.8.8.8
 
 ## 新主機 Clone 後啟動流程
 
-這一段是給另一台 Windows host 從 GitHub repo URL 接手部署用的正式路徑。Repo 可以 clone 到任意資料夾；實際 PXE/OSDCloud runtime 仍固定使用 `C:\OSDCloud`。Git 只保存文件、設定、可審查腳本、runtime artifact catalog 與 `osdcloud-assets` 小型 mirror；大型 runtime artifact 不放 Git、不要求 Git LFS、不要求 `deployment-server-bundle`。
+這一段是給另一台 Windows host 從 GitHub repo URL 接手部署用的正式 runbook。Repo 可以 clone 到任意資料夾；實際 PXE/OSDCloud runtime 仍固定使用 `C:\OSDCloud`。Git 只保存文件、設定、可審查腳本、runtime artifact catalog 與 `osdcloud-assets` 小型 mirror；大型 runtime artifact 不放 Git、不要求 Git LFS、不要求 `deployment-server-bundle`。
 
-正式入口是輕量互動式 setup：
+正式入口固定是輕量互動式 setup：
 
 ```powershell
 git clone <repo-url> <repo-root>
@@ -90,7 +131,7 @@ cd '<repo-root>'
 .\Setup-DeploymentServer.cmd
 ```
 
-舊的 `Deploy-DeploymentServer.cmd` 仍可執行，但現在只是相容 wrapper，會導向 `Setup-DeploymentServer.cmd`。`tools\Initialize-DeploymentServer.ps1` 保留為 legacy/full-bootstrap helper 或 Web runtime preparation 的底層工具，不再是新 host 預設入口。
+舊的 `Deploy-DeploymentServer.cmd` 仍可執行，但現在只是相容 wrapper，會導向 `Setup-DeploymentServer.cmd`。`tools\Initialize-DeploymentServer.ps1` 保留為 legacy/full-bootstrap 或 Web runtime preparation 的底層 helper，不再是新 host 預設入口。
 
 ### 1. 安裝主機前置條件
 
@@ -140,6 +181,18 @@ C:\OSDCloud\Win11-iPXE-Lab
 ```
 
 `C:\OSDCloud\Win11-Lab` / ISO path 已正式退役，只作為歷史證據描述；新 host 不需要 restore 或 rebuild 這個資料夾。
+
+`Prepare runtime` 會檢查 `boot.wim` 是正常且必要的。iPXE 的 `boot.ipxe` 會透過 HTTP 載入 `wimboot`、Windows boot binaries 和 `boot.wim`；`boot.wim` 裡面是 WinPE，以及 OSDCloud 啟動、SMB mapping、status callback、SetupComplete handoff、local secret injection 後的部署邏輯。沒有完整 `boot.wim`，client 連 WinPE 都進不去，後續 OS image 套用不會開始。
+
+Runtime Readiness 若顯示：
+
+```text
+winpe-boot-wim: size-mismatch C:\OSDCloud\Win11-iPXE-Lab\Media\sources\boot.wim
+```
+
+意思是目前 live `boot.wim` 檔案存在但大小與 catalog 預期不一致，常見原因是前一次 ADK/OSDCloud build 中斷、檔案殘缺，或 runtime 版本與目前 catalog 不一致。這不是 HTTP/TFTP/DHCP 已啟動，也不是正在部署；它只是提醒 operator 需要在 Web 中重新 `Prepare runtime`，讓 WinPE boot artifact 回到可部署狀態。
+
+Prepare runtime 會使用 committed base `config\osdcloud-console.json` 加上 ignored `config\osdcloud-console.local.json` overlay。local overlay 只保存本機 endpoint/secrets 周邊狀態，不是完整 config；下游工具不應把 `.local.json` 當成完整設定檔。
 
 ### 4. 設定本次 PXE service endpoint
 

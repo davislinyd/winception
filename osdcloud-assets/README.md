@@ -1,8 +1,8 @@
 # Versioned OSDCloud Assets
 
-This folder is a Git-friendly mirror of the deployment files that actually live under `C:\OSDCloud`.
+This folder is a Git-friendly mirror of the small deployment files that actually live under `C:\OSDCloud`.
 
-It is not a complete runnable backup. A fresh clone first runs the lightweight setup wizard, then uses Web Runtime Readiness / Prepare runtime to rebuild the live `C:\OSDCloud` tree before PXE deployment can start.
+It is not a complete runnable backup. A fresh clone first runs the lightweight setup wizard, then uses Web `Runtime Readiness` / `Prepare runtime` to rebuild the live `C:\OSDCloud` tree before PXE deployment can start. This mirror is one source used during that rebuild; it is not a replacement for the runtime artifact catalog, ADK/WinPE build output, downloaded OS image, or installer payload cache.
 
 The live lab still runs from:
 
@@ -25,9 +25,10 @@ The repo tracks the small source/config files that define deployment behavior:
   - `Win11-iPXE-Lab\WinPE\OSDCloud\Report-OSDCloudProgress.ps1`
   - `Win11-iPXE-Lab\WinPE\OSDCloud\Config\Scripts\...`
 
-Large generated or upstream binary artifacts are not committed:
+Large generated or upstream binary artifacts are not committed and must be downloaded, verified, or rebuilt by Web `Prepare runtime`:
 
-- ISO / WIM / ESD / VHDX
+- ISO / WIM / ESD / VHDX, including the active Windows 11 zh-TW image
+- WinPE `boot.wim`, both the source copy and the published HTTP copy
 - client app installer payloads such as MSI / EXE files
 - Windows boot binaries such as `bootmgr`, `bootx64.efi`, `BCD`, and `boot.sdi`
 - iPXE / shim / wimboot binaries
@@ -43,9 +44,11 @@ After cloning the repo on another Windows host, run the lightweight setup wizard
 .\Setup-DeploymentServer.cmd
 ```
 
-Setup can ask to install Node.js LTS when `node`/`npm` are missing, installs the Node dependencies, runs the lightweight smoke check, captures local secrets, records the intended service endpoint in ignored local overlay state, creates the minimum `C:\OSDCloud` directory skeleton, and starts the Web console. It does not download cataloged installers, iPXE binaries, OS image artifacts, ADK/WinPE content, or `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
+Setup can ask to install Node.js LTS when `node`/`npm` are missing, installs Node dependencies, runs the lightweight smoke check, captures local secrets, records the intended service endpoint in ignored local overlay state, creates the minimum `C:\OSDCloud` directory skeleton, and starts the Web console. It does not download cataloged installers, iPXE binaries, OS image artifacts, ADK/WinPE content, `boot.wim`, or `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
 
-In the Web console, use `Runtime Readiness` > `Prepare runtime` to restore this mirror, download cataloged installers/iPXE binaries/OS image artifacts through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. After runtime readiness is ready, select/sync the service endpoint and run preflight before manually starting services.
+In the Web console, use `Runtime Readiness` > `Prepare runtime` to restore this mirror, download cataloged installers/iPXE binaries/OS image artifacts through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. `boot.wim` is required because iPXE loads it over HTTP to enter WinPE, and that WinPE contains the OSDCloud startup scripts, SMB mapping, status callback, SetupComplete handoff, and local secret injection used by the deployment. A readiness `size-mismatch` for `boot.wim` means the file is incomplete or out of sync with the catalog, not that deployment services have been started.
+
+After runtime readiness is ready, select/sync the service endpoint and run preflight before manually starting services.
 
 `-ArtifactBundle` remains a legacy fallback for offline or bit-for-bit restore only. It is not the formal handoff path.
 
@@ -70,6 +73,8 @@ C:\OSDCloud\Win11-iPXE-Lab\PXE-HttpRoot\osdcloud\boot.sdi
 C:\OSDCloud\Win11-iPXE-Lab\PXE-TFTP\ipxeboot\x86_64-sb\snponly.efi
 C:\OSDCloud\Win11-iPXE-Lab\Media\OSDCloud\OS\<active-image>.esd
 ```
+
+The two `boot.wim` paths are both required: `Media\sources\boot.wim` is the source WinPE image that endpoint sync can mount/update, and `PXE-HttpRoot\osdcloud\boot.wim` is the published file that iPXE downloads. They may be hardlinks or separate files depending on the rebuild path, but readiness and preflight must be able to find a valid image for both roles.
 
 4. Start the repo Web console with `npm run web`, then use `Select service interface` before physical deployment. The committed config may reflect the last synced lab endpoint, including a VM regression endpoint, so it must not be treated as a new host default.
 
