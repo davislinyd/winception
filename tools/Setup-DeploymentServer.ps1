@@ -10,6 +10,7 @@ param(
     [switch] $SkipNpmInstall,
     [switch] $SkipSmoke,
     [switch] $SkipHostShareSetup,
+    [switch] $NoNodeAutoInstall,
     [switch] $NoLaunch,
     [switch] $DryRun
 )
@@ -20,6 +21,7 @@ $ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
 $LocalConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.local.json'
 $SecretsPath = Join-Path $RepoRoot 'config\osdcloud-secrets.json'
 $SetupStatePath = Join-Path $RepoRoot 'config\deployment-server-setup.local.json'
+$NodeDownloadRoot = Join-Path $RepoRoot '.downloads\prerequisites\nodejs'
 
 function Write-Step {
     param([Parameter(Mandatory)][string] $Message)
@@ -31,6 +33,32 @@ function Test-IsAdministrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
     $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+}
+
+function Test-CommandAvailable {
+    param([Parameter(Mandatory)][string] $Name)
+
+    $null -ne (Get-Command -Name $Name -ErrorAction SilentlyContinue)
+}
+
+function Read-YesNo {
+    param(
+        [Parameter(Mandatory)][string] $Prompt,
+        [bool] $DefaultYes = $true
+    )
+
+    if ($DryRun) {
+        Write-Host "[dry-run] prompt: $Prompt"
+        return $DefaultYes
+    }
+
+    $suffix = if ($DefaultYes) { '[Y/n]' } else { '[y/N]' }
+    $answer = Read-Host -Prompt "$Prompt $suffix"
+    if ([string]::IsNullOrWhiteSpace($answer)) {
+        return $DefaultYes
+    }
+    $normalized = $answer.Trim().ToLowerInvariant()
+    $normalized.StartsWith('y')
 }
 
 function Invoke-ExternalCommand {
@@ -52,6 +80,156 @@ function Invoke-ExternalCommand {
     finally {
         Pop-Location
     }
+}
+
+function Refresh-ProcessPath {
+    $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $env:Path = @($machinePath, $userPath, $env:Path) -join ';'
+}
+
+function Get-FileSha256 {
+    param([Parameter(Mandatory)][string] $Path)
+
+    $cmdlet = Get-Command -Name Get-FileHash -ErrorAction SilentlyContinue
+    if ($cmdlet) {
+        return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToUpperInvariant()
+    }
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            -join ($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString('X2') })
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Enable-Tls12 {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    }
+    catch {
+        Write-Warning "Unable to force TLS 1.2 for downloads: $($_.Exception.Message)"
+    }
+}
+
+function Invoke-DownloadFile {
+    param(
+        [Parameter(Mandatory)][string] $Uri,
+        [Parameter(Mandatory)][string] $Destination
+    )
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
+    Write-Host "Downloading $Uri"
+    if ($DryRun) {
+        Write-Host "[dry-run] download to $Destination"
+        return
+    }
+    Enable-Tls12
+    Invoke-WebRequest -Uri $Uri -OutFile $Destination -UseBasicParsing
+}
+
+function Install-NodeJsWithWinget {
+    if (-not (Test-CommandAvailable -Name 'winget')) {
+        return $false
+    }
+
+    Write-Host 'Installing Node.js LTS with winget.'
+    if ($DryRun) {
+        Write-Host '[dry-run] winget install --id OpenJS.NodeJS.LTS --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity'
+        return $true
+    }
+
+    & winget install --id OpenJS.NodeJS.LTS --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity
+    if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 3010) {
+        return $true
+    }
+
+    Write-Warning "winget Node.js install failed with exit code $LASTEXITCODE. Falling back to Node.js official MSI download."
+    $false
+}
+
+function Install-NodeJsFromOfficialMsi {
+    $indexUri = 'https://nodejs.org/dist/index.json'
+    Write-Host "Resolving latest Node.js LTS release from $indexUri"
+    if ($DryRun) {
+        Write-Host "[dry-run] resolve latest LTS release and install signed Node.js x64 MSI"
+        return
+    }
+
+    Enable-Tls12
+    $releases = Invoke-RestMethod -Uri $indexUri
+    $release = @($releases | Where-Object { $_.lts -and $_.files -contains 'win-x64-msi' } | Select-Object -First 1)
+    if ($release.Count -eq 0) {
+        throw 'Unable to find a Node.js LTS x64 MSI release in the official index.'
+    }
+
+    $version = [string] $release[0].version
+    $baseUri = "https://nodejs.org/dist/$version"
+    $msiName = "node-$version-x64.msi"
+    $msiPath = Join-Path $NodeDownloadRoot $msiName
+    $shaPath = Join-Path $NodeDownloadRoot 'SHASUMS256.txt'
+
+    Invoke-DownloadFile -Uri "$baseUri/$msiName" -Destination $msiPath
+    Invoke-DownloadFile -Uri "$baseUri/SHASUMS256.txt" -Destination $shaPath
+
+    $expected = Get-Content -LiteralPath $shaPath |
+        ForEach-Object { if ($_ -match "^\s*([A-Fa-f0-9]{64})\s+$([regex]::Escape($msiName))\s*$") { $Matches[1].ToUpperInvariant() } } |
+        Select-Object -First 1
+    if (-not $expected) {
+        throw "Unable to find $msiName in Node.js SHASUMS256.txt."
+    }
+
+    $actual = Get-FileSha256 -Path $msiPath
+    if ($actual -ne $expected) {
+        throw "Node.js MSI SHA-256 mismatch. Expected $expected, got $actual."
+    }
+
+    Write-Host "Installing $msiName"
+    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/i', $msiPath, '/qn', '/norestart') -Wait -PassThru
+    if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
+        throw "Node.js MSI install failed with exit code $($process.ExitCode)."
+    }
+}
+
+function Install-NodeJsLts {
+    if (Install-NodeJsWithWinget) {
+        return
+    }
+    Install-NodeJsFromOfficialMsi
+}
+
+function Ensure-NodeAndNpm {
+    $missing = @()
+    if (-not (Test-CommandAvailable -Name 'node')) {
+        $missing += 'node'
+    }
+    if (-not (Test-CommandAvailable -Name 'npm')) {
+        $missing += 'npm'
+    }
+
+    if ($missing.Count -gt 0) {
+        Write-Warning "Missing setup prerequisite(s): $($missing -join ', '). npm is installed together with Node.js."
+        if ($NoNodeAutoInstall) {
+            throw 'Install Node.js LTS from https://nodejs.org/ or rerun setup without -NoNodeAutoInstall.'
+        }
+        $install = Read-YesNo -Prompt 'Install Node.js LTS now? This will also install npm.' -DefaultYes $true
+        if (-not $install) {
+            throw 'Node.js and npm are required before setup can continue.'
+        }
+        Install-NodeJsLts
+        Refresh-ProcessPath
+    }
+
+    Invoke-ExternalCommand -FilePath 'node' -ArgumentList @('--version')
+    Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('--version')
 }
 
 function ConvertFrom-SecureStringToPlainText {
@@ -422,8 +600,7 @@ try {
     if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
         throw "Missing repo config: $ConfigPath"
     }
-    Invoke-ExternalCommand -FilePath 'node' -ArgumentList @('--version')
-    Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('--version')
+    Ensure-NodeAndNpm
     Invoke-ExternalCommand -FilePath 'git' -ArgumentList @('status', '--short', '--branch')
 
     if (-not $SkipNpmInstall) {

@@ -98,7 +98,7 @@ cd '<repo-root>'
 
 - Windows 11，使用系統管理員 PowerShell 操作。
 - Git；不需要 `git lfs pull`。
-- Node.js / npm，可執行 ESM 與 `node --test`。
+- Node.js / npm，可執行 ESM 與 `node --test`。若缺少，setup 會詢問是否安裝 Node.js LTS；npm 會隨 Node.js 一起安裝。
 - Windows ADK、Windows PE Add-on、PowerShell OSD / OSDCloud module 後續由 Web `Prepare runtime` 檢查或使用；setup 階段不下載或重建 WinPE。
 - 一張可上網的 host NIC，以及一張服務 PXE client 的隔離 LAN NIC；目前範例為 `WAN` 上網、`LAN` = `192.168.88.1/24`。
 - 本機 `config\osdcloud-secrets.json`；setup 會用安全 prompt 建立或更新這個 ignored 檔案，不會把密碼輸出到 console。
@@ -107,7 +107,7 @@ cd '<repo-root>'
 
 `Setup-DeploymentServer.cmd` 會開啟系統管理員 PowerShell 並執行 `tools\Setup-DeploymentServer.ps1`。setup 只做主程式安裝與安全必要本機設定：
 
-- 檢查 elevated PowerShell、repo root、Git working tree 狀態、Node/npm。
+- 檢查 elevated PowerShell、repo root、Git working tree 狀態、Node/npm；若缺少 Node/npm，詢問是否安裝 Node.js LTS。
 - 執行 `npm install` 與輕量 `npm run smoke`，確認 Web 主程式可啟動。
 - 建立或更新 ignored `config\osdcloud-secrets.json`，安全輸入 `davisPassword` 與 `pxeinstallPassword`。
 - 列出 `Get-NetAdapter` / IPv4 狀態，讓 operator 選擇預期 PXE NIC 與 service IP/prefix；setup 只記錄，不自動修改 Windows NIC IP。
@@ -115,7 +115,7 @@ cd '<repo-root>'
 - 寫入 ignored `config\osdcloud-console.local.json` 與 `config\deployment-server-setup.local.json`。
 - 啟動 Web console：`npm run web`。
 
-setup 不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
+setup 除了 operator 明確同意安裝 Node.js LTS 之外，不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
 
 若要非互動測試 setup 行為，可用：
 

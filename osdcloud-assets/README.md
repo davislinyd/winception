@@ -43,7 +43,7 @@ After cloning the repo on another Windows host, run the lightweight setup wizard
 .\Setup-DeploymentServer.cmd
 ```
 
-Setup installs the Node dependencies, runs the lightweight smoke check, captures local secrets, records the intended service endpoint in ignored local overlay state, creates the minimum `C:\OSDCloud` directory skeleton, and starts the Web console. It does not download cataloged installers, iPXE binaries, OS image artifacts, ADK/WinPE content, or `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
+Setup can ask to install Node.js LTS when `node`/`npm` are missing, installs the Node dependencies, runs the lightweight smoke check, captures local secrets, records the intended service endpoint in ignored local overlay state, creates the minimum `C:\OSDCloud` directory skeleton, and starts the Web console. It does not download cataloged installers, iPXE binaries, OS image artifacts, ADK/WinPE content, or `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
 
 In the Web console, use `Runtime Readiness` > `Prepare runtime` to restore this mirror, download cataloged installers/iPXE binaries/OS image artifacts through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. After runtime readiness is ready, select/sync the service endpoint and run preflight before manually starting services.
 

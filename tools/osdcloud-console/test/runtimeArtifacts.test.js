@@ -162,6 +162,12 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'), 'utf8');
   assert.match(script, /npm' -ArgumentList @\('install'\)/);
   assert.match(script, /npm' -ArgumentList @\('run', 'smoke'\)/);
+  assert.match(script, /function Ensure-NodeAndNpm/);
+  assert.match(script, /Install Node\.js LTS now\? This will also install npm\./);
+  assert.match(script, /winget install --id OpenJS\.NodeJS\.LTS/);
+  assert.match(script, /https:\/\/nodejs\.org\/dist\/index\.json/);
+  assert.match(script, /SHASUMS256\.txt/);
+  assert.match(script, /Node\.js MSI SHA-256 mismatch/);
   assert.match(script, /OSDCLOUD_DAVIS_PASSWORD/);
   assert.match(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
   assert.match(script, /osdcloud-console\.local\.json/);
