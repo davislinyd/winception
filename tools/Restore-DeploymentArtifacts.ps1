@@ -841,7 +841,8 @@ function Set-FolderReadAccess {
         [Parameter(Mandatory)][string] $AccountName
     )
 
-    $acl = Get-Acl -LiteralPath $Path
+    $directory = [System.IO.DirectoryInfo]::new($Path)
+    $acl = $directory.GetAccessControl()
     $rights = [System.Security.AccessControl.FileSystemRights]::ReadAndExecute -bor
         [System.Security.AccessControl.FileSystemRights]::Synchronize
     $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
@@ -852,7 +853,7 @@ function Set-FolderReadAccess {
         [System.Security.AccessControl.AccessControlType]::Allow
     )
     $acl.SetAccessRule($rule)
-    Set-Acl -LiteralPath $Path -AclObject $acl
+    $directory.SetAccessControl($acl)
 }
 
 function Ensure-RuntimeSkeletonAndShare {

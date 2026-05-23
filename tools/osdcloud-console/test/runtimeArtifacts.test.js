@@ -449,6 +449,15 @@ test('runtime restore creates SMB account password without Security module cmdle
   assert.doesNotMatch(script, /ConvertTo-SecureString \$password/);
 });
 
+test('runtime restore sets SMB folder ACLs without Security module cmdlets', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+  assert.doesNotMatch(script, /\bGet-Acl\b/);
+  assert.doesNotMatch(script, /\bSet-Acl\b/);
+  assert.match(script, /\[System\.IO\.DirectoryInfo\]::new\(\$Path\)/);
+  assert.match(script, /\$directory\.GetAccessControl\(\)/);
+  assert.match(script, /\$directory\.SetAccessControl\(\$acl\)/);
+});
+
 test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft installers', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
   assert.match(script, /linkid=2289980/);
