@@ -356,3 +356,60 @@ test('local config overlay overrides endpoint without rewriting tracked config',
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('loads JSON config files with UTF-8 BOM from Windows PowerShell', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-config-bom-'));
+  const configPath = path.join(root, 'osdcloud-console.json');
+  const localConfigPath = path.join(root, 'osdcloud-console.local.json');
+  const base = {
+    adapter: { interfaceAlias: 'Ethernet', serverIp: '10.0.0.1', prefixLength: 24 },
+    dhcp: {
+      listenIp: '10.0.0.1',
+      leaseStartIp: '10.0.0.20',
+      leaseEndIp: '10.0.0.30',
+      subnetMask: '255.255.255.0',
+      router: '10.0.0.1',
+      bootFile: 'snponly.efi',
+      ipxeBootUrl: 'http://10.0.0.1/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\PXE-TFTP', listenIp: '10.0.0.1' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '10.0.0.1', statusRoot: 'C:\\status' },
+    paths: {
+      expectedHttpFiles: ['osdcloud\\boot.ipxe'],
+      imageNamePattern: 'install.esd',
+    },
+    smb: {
+      share: '\\\\10.0.0.1\\OSDCloudiPXE',
+      imagePath: '\\\\10.0.0.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+    },
+  };
+  const overlay = {
+    adapter: { interfaceAlias: 'PXE', serverIp: '192.168.88.1', prefixLength: 24 },
+    dhcp: {
+      listenIp: '192.168.88.1',
+      leaseStartIp: '192.168.88.200',
+      leaseEndIp: '192.168.88.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.88.1',
+      ipxeBootUrl: 'http://192.168.88.1/osdcloud/boot.ipxe',
+    },
+    tftp: { listenIp: '192.168.88.1' },
+    http: { host: '192.168.88.1' },
+    smb: {
+      share: '\\\\192.168.88.1\\OSDCloudiPXE',
+      imagePath: '\\\\192.168.88.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+    },
+  };
+  try {
+    fs.writeFileSync(configPath, `\uFEFF${JSON.stringify(base, null, 2)}\n`, 'utf8');
+    fs.writeFileSync(localConfigPath, `\uFEFF${JSON.stringify(overlay, null, 2)}\n`, 'utf8');
+
+    const config = loadConfig(configPath);
+
+    assert.equal(config.adapter.interfaceAlias, 'PXE');
+    assert.equal(config.adapter.serverIp, '192.168.88.1');
+    assert.equal(config.__savePath, localConfigPath);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -13,6 +13,11 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function parseJsonFile(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/u, '');
+  return JSON.parse(content);
+}
+
 function mergeConfig(base, overlay) {
   if (!overlay || typeof overlay !== 'object' || Array.isArray(overlay)) {
     return cloneJson(base);
@@ -36,12 +41,12 @@ export function localConfigPathFor(configPath) {
 
 export function loadConfig(configPath = process.env.OSDCLOUD_CONSOLE_CONFIG || defaultConfigPath, options = {}) {
   const resolved = path.resolve(configPath);
-  const baseConfig = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+  const baseConfig = parseJsonFile(resolved);
   const localConfigPath = options.localConfigPath === false
     ? null
     : path.resolve(options.localConfigPath ?? process.env.OSDCLOUD_CONSOLE_LOCAL_CONFIG ?? localConfigPathFor(resolved));
   const localConfig = localConfigPath && fs.existsSync(localConfigPath)
-    ? JSON.parse(fs.readFileSync(localConfigPath, 'utf8'))
+    ? parseJsonFile(localConfigPath)
     : null;
   const config = localConfig ? mergeConfig(baseConfig, localConfig) : baseConfig;
   config.__configPath = resolved;

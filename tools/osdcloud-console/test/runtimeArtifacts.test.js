@@ -168,6 +168,8 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /https:\/\/nodejs\.org\/dist\/index\.json/);
   assert.match(script, /SHASUMS256\.txt/);
   assert.match(script, /Node\.js MSI SHA-256 mismatch/);
+  assert.match(script, /function Write-JsonFileNoBom/);
+  assert.match(script, /UTF8Encoding\]::new\(\$false\)/);
   assert.match(script, /OSDCLOUD_DAVIS_PASSWORD/);
   assert.match(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
   assert.match(script, /osdcloud-console\.local\.json/);

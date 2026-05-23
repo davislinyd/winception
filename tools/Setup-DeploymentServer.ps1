@@ -82,6 +82,19 @@ function Invoke-ExternalCommand {
     }
 }
 
+function Write-JsonFileNoBom {
+    param(
+        [Parameter(Mandatory)] $Value,
+        [Parameter(Mandatory)][string] $Path,
+        [int] $Depth = 4
+    )
+
+    $json = ($Value | ConvertTo-Json -Depth $Depth) + [Environment]::NewLine
+    $encoding = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.Directory]::CreateDirectory((Split-Path -Parent $Path)) | Out-Null
+    [System.IO.File]::WriteAllText($Path, $json, $encoding)
+}
+
 function Refresh-ProcessPath {
     $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -483,7 +496,7 @@ function Write-LocalConfigOverlay {
         $overlay | ConvertTo-Json -Depth 8 | Write-Host
         return
     }
-    $overlay | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $LocalConfigPath -Encoding UTF8 -Force
+    Write-JsonFileNoBom -Value $overlay -Path $LocalConfigPath -Depth 8
 }
 
 function Set-FolderReadAccess {
@@ -570,7 +583,7 @@ function Write-SetupState {
         Write-Host "[dry-run] write setup state: $SetupStatePath"
         return
     }
-    $state | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $SetupStatePath -Encoding UTF8 -Force
+    Write-JsonFileNoBom -Value $state -Path $SetupStatePath -Depth 4
 }
 
 function Start-WebConsole {
@@ -618,7 +631,7 @@ try {
         throw 'Both davisPassword and pxeinstallPassword are required.'
     }
     if (-not $DryRun) {
-        $secrets | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $SecretsPath -Encoding UTF8 -Force
+        Write-JsonFileNoBom -Value $secrets -Path $SecretsPath -Depth 4
     }
 
     Get-ServiceInterfaceChoice
