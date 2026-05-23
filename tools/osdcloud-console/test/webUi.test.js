@@ -134,11 +134,18 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /data-action="initialization" data-icon="checklist"/);
   assert.match(html, /id="initialization-dialog"/);
   assert.match(html, /id="initialization-steps"/);
-  assert.match(html, /id="init-davis-password"/);
-  assert.match(html, /id="init-pxeinstall-password"/);
+  assert.doesNotMatch(html, /<h4>Deployment Secrets<\/h4>/);
+  assert.doesNotMatch(html, /id="init-secrets-form"/);
+  assert.doesNotMatch(html, /id="init-davis-password"/);
+  assert.doesNotMatch(html, /id="init-pxeinstall-password"/);
   assert.match(script, /function renderRuntimeReadiness\(appState\)/);
   assert.match(script, /function appendInitializationDetailItems\(body, detailItems = \[\]\)/);
+  assert.match(script, /function appendInitializationSecretsForm\(body\)/);
   assert.match(script, /function renderInitialization\(appState\)/);
+  assert.match(script, /step\.id === 'secrets' && !step\.done/);
+  assert.match(script, /appendInitializationSecretsForm\(body\)/);
+  assert.match(script, /!hasInlineSecretsForm/);
+  assert.match(script, /dataset\.initAction = 'save-secrets'/);
   assert.match(script, /initializationAutoOpened/);
   assert.match(script, /\/api\/secrets/);
   assert.match(script, /dataset\.initAction/);
@@ -146,6 +153,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Prepare runtime/);
   assert.match(styles, /\.runtime-readiness-panel/);
   assert.match(styles, /\.initialization-step-list/);
+  assert.match(styles, /\.initialization-secrets-form/);
   assert.match(styles, /\.initialization-detail-list/);
   assert.match(styles, /\.initialization-detail-item/);
   assert.match(styles, /grid-area: runtime;/);

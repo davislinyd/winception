@@ -185,6 +185,8 @@ Web console 每次載入 `/api/state` 都會從 live state 重新計算 `initial
 5. Publish active profile，寫出 `selected-profile.json` 與 `selected-os.json`。
 6. `Run preflight`，通過後再手動 `Start all services`。
 
+`Deployment secrets` 的 password 欄位只會在 Required Steps 的同一列缺失時顯示，儲存後該列變成 `Done` 並只保留已設定摘要；Web 不回填、不顯示 plaintext secret，也不在完成狀態顯示重新輸入欄位。
+
 Runtime Readiness 面板仍會顯示 `C:\OSDCloud` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot / installer artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。
 
 Initialization Wizard 的 `Prepare runtime` 步驟會在按下執行前展開缺失 artifact 摘要，列出名稱、類型、來源/處理方式、原因與第一個目標路徑；多個 target 缺失時會顯示 target 數量。這只是執行前資訊揭露，不代表已啟動 HTTP/TFTP/DHCP，也不能逐項勾選或跳過。

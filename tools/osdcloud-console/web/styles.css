@@ -190,6 +190,35 @@ body {
   align-self: start;
 }
 
+.initialization-step.has-form {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.initialization-secrets-form {
+  border-top: 1px solid var(--outline-variant);
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 6px;
+  padding-top: 8px;
+}
+
+.initialization-secrets-status,
+.initialization-secrets-actions {
+  grid-column: 1 / -1;
+}
+
+.initialization-step-body .initialization-secrets-status {
+  color: var(--error);
+  font: 400 11px/15px "JetBrains Mono", monospace;
+  min-height: 0;
+}
+
+.initialization-secrets-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .operations-stack button,
 .operations-secondary button,
 .operations-danger button {
@@ -1794,6 +1823,10 @@ button.software-icon-button {
 
   .form-grid.compact .span-2 {
     grid-column: auto;
+  }
+
+  .initialization-secrets-form {
+    grid-template-columns: 1fr;
   }
 
   .catalog-filter-panel {

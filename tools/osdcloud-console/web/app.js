@@ -63,9 +63,6 @@ const elements = {
   initializationBadge: $('#initialization-badge'),
   initializationSteps: $('#initialization-steps'),
   initializationNext: $('#initialization-next'),
-  initSecretsStatus: $('#init-secrets-status'),
-  initDavisPassword: $('#init-davis-password'),
-  initPxeinstallPassword: $('#init-pxeinstall-password'),
   endpointSettingsDialog: $('#endpoint-settings-dialog'),
   deploymentProfilesDialog: $('#deployment-profiles-dialog'),
   osImagesDialog: $('#os-images-dialog'),
@@ -732,6 +729,58 @@ function appendInitializationDetailItems(body, detailItems = []) {
   body.append(list);
 }
 
+function initializationSecretsControls() {
+  return {
+    status: elements.initializationDialog?.querySelector('.initialization-secrets-status') ?? null,
+    davisPassword: elements.initializationDialog?.querySelector('#init-davis-password') ?? null,
+    pxeinstallPassword: elements.initializationDialog?.querySelector('#init-pxeinstall-password') ?? null,
+  };
+}
+
+function createInitializationSecretField(id, name, labelText) {
+  const label = document.createElement('label');
+  label.textContent = labelText;
+  const input = document.createElement('input');
+  input.id = id;
+  input.name = name;
+  input.type = 'password';
+  input.autocomplete = 'new-password';
+  input.required = true;
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') {
+      return;
+    }
+    event.preventDefault();
+    saveInitializationSecrets().catch((error) => window.alert(error.message));
+  });
+  label.append(input);
+  return label;
+}
+
+function appendInitializationSecretsForm(body) {
+  const form = document.createElement('div');
+  form.className = 'initialization-secrets-form';
+  const status = document.createElement('span');
+  status.className = 'initialization-secrets-status';
+  status.setAttribute('aria-live', 'polite');
+  const actions = document.createElement('div');
+  actions.className = 'initialization-secrets-actions';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'warning';
+  button.dataset.initAction = 'save-secrets';
+  button.dataset.icon = 'password';
+  button.textContent = 'Save deployment secrets';
+  actions.append(button);
+  form.append(
+    createInitializationSecretField('init-davis-password', 'davisPassword', 'davis password'),
+    createInitializationSecretField('init-pxeinstall-password', 'pxeinstallPassword', 'pxeinstall SMB password'),
+    status,
+    actions,
+  );
+  body.append(form);
+}
+
 function renderInitialization(appState) {
   const initialization = appState.initialization;
   if (!initialization || !elements.initializationDialog) {
@@ -748,10 +797,14 @@ function renderInitialization(appState) {
   elements.initializationSteps.replaceChildren();
 
   for (const step of initialization.steps ?? []) {
+    const hasInlineSecretsForm = step.id === 'secrets' && !step.done;
     const row = document.createElement('div');
     row.className = `initialization-step ${step.done ? 'done' : step.required ? 'blocked' : 'optional'}`;
     if (Array.isArray(step.detailItems) && step.detailItems.length > 0) {
       row.classList.add('has-details');
+    }
+    if (hasInlineSecretsForm) {
+      row.classList.add('has-form');
     }
     const status = document.createElement('span');
     status.className = `status-pill ${step.done ? 'ok' : step.required ? 'fail' : 'neutral'}`;
@@ -764,8 +817,11 @@ function renderInitialization(appState) {
     detail.textContent = step.detail ?? '';
     body.append(title, detail);
     appendInitializationDetailItems(body, step.detailItems);
+    if (hasInlineSecretsForm) {
+      appendInitializationSecretsForm(body);
+    }
     row.append(status, body);
-    if (!step.done && step.action && step.action !== 'setup') {
+    if (!step.done && step.action && step.action !== 'setup' && !hasInlineSecretsForm) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = step.required ? 'warning' : '';
@@ -788,13 +844,6 @@ function renderInitialization(appState) {
     elements.initializationNext.dataset.nextAction = 'preflight';
     elements.initializationNext.dataset.icon = 'fact_check';
     elements.initializationNext.textContent = 'Run preflight';
-  }
-
-  const secrets = initialization.secrets;
-  if (secrets?.ready) {
-    elements.initSecretsStatus.textContent = 'Secrets saved. Values are hidden.';
-  } else {
-    elements.initSecretsStatus.textContent = `Missing: ${(secrets?.missing ?? ['davisPassword', 'pxeinstallPassword']).join(', ')}`;
   }
 
   if (!initialized && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
@@ -3255,10 +3304,13 @@ async function handleStatusRunDelete(runId) {
 }
 
 async function saveInitializationSecrets() {
-  const davisPassword = elements.initDavisPassword.value;
-  const pxeinstallPassword = elements.initPxeinstallPassword.value;
+  const controls = initializationSecretsControls();
+  const davisPassword = controls.davisPassword?.value ?? '';
+  const pxeinstallPassword = controls.pxeinstallPassword?.value ?? '';
   if (!davisPassword.trim() || !pxeinstallPassword.trim()) {
-    elements.initSecretsStatus.textContent = 'Enter both deployment passwords before saving.';
+    if (controls.status) {
+      controls.status.textContent = 'Enter both deployment passwords before saving.';
+    }
     return;
   }
   if (state.busy) {
@@ -3273,12 +3325,13 @@ async function saveInitializationSecrets() {
     });
     state.current = payload.state;
     state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
-    elements.initDavisPassword.value = '';
-    elements.initPxeinstallPassword.value = '';
-    elements.initSecretsStatus.textContent = 'Secrets saved. Values are hidden.';
+    controls.davisPassword.value = '';
+    controls.pxeinstallPassword.value = '';
     render();
   } catch (error) {
-    elements.initSecretsStatus.textContent = error.message;
+    if (controls.status) {
+      controls.status.textContent = error.message;
+    }
   } finally {
     state.busy = false;
     setControlsDisabled(false);
@@ -3294,8 +3347,11 @@ async function handleInitializationAction(action, source = null) {
     return;
   }
   if (resolvedAction === 'secrets') {
+    if (state.current?.initialization?.secrets?.ready) {
+      return;
+    }
     openDialog(elements.initializationDialog);
-    elements.initDavisPassword.focus();
+    initializationSecretsControls().davisPassword?.focus();
     return;
   }
   if (!resolvedAction || resolvedAction === 'setup') {
@@ -3671,19 +3727,6 @@ elements.softwareScriptOpen.addEventListener('click', async () => {
     elements.softwareScriptOpen.textContent = 'Open with...';
     elements.softwareScriptOpen.disabled = false;
   }
-});
-
-[
-  elements.initDavisPassword,
-  elements.initPxeinstallPassword,
-].forEach((input) => {
-  input.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') {
-      return;
-    }
-    event.preventDefault();
-    saveInitializationSecrets().catch((error) => window.alert(error.message));
-  });
 });
 
 [

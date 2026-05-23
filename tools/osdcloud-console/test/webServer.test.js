@@ -348,6 +348,10 @@ test('serves static UI and read-only state', async () => {
     assert.equal(payload.state.osImage.activeImage.id, 'SMOKE-WIN11-PRO');
     assert.equal(payload.state.initialization.initialized, false);
     assert.equal(payload.state.initialization.nextStepId, 'secrets');
+    const secretsStep = payload.state.initialization.steps.find((step) => step.id === 'secrets');
+    assert.equal(secretsStep.done, false);
+    assert.equal(secretsStep.action, 'secrets');
+    assert.equal(secretsStep.detail, 'Missing: davisPassword, pxeinstallPassword');
     assert.equal(fs.existsSync(path.join(root, 'status')), false);
   } finally {
     await server.stop();
@@ -462,6 +466,9 @@ test('state initialization becomes true only when live prerequisites are present
     const payload = await response.json();
     assert.equal(payload.state.initialization.initialized, true);
     assert.equal(payload.state.initialization.nextStepId, 'preflight');
+    const secretsStep = payload.state.initialization.steps.find((step) => step.id === 'secrets');
+    assert.equal(secretsStep.done, true);
+    assert.equal(secretsStep.detail, 'davisPassword and pxeinstallPassword are present.');
     assert.deepEqual(
       payload.state.initialization.steps.filter((step) => step.required).map((step) => [step.id, step.done]),
       [
