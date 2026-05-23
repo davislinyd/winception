@@ -34,6 +34,8 @@ test('runtime artifact catalog validates download recipes and plans required art
           id: 'boot-wim',
           kind: 'winpe',
           sourceType: 'generated-winpe',
+          prepareGroup: 'winpe-workspace',
+          prepareReason: 'Builds test WinPE image',
           target: 'Media\\sources\\boot.wim',
           length: 12,
           sha256: 'A'.repeat(64),
@@ -66,6 +68,10 @@ test('runtime artifact catalog validates download recipes and plans required art
 
     const catalog = loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath });
     assert.equal(catalog.artifacts.length, 3);
+    assert.equal(catalog.artifacts[0].prepareGroup, 'winpe-workspace');
+    assert.equal(catalog.artifacts[0].prepareReason, 'Builds test WinPE image');
+    assert.deepEqual(catalog.artifacts[0].dependencyIds, []);
+    assert.deepEqual(catalog.checkOrder, ['boot-wim', 'optional-en-us', '7zip']);
     assert.deepEqual(planRuntimeArtifacts(catalog).map((artifact) => artifact.id), ['boot-wim', '7zip']);
     assert.deepEqual(
       planRuntimeArtifacts(catalog, { includeOptional: true }).map((artifact) => artifact.id),
@@ -113,6 +119,55 @@ test('runtime artifact catalog rejects missing URLs and unsafe targets', () => {
   }
 });
 
+test('runtime artifact catalog validates dependency references and cycles', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-artifacts-deps-invalid-'));
+  try {
+    let catalogPath = makeCatalog(root, {
+      schemaVersion: 1,
+      artifacts: [{
+        id: 'child',
+        sourceType: 'generated',
+        dependsOn: ['missing-parent'],
+        target: 'child.bin',
+        length: 1,
+        sha256: 'A'.repeat(64),
+      }],
+    });
+    assert.throws(
+      () => loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath }),
+      /depends on unknown artifact: missing-parent/,
+    );
+
+    catalogPath = makeCatalog(root, {
+      schemaVersion: 1,
+      artifacts: [
+        {
+          id: 'artifact-a',
+          sourceType: 'generated',
+          dependsOn: ['artifact-b'],
+          target: 'a.bin',
+          length: 1,
+          sha256: 'A'.repeat(64),
+        },
+        {
+          id: 'artifact-b',
+          sourceType: 'generated',
+          dependsOn: ['artifact-a'],
+          target: 'b.bin',
+          length: 1,
+          sha256: 'B'.repeat(64),
+        },
+      ],
+    });
+    assert.throws(
+      () => loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath }),
+      /Circular runtime artifact dependency: artifact-a -> artifact-b -> artifact-a/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('runtime artifact verification catches size and hash mismatch', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-artifacts-verify-'));
   try {
@@ -153,6 +208,66 @@ test('runtime readiness reports missing required artifacts without hashing large
     assert.equal(readiness.missingCount, 1);
     assert.equal(readiness.missing[0].id, 'required-boot');
     assert.equal(readiness.missing[0].targets[0].reason, 'missing');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runtime readiness reports dependency order and blocked downstream artifacts', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-readiness-deps-'));
+  try {
+    const liveRoot = path.join(root, 'OSDCloud');
+    fs.mkdirSync(liveRoot, { recursive: true });
+    fs.writeFileSync(path.join(liveRoot, 'published.bin'), 'abc', 'utf8');
+    const catalogPath = makeCatalog(root, {
+      schemaVersion: 1,
+      artifacts: [
+        {
+          id: 'winpe-boot-wim',
+          name: 'WinPE boot image',
+          kind: 'winpe',
+          sourceType: 'generated-winpe',
+          prepareGroup: 'winpe-workspace',
+          prepareReason: 'Builds test WinPE image',
+          target: 'boot.wim',
+          length: 10,
+          sha256: 'A'.repeat(64),
+        },
+        {
+          id: 'published-boot-file',
+          name: 'Published boot file',
+          kind: 'bootBinary',
+          sourceType: 'generated',
+          dependsOn: ['winpe-boot-wim'],
+          prepareGroup: 'winpe-workspace',
+          prepareReason: 'Published from generated workspace',
+          target: 'published.bin',
+          length: 3,
+          sha256: 'B'.repeat(64),
+        },
+      ],
+    });
+
+    const readiness = getRuntimeReadiness(
+      { paths: { repoRoot: root }, runtimeArtifacts: { liveRoot } },
+      { catalogPath },
+    );
+    assert.deepEqual(readiness.checkOrder, ['winpe-boot-wim', 'published-boot-file']);
+    assert.equal(readiness.ready, false);
+    assert.equal(readiness.missingCount, 2);
+    const winpe = readiness.artifacts.find((artifact) => artifact.id === 'winpe-boot-wim');
+    const published = readiness.artifacts.find((artifact) => artifact.id === 'published-boot-file');
+    assert.equal(winpe.status, 'blocked');
+    assert.deepEqual(winpe.dependents, ['published-boot-file']);
+    assert.equal(published.status, 'blocked-by-dependency');
+    assert.deepEqual(published.dependencyIds, ['winpe-boot-wim']);
+    assert.deepEqual(published.blockedBy, [{ id: 'winpe-boot-wim', name: 'WinPE boot image', status: 'blocked' }]);
+    assert.equal(published.targets[0].ok, true);
+    assert.equal(published.targets[0].reason, 'present');
+    assert.deepEqual(
+      readiness.missing.find((artifact) => artifact.id === 'published-boot-file').blockedBy,
+      [{ id: 'winpe-boot-wim', name: 'WinPE boot image', status: 'blocked' }],
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -320,7 +435,10 @@ test('checked-in runtime artifact catalog is valid', () => {
   const catalog = loadRuntimeArtifactCatalog();
   assert.ok(catalog.artifacts.length >= 1);
   assert.equal(catalog.artifacts.some((artifact) => artifact.kind === 'osImage'), false);
-  assert.ok(catalog.artifacts.some((artifact) => artifact.id === '7zip'));
+  const winpe = catalog.artifacts.find((artifact) => artifact.id === 'winpe-boot-wim');
+  assert.equal(winpe.prepareGroup, 'winpe-workspace');
+  assert.ok(catalog.artifacts.some((artifact) => artifact.dependencyIds.includes('winpe-boot-wim')));
+  assert.ok(catalog.artifacts.some((artifact) => artifact.id === '7zip' && artifact.prepareGroup === 'software-payloads'));
 });
 
 test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft installers', () => {

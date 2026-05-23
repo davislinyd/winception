@@ -850,6 +850,10 @@ test('runtime readiness is exposed and prepare runtime runs without starting ser
             name: 'WinPE boot image',
             kind: 'winpe',
             sourceType: 'generated-winpe',
+            status: 'blocked-by-dependency',
+            prepareGroup: 'winpe-workspace',
+            prepareReason: 'Build from ADK WinPE template',
+            blockedBy: [{ id: 'adk-winpe', name: 'Windows ADK WinPE files', status: 'blocked' }],
             targets: [
               { reason: 'missing', filePath: 'boot.wim' },
               { reason: 'missing', filePath: 'published\\boot.wim' },
@@ -870,8 +874,9 @@ test('runtime readiness is exposed and prepare runtime runs without starting ser
     const runtimeStep = blockedState.initialization.steps.find((step) => step.id === 'runtime');
     assert.deepEqual(runtimeStep.detailItems, [{
       title: 'WinPE boot image',
-      meta: 'winpe / generated-winpe',
-      detail: 'missing boot.wim (2 targets)',
+      meta: 'winpe / generated-winpe / winpe-workspace',
+      detail: 'missing boot.wim (2 targets); blocked by Windows ADK WinPE files; Prepare runtime will rebuild winpe-workspace; Build from ADK WinPE template',
+      status: 'blocked-by-dependency',
     }]);
     const result = await controller.prepareRuntime();
     assert.equal(result.readiness.ready, true);

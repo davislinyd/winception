@@ -119,6 +119,16 @@ function normalizeTargets(row, label) {
   return targets.map((target, index) => normalizeTarget(target, `${label} target ${index + 1}`));
 }
 
+function normalizeDependencyIds(value, label) {
+  if (value === undefined || value === null) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} dependsOn must be an array`);
+  }
+  return value.map((dependencyId, index) => normalizeId(dependencyId, `${label} dependency ${index + 1}`));
+}
+
 function normalizeArtifact(row, section) {
   const label = `${section} artifact`;
   const id = normalizeId(row.id, label);
@@ -134,12 +144,53 @@ function normalizeArtifact(row, section) {
     required,
     url: normalizeUrl(row.url, `artifact ${id}`, download),
     targets: normalizeTargets(row, `artifact ${id}`),
+    dependencyIds: normalizeDependencyIds(row.dependsOn, `artifact ${id}`),
+    prepareGroup: String(row.prepareGroup ?? '').trim(),
+    prepareReason: String(row.prepareReason ?? '').trim(),
     length: normalizeLength(row.length ?? row.size, `artifact ${id}`, requireHash),
     sha256: normalizeSha256(row.sha256, `artifact ${id}`, requireHash),
     osImageId: row.osImageId ? normalizeId(row.osImageId, `artifact ${id} OS image`) : '',
     profileRequired: row.profileRequired === true,
     section,
   };
+}
+
+export function validateRuntimeDependencyGraph(artifacts) {
+  const byId = new Map(artifacts.map((artifact) => [artifact.id, artifact]));
+  const dependentsById = Object.fromEntries(artifacts.map((artifact) => [artifact.id, []]));
+  for (const artifact of artifacts) {
+    for (const dependencyId of artifact.dependencyIds) {
+      if (!byId.has(dependencyId)) {
+        throw new Error(`Runtime artifact ${artifact.id} depends on unknown artifact: ${dependencyId}`);
+      }
+      dependentsById[dependencyId].push(artifact.id);
+    }
+  }
+
+  const checkOrder = [];
+  const stateById = new Map();
+  function visit(artifact, stack = []) {
+    const state = stateById.get(artifact.id);
+    if (state === 'visited') {
+      return;
+    }
+    if (state === 'visiting') {
+      const cycleStart = stack.indexOf(artifact.id);
+      const cycle = [...stack.slice(cycleStart >= 0 ? cycleStart : 0), artifact.id];
+      throw new Error(`Circular runtime artifact dependency: ${cycle.join(' -> ')}`);
+    }
+    stateById.set(artifact.id, 'visiting');
+    for (const dependencyId of artifact.dependencyIds) {
+      visit(byId.get(dependencyId), [...stack, artifact.id]);
+    }
+    stateById.set(artifact.id, 'visited');
+    checkOrder.push(artifact.id);
+  }
+
+  for (const artifact of artifacts) {
+    visit(artifact);
+  }
+  return { checkOrder, dependentsById };
 }
 
 export function runtimeArtifactOptions(config = {}, overrides = {}) {
@@ -186,11 +237,14 @@ export function loadRuntimeArtifactCatalog(config = {}, overrides = {}) {
       artifacts.push(artifact);
     }
   }
+  const graph = validateRuntimeDependencyGraph(artifacts);
 
   return {
     path: options.catalogPath,
     options,
     artifacts,
+    checkOrder: graph.checkOrder,
+    dependentsById: graph.dependentsById,
     raw,
   };
 }
@@ -310,7 +364,10 @@ export function inspectRuntimeArtifactFile(filePath, artifact) {
 export function getRuntimeReadiness(config = {}, overrides = {}) {
   const catalog = loadRuntimeArtifactCatalog(config, overrides);
   const artifacts = planRuntimeArtifacts(catalog, { includeOptional: overrides.includeOptional === true });
-  const rows = artifacts.map((artifact) => {
+  const plannedIds = new Set(artifacts.map((artifact) => artifact.id));
+  const checkOrder = catalog.checkOrder.filter((id) => plannedIds.has(id));
+  const rowsById = new Map();
+  for (const artifact of artifacts) {
     const targetResults = artifact.targets.map((target) => {
       const filePath = resolveRuntimeArtifactTarget(catalog, artifact, target);
       return {
@@ -318,20 +375,44 @@ export function getRuntimeReadiness(config = {}, overrides = {}) {
         ...inspectRuntimeArtifactFile(filePath, artifact),
       };
     });
-    const ok = targetResults.every((result) => result.ok);
-    return {
+    const targetsOk = targetResults.every((result) => result.ok);
+    rowsById.set(artifact.id, {
       id: artifact.id,
       name: artifact.name,
       kind: artifact.kind,
       sourceType: artifact.sourceType,
       action: artifact.action,
       required: artifact.required,
-      ok,
-      status: ok ? 'ready' : 'blocked',
+      dependencyIds: artifact.dependencyIds,
+      blockedBy: [],
+      dependents: (catalog.dependentsById[artifact.id] ?? []).filter((id) => plannedIds.has(id)),
+      prepareGroup: artifact.prepareGroup,
+      prepareReason: artifact.prepareReason,
+      ok: targetsOk,
+      status: targetsOk ? 'ready' : 'blocked',
       targets: targetResults,
-    };
-  });
-  const missing = rows.filter((artifact) => !artifact.ok);
+    });
+  }
+
+  for (const id of checkOrder) {
+    const row = rowsById.get(id);
+    const blockedBy = row.dependencyIds
+      .map((dependencyId) => rowsById.get(dependencyId))
+      .filter((dependency) => dependency && dependency.status !== 'ready')
+      .map((dependency) => ({
+        id: dependency.id,
+        name: dependency.name,
+        status: dependency.status,
+      }));
+    row.blockedBy = blockedBy;
+    if (blockedBy.length > 0) {
+      row.ok = false;
+      row.status = 'blocked-by-dependency';
+    }
+  }
+
+  const rows = checkOrder.map((id) => rowsById.get(id));
+  const missing = rows.filter((artifact) => artifact.status !== 'ready');
   return {
     ready: missing.length === 0,
     catalogPath: catalog.path,
@@ -340,12 +421,19 @@ export function getRuntimeReadiness(config = {}, overrides = {}) {
     requiredCount: rows.length,
     readyCount: rows.length - missing.length,
     missingCount: missing.length,
+    checkOrder,
     artifacts: rows,
     missing: missing.map((artifact) => ({
       id: artifact.id,
       name: artifact.name,
       kind: artifact.kind,
       sourceType: artifact.sourceType,
+      status: artifact.status,
+      dependencyIds: artifact.dependencyIds,
+      blockedBy: artifact.blockedBy,
+      dependents: artifact.dependents,
+      prepareGroup: artifact.prepareGroup,
+      prepareReason: artifact.prepareReason,
       targets: artifact.targets.filter((target) => !target.ok),
     })),
   };

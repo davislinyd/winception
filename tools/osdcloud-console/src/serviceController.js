@@ -290,11 +290,36 @@ function runtimeInitializationDetailItems(runtime) {
     const reason = firstTarget.reason ?? 'needs preparation';
     const filePath = firstTarget.filePath ?? '';
     const targetCount = targets.length > 1 ? ` (${targets.length} targets)` : '';
-    return {
+    const targetText = targets.length > 0
+      ? `${reason}${filePath ? ` ${filePath}` : ''}${targetCount}`.trim()
+      : '';
+    const blockedBy = Array.isArray(artifact.blockedBy) ? artifact.blockedBy : [];
+    const blockedByText = blockedBy.length > 0
+      ? `blocked by ${blockedBy.map((dependency) => dependency.name ?? dependency.id).join(', ')}`
+      : '';
+    const prepareVerb = artifact.sourceType === 'download'
+      ? 'download'
+      : artifact.sourceType === 'osd-catalog'
+        ? 'prepare'
+        : 'rebuild';
+    const prepareText = artifact.prepareGroup
+      ? `Prepare runtime will ${prepareVerb} ${artifact.prepareGroup}`
+      : '';
+    const details = [
+      targetText,
+      blockedByText,
+      prepareText,
+      artifact.prepareReason,
+    ].filter(Boolean);
+    const item = {
       title: artifact.name ?? artifact.id,
-      meta: [artifact.kind, artifact.sourceType].filter(Boolean).join(' / '),
-      detail: `${reason}${filePath ? ` ${filePath}` : ''}${targetCount}`.trim(),
+      meta: [artifact.kind, artifact.sourceType, artifact.prepareGroup].filter(Boolean).join(' / '),
+      detail: details.join('; '),
     };
+    if (artifact.status) {
+      item.status = artifact.status;
+    }
+    return item;
   });
   return items.length > 0 ? items : undefined;
 }

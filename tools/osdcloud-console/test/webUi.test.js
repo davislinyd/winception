@@ -140,6 +140,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /id="init-pxeinstall-password"/);
   assert.match(script, /function renderRuntimeReadiness\(appState\)/);
   assert.match(script, /function appendInitializationDetailItems\(body, detailItems = \[\]\)/);
+  assert.match(script, /statusClass/);
+  assert.match(script, /item\.status/);
   assert.match(script, /function appendInitializationSecretsForm\(body\)/);
   assert.match(script, /function renderInitialization\(appState\)/);
   assert.match(script, /step\.id === 'secrets' && !step\.done/);
@@ -156,6 +158,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.initialization-secrets-form/);
   assert.match(styles, /\.initialization-detail-list/);
   assert.match(styles, /\.initialization-detail-item/);
+  assert.match(styles, /\.initialization-detail-item\.status-blocked-by-dependency/);
   assert.match(styles, /grid-area: runtime;/);
   assert.match(html, /data-action="preflight" data-icon="fact_check" type="button">Run preflight/);
   assert.doesNotMatch(html, /data-action="preflight"[^>]*primary-action/);

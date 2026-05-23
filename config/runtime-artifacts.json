@@ -8,6 +8,8 @@
       "name": "OSDCloud iPXE WinPE boot.wim",
       "sourceType": "generated-winpe",
       "required": true,
+      "prepareGroup": "winpe-workspace",
+      "prepareReason": "Builds OSDCloud WinPE boot image from ADK/WinPE template",
       "targets": [
         "Media\\sources\\boot.wim",
         "PXE-HttpRoot\\osdcloud\\boot.wim"
@@ -21,6 +23,11 @@
       "name": "Windows bootmgr",
       "sourceType": "generated",
       "required": true,
+      "dependsOn": [
+        "winpe-boot-wim"
+      ],
+      "prepareGroup": "winpe-workspace",
+      "prepareReason": "Published from generated OSDCloud workspace media",
       "target": "PXE-HttpRoot\\osdcloud\\bootmgr",
       "length": 478366,
       "sha256": "D5855B74F40D1C4CE212549A868BF3939BA4B7206CB8CB7FC17A9A0F03E8F0DB"
@@ -31,6 +38,11 @@
       "name": "Windows bootx64.efi",
       "sourceType": "generated",
       "required": true,
+      "dependsOn": [
+        "winpe-boot-wim"
+      ],
+      "prepareGroup": "winpe-workspace",
+      "prepareReason": "Published from generated OSDCloud workspace media",
       "target": "PXE-HttpRoot\\osdcloud\\bootx64.efi",
       "length": 2772912,
       "sha256": "B2355C3E8A5FA140AFB147D16646A7AA497A87D41937254B4925811614BA78A6"
@@ -41,6 +53,11 @@
       "name": "Windows BCD",
       "sourceType": "generated",
       "required": true,
+      "dependsOn": [
+        "winpe-boot-wim"
+      ],
+      "prepareGroup": "winpe-workspace",
+      "prepareReason": "Published from generated OSDCloud workspace media",
       "target": "PXE-HttpRoot\\osdcloud\\BCD",
       "length": 262144,
       "sha256": "21BF8054ADFE0614BABA6F21A4BAD0B7BFE71DBE9169D2422DE42A79258BEBA0"
@@ -51,6 +68,11 @@
       "name": "Windows boot.sdi",
       "sourceType": "generated",
       "required": true,
+      "dependsOn": [
+        "winpe-boot-wim"
+      ],
+      "prepareGroup": "winpe-workspace",
+      "prepareReason": "Published from generated OSDCloud workspace media",
       "target": "PXE-HttpRoot\\osdcloud\\boot.sdi",
       "length": 3170304,
       "sha256": "CD2C00CE027687CE4A8BDC967F26A8AB82F651C9BECD703658BA282EC49702BD"
@@ -62,6 +84,7 @@
       "sourceType": "download",
       "required": true,
       "url": "https://github.com/ipxe/wimboot/releases/download/v2.8.0/wimboot",
+      "prepareGroup": "ipxe-downloads",
       "target": "PXE-HttpRoot\\osdcloud\\wimboot",
       "length": 62440,
       "sha256": "74D4BF3D09386CCBBE907D9DB59030F8CD8C88F7B4CCB799D386F31DEF11B3FE"
@@ -74,6 +97,7 @@
       "required": true,
       "url": "https://boot.ipxe.org/x86_64-efi/snponly.efi",
       "sourceNote": "boot.ipxe.org publishes current prebuilt binaries. Hash mismatch is a safety stop; review and update this catalog only after validating the new binary.",
+      "prepareGroup": "ipxe-downloads",
       "target": "PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi",
       "length": 288256,
       "sha256": "940EFA5E8D1D777A65786AF3D69D6391CC93290DDF9C65E0BADB7B828C6D8D74"
@@ -87,6 +111,7 @@
       "sourceType": "download",
       "required": true,
       "url": "https://www.7-zip.org/a/7z2601-x64.msi",
+      "prepareGroup": "software-payloads",
       "targets": [
         "Softwares\\7zip\\7z2601-x64.msi",
         "Media\\OSDCloud\\Apps\\7zip\\7z2601-x64.msi"
@@ -102,6 +127,7 @@
       "required": true,
       "url": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",
       "sourceNote": "Google serves the current Chrome Enterprise MSI at this URL. Hash mismatch is a safety stop; review and update this catalog when Google publishes a new MSI.",
+      "prepareGroup": "software-payloads",
       "targets": [
         "Softwares\\chrome\\googlechromestandaloneenterprise64.msi",
         "Media\\OSDCloud\\Apps\\chrome\\googlechromestandaloneenterprise64.msi"
@@ -116,6 +142,7 @@
       "sourceType": "download",
       "required": true,
       "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9.5/npp.8.9.5.Installer.x64.msi",
+      "prepareGroup": "software-payloads",
       "targets": [
         "Softwares\\SW-4UT7PDID\\npp.8.9.5.Installer.x64.msi",
         "Media\\OSDCloud\\Apps\\SW-4UT7PDID\\npp.8.9.5.Installer.x64.msi"

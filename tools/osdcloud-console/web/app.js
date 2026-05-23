@@ -714,6 +714,10 @@ function appendInitializationDetailItems(body, detailItems = []) {
   for (const item of detailItems) {
     const row = document.createElement('div');
     row.className = 'initialization-detail-item';
+    const statusClass = String(item.status ?? '').trim().toLowerCase().replace(/[^a-z0-9_-]+/gu, '-');
+    if (statusClass) {
+      row.classList.add(`status-${statusClass}`);
+    }
     const title = document.createElement('span');
     title.className = 'initialization-detail-title';
     title.textContent = item.title ?? 'Runtime artifact';
