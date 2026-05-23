@@ -75,6 +75,14 @@ async function makeServer(root, overrides = {}) {
       readRecentScreenshotMetadata: () => [],
       readRunLatestScreenshot: () => null,
       readStatusEvents: () => [],
+      getDeploymentSecretsStatus: () => ({
+        ready: false,
+        missing: ['davisPassword', 'pxeinstallPassword'],
+        status: {
+          davisPassword: { present: false, source: 'missing' },
+          pxeinstallPassword: { present: false, source: 'missing' },
+        },
+      }),
       getRuntimeReadiness: () => ({
         ready: false,
         requiredCount: 1,
@@ -338,7 +346,133 @@ test('serves static UI and read-only state', async () => {
     assert.equal(payload.state.app.version, appVersion);
     assert.equal(payload.state.fleet.total, 1);
     assert.equal(payload.state.osImage.activeImage.id, 'SMOKE-WIN11-PRO');
+    assert.equal(payload.state.initialization.initialized, false);
+    assert.equal(payload.state.initialization.nextStepId, 'secrets');
     assert.equal(fs.existsSync(path.join(root, 'status')), false);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('secrets API writes local secrets and never returns plaintext passwords', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-secrets-'));
+  const server = await makeServer(root);
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const response = await fetch(`${base}/api/secrets`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        davisPassword: 'local-davis-secret',
+        pxeinstallPassword: 'local-pxe-secret',
+      }),
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    const serialized = JSON.stringify(payload);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.result.ready, true);
+    assert.equal(payload.result.status.davisPassword.present, true);
+    assert.equal(payload.result.status.pxeinstallPassword.present, true);
+    assert.doesNotMatch(serialized, /local-davis-secret/);
+    assert.doesNotMatch(serialized, /local-pxe-secret/);
+
+    const secretPath = path.join(root, 'config', 'osdcloud-secrets.json');
+    const bytes = fs.readFileSync(secretPath);
+    assert.notEqual(bytes[0], 0xef);
+    const saved = JSON.parse(bytes.toString('utf8'));
+    assert.equal(saved.davisPassword, 'local-davis-secret');
+    assert.equal(saved.pxeinstallPassword, 'local-pxe-secret');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('state initialization becomes true only when live prerequisites are present', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-init-ready-'));
+  const localConfigPath = path.join(root, 'config', 'osdcloud-console.local.json');
+  fs.mkdirSync(path.dirname(localConfigPath), { recursive: true });
+  fs.writeFileSync(localConfigPath, JSON.stringify({
+    adapter: { interfaceAlias: 'LAN', serverIp: '127.0.0.1', prefixLength: 24 },
+    http: { host: '127.0.0.1' },
+    tftp: { listenIp: '127.0.0.1' },
+    dhcp: { ipxeBootUrl: 'http://127.0.0.1/osdcloud/boot.ipxe' },
+    smb: { share: '\\\\127.0.0.1\\OSDCloudiPXE' },
+  }, null, 2), 'utf8');
+  const server = await makeServer(root, {
+    dependencies: {
+      getRuntimeReadiness: () => ({
+        ready: true,
+        requiredCount: 1,
+        readyCount: 1,
+        missingCount: 0,
+        missing: [],
+        artifacts: [{ id: 'boot-wim', exists: true }],
+      }),
+      getDeploymentSecretsStatus: () => ({
+        ready: true,
+        missing: [],
+        status: {
+          davisPassword: { present: true, source: 'file' },
+          pxeinstallPassword: { present: true, source: 'file' },
+        },
+      }),
+      evaluateDeploymentProfilePayload: () => ({ name: 'Deployment profile', ok: true, detail: 'default published' }),
+      resolveOsImageState: () => ({
+        activeImageId: 'SMOKE-WIN11-PRO',
+        activeImage: {
+          id: 'SMOKE-WIN11-PRO',
+          name: 'Smoke Windows 11 Pro',
+          version: 'Windows 11 Smoke',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 1,
+          fileName: 'install.wim',
+          cached: true,
+          bytes: 12,
+        },
+        images: [{
+          id: 'SMOKE-WIN11-PRO',
+          name: 'Smoke Windows 11 Pro',
+          version: 'Windows 11 Smoke',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 1,
+          fileName: 'install.wim',
+          cached: true,
+          bytes: 12,
+        }],
+        cachedFiles: [],
+        selectedOs: { id: 'SMOKE-WIN11-PRO', fileName: 'install.wim', imageIndex: 1 },
+        catalogPath: path.join(root, 'os-image-catalog.json'),
+        cacheRoot: path.join(root, 'OS'),
+        downloadStagingRoot: path.join(root, 'OS', '.downloads'),
+        selectedOsPath: path.join(root, 'OS', 'selected-os.json'),
+        cacheLogPath: path.join(root, 'OS', 'os-image-cache.jsonl'),
+      }),
+    },
+  });
+  server.controller.config.__localConfigPath = localConfigPath;
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const response = await fetch(`${base}/api/state`);
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.state.initialization.initialized, true);
+    assert.equal(payload.state.initialization.nextStepId, 'preflight');
+    assert.deepEqual(
+      payload.state.initialization.steps.filter((step) => step.required).map((step) => [step.id, step.done]),
+      [
+        ['web', true],
+        ['secrets', true],
+        ['runtime', true],
+        ['endpoint', true],
+        ['os-image', true],
+        ['profile', true],
+      ],
+    );
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

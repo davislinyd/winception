@@ -105,6 +105,59 @@ body {
   white-space: nowrap;
 }
 
+.initialization-dialog .drawer-card {
+  max-width: 760px;
+}
+
+.initialization-step-list {
+  display: grid;
+  gap: 6px;
+}
+
+.initialization-step {
+  align-items: flex-start;
+  border: 1px solid var(--outline-variant);
+  border-radius: 2px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  padding: 8px;
+}
+
+.initialization-step.done {
+  background: var(--ok-bg);
+}
+
+.initialization-step.blocked {
+  background: #fff7ed;
+}
+
+.initialization-step.optional {
+  background: var(--surface-container-low);
+}
+
+.initialization-step-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.initialization-step-body strong {
+  font: 600 13px/16px Inter, sans-serif;
+}
+
+.initialization-step-body span {
+  color: var(--on-surface-variant);
+  font: 400 12px/16px Inter, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.initialization-step button {
+  align-self: center;
+  white-space: nowrap;
+}
+
 .operations-stack button,
 .operations-secondary button,
 .operations-danger button {

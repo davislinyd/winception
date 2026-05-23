@@ -212,6 +212,12 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/secrets') {
+      const body = await readJsonBody(req, 16 * 1024);
+      const result = await this.controller.saveDeploymentSecrets(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/runtime/prepare') {
       const result = await this.controller.prepareRuntime();
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });

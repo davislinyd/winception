@@ -16,6 +16,7 @@ const state = {
   clientFleetSignature: '',
   logsText: null,
   fleetExpanded: false,
+  initializationAutoOpened: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -57,6 +58,14 @@ const elements = {
   syncProgressSteps: $('#sync-progress-steps'),
   syncActionItems: $('#sync-action-items'),
   syncOutput: $('#sync-output'),
+  initializationDialog: $('#initialization-dialog'),
+  initializationSummary: $('#initialization-summary'),
+  initializationBadge: $('#initialization-badge'),
+  initializationSteps: $('#initialization-steps'),
+  initializationNext: $('#initialization-next'),
+  initSecretsStatus: $('#init-secrets-status'),
+  initDavisPassword: $('#init-davis-password'),
+  initPxeinstallPassword: $('#init-pxeinstall-password'),
   endpointSettingsDialog: $('#endpoint-settings-dialog'),
   deploymentProfilesDialog: $('#deployment-profiles-dialog'),
   osImagesDialog: $('#os-images-dialog'),
@@ -673,6 +682,97 @@ function setActionDanger(action, danger) {
   actionButtons(action).forEach((button) => {
     button.classList.toggle('danger', danger);
   });
+}
+
+function initializationActionLabel(action) {
+  const labels = {
+    secrets: 'Save secrets',
+    'prepare-runtime': 'Prepare runtime',
+    interfaces: 'Select endpoint',
+    'os-images': 'Open OS images',
+    profiles: 'Publish profile',
+    preflight: 'Run preflight',
+  };
+  return labels[action] ?? 'Open';
+}
+
+function initializationActionIcon(action) {
+  const icons = {
+    secrets: 'password',
+    'prepare-runtime': 'deployed_code_update',
+    interfaces: 'settings_ethernet',
+    'os-images': 'deployed_code',
+    profiles: 'list_alt',
+    preflight: 'fact_check',
+  };
+  return icons[action] ?? 'arrow_forward';
+}
+
+function renderInitialization(appState) {
+  const initialization = appState.initialization;
+  if (!initialization || !elements.initializationDialog) {
+    return;
+  }
+
+  const initialized = initialization.initialized === true;
+  elements.initializationBadge.textContent = initialized ? 'Initialized' : 'Guided setup';
+  elements.initializationBadge.className = `status-pill ${initialized ? 'ok' : 'working'}`;
+  const nextStep = (initialization.steps ?? []).find((step) => step.id === initialization.nextStepId);
+  elements.initializationSummary.textContent = initialized
+    ? 'Deployment prerequisites are complete. Run preflight before starting services.'
+    : `Next: ${nextStep?.label ?? 'Run preflight'}`;
+  elements.initializationSteps.replaceChildren();
+
+  for (const step of initialization.steps ?? []) {
+    const row = document.createElement('div');
+    row.className = `initialization-step ${step.done ? 'done' : step.required ? 'blocked' : 'optional'}`;
+    const status = document.createElement('span');
+    status.className = `status-pill ${step.done ? 'ok' : step.required ? 'fail' : 'neutral'}`;
+    status.textContent = step.done ? 'Done' : step.required ? 'Required' : 'Optional';
+    const body = document.createElement('div');
+    body.className = 'initialization-step-body';
+    const title = document.createElement('strong');
+    title.textContent = step.label;
+    const detail = document.createElement('span');
+    detail.textContent = step.detail ?? '';
+    body.append(title, detail);
+    row.append(status, body);
+    if (!step.done && step.action && step.action !== 'setup') {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = step.required ? 'warning' : '';
+      button.dataset.initAction = step.action;
+      button.dataset.icon = initializationActionIcon(step.action);
+      button.textContent = initializationActionLabel(step.action);
+      row.append(button);
+    }
+    elements.initializationSteps.append(row);
+  }
+
+  if (nextStep?.action && nextStep.action !== 'setup') {
+    elements.initializationNext.hidden = false;
+    elements.initializationNext.dataset.initAction = 'next';
+    elements.initializationNext.dataset.nextAction = nextStep.action;
+    elements.initializationNext.dataset.icon = initializationActionIcon(nextStep.action);
+    elements.initializationNext.textContent = initializationActionLabel(nextStep.action);
+  } else {
+    elements.initializationNext.hidden = initialized;
+    elements.initializationNext.dataset.nextAction = 'preflight';
+    elements.initializationNext.dataset.icon = 'fact_check';
+    elements.initializationNext.textContent = 'Run preflight';
+  }
+
+  const secrets = initialization.secrets;
+  if (secrets?.ready) {
+    elements.initSecretsStatus.textContent = 'Secrets saved. Values are hidden.';
+  } else {
+    elements.initSecretsStatus.textContent = `Missing: ${(secrets?.missing ?? ['davisPassword', 'pxeinstallPassword']).join(', ')}`;
+  }
+
+  if (!initialized && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
+    state.initializationAutoOpened = true;
+    openDialog(elements.initializationDialog);
+  }
 }
 
 function renderProfileSummary(appState) {
@@ -1967,6 +2067,7 @@ function render() {
   renderProfileSummary(appState);
   renderOsImageSummary(appState);
   renderPreflightSummary(appState.preflight);
+  renderInitialization(appState);
   renderClients(appState);
   renderInterfaces(appState);
   renderProfiles(appState);
@@ -3125,11 +3226,67 @@ async function handleStatusRunDelete(runId) {
   }
 }
 
+async function saveInitializationSecrets() {
+  const davisPassword = elements.initDavisPassword.value;
+  const pxeinstallPassword = elements.initPxeinstallPassword.value;
+  if (!davisPassword.trim() || !pxeinstallPassword.trim()) {
+    elements.initSecretsStatus.textContent = 'Enter both deployment passwords before saving.';
+    return;
+  }
+  if (state.busy) {
+    return;
+  }
+  state.busy = true;
+  setControlsDisabled(true);
+  try {
+    const payload = await api('/api/secrets', {
+      method: 'POST',
+      body: JSON.stringify({ davisPassword, pxeinstallPassword }),
+    });
+    state.current = payload.state;
+    state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
+    elements.initDavisPassword.value = '';
+    elements.initPxeinstallPassword.value = '';
+    elements.initSecretsStatus.textContent = 'Secrets saved. Values are hidden.';
+    render();
+  } catch (error) {
+    elements.initSecretsStatus.textContent = error.message;
+  } finally {
+    state.busy = false;
+    setControlsDisabled(false);
+  }
+}
+
+async function handleInitializationAction(action, source = null) {
+  const resolvedAction = action === 'next'
+    ? (source?.dataset?.nextAction ?? state.current?.initialization?.nextStepId)
+    : action;
+  if (resolvedAction === 'save-secrets') {
+    await saveInitializationSecrets();
+    return;
+  }
+  if (resolvedAction === 'secrets') {
+    openDialog(elements.initializationDialog);
+    elements.initDavisPassword.focus();
+    return;
+  }
+  if (!resolvedAction || resolvedAction === 'setup') {
+    return;
+  }
+  closeDialog(elements.initializationDialog);
+  await handleAction(resolvedAction, source);
+  if (resolvedAction === 'prepare-runtime' || resolvedAction === 'preflight') {
+    openDialog(elements.initializationDialog);
+  }
+}
+
 async function handleAction(action, source = null) {
   const services = state.current?.services ?? {};
   if (action === 'run-evidence') {
     const runId = source?.dataset?.runId ?? source?.closest?.('[data-run-id]')?.dataset?.runId;
     showValidationEvidence(runId);
+  } else if (action === 'initialization') {
+    openDialog(elements.initializationDialog);
   } else if (action === 'preflight') {
     await mutate('/api/preflight');
   } else if (action === 'interfaces') {
@@ -3315,6 +3472,13 @@ document.addEventListener('click', (event) => {
     return;
   }
 
+  const initButton = target.closest('[data-init-action]');
+  if (initButton) {
+    event.preventDefault();
+    handleInitializationAction(initButton.dataset.initAction, initButton).catch((error) => window.alert(error.message));
+    return;
+  }
+
   const interfaceButton = target.closest('[data-interface-action]');
   if (interfaceButton) {
     const item = state.interfaces[Number(interfaceButton.dataset.interfaceIndex)];
@@ -3479,6 +3643,19 @@ elements.softwareScriptOpen.addEventListener('click', async () => {
     elements.softwareScriptOpen.textContent = 'Open with...';
     elements.softwareScriptOpen.disabled = false;
   }
+});
+
+[
+  elements.initDavisPassword,
+  elements.initPxeinstallPassword,
+].forEach((input) => {
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') {
+      return;
+    }
+    event.preventDefault();
+    saveInitializationSecrets().catch((error) => window.alert(error.message));
+  });
 });
 
 [

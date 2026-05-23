@@ -112,6 +112,7 @@
                 <button data-action="endpoint-sync" data-icon="sync_alt" class="warning" type="button">Sync endpoint</button>
               </div>
               <div class="operations-secondary">
+                <button data-action="initialization" data-icon="checklist" type="button">Initialization</button>
                 <button data-action="interfaces" data-icon="settings_ethernet" type="button">Select interface</button>
                 <button data-action="profiles" data-icon="list_alt" type="button">Profiles</button>
                 <button data-action="os-images" data-icon="deployed_code" type="button">OS images</button>
@@ -222,6 +223,45 @@
   </div>
 
   <div id="fleet-backdrop" class="fleet-backdrop" hidden></div>
+
+  <dialog id="initialization-dialog" class="drawer-dialog initialization-dialog">
+    <form method="dialog" class="dialog-card drawer-card">
+      <div class="dialog-header">
+        <div>
+          <h3>Initialization Wizard</h3>
+          <div class="drawer-subtitle">
+            <span id="initialization-summary">Checking initialization state...</span>
+          </div>
+        </div>
+        <div class="drawer-actions">
+          <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="warning" type="button">Next step</button>
+          <button value="cancel" type="submit">Close</button>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Required Steps</h4>
+            <span id="initialization-badge" class="status-pill neutral" aria-live="polite">Checking</span>
+          </div>
+          <div id="initialization-steps" class="initialization-step-list"></div>
+        </section>
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Deployment Secrets</h4>
+            <span id="init-secrets-status" class="font-technical-string text-technical-string text-on-surface-variant" aria-live="polite">No password values are displayed after save.</span>
+          </div>
+          <div id="init-secrets-form" class="form-grid compact">
+            <label>davis password <input id="init-davis-password" name="davisPassword" type="password" autocomplete="new-password" required></label>
+            <label>pxeinstall SMB password <input id="init-pxeinstall-password" name="pxeinstallPassword" type="password" autocomplete="new-password" required></label>
+            <div class="dialog-actions span-2">
+              <button data-init-action="save-secrets" data-icon="password" class="warning" type="button">Save deployment secrets</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="endpoint-settings-dialog" class="drawer-dialog">
     <form method="dialog" class="dialog-card drawer-card">

@@ -164,9 +164,13 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /npm' -ArgumentList @\('run', 'smoke'\)/);
   assert.match(script, /function Ensure-NodeAndNpm/);
   assert.match(script, /OpenJS\.NodeJS\.LTS/);
+  assert.match(script, /\[string\] \$WebHost/);
+  assert.match(script, /function Select-WebServiceHost/);
+  assert.match(script, /config\\osdcloud-console\.local\.json/);
+  assert.match(script, /host = \$HostIp/);
+  assert.match(script, /writing only the Web console local overlay/);
   assert.doesNotMatch(script, /OSDCLOUD_DAVIS_PASSWORD/);
   assert.doesNotMatch(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
-  assert.doesNotMatch(script, /osdcloud-console\.local\.json/);
   assert.doesNotMatch(script, /New-SmbShare/);
   assert.doesNotMatch(script, /New-LocalUser/);
   assert.doesNotMatch(script, /New-Item\s+-ItemType\s+Directory/);
@@ -176,7 +180,7 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.doesNotMatch(script, /Start-Pxe|Start-Dhcp|Start-Tftp|Start-Http/);
 });
 
-test('setup dry-run is non-network and does not create local state files', () => {
+test('setup dry-run saves only the Web local overlay', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-dryrun-'));
   try {
     fs.mkdirSync(path.join(root, 'tools'), { recursive: true });
@@ -208,9 +212,89 @@ test('setup dry-run is non-network and does not create local state files', () =>
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /Setup only prepares the Web console/);
-    assert.equal(fs.existsSync(localConfig), false);
+    assert.match(result.stdout, /writing only the Web console local overlay/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(localConfig, 'utf8')), { web: { host: '127.0.0.1', port: 8080 } });
     assert.equal(fs.existsSync(setupState), false);
+    assert.equal(fs.existsSync(path.join(root, 'config', 'osdcloud-secrets.json')), false);
     assert.equal(fs.existsSync(path.join(root, 'C:\\OSDCloud')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('setup WebHost writes only web host and port to local overlay', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-webhost-'));
+  try {
+    fs.mkdirSync(path.join(root, 'tools'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+    fs.copyFileSync(
+      path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'),
+      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
+    );
+    fs.copyFileSync(
+      path.join(process.cwd(), 'config', 'osdcloud-console.json'),
+      path.join(root, 'config', 'osdcloud-console.json'),
+    );
+    spawnSync('git', ['init'], { cwd: root, encoding: 'utf8' });
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
+      '-WebHost',
+      '127.0.0.1',
+      '-NoLaunch',
+      '-SkipNpmInstall',
+      '-SkipSmoke',
+    ], {
+      cwd: root,
+      encoding: 'utf8',
+      env: process.env,
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const localConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'osdcloud-console.local.json'), 'utf8'));
+    assert.deepEqual(localConfig, { web: { host: '127.0.0.1', port: 8080 } });
+    assert.equal(fs.existsSync(path.join(root, 'config', 'osdcloud-secrets.json')), false);
+    assert.equal(fs.existsSync(path.join(root, 'C:\\OSDCloud')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('setup rejects a WebHost that is not a local enabled IPv4 address', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-webhost-invalid-'));
+  try {
+    fs.mkdirSync(path.join(root, 'tools'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+    fs.copyFileSync(
+      path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'),
+      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
+    );
+    fs.copyFileSync(
+      path.join(process.cwd(), 'config', 'osdcloud-console.json'),
+      path.join(root, 'config', 'osdcloud-console.json'),
+    );
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
+      '-DryRun',
+      '-NoLaunch',
+      '-SkipNpmInstall',
+      '-SkipSmoke',
+      '-WebHost',
+      '203.0.113.10',
+    ], {
+      cwd: root,
+      encoding: 'utf8',
+      env: process.env,
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr + result.stdout, /not assigned to an enabled local IPv4 adapter/);
+    assert.equal(fs.existsSync(path.join(root, 'config', 'osdcloud-console.local.json')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

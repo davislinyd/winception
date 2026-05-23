@@ -61,7 +61,9 @@ http://127.0.0.1:8080
 
 ## 本機 Deployment Secrets
 
-Repo 不提交真實密碼。需要部署前，先在 lab host 建立本機檔案：
+Repo 不提交真實密碼。新 host 預設做法是在 Web 第一次進入時，由初始化精靈的 `Deployment Secrets` 步驟輸入 `davisPassword` 與 `pxeinstallPassword`；Web 會寫入 ignored 的 `config\osdcloud-secrets.json`，API 回應與 log 都不回傳密碼明文。
+
+若需要離線或手動建立，也可以先在 lab host 建立本機檔案：
 
 ```powershell
 Copy-Item .\config\osdcloud-secrets.example.json .\config\osdcloud-secrets.json
@@ -77,7 +79,7 @@ notepad .\config\osdcloud-secrets.json
 }
 ```
 
-可改用 PowerShell session 環境變數 `OSDCLOUD_DAVIS_PASSWORD` 與 `OSDCLOUD_PXEINSTALL_PASSWORD`，但不要把真實值寫進文件、報告、commit message 或測試輸出。執行 `tools\Set-OsdCloudIpxeEndpoint.ps1 -CommitWinPe` 時，工具會把本機 secret 注入 live `boot.wim`，讓 WinPE 可以掛載 SMB 並把 SetupComplete 需要的本地帳號密碼交給已部署的 Windows。
+可改用 PowerShell session 環境變數 `OSDCLOUD_DAVIS_PASSWORD` 與 `OSDCLOUD_PXEINSTALL_PASSWORD`，但不要把真實值寫進文件、報告、commit message 或測試輸出。Web initialization / endpoint sync 會檢查本機 secret 狀態；執行 endpoint sync 時，工具會把本機 secret 注入 live `boot.wim`，讓 WinPE 可以掛載 SMB 並把 SetupComplete 需要的本地帳號密碼交給已部署的 Windows。
 
 ## 流程分界
 
@@ -143,7 +145,7 @@ cd '<repo-root>'
 - Node.js / npm，可執行 ESM 與 `node --test`。若缺少，setup 會詢問是否安裝 Node.js LTS；npm 會隨 Node.js 一起安裝。
 - Windows ADK、Windows PE Add-on、PowerShell OSD / OSDCloud module 後續由 Web `Prepare runtime` 檢查或使用；setup 階段不下載或重建 WinPE。
 - 一張可上網的 host NIC，以及一張服務 PXE client 的隔離 LAN NIC；目前範例為 `WAN` 上網、`LAN` = `192.168.88.1/24`。
-- 本機 `config\osdcloud-secrets.json` 可等到 Web `Prepare runtime` / endpoint sync 前再建立；setup 不會要求或寫入 deployment secrets。
+- 本機 `config\osdcloud-secrets.json` 由 Web 初始化精靈建立；setup 不會要求或寫入 deployment secrets。
 
 ### 2. 執行輕量 setup
 
@@ -151,25 +153,37 @@ cd '<repo-root>'
 
 - 檢查 repo root、Git、Node/npm；若缺少 Node/npm，詢問是否安裝 Node.js LTS。
 - 執行 `npm install` 與輕量 `npm run smoke`，確認 Web 主程式可啟動。
+- 顯示可用的本機 IPv4 清單，只詢問 `Web service IP`，預設 `127.0.0.1`。
+- 將 `web.host` 與固定 `web.port=8080` 寫入 ignored `config\osdcloud-console.local.json`。
 - 啟動 Web console：`npm run web`。
 
 setup 除了 operator 明確同意安裝 Node.js LTS 之外，不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會建立 `C:\OSDCloud`、不會建立 SMB share 或本機 `pxeinstall` 帳號、不會要求 deployment secrets、不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
 
-若要非互動測試 setup 行為，可用：
+若要非互動測試 setup 行為，可用；`-DryRun` 仍會保存唯一允許的 Web local overlay，但不執行 npm install/smoke、launch、secrets、runtime、SMB、PXE 或服務動作：
 
 ```powershell
 .\tools\Setup-DeploymentServer.ps1 -DryRun -NoLaunch -SkipNpmInstall -SkipSmoke
+.\tools\Setup-DeploymentServer.ps1 -WebHost 127.0.0.1 -NoLaunch -SkipNpmInstall -SkipSmoke
 ```
 
-### 3. 在 Web 內準備 runtime
+### 3. Web 初始化精靈
 
 setup 完成後開啟：
 
 ```text
-http://127.0.0.1:8080
+http://<setup-selected-web-ip>:8080
 ```
 
-Web console 會在 Runtime Readiness 面板顯示 `C:\OSDCloud` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot / installer artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。
+Web console 每次載入 `/api/state` 都會從 live state 重新計算 `initialization.initialized`，不使用單一 marker。若尚未完成，會自動開啟 initialization wizard，但 dashboard 仍可讀。精靈依序引導：
+
+1. 儲存 deployment secrets 到 ignored `config\osdcloud-secrets.json`。
+2. `Prepare runtime`，建立 `C:\OSDCloud`、準備 SMB account/share、boot artifacts、WinPE 與 installer payload；不啟動 HTTP/TFTP/DHCP。
+3. 選 PXE/service endpoint 並在 Web 內 sync endpoint。
+4. 到 `OS Image Cache` 下載或匯入 ISO/ESD/WIM、選 DISM index、匯出單一 WIM。
+5. Publish active profile，寫出 `selected-profile.json` 與 `selected-os.json`。
+6. `Run preflight`，通過後再手動 `Start all services`。
+
+Runtime Readiness 面板仍會顯示 `C:\OSDCloud` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot / installer artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。
 
 Active runtime 只需要：
 
@@ -829,9 +843,9 @@ npm install
 npm run web
 ```
 
-預設 URL 是 `http://127.0.0.1:8080`。Web 版是完整 operator console，負責 endpoint、OS image cache、deployment profile、service control、status/log/validation。PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議維持相容；OS image cache 會透過 `selected-os.json` 影響 WinPE deployment script 選用哪個 cached image。
+預設 URL 是 `http://127.0.0.1:8080`，或 setup 期間選定的 `http://<web-service-ip>:8080`。Web 版是完整 operator console，負責 first-run initialization、deployment secrets、runtime readiness、endpoint、OS image cache、deployment profile、service control、status/log/validation。PXE client 的 `/osdcloud/status`、`/osdcloud/status/runs`、`/osdcloud/screenshot` 協議維持相容；OS image cache 會透過 `selected-os.json` 影響 WinPE deployment script 選用哪個 cached image。
 
-Web console 目前是單一 workbench。桌面版左上 `Operations` 放日常操作入口；中間上方顯示 endpoint summary、Runtime Readiness、Endpoint Sync Progress、active OS image、active profile 與 HTTP/TFTP/DHCP service cards；`Preflight Summary` 與 `Client Fleet` 橫跨左側 Operations 欄和中間主欄下方，避免左下角留下整欄空白；右側是 `System Log`。窄版畫面維持上下堆疊。`Runtime Readiness` 允許 Web 在 `boot.wim`、OS image、installer payload 尚未就緒時正常啟動，operator 明確按 `Prepare runtime` 後才會下載或重建大型 artifact。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Profiles` drawer 內含 profile 管理與 `Software Catalog`；`Add software` 可上傳單一 MSI/EXE，建立 ignored repo-local `Softwares\<id>` installer payload 與 catalog entry，但不會自動加入 active profile 或發佈 live `Apps`；`Edit active` 會用 `Selected install order` 管理該 profile 的 per-profile 安裝順序。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可查看已匯出的 cached WIM，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯出 WIM。`Deployment Profiles` 的 publish / Set active 會發布 `selected-os.json`；若 manifest stale，回 Profiles 重新 Set active 或編輯 active profile 後存檔。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍；failed row hover 會用原生 tooltip 顯示 `How to fix:` 建議，例如 `selected manifest stale` 會提示到 `OS images` 對 active image 執行 `Republish`，再重跑 `Run preflight`。`System Log` 只有在 operator 已經停在底部時才會隨新增訊息自動跟到底；如果 operator 往上捲動閱讀舊訊息，refresh 或新 log 不會改變目前閱讀位置。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
+Web console 目前是單一 workbench。桌面版左上 `Operations` 放日常操作入口與 `Initialization` 手動入口；中間上方顯示 endpoint summary、Runtime Readiness、Endpoint Sync Progress、active OS image、active profile 與 HTTP/TFTP/DHCP service cards；`Preflight Summary` 與 `Client Fleet` 橫跨左側 Operations 欄和中間主欄下方，避免左下角留下整欄空白；右側是 `System Log`。窄版畫面維持上下堆疊。`/api/state.initialization` 會回傳每個初始化步驟與 `initialized`；未初始化時 Web 自動開啟 wizard 一次，引導 secrets、Prepare runtime、endpoint sync、OS image、profile publish、preflight。`Runtime Readiness` 允許 Web 在 `boot.wim`、OS image、installer payload 尚未就緒時正常啟動，operator 明確按 `Prepare runtime` 後才會下載或重建大型 artifact。`Select interface`、`Profiles`、`OS images` 與 validation evidence 以 drawer/dialog 開啟，不再需要在多個 top-level view 間切換。`Profiles` drawer 內含 profile 管理與 `Software Catalog`；`Add software` 可上傳單一 MSI/EXE，建立 ignored repo-local `Softwares\<id>` installer payload 與 catalog entry，但不會自動加入 active profile 或發佈 live `Apps`；`Edit active` 會用 `Selected install order` 管理該 profile 的 per-profile 安裝順序。`Select interface` drawer 會先顯示，再背景刷新 `/api/interfaces` live NIC 清單；載入中、刷新中、失敗時都在 drawer 內顯示狀態，不會讓 operator 以為點擊沒有反應。`OS Image Cache` dialog 分成 cached images、download catalog、Local Import 三段：可查看已匯出的 cached WIM，也可用版本/release/language filter 選官方或自訂來源下載，或用 browser upload ISO/ESD/WIM 後選 image index 匯出 WIM。`Deployment Profiles` 的 publish / Set active 會發布 `selected-os.json`；若 manifest stale，回 Profiles 重新 Set active 或編輯 active profile 後存檔。`Preflight Summary` 會在自己的區塊內捲動並截斷超長 path/detail，避免 preflight 失敗清單把主要操作區或 System Log 擠出可用範圍；failed row hover 會用原生 tooltip 顯示 `How to fix:` 建議，例如 `selected manifest stale` 會提示到 `OS images` 對 active image 執行 `Republish`，再重跑 `Run preflight`。`System Log` 只有在 operator 已經停在底部時才會隨新增訊息自動跟到底；如果 operator 往上捲動閱讀舊訊息，refresh 或新 log 不會改變目前閱讀位置。`Validation Evidence` drawer 會限制在 viewport 內，長路徑、Run ID 與 evidence/check 文字會換行；`Active OS Image` 的 cached file name 也會在卡片內換行。`Client Fleet` 的 `Expand fleet` 會以前景 overlay 放大 fleet 表格，背景灰色且不可點擊；同一列的 `Delete` 只刪除該 runId 的 status artifacts，不刪同一 client 的其他歷史 runs。`Client Fleet` 的 `Last Seen` 以本地時間 `yyyy/mm/dd HH:MM` 顯示。
 
 Operations 的視覺語意固定如下：`Run preflight` 是中性 outline 診斷動作，不使用藍色 primary；`Sync endpoint`、profile/OS `Set active`、OS image `Republish`、OS image download/import 使用 warning，表示會修改 live config/cache 但不是破壞性；`Start DHCP`、`Start all services`、`Clear status files`、delete 類動作使用 danger。狀態色只用於結果：running/ready 用綠色，blocked/error 用紅色，review/working 用黃色，stopped/idle/not run 用中性。
 
@@ -855,7 +869,8 @@ Web console 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/stat
 
 使用原則：
 
-- 優先用 elevated PowerShell 啟動 `npm run web`，再從瀏覽器開 `http://127.0.0.1:8080`
+- 優先用 `Setup-DeploymentServer.cmd` 選定 Web service IP 並啟動 `npm run web`；若要手動啟動，使用 `npm run web` 後開 `http://<web-service-ip>:8080`
+- 第一次進入若 initialization wizard 自動開啟，依序完成 secrets、runtime、endpoint、OS image、profile publish、preflight；完成前不要啟動 deployment services
 - Web 版使用 `serviceController.js` 控制服務；同一時間只開一個 host console 或 headless process 來操作服務，避免兩個 Node process 同時嘗試控制 HTTP/TFTP/DHCP
 - Web 版 read-only state/status/logs/validation 不會寫入 `C:\OSDCloud`；endpoint sync、profile publish、clear status、service start/stop 是明確的 mutating 操作
 - 所有 Web dialog/drawer 的灰色背景點擊都等同 `Cancel` / `Close`，使用 pointer down 立即關閉；點擊內容區不會關閉。Confirmation dialog 背景點擊只會回傳取消，不會執行危險或 warning action。

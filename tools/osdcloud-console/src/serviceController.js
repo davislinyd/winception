@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   applyServiceEndpoint,
   loadConfig,
@@ -16,6 +18,7 @@ import {
   deleteDeploymentProfile,
   deleteSoftwarePackage,
   deleteCustomScript,
+  evaluateDeploymentProfilePayload,
   formatSoftwareList,
   openSoftwareInstallScript,
   publishDeploymentProfile,
@@ -100,6 +103,257 @@ function safeRead(callback, fallback = null) {
   } catch (error) {
     return { value: fallback, error: error.message };
   }
+}
+
+function readJsonFile(filePath) {
+  const raw = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/u, '');
+  return raw.trim() ? JSON.parse(raw) : {};
+}
+
+function repoRootForConfig(config) {
+  if (config.paths?.repoRoot) {
+    return path.resolve(config.paths.repoRoot);
+  }
+  if (config.__configPath) {
+    return path.resolve(path.dirname(config.__configPath), '..');
+  }
+  return process.cwd();
+}
+
+function deploymentSecretsPath(config) {
+  const configured = config.deploymentSecrets?.path;
+  if (configured) {
+    return path.isAbsolute(configured)
+      ? path.resolve(configured)
+      : path.resolve(repoRootForConfig(config), configured);
+  }
+  return path.join(repoRootForConfig(config), 'config', 'osdcloud-secrets.json');
+}
+
+function hasSecretValue(value) {
+  const text = String(value ?? '').trim();
+  return text !== '' && !/^<[^>]+>$/u.test(text);
+}
+
+function deploymentSecretsStatus(config, env = process.env) {
+  const filePath = deploymentSecretsPath(config);
+  let fileSecrets = {};
+  let fileError = null;
+  const fileExists = fs.existsSync(filePath);
+  if (fileExists) {
+    try {
+      fileSecrets = readJsonFile(filePath);
+    } catch (error) {
+      fileError = error.message;
+    }
+  }
+
+  const fields = [
+    ['davisPassword', 'OSDCLOUD_DAVIS_PASSWORD'],
+    ['pxeinstallPassword', 'OSDCLOUD_PXEINSTALL_PASSWORD'],
+  ];
+  const status = {};
+  const missing = [];
+  for (const [jsonName, envName] of fields) {
+    const fromFile = !fileError && hasSecretValue(fileSecrets?.[jsonName]);
+    const fromEnv = hasSecretValue(env?.[envName]);
+    status[jsonName] = {
+      present: fromFile || fromEnv,
+      source: fromFile ? 'file' : fromEnv ? 'environment' : 'missing',
+    };
+    if (!status[jsonName].present) {
+      missing.push(jsonName);
+    }
+  }
+
+  return {
+    ready: missing.length === 0,
+    filePath,
+    fileExists,
+    fileError,
+    missing,
+    status,
+  };
+}
+
+function writeDeploymentSecrets(config, input = {}) {
+  const davisPassword = String(input.davisPassword ?? '').trim();
+  const pxeinstallPassword = String(input.pxeinstallPassword ?? '').trim();
+  if (!hasSecretValue(davisPassword)) {
+    throw errorWithStatus('davisPassword is required.', 400);
+  }
+  if (!hasSecretValue(pxeinstallPassword)) {
+    throw errorWithStatus('pxeinstallPassword is required.', 400);
+  }
+
+  const filePath = deploymentSecretsPath(config);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify({ davisPassword, pxeinstallPassword }, null, 2)}\n`, 'utf8');
+  return deploymentSecretsStatus(config);
+}
+
+function localEndpointOverlayStatus(config) {
+  const filePath = config.__localConfigPath
+    ? path.resolve(config.__localConfigPath)
+    : path.join(repoRootForConfig(config), 'config', 'osdcloud-console.local.json');
+  if (!fs.existsSync(filePath)) {
+    return {
+      ready: false,
+      filePath,
+      detail: 'No local endpoint overlay has been written by Web endpoint sync.',
+    };
+  }
+  try {
+    const overlay = readJsonFile(filePath);
+    const hasEndpoint = Boolean(
+      overlay.adapter?.serverIp
+      && overlay.adapter?.interfaceAlias
+      && overlay.http?.host
+      && overlay.tftp?.listenIp
+      && overlay.dhcp?.ipxeBootUrl
+      && overlay.smb?.share,
+    );
+    return {
+      ready: hasEndpoint,
+      filePath,
+      detail: hasEndpoint
+        ? `${overlay.adapter.interfaceAlias} ${overlay.adapter.serverIp}/${overlay.adapter.prefixLength ?? ''}`.trim()
+        : 'Local overlay exists, but endpoint sections have not been written by Web endpoint sync.',
+    };
+  } catch (error) {
+    return {
+      ready: false,
+      filePath,
+      detail: `Unable to read local endpoint overlay: ${error.message}`,
+    };
+  }
+}
+
+function osImageDeployableStatus(osImage) {
+  const active = osImage?.activeImage;
+  const selected = osImage?.selectedOs;
+  if (!active) {
+    return { ready: false, detail: 'No active OS image selected.' };
+  }
+  if (!active.cached) {
+    return { ready: false, detail: `Active OS image is not cached: ${active.fileName ?? active.id}` };
+  }
+  if (!selected) {
+    return { ready: false, detail: `selected-os.json not published: ${osImage?.selectedOsPath ?? ''}`.trim() };
+  }
+  const selectedIndex = Number(selected.imageIndex ?? selected.osImageIndex);
+  const activeIndex = Number(active.imageIndex);
+  const stale = selected.id !== active.id || selected.fileName !== active.fileName || selectedIndex !== activeIndex;
+  if (stale) {
+    return { ready: false, detail: `selected-os.json is stale for active image ${active.id}.` };
+  }
+  if (!String(active.fileName ?? '').toLowerCase().endsWith('.wim')) {
+    return { ready: false, detail: 'Active OS image must be an exported single WIM.' };
+  }
+  return { ready: true, detail: `${active.id} -> ${active.fileName} index ${active.imageIndex}` };
+}
+
+function profilePayloadStatus(profilePayload) {
+  if (!profilePayload) {
+    return { ready: false, detail: 'Deployment profile payload has not been evaluated.' };
+  }
+  return {
+    ready: profilePayload.ok === true,
+    detail: profilePayload.detail || (profilePayload.ok ? 'Active profile payload is published.' : 'Active profile payload is not published.'),
+  };
+}
+
+function preflightStatus(preflight) {
+  if (!Array.isArray(preflight) || preflight.length === 0) {
+    return { ready: false, detail: 'Preflight has not been run in this Web session.' };
+  }
+  const failures = preflight.filter((check) => check.ok === false);
+  if (failures.length > 0) {
+    return { ready: false, detail: `${failures.length} preflight check(s) are blocking service start.` };
+  }
+  const unknown = preflight.filter((check) => check.ok !== true);
+  return {
+    ready: unknown.length === 0,
+    detail: unknown.length === 0
+      ? `${preflight.length} preflight check(s) passed.`
+      : `${unknown.length} preflight check(s) need review.`,
+  };
+}
+
+function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight }) {
+  const web = webServerConfig(config);
+  const webReady = Boolean(web.host) && Number.isInteger(web.port) && web.port >= 0;
+  const osImageStatus = osImageDeployableStatus(osImage);
+  const profileStatus = profilePayloadStatus(profilePayload);
+  const finalPreflight = preflightStatus(preflight);
+  const steps = [
+    {
+      id: 'web',
+      label: 'Web service IP',
+      required: true,
+      done: webReady,
+      action: 'setup',
+      detail: webReady ? `${web.host}:${web.port}` : 'Set web.host and web.port in the local overlay.',
+    },
+    {
+      id: 'secrets',
+      label: 'Deployment secrets',
+      required: true,
+      done: secrets.ready,
+      action: 'secrets',
+      detail: secrets.ready ? 'davisPassword and pxeinstallPassword are present.' : `Missing: ${secrets.missing.join(', ')}`,
+    },
+    {
+      id: 'runtime',
+      label: 'Prepare runtime',
+      required: true,
+      done: runtime?.ready === true,
+      action: 'prepare-runtime',
+      detail: runtime?.ready
+        ? `${runtime.readyCount}/${runtime.requiredCount} required artifact group(s) are ready.`
+        : runtime?.error ?? `${runtime?.missingCount ?? 'Unknown'} runtime artifact group(s) need preparation.`,
+    },
+    {
+      id: 'endpoint',
+      label: 'PXE/service endpoint',
+      required: true,
+      done: endpoint.ready,
+      action: 'interfaces',
+      detail: endpoint.detail,
+    },
+    {
+      id: 'os-image',
+      label: 'OS Image Cache',
+      required: true,
+      done: osImageStatus.ready,
+      action: 'os-images',
+      detail: osImageStatus.detail,
+    },
+    {
+      id: 'profile',
+      label: 'Publish profile',
+      required: true,
+      done: profileStatus.ready,
+      action: 'profiles',
+      detail: profileStatus.detail,
+    },
+    {
+      id: 'preflight',
+      label: 'Run preflight',
+      required: false,
+      done: finalPreflight.ready,
+      action: 'preflight',
+      detail: finalPreflight.detail,
+    },
+  ];
+  const requiredSteps = steps.filter((step) => step.required);
+  const nextStep = requiredSteps.find((step) => !step.done) ?? steps.find((step) => !step.done) ?? null;
+  return {
+    initialized: requiredSteps.every((step) => step.done),
+    nextStepId: nextStep?.id ?? null,
+    secrets,
+    steps,
+  };
 }
 
 function profileSummary(state) {
@@ -232,6 +486,7 @@ export class ServiceController extends EventEmitter {
       deleteDeploymentProfile,
       deleteSoftwarePackage,
       deleteCustomScript,
+      evaluateDeploymentProfilePayload,
       deleteStatusRun,
       deleteCachedOsImage,
       downloadOsImageFromCatalog,
@@ -257,11 +512,13 @@ export class ServiceController extends EventEmitter {
       summarizeValidation,
       syncIpxeEndpoint,
       getRuntimeReadiness,
+      getDeploymentSecretsStatus: deploymentSecretsStatus,
       tailFile,
       updateDeploymentProfile,
       uploadCustomScript,
       uploadSoftwareInstaller,
       uploadOsImageFile,
+      writeDeploymentSecrets,
       ...options.dependencies,
     };
     this.config = options.config ?? loadConfig(options.configPath);
@@ -470,6 +727,20 @@ export class ServiceController extends EventEmitter {
     const profileResult = safeRead(() => this.getProfiles(), null);
     const osImageResult = safeRead(() => this.getOsImages(), null);
     const runtimeResult = safeRead(() => this.dependencies.getRuntimeReadiness(this.config), null);
+    const secretsResult = safeRead(() => this.dependencies.getDeploymentSecretsStatus(this.config), {
+      ready: false,
+      missing: ['davisPassword', 'pxeinstallPassword'],
+      status: {},
+    });
+    const endpointResult = safeRead(() => localEndpointOverlayStatus(this.config), {
+      ready: false,
+      detail: 'Unable to read local endpoint overlay.',
+    });
+    const profilePayloadResult = safeRead(() => this.dependencies.evaluateDeploymentProfilePayload(this.config), {
+      name: 'Deployment profile',
+      ok: false,
+      detail: 'Deployment profile payload has not been evaluated.',
+    });
     const validationResult = safeRead(() => this.dependencies.summarizeValidation(this.config), []);
     const statusEventsResult = safeRead(() => this.dependencies.readStatusEvents(this.config, 80), []);
     const selectedRunEventsResult = safeRead(
@@ -482,7 +753,7 @@ export class ServiceController extends EventEmitter {
       null,
     );
 
-    return {
+    const state = {
       generatedAt: new Date().toISOString(),
       app: {
         version: appVersion,
@@ -537,6 +808,16 @@ export class ServiceController extends EventEmitter {
       selectedRunEvents: selectedRunEventsResult.value,
       logs: this.getLogs(options.logLines ?? 160),
     };
+    state.initialization = buildInitializationState({
+      config: this.config,
+      secrets: secretsResult.value,
+      runtime: state.runtime,
+      endpoint: endpointResult.value,
+      osImage: osImageResult.error ? null : osImageResult.value,
+      profilePayload: profilePayloadResult.value,
+      preflight: this.preflightResults,
+    });
+    return state;
   }
 
   async listInterfaces() {
@@ -566,6 +847,10 @@ export class ServiceController extends EventEmitter {
         stream.flush();
       }
     });
+  }
+
+  async saveDeploymentSecrets(input) {
+    return this.runOperation('Saving deployment secrets', async () => this.dependencies.writeDeploymentSecrets(this.config, input));
   }
 
   async startService(name) {

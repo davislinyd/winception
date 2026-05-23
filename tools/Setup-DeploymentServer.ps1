@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [string] $WebHost,
     [switch] $SkipNpmInstall,
     [switch] $SkipSmoke,
     [switch] $NoNodeAutoInstall,
@@ -10,6 +11,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
+$LocalConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.local.json'
+$WebPort = 8080
 
 function Write-Step {
     param([Parameter(Mandatory)][string] $Message)
@@ -41,6 +44,15 @@ function Invoke-ExternalCommand {
     finally {
         Pop-Location
     }
+}
+
+function Test-IPv4Address {
+    param([Parameter(Mandatory)][string] $Address)
+    $parsed = $null
+    if (-not [System.Net.IPAddress]::TryParse($Address, [ref] $parsed)) {
+        return $false
+    }
+    $parsed.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork
 }
 
 function Read-YesNo {
@@ -107,7 +119,119 @@ function Ensure-NodeAndNpm {
     Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('--version')
 }
 
+function Get-AvailableWebHosts {
+    $hosts = New-Object System.Collections.Generic.List[object]
+    $hosts.Add([pscustomobject]@{
+        InterfaceAlias = 'Loopback'
+        Status = 'Up'
+        IPv4 = '127.0.0.1'
+        PrefixLength = 8
+    })
+
+    try {
+        $addresses = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+            Where-Object {
+                $_.IPAddress -and
+                $_.IPAddress -ne '0.0.0.0' -and
+                $_.IPAddress -notlike '169.254.*' -and
+                $_.IPAddress -ne '127.0.0.1'
+            }
+        foreach ($address in $addresses) {
+            $adapter = Get-NetAdapter -InterfaceIndex $address.InterfaceIndex -ErrorAction SilentlyContinue
+            if (-not $adapter -or $adapter.Status -ne 'Up') {
+                continue
+            }
+            $hosts.Add([pscustomobject]@{
+                InterfaceAlias = $adapter.Name
+                Status = $adapter.Status
+                IPv4 = $address.IPAddress
+                PrefixLength = $address.PrefixLength
+            })
+        }
+    }
+    catch {
+        Write-Warning "Unable to enumerate adapter IPv4 addresses: $($_.Exception.Message)"
+    }
+
+    $hosts |
+        Sort-Object -Property @{ Expression = { if ($_.IPv4 -eq '127.0.0.1') { 0 } else { 1 } } }, InterfaceAlias, IPv4 -Unique
+}
+
+function Select-WebServiceHost {
+    $available = @(Get-AvailableWebHosts)
+    $allowed = @($available | ForEach-Object { $_.IPv4 })
+
+    Write-Step 'Selecting Web service IP'
+    Write-Host 'Available local IPv4 addresses for the Web management console:'
+    for ($index = 0; $index -lt $available.Count; $index += 1) {
+        $item = $available[$index]
+        Write-Host ("[{0}] {1,-15} {2}/{3} {4}" -f ($index + 1), $item.InterfaceAlias, $item.IPv4, $item.PrefixLength, $item.Status)
+    }
+
+    $selected = $WebHost
+    if ([string]::IsNullOrWhiteSpace($selected)) {
+        if ($DryRun) {
+            Write-Host '[dry-run] prompt: Web service IP [127.0.0.1]'
+            $selected = '127.0.0.1'
+        } else {
+            $selected = Read-Host -Prompt 'Web service IP [127.0.0.1]'
+            if ([string]::IsNullOrWhiteSpace($selected)) {
+                $selected = '127.0.0.1'
+            }
+        }
+    }
+    $selected = $selected.Trim()
+
+    $selectedIndex = 0
+    if ([int]::TryParse($selected, [ref] $selectedIndex) -and $selectedIndex -ge 1 -and $selectedIndex -le $available.Count) {
+        $selected = $available[$selectedIndex - 1].IPv4
+    }
+
+    if (-not (Test-IPv4Address -Address $selected)) {
+        throw "Invalid Web service IP: $selected"
+    }
+    if ($allowed -notcontains $selected) {
+        throw "Web service IP $selected is not assigned to an enabled local IPv4 adapter. Choose one of: $($allowed -join ', ')"
+    }
+    $selected
+}
+
+function Save-WebConsoleOverlay {
+    param([Parameter(Mandatory)][string] $HostIp)
+
+    $webConfig = [pscustomobject]@{
+        host = $HostIp
+        port = $WebPort
+    }
+
+    if ($DryRun) {
+        Write-Host '[dry-run] writing only the Web console local overlay; deployment changes remain skipped.'
+    }
+
+    $overlay = [pscustomobject]@{}
+    if (Test-Path -LiteralPath $LocalConfigPath -PathType Leaf) {
+        $raw = Get-Content -LiteralPath $LocalConfigPath -Raw
+        if (-not [string]::IsNullOrWhiteSpace($raw)) {
+            $overlay = $raw | ConvertFrom-Json
+        }
+    }
+
+    if ($overlay.PSObject.Properties.Name -contains 'web') {
+        $overlay.web = $webConfig
+    } else {
+        $overlay | Add-Member -NotePropertyName 'web' -NotePropertyValue $webConfig
+    }
+
+    $json = ($overlay | ConvertTo-Json -Depth 20) + [Environment]::NewLine
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.Directory]::CreateDirectory((Split-Path -Parent $LocalConfigPath)) | Out-Null
+    [System.IO.File]::WriteAllText($LocalConfigPath, $json, $encoding)
+    Write-Host "Saved Web console settings: $LocalConfigPath"
+}
+
 function Start-WebConsole {
+    param([Parameter(Mandatory)][string] $HostIp)
+
     if ($NoLaunch -or $DryRun) {
         Write-Host 'Web console launch skipped.'
         return
@@ -123,7 +247,7 @@ function Start-WebConsole {
         $command
     )
     Start-Sleep -Seconds 2
-    Start-Process 'http://127.0.0.1:8080'
+    Start-Process "http://${HostIp}:$WebPort"
 }
 
 try {
@@ -144,12 +268,15 @@ try {
         Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('run', 'smoke')
     }
 
+    $SelectedWebHost = Select-WebServiceHost
+    Save-WebConsoleOverlay -HostIp $SelectedWebHost
+
     Write-Step 'Starting Web console'
-    Start-WebConsole
+    Start-WebConsole -HostIp $SelectedWebHost
 
     Write-Step 'Setup completed'
-    Write-Host 'Setup only prepares the Web console.'
-    Write-Host 'Use Web Runtime Readiness > Prepare runtime for C:\OSDCloud, SMB, iPXE, wimboot, boot.wim, OS image selection, endpoint sync, preflight, and service start/stop.'
+    Write-Host "Setup only prepares the Web console at http://${SelectedWebHost}:$WebPort."
+    Write-Host 'Use the first-run Web initialization wizard for deployment secrets, C:\OSDCloud runtime preparation, SMB, PXE endpoint sync, OS image selection, profile publish, preflight, and service start/stop.'
 }
 catch {
     Write-Error $_.Exception.Message
