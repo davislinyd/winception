@@ -19,6 +19,7 @@ const state = {
   initializationAutoOpened: false,
   initializationPendingAction: null,
   initializationOperationAction: null,
+  initializationOperationLogText: '',
   initializationSecretsDraft: {
     davisPassword: '',
     pxeinstallPassword: '',
@@ -380,6 +381,9 @@ async function mutate(path, body = null, options = {}) {
 function setControlsDisabled(disabled) {
   $$('button[data-action], dialog button, dialog input, dialog select, dialog textarea').forEach((control) => {
     if (control instanceof HTMLButtonElement && control.value === 'cancel') {
+      return;
+    }
+    if (control instanceof HTMLButtonElement && control.dataset.operationAction === 'copy-log') {
       return;
     }
     if (disabled) {
@@ -802,6 +806,53 @@ function restoreInitializationSecretFocus(focusedControl) {
   }
 }
 
+function fallbackCopyText(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) {
+    throw new Error('Copy failed.');
+  }
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back for browsers that expose Clipboard API but deny this call.
+    }
+  }
+  fallbackCopyText(text);
+}
+
+async function copyInitializationOperationLog(button) {
+  const logText = state.initializationOperationLogText;
+  if (!logText) {
+    return;
+  }
+  await copyText(logText);
+  button.dataset.icon = 'done';
+  button.title = 'Copied';
+  button.setAttribute('aria-label', 'Copied');
+  window.setTimeout(() => {
+    if (!button.isConnected) {
+      return;
+    }
+    button.dataset.icon = 'content_copy';
+    button.title = 'Copy log';
+    button.setAttribute('aria-label', 'Copy log');
+  }, 1200);
+}
+
 function createInitializationSecretField(id, name, labelText) {
   const label = document.createElement('label');
   label.textContent = labelText;
@@ -890,15 +941,21 @@ function renderInitializationOperation(appState) {
   if (!activeOperation) {
     panel.hidden = true;
     panel.replaceChildren();
+    state.initializationOperationLogText = '';
     return;
   }
 
+  const existingLog = panel.querySelector('.initialization-operation-log');
+  const previousScrollTop = existingLog?.scrollTop ?? 0;
+  const wasAtBottom = existingLog ? isScrolledToBottom(existingLog) : true;
   const { action, operation } = activeOperation;
   const running = Boolean(operation?.running || state.initializationPendingAction === action);
   const status = running ? 'running' : operation?.status ?? 'running';
   const statusText = status === 'completed' ? 'Completed' : status === 'failed' ? 'Failed' : 'Running';
   const titleText = operation?.label ?? (action === 'prepare-runtime' ? 'Preparing runtime artifacts' : 'Running preflight');
-  const lines = (operation?.lines ?? []).filter((line) => String(line).trim()).slice(-8);
+  const lines = (operation?.lines ?? []).filter((line) => String(line).trim());
+  const operationLogText = lines.join('\n');
+  state.initializationOperationLogText = operationLogText;
 
   panel.hidden = false;
   panel.className = `initialization-operation-panel ${status}`;
@@ -909,10 +966,21 @@ function renderInitializationOperation(appState) {
   const title = document.createElement('strong');
   title.className = 'initialization-operation-title';
   title.textContent = titleText;
+  const actions = document.createElement('div');
+  actions.className = 'initialization-operation-header-actions';
+  const copyButton = document.createElement('button');
+  copyButton.type = 'button';
+  copyButton.className = 'initialization-operation-copy';
+  copyButton.dataset.operationAction = 'copy-log';
+  copyButton.dataset.icon = 'content_copy';
+  copyButton.title = 'Copy log';
+  copyButton.setAttribute('aria-label', 'Copy log');
+  copyButton.disabled = !operationLogText;
   const badge = document.createElement('span');
   badge.className = `status-pill ${status === 'completed' ? 'ok' : status === 'failed' ? 'fail' : 'working'}`;
   badge.textContent = statusText;
-  header.append(title, badge);
+  actions.append(copyButton, badge);
+  header.append(title, actions);
   panel.append(header);
 
   if (operation?.error) {
@@ -924,10 +992,11 @@ function renderInitializationOperation(appState) {
 
   const log = document.createElement('pre');
   log.className = 'initialization-operation-log';
-  log.textContent = lines.length
-    ? lines.join('\n')
+  log.textContent = operationLogText
+    ? operationLogText
     : running ? 'Starting operation...' : 'No operation output captured.';
   panel.append(log);
+  log.scrollTop = wasAtBottom ? log.scrollHeight : previousScrollTop;
 }
 
 function renderInitialization(appState) {
@@ -3758,6 +3827,15 @@ document.addEventListener('click', (event) => {
   }
   if (openValidationEvidenceFromTarget(target)) {
     event.preventDefault();
+    return;
+  }
+
+  const operationButton = target.closest('[data-operation-action]');
+  if (operationButton) {
+    event.preventDefault();
+    if (operationButton.dataset.operationAction === 'copy-log') {
+      copyInitializationOperationLog(operationButton).catch((error) => window.alert(error.message));
+    }
     return;
   }
 

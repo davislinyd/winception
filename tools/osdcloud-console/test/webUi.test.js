@@ -155,6 +155,15 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /restoreInitializationSecretFocus\(focusedSecretControl\);/);
   assert.match(script, /clearInitializationSecretsDraft\(\);[\s\S]*controls\.davisPassword\.value = ''/);
   assert.match(script, /function renderInitializationOperation\(appState\)/);
+  assert.doesNotMatch(script, /operation\?\.lines[\s\S]{0,160}\.slice\(-8\)/);
+  assert.match(script, /const lines = \(operation\?\.lines \?\? \[\]\)\.filter/);
+  assert.match(script, /const operationLogText = lines\.join\('\\n'\)/);
+  assert.match(script, /state\.initializationOperationLogText = operationLogText/);
+  assert.match(script, /copyButton\.dataset\.operationAction = 'copy-log'/);
+  assert.match(script, /copyButton\.dataset\.icon = 'content_copy'/);
+  assert.match(script, /navigator\.clipboard\?\.writeText/);
+  assert.match(script, /fallbackCopyText\(text\)/);
+  assert.match(script, /log\.scrollTop = wasAtBottom \? log\.scrollHeight : previousScrollTop/);
   assert.match(script, /function renderInitialization\(appState\)/);
   assert.match(script, /initializationPendingAction/);
   assert.match(script, /initializationOperationAction/);
@@ -174,6 +183,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.runtime-readiness-panel/);
   assert.match(styles, /\.initialization-dialog \{\s*width: min\(1180px, calc\(100vw - 32px\)\);/);
   assert.match(styles, /\.initialization-operation-panel/);
+  assert.match(styles, /\.initialization-operation-header-actions/);
+  assert.match(styles, /\.initialization-operation-copy/);
   assert.match(styles, /\.initialization-operation-log/);
   assert.match(styles, /\.initialization-step-list/);
   assert.match(styles, /\.initialization-secrets-form/);
