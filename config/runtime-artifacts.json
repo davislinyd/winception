@@ -13,9 +13,7 @@
       "targets": [
         "Media\\sources\\boot.wim",
         "PXE-HttpRoot\\osdcloud\\boot.wim"
-      ],
-      "length": 670788481,
-      "sha256": "8B52CE9A1DC81478B1FDE98C8342E195D400BD45901BCDA4D1A0F63CBA1874F5"
+      ]
     },
     {
       "id": "windows-bootmgr",

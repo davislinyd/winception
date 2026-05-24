@@ -119,6 +119,40 @@ test('runtime artifact catalog rejects missing URLs and unsafe targets', () => {
   }
 });
 
+test('runtime artifact catalog allows generated WinPE without fixed size or hash', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-generated-winpe-'));
+  try {
+    const catalogPath = makeCatalog(root, {
+      schemaVersion: 1,
+      artifacts: [{
+        id: 'winpe-boot-wim',
+        sourceType: 'generated-winpe',
+        targets: [
+          'Media\\sources\\boot.wim',
+          'PXE-HttpRoot\\osdcloud\\boot.wim',
+        ],
+      }],
+    });
+    const catalog = loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath });
+    assert.equal(catalog.artifacts[0].length, null);
+    assert.equal(catalog.artifacts[0].sha256, '');
+
+    const liveRoot = path.join(root, 'OSDCloud');
+    fs.mkdirSync(path.join(liveRoot, 'Media', 'sources'), { recursive: true });
+    fs.mkdirSync(path.join(liveRoot, 'PXE-HttpRoot', 'osdcloud'), { recursive: true });
+    fs.writeFileSync(path.join(liveRoot, 'Media', 'sources', 'boot.wim'), 'host-generated boot image');
+    fs.writeFileSync(path.join(liveRoot, 'PXE-HttpRoot', 'osdcloud', 'boot.wim'), 'endpoint-specific boot image');
+    const readiness = getRuntimeReadiness(
+      { paths: { repoRoot: root }, runtimeArtifacts: { liveRoot } },
+      { catalogPath },
+    );
+    assert.equal(readiness.ready, true);
+    assert.equal(readiness.missingCount, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('runtime artifact catalog validates dependency references and cycles', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-artifacts-deps-invalid-'));
   try {

@@ -83,6 +83,8 @@ notepad .\config\osdcloud-secrets.json
 
 可改用 PowerShell session 環境變數 `OSDCLOUD_DAVIS_PASSWORD` 與 `OSDCLOUD_PXEINSTALL_PASSWORD`，但不要把真實值寫進文件、報告、commit message 或測試輸出。Web initialization / endpoint sync 會檢查本機 secret 狀態；執行 endpoint sync 時，工具會把本機 secret 注入 live `boot.wim`，讓 WinPE 可以掛載 SMB 並把 SetupComplete 需要的本地帳號密碼交給已部署的 Windows。
 
+測試期間若本機 ignored secrets 已存在、環境變數已設定，或 operator 已經提供可用值，agent 可以直接透過 Web/API 初始化流程設定或更新 deployment secrets，不需要再次要求人工確認。若缺少可用值或需要輪替密碼，才停止請 operator 介入；任何文件、log、commit、status 或回報都不能包含明文 secret。
+
 ## 流程分界
 
 本 workspace 有兩條部署路徑，不能混用：
@@ -189,7 +191,7 @@ Web console 每次載入 `/api/state` 都會從 live state 重新計算 `initial
 
 `Deployment secrets` 的 password 欄位只會在 Required Steps 的同一列缺失時顯示，儲存後該列變成 `Done` 並只保留已設定摘要；Web 不回填、不顯示 plaintext secret，也不在完成狀態顯示重新輸入欄位。
 
-Runtime Readiness 面板仍會顯示 `C:\OSDCloud` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot / installer artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。
+Runtime Readiness 面板仍會顯示 `C:\OSDCloud` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot / installer artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。由 ADK/OSDCloud 生成、且會被 endpoint sync 注入本機 endpoint/secrets 的 `boot.wim` 只用必要路徑存在性判定 readiness，不在 runtime catalog 固定 size/hash。
 
 從 Initialization Wizard 按 `Prepare runtime` 時，確認後 wizard 會保持開啟並顯示 `Preparing runtime artifacts` 的 running/completed/failed 狀態、錯誤訊息與可捲動的完整 operation log；標題列 copy 按鈕會複製本次 operation 全部 log。`/api/runtime/prepare` 會在 restore 子程序結束後重新檢查 Runtime Readiness；如果仍有 artifact blocked，operation 必須顯示 failed 並列出未完成項目，不可只因子程序 exit code 成功就標示 completed。這只是 UI 進度呈現；實際仍沿用同一個 `/api/runtime/prepare` 長任務，不新增取消功能，也不啟動 HTTP/TFTP/DHCP。若從主畫面 Runtime Readiness 卡片按 `Prepare runtime`，仍維持主畫面流程並可從 operation badge / System Log 監看。
 
@@ -197,7 +199,7 @@ Initialization Wizard 的 `Prepare runtime` 步驟會在按下執行前展開缺
 
 Runtime catalog 支援 optional dependency graph 欄位：`dependsOn` 表示 artifact 依賴的其他 artifact id，`prepareGroup` 表示 `Prepare runtime` 實際會處理的修復群組，`prepareReason` 是給 operator 的簡短原因。Readiness 會驗證 dependency id、拒絕循環依賴，並在 Wizard 明細中顯示 `blocked by ...` 與對應 prepare group。這個 graph 只改善檢查與說明；`Prepare runtime` 的執行模型仍維持現有順序。
 
-目前 WinPE boot artifact 以 `winpe-workspace` 群組表示：`winpe-boot-wim` 是 OSDCloud workspace build 產出的核心 `boot.wim`，`windows-bootmgr`、`windows-bootx64-efi`、`windows-bcd`、`windows-boot-sdi` 都依賴它，並從同一個 generated OSDCloud workspace media 發布。任一 generated / generated-winpe target 不符合 catalog 時，`Prepare runtime` 仍會重建 workspace 並發布整批 boot files。
+目前 WinPE boot artifact 以 `winpe-workspace` 群組表示：`winpe-boot-wim` 是 OSDCloud workspace build 產出的核心 `boot.wim`，`windows-bootmgr`、`windows-bootx64-efi`、`windows-bcd`、`windows-boot-sdi` 都依賴它，並從同一個 generated OSDCloud workspace media 發布。必要的 `boot.wim` source / published 路徑缺失時，`Prepare runtime` 仍會重建 workspace 並發布整批 boot files；穩定的 generated/downloaded boot binaries 仍以 catalog size/hash 驗證。
 
 Active runtime 只需要：
 
@@ -207,15 +209,7 @@ C:\OSDCloud
 
 `C:\OSDCloud\Win11-Lab` / ISO path 已正式退役，只作為歷史證據描述；新 host 不需要 restore 或 rebuild 這個資料夾。
 
-`Prepare runtime` 會檢查 `boot.wim` 是正常且必要的。iPXE 的 `boot.ipxe` 會透過 HTTP 載入 `wimboot`、Windows boot binaries 和 `boot.wim`；`boot.wim` 裡面是 WinPE，以及 OSDCloud 啟動、SMB mapping、status callback、SetupComplete handoff、local secret injection 後的部署邏輯。沒有完整 `boot.wim`，client 連 WinPE 都進不去，後續 OS image 套用不會開始。
-
-Runtime Readiness 若顯示：
-
-```text
-winpe-boot-wim: size-mismatch C:\OSDCloud\Media\sources\boot.wim
-```
-
-意思是目前 live `boot.wim` 檔案存在但大小與 catalog 預期不一致，常見原因是前一次 ADK/OSDCloud build 中斷、檔案殘缺，或 runtime 版本與目前 catalog 不一致。這不是 HTTP/TFTP/DHCP 已啟動，也不是正在部署；它只是提醒 operator 需要在 Web 中重新 `Prepare runtime`，讓 WinPE boot artifact 回到可部署狀態。
+`Prepare runtime` 會檢查 `boot.wim` 兩個必要路徑都存在。iPXE 的 `boot.ipxe` 會透過 HTTP 載入 `wimboot`、Windows boot binaries 和 published `boot.wim`；`boot.wim` 裡面是 WinPE，以及 OSDCloud 啟動、SMB mapping、status callback、SetupComplete handoff、local secret injection 後的部署邏輯。沒有完整 `boot.wim`，client 連 WinPE 都進不去，後續 OS image 套用不會開始。因為 `boot.wim` 會受 ADK/OSDCloud build、endpoint sync、local secret injection 影響，runtime catalog 不固定它的 size/hash；需要 hash evidence 時由 `osdcloud-assets\manifest.json` 記錄當次同步快照。
 
 Prepare runtime 會使用 committed base `config\osdcloud-console.json` 加上 ignored `config\osdcloud-console.local.json` overlay。local overlay 只保存本機 endpoint/secrets 周邊狀態，不是完整 config；下游工具不應把 `.local.json` 當成完整設定檔。
 

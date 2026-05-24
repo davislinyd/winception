@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-24T11:01:59+08:00",
+  "updated_at": "2026-05-24T20:57:56+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "rules-updated",
+    "state": "runtime-readiness-fix-verified",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin-github",
     "summary": "Development happens in the copied Codex workspace; deployment-facing tests run only after push and deployment-clone pull.",
     "baseline": {
-      "commit": "547e3595318c196c23214dc40665758c492b977e",
-      "short": "547e359",
-      "subject": "Fix runtime prepare completion check"
+      "commit": "e061ce40f9a5bbb4485b440bade605d86a1cb680",
+      "short": "e061ce4",
+      "subject": "Document production clone workflow"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,9 +51,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin-github/master",
-    "last_checked_head": "547e3595318c196c23214dc40665758c492b977e",
-    "last_checked_head_short": "547e359",
-    "dirty": false,
+    "last_checked_head": "e061ce40f9a5bbb4485b440bade605d86a1cb680",
+    "last_checked_head_short": "e061ce4",
+    "dirty": true,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -66,17 +66,18 @@
     "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
   },
   "workspace": {
-    "dirty_excludes_status_file": false,
+    "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": false
+    "status_file_uncommitted": true
   },
   "required_workflow": {
     "before_development_work": [
       "git status --short --branch",
-      "git pull --ff-only origin-github master",
+      "git remote -v",
       "Get-Content .ai/status.json -Raw",
-      "git log --all --notes --decorate --date=iso --max-count=10 --format=fuller"
+      "git log --all --notes --decorate --date=iso --max-count=10 --format=fuller",
+      "Only run git pull --ff-only origin-github master when the worktree is clean and current remote state is required or explicitly requested."
     ],
     "after_development_push_before_tests": [
       "cd C:\\osdcloud-win11-deployment-lab",
@@ -92,43 +93,39 @@
   },
   "recent_changes": [
     {
-      "id": "20260524110159-status-workflow-isolation",
-      "at": "2026-05-24T11:01:59+08:00",
-      "kind": "status",
-      "summary": "Documented development/deployment-clone/runtime isolation and began tracking .ai/status.json.",
-      "verification": "git pull --ff-only origin-github master; inspected development workspace and deployment clone status/remotes; no direct C:\\OSDCloud mutation"
-    },
-    {
-      "id": "20260524093600-push-547e359",
-      "at": "2026-05-24T09:41:53+08:00",
-      "kind": "push",
-      "summary": "Pushed the runtime prepare completion check fix to origin-github/master.",
-      "commit": "547e3595318c196c23214dc40665758c492b977e",
-      "verification": "git push -u origin-github master; git rev-parse HEAD origin-github/master; git rev-list --left-right --count origin-github/master...HEAD; git status --porcelain -- ':!.ai/status.json'"
-    },
-    {
-      "id": "20260524093400-commit-547e359",
-      "at": "2026-05-24T09:33:03+08:00",
-      "kind": "commit",
-      "summary": "Committed the runtime prepare completion gate so Web fails the operation when post-restore readiness remains blocked.",
-      "commit": "547e3595318c196c23214dc40665758c492b977e",
-      "verification": "node --check tools/osdcloud-console/src/serviceController.js; node --test tools/osdcloud-console/test/activeOsImage.test.js tools/osdcloud-console/test/serviceController.test.js tools/osdcloud-console/test/webServer.test.js; git diff --check; npm test; npm run smoke; restarted npm run web after confirming deployment services were stopped"
-    },
-    {
-      "id": "20260524091843-push-7717b09",
-      "at": "2026-05-24T09:18:43+08:00",
-      "kind": "push",
-      "summary": "Pushed the runtime prepare log UTF-8 fix to origin-github/master.",
-      "commit": "7717b094bc451027e83c500825ba518b273a5949",
-      "verification": "git push -u origin-github master; git rev-parse HEAD origin-github/master; git rev-list --left-right --count origin-github/master...HEAD; git status --porcelain -- ':!.ai/status.json'"
-    },
-    {
-      "id": "20260524091138-code-7717b09",
-      "at": "2026-05-24T09:11:38+08:00",
+      "id": "20260524205756-code-runtime-generated-winpe",
+      "at": "2026-05-24T20:57:56+08:00",
       "kind": "code",
-      "summary": "Fixed runtime prepare log encoding by forcing PowerShell UTF-8 output and streaming UTF-8 decoding in Node.",
-      "commit": "7717b094bc451027e83c500825ba518b273a5949",
-      "verification": "node --test tools/osdcloud-console/test/windows.test.js tools/osdcloud-console/test/runtimeArtifacts.test.js; node --test tools/osdcloud-console/test/webUi.test.js tools/osdcloud-console/test/webServer.test.js; npm run smoke; node --check tools/osdcloud-console/src/windows.js; powershell.exe -File tools/Restore-DeploymentArtifacts.ps1 -DryRun -SkipPrerequisiteCheck -SkipOsImageDownload -SkipWinPeBuild; git diff --check"
+      "summary": "Adjusted runtime readiness so generated WinPE boot.wim is required by path but not pinned to host-specific size/hash.",
+      "verification": "node --check runtimeArtifacts.js; JSON parse runtime-artifacts.json; node --test runtimeArtifacts.test.js; npm test; npm run smoke"
+    },
+    {
+      "id": "20260524204519-test-deployment-clone-setup",
+      "at": "2026-05-24T20:45:19+08:00",
+      "kind": "test",
+      "summary": "Verified deployment clone GitHub sync, setup install, smoke test, and Web startup; initialization stopped at missing deployment secrets.",
+      "verification": "git pull --ff-only origin master in deployment clone; Node.js LTS installed via winget; Setup-DeploymentServer.ps1 -WebHost 127.0.0.1 -NoLaunch; /api/state and /api/interfaces inspected; no HTTP/TFTP/DHCP deployment services started"
+    },
+    {
+      "id": "20260524193128-docs-contract-consistency",
+      "at": "2026-05-24T19:31:28+08:00",
+      "kind": "docs",
+      "summary": "Aligned TEST-LOOP.md and status workflow hints with AGENTS.md global guardrails.",
+      "verification": "rg cross-file consistency and workspace isolation checks; status JSON parse; git diff --check; no Web/runtime/PXE services started"
+    },
+    {
+      "id": "20260524174710-docs-global-guardrails",
+      "at": "2026-05-24T17:47:10+08:00",
+      "kind": "docs",
+      "summary": "Moved remaining non-global AGENTS guidance into agent reference files and added repo workflow reference.",
+      "verification": "rg structure, global-only, guardrail, and reference-retention checks; git diff --check; no Web/runtime/PXE services started"
+    },
+    {
+      "id": "20260524173200-docs-agent-reference",
+      "at": "2026-05-24T17:32:00+08:00",
+      "kind": "docs",
+      "summary": "Split task-specific agent guidance into docs/agent-reference and kept AGENTS.md as always-on rules.",
+      "verification": "rg reference, moved-section, content-retention, and safety checks; git diff --check; no Web/runtime/PXE services started"
     }
   ]
 }

@@ -135,7 +135,7 @@ function normalizeArtifact(row, section) {
   const sourceType = normalizeSourceType(row.sourceType, `artifact ${id}`);
   const required = normalizeRequired(row.required);
   const download = sourceType === 'download';
-  const requireHash = required || download;
+  const requireHash = download;
   return {
     id,
     kind: String(row.kind ?? section).trim() || section,
