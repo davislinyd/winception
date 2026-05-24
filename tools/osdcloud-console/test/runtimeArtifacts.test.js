@@ -431,6 +431,18 @@ test('runtime restore uses the base Web config path while preserving local overl
   assert.doesNotMatch(windows, /prepareRuntimeArtifacts[\s\S]*const effectiveConfigPath = config\.__savePath/);
 });
 
+test('runtime restore initializes UTF-8 console output before execution', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+  const utf8Index = script.indexOf('$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)');
+  const errorPreferenceIndex = script.indexOf("$ErrorActionPreference = 'Stop'");
+
+  assert.ok(utf8Index > 0);
+  assert.ok(errorPreferenceIndex > utf8Index);
+  assert.match(script, /\[Console\]::OutputEncoding = \$Utf8NoBom/);
+  assert.match(script, /\[Console\]::InputEncoding = \$Utf8NoBom/);
+  assert.match(script, /\$OutputEncoding = \$Utf8NoBom/);
+});
+
 test('checked-in runtime artifact catalog is valid', () => {
   const catalog = loadRuntimeArtifactCatalog();
   assert.ok(catalog.artifacts.length >= 1);

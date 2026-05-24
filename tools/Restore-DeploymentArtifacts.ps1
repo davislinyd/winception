@@ -11,6 +11,11 @@ param(
     [switch] $NoAdkAutoInstall
 )
 
+$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $Utf8NoBom
+[Console]::InputEncoding = $Utf8NoBom
+$OutputEncoding = $Utf8NoBom
+
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot

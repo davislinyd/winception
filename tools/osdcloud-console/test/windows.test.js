@@ -25,6 +25,14 @@ test('prepends UTF-8 output settings to PowerShell command calls', () => {
   assert.deepEqual(preparePowerShellArgs(['-NoProfile', '-File', 'script.ps1']), ['-NoProfile', '-File', 'script.ps1']);
 });
 
+test('decodes PowerShell output with a streaming UTF-8 decoder', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
+
+  assert.match(source, /StringDecoder/);
+  assert.match(source, /new StringDecoder\('utf8'\)/);
+  assert.doesNotMatch(source, /chunk\.toString\(\)/);
+});
+
 test('resolves endpoint sync paths from derived repo root by default', () => {
   assert.equal(resolveRepoRoot({ paths: {} }), path.resolve('.'));
   assert.equal(

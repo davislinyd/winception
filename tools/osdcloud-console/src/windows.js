@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import dgram from 'node:dgram';
 import path from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { defaultRepoRoot, resolveHttpFile } from './config.js';
 import { ipv4ToUInt32 } from './dhcp.js';
 import { evaluateDeploymentProfilePayload } from './deploymentProfiles.js';
@@ -35,18 +36,30 @@ export function runPowerShell(args, options = {}) {
     });
     let stdout = '';
     let stderr = '';
+    const stdoutDecoder = new StringDecoder('utf8');
+    const stderrDecoder = new StringDecoder('utf8');
     child.stdout?.on('data', (chunk) => {
-      const text = chunk.toString();
+      const text = stdoutDecoder.write(chunk);
       stdout += text;
       onStdout?.(text);
     });
     child.stderr?.on('data', (chunk) => {
-      const text = chunk.toString();
+      const text = stderrDecoder.write(chunk);
       stderr += text;
       onStderr?.(text);
     });
     child.on('error', reject);
     child.on('close', (code) => {
+      const remainingStdout = stdoutDecoder.end();
+      if (remainingStdout) {
+        stdout += remainingStdout;
+        onStdout?.(remainingStdout);
+      }
+      const remainingStderr = stderrDecoder.end();
+      if (remainingStderr) {
+        stderr += remainingStderr;
+        onStderr?.(remainingStderr);
+      }
       if (code === 0) {
         resolve({ stdout, stderr, code });
       } else {
