@@ -1,612 +1,127 @@
 # Agent Instructions
 
-This workspace documents and validates a Windows 11 zero-touch deployment lab using OSDCloud and iPXE. The active physical-laptop path does not use VM; VM content is historical regression evidence only.
+This repository documents and validates a Windows 11 zero-touch deployment lab using OSDCloud and iPXE. Keep this file as the always-on operational contract for future agents. Use conditional reference files for task-specific details.
 
 ## Current Goal
 
-The working target is a repeatable OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE.
+The working target is a repeatable Web-console-first OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE.
 
-## Path Separation Rules
+## 0-to-1 Test Evidence
 
-There are two live-looking but separate paths. Treat them as mutually exclusive until the user explicitly asks to switch.
+`TEST-RESULT.md` is the authoritative evidence and no-AI operator runbook for a completed from-zero deployment setup test. If `TEST-RESULT.md` does not exist, treat this repository as having no documented completed 0-to-1 deployment test.
 
-Physical-laptop path:
+For restored VMs or other deployment computers, use `TEST-RESULT.md` to rebuild from GitHub clone to PXE-ready state without AI assistance. Still read live Web/API/config state before acting; the test result is evidence and a runbook, not a substitute for live state.
 
-- This is the active production-like validation path.
-- Use the Web-console-selected service interface and service IP for the current run. Do not hard-code a physical NIC name or a `192.168.100.x` address as the required production path.
-- Read the active service IP, DHCP lease range, router, HTTP base, and SMB share from `config\osdcloud-console.json`, live `boot.ipxe`, and host adapter state immediately before starting services.
-- Use `npm run web` as the host console. The old Node TUI CLI was retired in version `0.3.0`; do not plan or execute the retired TUI command.
-- Do not use VM, `vSwitch`, `192.168.100.1`, VMConnect, PowerShell Direct, or `tools\osdcloud-console\src\headless.js` as evidence for this path.
+## Startup Checks
 
-VM VM regression path:
+At the start of any new session or context switch in this repository:
 
-- Use this only when the user explicitly asks for VM, VM, vSwitch, or regression validation.
-- Use `Ethernet`, service IP `192.168.100.1`, DHCP leases `192.168.100.200-250`, and SMB share `\\192.168.100.1\OSDCloudiPXE`.
-- `tools\osdcloud-console\src\headless.js` is allowed for VM regression automation, but it must be stopped after the test so DHCP does not keep responding.
-- VM success proves the WinPE/OOBE/status workflow still works in VM. It does not prove the physical-laptop path is ready.
-- VM evidence must not overwrite or replace the latest physical validation evidence block.
+1. Run `git rev-parse --is-inside-work-tree`.
+2. If inside a Git repository, run `git status --short --branch` and `git remote -v`.
+3. If `.ai/status.json` exists, inspect it together with live Git state. If it does not exist, report that no status file exists and do not create one during a read-only status check.
+4. Immediately alert the user if `.ai/status.json` is outdated compared to current working tree state, branch/upstream state, remote state, or recent commits.
 
-Endpoint switching:
+## Autonomous Test Loop
 
-- Before physical-laptop validation, select the intended service interface in the Web console or switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '<interface-alias>' -ServerIp '<service-ip>' -PrefixLength <prefix> -CommitWinPe -SyncAssets -HashLargeArtifacts`.
-- Before vSwitch VM regression, switch with `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'Ethernet' -ServerIp '192.168.100.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
-- After either switch, keep `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, and `osdcloud-assets` aligned with the live endpoint state.
-- Document physical results under physical-laptop sections and VM results under VM/VM regression sections. Do not mix VM timings, vSwitch IPs, or PowerShell Direct validation into the physical-laptop evidence block.
+For any request to test, verify, validate, debug a failing test, run preflight, validate runtime readiness, validate deployment, or exercise the physical-laptop/iPXE path, read and follow `TEST-LOOP.md` before executing the work.
 
-Previously validated VM paths:
+Follow `TEST-LOOP.md` as a bounded autonomous loop: test, collect evidence, classify failures, find root cause, make the smallest safe fix, run focused verification, and continue testing until the completion definition is met or a documented human intervention gate blocks progress.
 
-- Retired ISO path: VM VM previously booted from retired `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso`
-- iPXE path: VM VM boots from PXE/iPXE, loads WinPE over HTTP, and applies the published Windows WIM directly from a host SMB share
-- vSwitch regression path: VM VM `OSDCloud-Win11-vSwitch-04` boots from PXE/iPXE on `vSwitch`, applies the published Windows WIM directly from `\\192.168.100.1\OSDCloudiPXE`, and reaches `DESKTOP-BM8R03K\davis` with `windows-desktop-ready`
+Do not treat a single failed test, failed preflight, failed deployment phase, or unclear runtime state as the final result unless root cause analysis has been completed and the next step is blocked by a human intervention gate.
 
-Current active path:
+## Reference Files
 
-- Physical laptop boots from UEFI PXE/iPXE on the real wired LAN, loads WinPE over HTTP, and applies the Web-published Windows WIM directly from the host SMB share. No VM vSwitch or VM is required for this path.
-- Current repo/live endpoint for the physical-laptop path is whatever service interface/IP the Web console selected and synced most recently. It may be left on `Ethernet` / `192.168.100.1` after VM regression; before physical-laptop validation, switch back to the intended physical service interface/IP and resync `boot.wim` / `osdcloud-assets`.
+Read these files only when the task touches the relevant area:
 
-Current host WAN/LAN topology:
+- Deployment path, physical laptop, VM, VM regression, vSwitch, timing run, ISO, or path evidence questions: `docs/agent-reference/deployment-paths.md`.
+- Runtime Readiness, Prepare runtime, endpoint sync, Web console, service controls, OS Image Cache, deployment profile publish, WinPE, SetupComplete, or desktop-ready behavior: `docs/agent-reference/runtime-web-console.md`.
+- Choosing verification for Web, OS image, profile/software/custom script, driver pack, multi-client, WinPE/SetupComplete, or other subsystem changes: `docs/agent-reference/validation-scenarios.md`.
+- Documentation updates, Git file selection, generated artifact handling, handoff, push, or deployment-clone workflow questions: `docs/agent-reference/repo-workflow.md`.
+- Completed 0-to-1 deployment setup evidence, restored-VM rebuild steps, or no-AI operator runbook questions: `TEST-RESULT.md`.
+- Human operator instructions: `README.md`.
+- Historical evidence and result interpretation: `OSDCloud-Win11-Automated-Deployment-Test-Report.md`.
 
-- `WAN` is the host default internet NIC. Current observed host IP is `192.168.100.1/24`, gateway `192.168.100.1`, metric `5`.
-- `LAN` is the physical client / PXE lab NIC. Current planned host IP is `192.168.88.1/24`, no gateway, metric `500`, IP forwarding enabled.
-- Windows NAT `OSDCloud-PhysicalClient-NAT` maps `192.168.88.0/24` out through the host WAN path.
-- The NIC rename and LAN IP/NAT setup do not by themselves update `config\osdcloud-console.json`, live `boot.ipxe`, embedded WinPE scripts, or `osdcloud-assets`. Before physical-laptop validation on this topology, select `LAN` in the Web console or run `tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'LAN' -ServerIp '192.168.88.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts`.
-- If `config\osdcloud-console.json` still references `乙太網路 2`, `乙太網路 3`, or `192.168.100.x` after the rename, treat it as a stale endpoint until it is deliberately resynced.
+## Live State Rules
 
-Fresh-clone / new-host rules:
+Do not treat committed endpoint settings, historical run evidence, or host snapshots as the current deployment state.
 
-- The repository may be cloned to any folder. Do not reintroduce committed `paths.repoRoot` or `paths.endpointSyncScript` values that point to one operator's clone path.
-- Live deployment still runs from `C:\OSDCloud`; a Git clone alone is not a deployable PXE runtime until Web Runtime Readiness / Prepare runtime downloads or rebuilds the cataloged runtime artifacts.
-- A new host must rebuild `C:\OSDCloud` from Web `Runtime Readiness` / `Prepare runtime`, `config\runtime-artifacts.json`, and `osdcloud-assets\OSDCloud`, including `boot.wim`, published HTTP boot files, iPXE binaries, Windows boot binaries, and client app installers. OS image selection is a separate Web `OS Image Cache` action that exports a deployable single WIM. Do not require Git LFS for MSI payloads.
-- `C:\OSDCloud\Win11-Lab` and `OSDCloud_NoPrompt.iso` are retired historical ISO-path evidence. Do not require them for fresh-host setup, physical-laptop deployment, endpoint sync, asset sync, or bundle restore.
-- Preferred new-host entrypoint is lightweight interactive setup: clone the clean GitHub repo, run `Setup-DeploymentServer.cmd`, choose only the Web service IP for the management console, then continue in Web. `Deploy-DeploymentServer.cmd` is a compatibility wrapper that launches setup. `tools\Initialize-DeploymentServer.ps1` is legacy/full-bootstrap or a lower-level runtime helper, not the default new-host entrypoint.
-- Setup may ask to install Node.js LTS when `node`/`npm` are missing, then run `npm install`, `npm run smoke`, list enabled local IPv4 addresses, save only `web.host` / `web.port=8080` to ignored `config\osdcloud-console.local.json`, and launch `npm run web`. Setup must not create/update ignored deployment secrets, write PXE endpoint overlay state, create the `C:\OSDCloud` directory skeleton, create/update `pxeinstall` or `OSDCloudiPXE`, download/rebuild ADK, WinPE, ESD/WIM, MSI/EXE payloads, iPXE, or wimboot artifacts; must not call `Restore-DeploymentArtifacts.ps1`, `Set-OsdCloudIpxeEndpoint.ps1`, or `npm run server:preflight`; and must not start HTTP/TFTP/DHCP deployment services.
-- Web first-run initialization owns deployment secrets, Runtime Readiness / Prepare runtime, PXE/service endpoint sync, OS Image Cache, profile publish, preflight, and service controls. `/api/state.initialization` must be derived from live state every time rather than from a single completion marker. Runtime preparation must happen only after Web is running and the operator explicitly chooses the wizard/`Runtime Readiness` > `Prepare runtime`, or through that same lower-level helper path when implementing the Web action. When launched from the Initialization Wizard, Prepare runtime must keep the wizard open and show operation status, a scrollable full operation log with copy control, and completed/failed outcome using existing `/api/runtime/prepare` plus `/api/state` polling; it must not require a streaming endpoint or imply cancellation support. Prepare runtime owns the `C:\OSDCloud` structure, `pxeinstall` / `OSDCloudiPXE` preparation, boot artifacts, and WinPE `boot.wim`; it must not automatically start HTTP/TFTP/DHCP services. Do not turn setup back into a full runtime downloader, ADK/WinPE builder, endpoint sync, preflight runner, service starter, SMB setup helper, or secrets prompt.
-- `Prepare runtime` must treat both `C:\OSDCloud\Media\sources\boot.wim` and the published HTTP `PXE-HttpRoot\osdcloud\boot.wim` as required boot artifacts. iPXE cannot reach WinPE without `boot.wim`; WinPE also carries the OSDCloud startup, SMB mapping, status callback, SetupComplete handoff, and injected local secrets. A `size-mismatch` readiness result means the artifact is incomplete or out of sync with the catalog, not that HTTP/TFTP/DHCP services are running.
-- Fresh clone may have no `config.osImage.activeImage`, no profile OS image, and no `selected-os.json`. Web must show a clear "no OS image selected" state instead of failing startup. OS Image Cache must download/import a source ISO/ESD/WIM, inspect DISM indexes, let the operator choose one index, export it to a single deployable `.wim` under `C:\OSDCloud\Media\OSDCloud\OS`, and publish `selected-os.json` with deploy index `1` plus source metadata. Profile publish and preflight must fail clearly when no deployable WIM or `selected-os.json` exists.
-- Runtime restore and OS image download helpers must load the committed base `config\osdcloud-console.json` and merge ignored `config\osdcloud-console.local.json`; do not pass the partial `.local.json` overlay as if it were a complete config. Local endpoint choices must remain ignored state unless the user explicitly asks to update the committed lab snapshot.
-- Bootstrap/setup must not silently change Windows NIC IP settings. If preflight fails with `Service IP <ip> not assigned to any IPv4 interface` or `EADDRNOTAVAIL`, tell the operator to identify the PXE/client NIC with `Get-NetAdapter`, manually assign the IP, or run `tools\Set-IpxePhysicalNic.ps1 -InterfaceAlias '<PXE-NIC-NAME>' -ServerIp '<service-ip>'` before rerunning endpoint sync/preflight.
-- Treat committed `config\osdcloud-console.json` as the last synced lab snapshot, not as a guaranteed production endpoint. New-host setup and Web endpoint selection should write ignored local overlay state, not force the operator to commit local machine endpoint settings.
-- When updating setup or deployment docs, keep the README `新主機 Clone 後啟動流程` current so another operator can clone, run lightweight setup, choose the Web service IP, follow the Web initialization wizard for secrets/runtime/endpoint/OS image/profile/preflight, manually start services, and validate completion without reading prior chats.
+Before starting services, endpoint sync, preflight, runtime validation, or deployment validation:
 
-Production-host development and test isolation:
+- Read the active service interface, service IP, DHCP lease range, router, HTTP base, SMB share, active OS image, and active deployment profile from live Web/API/config state.
+- Inspect `config\osdcloud-console.json`, any ignored local overlay, live `boot.ipxe`, host adapter state, and relevant Web state immediately before acting.
+- Treat `config\osdcloud-console.json` as the last synced lab snapshot, not guaranteed production truth.
+- If the repo or runtime appears to be on a VM/vSwitch endpoint, switch deliberately before physical-laptop validation.
 
-- On this host, `C:\Users\davis\Documents\Codex\osdcloud-project\` is the development workspace copied from the development environment. Continue editing code, docs, tests, and Git history only in this development workspace.
-- `C:\osdcloud-win11-deployment-lab\` is a separate Git clone used to simulate the production deployment environment. Do not edit code directly there. After pushing from the development workspace, pull this deployment clone and run deployment-facing tests from that clone only.
-- `C:\OSDCloud\` remains the product-managed runtime/install root encoded in the project. Deployment commands may create or update it through the normal Web/runtime/PXE workflow, but agents must not manually patch, copy into, or directly edit files under `C:\OSDCloud`.
-- If deployment testing fails, return to the development workspace, pull/check handoff state, modify code there, commit and push, then update the deployment clone before retesting. Do not hotfix the deployment clone or runtime root.
-- `.ai/status.json` is tracked project status for this repository. It should record the development workspace, deployment clone, runtime root, and canonical GitHub repo, while live Git state remains the source of truth for exact current HEAD.
+## Path Guardrails
 
-Local account:
-
-```text
-Username: davis
-Password: supplied from an untracked local deployment secret
-```
-
-Deployment secrets:
-
-- Do not commit real account or SMB passwords. Keep `config\osdcloud-secrets.json` local and ignored by Git; use `config\osdcloud-secrets.example.json` only as the committed schema.
-- Expected local secret keys are `davisPassword` for the deployed local account and `pxeinstallPassword` for the WinPE SMB mapping account.
-- Preferred entry is the Web initialization wizard. `POST /api/secrets` may write the ignored JSON file, but API responses, logs, docs, tests, commits, and PR text must never include the plaintext values.
-- `tools\Set-OsdCloudIpxeEndpoint.ps1 -CommitWinPe` injects the local secret file into live `boot.wim` as `X:\OSDCloud\secrets.json`; `Invoke-DavisOobe.ps1` copies only the Windows account secret into deployed `C:\ProgramData\OSDCloud\secrets.json` for `SetupComplete`.
-- Environment fallbacks are `OSDCLOUD_DAVIS_PASSWORD` and `OSDCLOUD_PXEINSTALL_PASSWORD`. Do not document real values in repo files, test logs, reports, commit messages, or PR text.
-
-Retired ISO evidence:
+- For deployment path, physical laptop, VM, VM regression, vSwitch, timing, ISO, or path evidence tasks, read `docs/agent-reference/deployment-paths.md`.
+- Physical-laptop work must use the Web-selected live endpoint.
+- VM/VM/vSwitch/headless evidence must not be used as proof that the physical-laptop path is ready.
+- The retired ISO path must not be restored as the active deployment path.
 
-```text
-C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso
-```
-
-Primary report:
-
-```text
-<repo-root>\OSDCloud-Win11-Automated-Deployment-Test-Report.md
-```
-
-Versioned asset mirror:
-
-```text
-<repo-root>\osdcloud-assets
-```
-
-## Important Paths
-
-iPXE workspace:
-
-```text
-C:\OSDCloud
-```
-
-Retired ISO workspace:
-
-```text
-C:\OSDCloud\Win11-Lab
-```
-
-Published Windows image:
-
-```text
-C:\OSDCloud\Media\OSDCloud\OS\<selected-image>.wim
-```
-
-Deployment automation:
-
-```text
-C:\OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1
-C:\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd
-C:\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1
-```
-
-iPXE helper files:
-
-```text
-C:\OSDCloud\PXE-HttpRoot\osdcloud\boot.ipxe
-C:\OSDCloud\PXE-HttpRoot\osdcloud\boot.wim
-C:\OSDCloud\PXE-HttpRoot\osdcloud\wimboot
-C:\OSDCloud\Tools\Start-PxeDhcp.ps1
-C:\OSDCloud\Tools\Start-PxeTftp.ps1
-C:\OSDCloud\Tools\Serve-OsdCloudMedia.mjs
-<repo-root>\tools\Set-IpxePhysicalNic.ps1
-<repo-root>\tools\Set-OsdCloudIpxeEndpoint.ps1
-<repo-root>\tools\osdcloud-console\src\headless.js
-```
-
-Physical-laptop iPXE SMB image source:
-
-```text
-Share: \\<service-ip>\OSDCloudiPXE
-Path : \\<service-ip>\OSDCloudiPXE\OSDCloud\OS\<selected-image>.wim
-User : pxeinstall
-Mode : read-only SMB, firewall limited to the selected service subnet on the selected service IP
-```
-
-## Critical Lessons
-
-- Do not put OOBE injection in `Config\Scripts\StartNet`. OSDCloud runs StartNet scripts before Windows is deployed. This caused early reboot loops where the VHD stayed near `0.04GB`.
-- OOBE injection belongs in `Config\Scripts\Shutdown`, after OSDCloud has applied Windows and before WinPE shuts down.
-- Keep the Web-exported Windows WIM under `Media\OSDCloud\OS`; otherwise deployment cannot use the no-redownload SMB path.
-- The ISO should set `LaunchUserOOBE=0`, `SkipMachineOOBE=1`, `SkipUserOOBE=1`, and `NoAutoUpdate=1` to avoid the first-boot OOBE update screen.
-- `wuauserv` may later show as Running even with `NoAutoUpdate=1`; this is not by itself a failure. Failure is seeing `CloudExperienceHost`, `msoobe`, or an OOBE update screen after the desktop should be ready.
-- For iPXE custom image deployment, do not combine `-ImageFileUrl` / `-OSImageIndex` with `-OSName`, `-OSLanguage`, `-OSEdition`, or `-OSActivation`. `Start-OSDCloud` treats custom image as a separate parameter set.
-- For iPXE no-redownload deployment, do not use `-ImageFileUrl`. It always triggers OSDCloud's `Download Operating System` step and copies the image into WinPE. The current WinPE maps `\\<service-ip>\OSDCloudiPXE` as `Z:`, reads `Z:\OSDCloud\OS\selected-os.json`, sets `$Global:StartOSDCloud.ImageFileDestination` to the Web-exported WIM `FileInfo`, sets the manifest image index / language / edition fields, then calls `Invoke-OSDCloud`.
-- OS image acquisition is host/Admin Console only. Web `OS Image Cache` can download from the official OSD module catalog plus repo-controlled custom entries in `config\os-download-sources.json`, or import a browser-uploaded `.iso` / `.esd` / `.wim`. Downloads/imports stage under `Media\OSDCloud\OS\.downloads`, verify hash/DISM index, export the chosen source index to a single `.wim`, then update `config\os-image-catalog.json`. Deployable catalog entries use image index `1`; source filename, source hash, and source image index are metadata. Publishing creates `selected-os.json` and the SMB image path. The Web console no longer exposes host-path import for arbitrary `C:\...` image paths.
-- For isolated or restricted networks, remove or bypass `Initialize-OSDCloudStartnetUpdate` in the iPXE WinPE. It tries external PowerShell Gallery / Microsoft update endpoints and can stall before `Start-OSDCloud`.
-- For iPXE WinPE, `Invoke-DavisOobe.ps1` must first look for SetupComplete scripts at `$PSScriptRoot\..\SetupComplete`, then fall back to scanning non-`C:` / non-`X:` drives. iPXE loads only `boot.wim`; it does not provide the ISO media path.
-- When changing iPXE `SetupComplete`, update both `C:\OSDCloud\Config\Scripts\SetupComplete` and the embedded `X:\OSDCloud\Config\Scripts\SetupComplete` inside `boot.wim`. If the embedded copy is stale, the laptop can reach the Windows desktop while the Web console remains at `awaiting-windows` / `rebooting` because no `windows-setupcomplete-*` or `windows-desktop-ready` callback exists.
-- Client app payloads are published by Web deployment profile selection into `C:\OSDCloud\Media\OSDCloud\Apps`; selected custom scripts are published beside them into `C:\OSDCloud\Media\OSDCloud\Scripts`. WinPE shutdown copies the published `Apps` and sibling `Scripts` payloads into deployed Windows at `C:\ProgramData\OSDCloud\Apps` and `C:\ProgramData\OSDCloud\Scripts`; `SetupComplete` then runs `Install-Apps.ps1`, which reads `selected-profile.json`, installs only selected software in `selectedSoftware` order, and runs `customScripts` in their selected phases before the desktop-ready marker. Installer payloads are ignored in Git and restored by `config\runtime-artifacts.json`. Current `Default` profile installs `7zip\7z2601-x64.msi`; `All in One` installs 7-Zip plus `chrome\googlechromestandaloneenterprise64.msi`, `SW-4UT7PDID\npp.8.9.5.Installer.x64.msi`, and the `SC-J5GF07Y2` after-apps script; `Minimal` installs no client software.
-- The desktop-ready scheduled task must use an any-user `New-ScheduledTaskTrigger -AtLogOn` with a SYSTEM principal. Do not set the trigger user to `$env:COMPUTERNAME\davis`; during SetupComplete the computer name / local account SID mapping can be unstable and fail with `HRESULT 0x80070534`.
-- The desktop-ready marker must be created by the logon-triggered reporter after it confirms the interactive user is `davis`. Do not use `C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt` as proof of `davis` desktop readiness; readiness evidence should include `loggedOnUser` or `explorerOwner`, `targetUserDesktopPath`, and `desktopReadyFilePath` under the resolved `davis` profile Desktop.
-- The desktop-ready scheduled task must not unregister until `windows-desktop-ready` is successfully POSTed. Windows networking can lag behind Explorer; if the first POST fails, keep retrying instead of losing the final Web completion event. The intended retry loop is every 5 seconds for up to 30 minutes from `windows-logon-start`.
-- The desktop-ready reporter's `Send-Status` helper must return `$true` after a successful HTTP POST or WebClient fallback and `$false` only after both fail. If it returns `$null`, the host can show `completed` while the client keeps POSTing identical `windows-desktop-ready` events every 5 seconds until the 30-minute reporter deadline. To stop an already-deployed old client immediately, run `Unregister-ScheduledTask -TaskName OSDCloudDesktopReadyReport -Confirm:$false` on that client.
-- Screenshot progress evidence is best-effort only. Keep JSON deployment status as the source of truth; screenshot upload failures must not block OSDCloud, SetupComplete, reboot, or desktop-ready reporting.
-- Do not install a desktop screenshot Startup helper from `SetupComplete`. The earlier interactive screenshot helper combined screen capture, upload, and hidden PowerShell startup execution, and Defender/AMSI blocked the whole `SetupComplete.ps1` with `ScriptContainedMaliciousContent`. Keep `OSDCloudDesktopReadyReport` as the SYSTEM scheduled task for final status; Windows desktop PNG evidence must remain a separate, explicitly retested best-effort helper if reintroduced later.
-- The working iPXE `boot.ipxe` explicitly loads `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim` over HTTP.
-- The working DHCP path returns addresses from the current `dhcp.leaseStartIp` through `dhcp.leaseEndIp`, DNS from the current config, `snponly.efi` for UEFI PXE first stage, and `http://<service-ip>/osdcloud/boot.ipxe` once the client identifies as iPXE. Confirm the intended client gateway before final physical validation instead of assuming a fixed router IP.
-- Historical VM note: VM blocks changing the Secure Boot template after vTPM initialization. If a VM was initialized with the PXE template and must hard-boot Windows with `MicrosoftWindows`, preserve the VHDX and recreate the VM configuration before enabling vTPM.
-- The live deployment files are under `C:\OSDCloud`, not only in this repo. After changing deployment behavior, run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts` so `osdcloud-assets` contains the current scripts, embedded WinPE `Config\Scripts`, WinPE startup files, and large-artifact manifest before committing.
-
-## Physical-Laptop iPXE Runbook
-
-Use this runbook for the physical-laptop network-install validation path. The goal is to prove that the laptop can deploy without USB or ISO media, with WinPE served over HTTP and the Web-exported Windows WIM applied directly from the lab SMB share.
-
-Expected host network:
-
-```text
-Host service interface: LAN
-Host service IP: 192.168.88.1/24
-DHCP range: 192.168.88.200-192.168.88.250
-DHCP router: 192.168.88.1
-DNS: 1.1.1.1, 8.8.8.8
-HTTP base: http://192.168.88.1/osdcloud
-SMB image share: \\192.168.88.1\OSDCloudiPXE
-```
-
-These are the current planned physical-client LAN values. If the user intentionally selects a different service interface/IP in the Web console, verify and document that live endpoint instead of forcing these values.
-
-Expected HTTP root:
-
-```text
-C:\OSDCloud\PXE-HttpRoot\osdcloud
-```
-
-The HTTP root must include:
-
-```text
-boot.ipxe
-wimboot
-bootmgr
-bootx64.efi
-BCD
-boot.sdi
-boot.wim
-```
-
-OSDCloud progress status is collected by the same Node HTTP server:
-
-```text
-POST/GET: http://<service-ip>/osdcloud/status
-Events : http://<service-ip>/osdcloud/status/events
-Shots  : POST image/png to http://<service-ip>/osdcloud/screenshot
-Files  : C:\OSDCloud\PXE-HttpRoot\status\latest.json
-         C:\OSDCloud\PXE-HttpRoot\status\progress.jsonl
-         C:\OSDCloud\PXE-HttpRoot\status\latest-summary.json
-         C:\OSDCloud\PXE-HttpRoot\status\<runId>.summary.json
-         C:\OSDCloud\PXE-HttpRoot\status\runs-index.json
-         C:\OSDCloud\PXE-HttpRoot\status\deployment-runs.jsonl
-         C:\OSDCloud\PXE-HttpRoot\status\latest-screenshot.json
-         C:\OSDCloud\PXE-HttpRoot\status\<runId>.screenshots.jsonl
-         C:\OSDCloud\PXE-HttpRoot\status\screenshots\<runId>\*.png
-Cadence: check logs every 3 seconds; send heartbeat at least every 15 seconds
-```
-
-Run sequence:
-
-1. Confirm the real network DHCP server is temporarily disabled.
-2. Confirm the selected service IP exists on an enabled IPv4 adapter with the intended prefix; use `.\tools\Set-IpxePhysicalNic.ps1 -InterfaceAlias '<interface-alias>' -ServerIp '<service-ip>'` only when Windows adapter IP assignment itself needs to be changed.
-3. Start the host-side PXE helpers: DHCP/TFTP for first-stage boot and HTTP for OSDCloud content.
-4. Keep the working unsigned PXE path on `snponly.efi` unless the task is specifically to retest signed shim Secure Boot.
-5. Boot the physical laptop from UEFI IPv4 PXE, with no USB or ISO media involved.
-6. Confirm DHCP returns a lease from the current configured range, the intended router, configured DNS, `snponly.efi` for UEFI PXE, and `http://<service-ip>/osdcloud/boot.ipxe` after the client identifies as iPXE.
-7. Confirm the iPXE WinPE maps `\\<service-ip>\OSDCloudiPXE` to `Z:`, reads `Z:\OSDCloud\OS\selected-os.json`, and sets `$Global:StartOSDCloud.ImageFileDestination` to the selected exported WIM.
-8. Watch the HTTP access log for `boot.ipxe`, `wimboot`, and `boot.wim`. A valid no-redownload run must not show active OS WIM `HEAD` or `GET`.
-9. Watch `C:\OSDCloud\PXE-HttpRoot\status\progress.jsonl` for WinPE status events such as `winpe-start`, `smb-mounted`, `osdcloud-start`, `apply-image`, `osdcloud-finished`, and `rebooting`; use `latest-screenshot.json` / `<runId>.screenshots.jsonl` only as supporting visual evidence.
-10. After WinPE finishes, it should post final status and reboot itself with `wpeutil reboot`; the laptop should then boot from the internal disk if PXE was selected through a one-time boot menu.
-11. During first Windows boot, SetupComplete should post `windows-setupcomplete-start` and `windows-setupcomplete-finished`; after `davis` logs on, the SYSTEM desktop-ready scheduled task should post `windows-logon-start` and final `windows-desktop-ready`.
-12. Verify the final state locally or by remote management, and inspect the OSDCloud log for empty `ImageFileUrl`, `ImageFileDestination = Z:\OSDCloud\OS\<selected image>`, `ImageFileDestination.PSDrive.DisplayRoot = \\<service-ip>\OSDCloudiPXE`, and `OSImageIndex` matching `selected-os.json`.
-
-Legacy VM timing runs are historical regression tools only; do not use them for the physical-laptop path unless the user explicitly asks for VM validation:
-
-```powershell
-.\tools\Invoke-IpxeTimingRun.ps1 -VmName OSDCloud-Win11-iPXE-Timing-XX
-```
-
-Timing run contract:
-
-- After the script starts the VM, do not use VMConnect or manually change VM settings.
-- The script may record host state, HTTP/DHCP/TFTP logs, VM state, VHDX size, and PowerShell Direct validation.
-- The script is responsible for the automated transition from WinPE shutdown to VHD boot with Secure Boot `MicrosoftWindows` and vTPM.
-- iPXE timing VMs should use 8GB static memory with Dynamic Memory disabled. 6GB with Dynamic Memory can starve WinPE during DISM apply.
-- For normal desktop-validation runs, keep `-PostDeploySwitchName ''` so the installed Windows VM remains on `PXE-Lab`.
-- Physical-laptop validation should use the host wired adapter directly, not a VM vSwitch.
-- The final timing validation should include internet checks: ping `1.1.1.1`, DNS resolution for `www.microsoft.com`, and HTTP access to `http://www.msftconnecttest.com/connecttest.txt`.
-- Only use `-PostDeploySwitchName 'Default Switch'` when the task explicitly asks to compare against VM's default NAT switch.
-- Only use `-SkipInternetValidation` when the task explicitly asks for a fully isolated post-deploy test.
-- Per-run artifacts belong under `C:\OSDCloud\TimingRuns\...` and must not be committed.
-- A valid timing run ends with `Run : Succeeded`, stopped run helpers, and a populated `summary.md` / `summary.json`. A final `GuestCheck : Pass` may be absent if the visible guest-detail string did not change between pending and ready; in that case trust `Run : Succeeded` plus the final guest summary.
-
-Earlier HTTP ESD timing evidence, superseded by no-redownload mode:
-
-```text
-RunId   : 20260507-111415
-VM      : OSDCloud-Win11-iPXE-Timing-06
-Total   : 1059.2 seconds
-Result  : Succeeded
-Run root: C:\OSDCloud\TimingRuns\20260507-111415-OSDCloud-Win11-iPXE-Timing-06
-```
-
-Latest no-redownload timing evidence:
-
-```text
-RunId   : 20260507-135251
-VM      : OSDCloud-Win11-iPXE-Timing-10
-Total   : 819.0 seconds
-Result  : Succeeded
-Run root: C:\OSDCloud\TimingRuns\20260507-135251-OSDCloud-Win11-iPXE-Timing-10
-HTTP ESD matches: 0
-ImageFileDestinationDisplayRoot: \\192.168.100.1\OSDCloudiPXE
-Final guest: DESKTOP-LTK4NLM\davis, ExplorerRunning=True, DesktopReadyFile=True
-```
-
-This timing evidence used the earlier isolated `192.168.100.0/24` lab. Current physical-network values are selected at runtime by the Web console and must be verified from live config before each physical run.
-
-Post-deploy network lesson:
-
-- If a deployed laptop has no internet and still shows a `192.168.100.x` address, first verify the intended gateway from Web/DHCP config is reachable and that the upstream DHCP server is still intentionally disabled only for the test window.
-- Do not assume the client gateway from an older run. Before final physical validation, choose the intended client gateway deliberately and confirm working DNS such as `1.1.1.1` / `8.8.8.8`.
-- If Start menu pins show gray placeholders after the first offline boot, refresh StartMenuExperienceHost / Explorer and rebuild the current user's icon cache after internet is available.
-
-Failure triage:
-
-- No HTTP `boot.ipxe`: debug UEFI PXE, TFTP, or first-stage iPXE.
-- `boot.ipxe` / `boot.wim` appears but Windows is not applied to disk: debug WinPE startup, SMB mapping to `\\<service-ip>\OSDCloudiPXE`, `$Global:StartOSDCloud.ImageFileDestination`, and physical-network addressing.
-- `Start-OSDCloud` returns to `X:\>` immediately: check for mixed parameter sets.
-- `Expand-WindowsImage failed` with `Insufficient memory`: check physical RAM. Use a laptop with at least 8GB RAM for the first physical validation.
-- Disk remains effectively empty or unbootable: Windows was not applied.
-- Disk boots but first boot stops in OOBE: inspect `Invoke-DavisOobe.ps1`, SetupComplete injection, `CloudExperienceHost` / `msoobe`, and OOBE registry values.
-
-Secure Boot status:
-
-```text
-Network-install deployment path: verified
-Final hard-disk boot with MicrosoftWindows Secure Boot + vTPM: verified
-PXE-stage signed shim Secure Boot: not yet verified
-```
-
-## Retired ISO Path
-
-`C:\OSDCloud\Win11-Lab` and `OSDCloud_NoPrompt.iso` are retired. The active deployment path is Web console + physical-laptop iPXE. If ISO boot is needed again later, create a new ISO workspace in a separate task instead of restoring the retired `Win11-Lab` path.
-
-## Zero-Touch Test Standard
-
-A valid physical-laptop iPXE test must not require USB media, an attached ISO, or clicking through OOBE on the laptop.
-
-Allowed host-side automation:
-
-- Configure the host wired adapter
-- Start DHCP/TFTP/HTTP helpers
-- Watch DHCP/TFTP/HTTP logs
-- Reboot or power-cycle the physical laptop when needed
-- Verify locally on the deployed laptop or through remote management
-
-Final validation should include:
-
-```text
-User             : <computer>\davis
-ExplorerRunning  : True
-DesktopReadyFile : True
-DesktopReadyPath : C:\Users\davis\Desktop\OSDCloud-Desktop-Ready.txt
-OobeProcesses    :
-LaunchUserOOBE   : 0
-SkipUserOOBE     : 1
-NoAutoUpdate     : 1
-DisplayVersion   : 25H2
-CurrentBuild     : 26200
-EditionID        : Professional
-Culture          : zh-TW
-TimeZone         : Taipei Standard Time
-FinalStatusStage : windows-desktop-ready
-```
-
-Latest physical validation evidence:
-
-```text
-RunId            : 20260509-031647-9VDYLD4
-Status           : completed
-FinalStatusStage : windows-desktop-ready
-Percent          : 100
-Started          : 2026-05-08T19:16:49.151Z
-WinPE End        : 2026-05-08T19:23:39.219Z
-Windows Start    : 2026-05-08T19:28:08.202Z
-Completed        : 2026-05-08T19:28:19.736Z
-ComputerName     : DESKTOP-8AMUG6V
-ExplorerRunning  : True
-DesktopReadyFile : True
-OobeProcesses    :
-DisplayVersion   : 25H2
-CurrentBuild     : 26200
-EditionID        : Professional
-Culture          : zh-TW
-TimeZone         : Taipei Standard Time
-```
-
-Also verify the OSDCloud log from the deployed disk:
-
-```text
-ImageFileSource : D:\OSDCloud\OS\...
-ImageFileUrl    :
-```
-
-For the iPXE path, also verify:
-
-```text
-ImageFileUrl                    : <empty>
-ImageFileDestination            : Z:\OSDCloud\OS\<selected image>.wim
-ImageFileDestinationDisplayRoot : \\<service-ip>\OSDCloudiPXE
-OSImageIndex                    : 1
-```
-
-The HTTP access log must show `boot.ipxe`, `wimboot`, and `boot.wim`, and must not show OS WIM `HEAD` or `GET`. The laptop must not use USB or ISO media as the deployment source.
-
-## Host Console Direction
-
-The primary host-side entrypoint is now the Web/GUI console:
-
-```powershell
-npm run web
-```
-
-By default it listens on:
-
-```text
-http://127.0.0.1:8080
-```
-
-The host console code lives under:
-
-```text
-tools\osdcloud-console
-config\osdcloud-console.json
-```
-
-Use the Web console for the active physical-laptop path unless the user explicitly requests lower-level helper scripts. Web owns the host-side DHCP responder, TFTP responder, HTTP media/status server, live status display, log tailing, and validation summary.
-
-Current Web layout implementation and references:
-
-- As of 2026-05-13, the local Web console layout originated from Google Stitch project `8339077576655082414`, but Stitch is now a historical/reference source only. Do not treat Google Stitch as the mandatory design authority for future Web console changes.
-- The Stitch FINAL screen set (`FINAL - Operations Dashboard`, `FINAL - Endpoints & Profiles`, `FINAL - Endpoint Sync Progress`, profile modals, and `FINAL - Client Validation Evidence (Optimized)`) may be used as reference material when helpful, but local operator usability and the checked-in Web code are the source of truth.
-- `tools\osdcloud-console\web\index.html` currently keeps the Stitch-derived HTML/Tailwind utility structure, inline `tailwind-config`, Inter / JetBrains Mono fonts, Material Symbols, top nav, endpoint bar, dense cards, tables, dialogs, and validation evidence grouping. Desktop dashboard placement is finalized in local CSS with named grid areas rather than only the Tailwind 12-column classes. Future layout changes may evolve this structure directly when that produces a simpler or clearer operator workflow.
-- `tools\osdcloud-console\web\styles.css` owns the local fallback and interaction layer for dialog behavior, stateful live-rendered nodes, status badges, switches, no-network visual fallback, and practical layout fixes. Keep the styling consistent with the admin-console direction, but do not force it to remain a thin Stitch-only layer.
-- `tools\osdcloud-console\web\app.js` owns live data binding. It must fill the local DOM from `/api/state`, `/api/interfaces`, `/api/profiles`, and existing mutating API routes without hard-coding Stitch sample runs, fake logs, or fake profile rows.
-- The Web console uses Tailwind CDN as a visual enhancement. The console must remain functionally usable if the CDN is unavailable; pixel matching against Stitch is not required.
-- Current local Web behavior verified on 2026-05-17: the single Dashboard workbench renders Operations, endpoint summary, Endpoint Sync Progress, active profile, active OS image, service cards, Preflight Summary, Client Fleet, System Log, dialogs/drawers, and selected-run validation evidence from live API state. On desktop, `Preflight Summary` and `Client Fleet` span the Operations column plus the main column below the upper workbench; on narrow viewports, the layout remains stacked.
-- Operations color semantics are part of the UI contract: `Run preflight` is a neutral diagnostic action, not a blue primary CTA; endpoint sync, deployment-profile `Set active` / `Edit active`, and OS image download/import are warning actions; DHCP/start-all/clear-status/delete actions are danger actions. OS images no longer have an independent `Set active` / `Republish` control — selection is driven by the active profile's `osImage` field. Use result colors only for state: ready/running green, blocked/error red, review/working yellow, stopped/idle/not-run neutral.
-- Dashboard panels must stay usable with long preflight output: `Preflight Summary` should have its own scrollable/clamped content area and must not push Operations or `System Log` out of reach. Failed preflight rows should expose browser-native hover hints with `How to fix:` guidance; `selected manifest stale` should direct the operator to `Deployment Profiles` > re-`Set active` the current profile (or `Edit active` to pick a different OS image), which republishes `selected-os.json` together with the Apps payload. On narrow viewports, service cards should collapse to a single column so service action text does not truncate.
-- `System Log` scroll behavior is part of the Web UI contract: if the operator is already at the bottom, new log renders should keep the panel at the bottom; if the operator has scrolled upward, refresh/new log renders must preserve the current scroll position for readability.
-- `Select interface` / endpoint settings must open immediately and load `/api/interfaces` asynchronously inside the drawer. Show loading, refreshing, and inline error states in the drawer; do not block the drawer on Windows NIC enumeration.
-
-Future host-console development priority:
-
-- Build new operator-facing functionality in the Web/GUI.
-- Put shared service behavior in `serviceController.js` or other shared modules before wiring the Web UI or headless automation.
-
-Safety contract:
-
-- Web layout changes may be planned directly in code, a lightweight local mockup, screenshots, or Google Stitch when it is useful. Google Stitch planning screens are optional, not required. For broad or high-risk UI redesigns, provide a concise plan or visual checkpoint for user review before heavy implementation.
-- Text-only web UI copy changes may proceed directly when they do not change layout, navigation, screen structure, or component behavior.
-- Start the Web console from elevated PowerShell when it will control services. The Web console is served by `tools\osdcloud-console\src\webServer.js` and uses the shared `serviceController.js`.
-- Web management config defaults to `web.host=127.0.0.1` and `web.port=8080`; if `config\osdcloud-console.json` omits `web`, the defaults apply.
-- Starting `npm run web`, opening the browser UI, and reading state/status/logs/validation must not modify `C:\OSDCloud`.
-- Web mutating actions can modify live deployment state: endpoint sync can modify live `boot.ipxe`, WinPE endpoint files, `boot.wim`, SMB firewall, and `osdcloud-assets`; OS image cache can download/stage source Windows images, import browser-uploaded ISO/ESD/WIM sources, export the selected DISM index to a deployable single WIM, publish `selected-os.json`, and update SMB image path; deployment profile publish can replace live `Media\OSDCloud\Apps`; clear status deletes configured status JSON/JSONL/screenshot metadata; service start/stop changes live network responders.
-- Do not run Web console and headless services at the same time to control services. They are separate Node processes and can conflict on ports 67/69/80.
-- Run preflight before starting services. Preflight validates that the service bind IP exists on any enabled IPv4 adapter.
-- Use `Select service interface` when the service bind interface/IP must change. Opening the endpoint settings drawer is read-only and must not wait for `/api/interfaces`; applying a selected endpoint must list only enabled non-APIPA IPv4 interfaces, stop running HTTP/TFTP/DHCP services before applying a new endpoint, persist the ignored local overlay instead of dirtying the committed default config, recalculate DHCP lease pool / subnet mask / router for the selected prefix, update live PXE/WinPE endpoint files through `tools\Set-OsdCloudIpxeEndpoint.ps1`, update the SMB firewall, commit the endpoint into `boot.wim`, verify the published `boot.wim`, and refresh `osdcloud-assets`.
-- While `Select service interface` is applying an endpoint, the Web console must show human-visible progress, stream sync script output into Logs, and automatically run preflight after the sync completes.
-- After changing the selected service interface, preflight must fail if the DHCP lease range or router is outside the selected service IP prefix. Treat this as a stale/manual config guard; the Web selection path should update DHCP settings automatically.
-- After changing the selected service interface, DHCP must not retain leases from the previous endpoint. If a physical client receives a `192.168.100.x` lease while services are running on `192.168.100.x`, treat it as stale in-memory DHCP lease state and restart on code that rebuilds the lease pool for the current `dhcp.leaseStartIp` / `dhcp.leaseEndIp`.
-- DHCP reservations may pin known physical client MAC addresses to fixed IPs. Endpoint switching must drop reservations outside the newly selected service IP prefix; stale reservations from WAN or vSwitch subnets must not remain in the effective Web config or ignored local overlay.
+## Workspace Isolation
+
+- Development workspace: `C:\Users\davis\Documents\Codex\osdcloud-project`. Edit code, docs, tests, Git history, and `.ai/status.json` here.
+- Deployment clone: `C:\osdcloud-win11-deployment-lab`. Use only after a pushed development commit is pulled with `git pull --ff-only origin master`; do not edit or hotfix code there.
+- Runtime root: `C:\OSDCloud`. This is product-managed runtime state. Do not manually patch, copy into, or directly edit files there.
+- If deployment testing fails, return to the development workspace, fix there, commit and push, update the deployment clone, then retest from the deployment clone.
+
+## Secrets
+
+- Do not commit real account, SMB, token, cookie, OTP, or deployment secret values.
+- Keep `config\osdcloud-secrets.json` local and ignored by Git; use `config\osdcloud-secrets.example.json` only as the committed schema.
+- Expected local secret keys are `davisPassword` and `pxeinstallPassword`.
+- During testing and validation, if deployment secret values are already present in an ignored local file, approved environment variables, or have been provided by the user, agents may save or update the ignored local deployment secrets directly without asking for another confirmation. If usable values are missing, ask the user for them.
+- API responses, logs, docs, tests, commits, PR text, `.ai/status.json`, and final reports must never include plaintext secret values.
+- Environment fallbacks are `OSDCLOUD_DAVIS_PASSWORD` and `OSDCLOUD_PXEINSTALL_PASSWORD`.
+
+## Runtime Guardrails
+
+- For Runtime Readiness, endpoint sync, Web console, OS image, profile publish, WinPE, SetupComplete, or desktop-ready tasks, read `docs/agent-reference/runtime-web-console.md`.
+- A Git clone alone is not a deployable PXE runtime.
+- Do not manually patch, copy into, or directly edit `C:\OSDCloud`.
+- Web read-only checks must not mutate live runtime state.
+- Web mutating actions can modify live deployment state.
+- Run preflight before starting services.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
-- Do not add a Web `Configure physical NIC` action. If Windows adapter IP assignment must be changed, keep it as an explicit script step such as `tools\Set-IpxePhysicalNic.ps1`.
-- Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
-- The individual `Start HTTP/status`, `Start TFTP`, and `Start DHCP` actions are service toggles; when a service is running, the same action must become `Stop ...` and shut that service down.
-- Stopped service cards must render as neutral status, not as failures. Only actual blocked/error states should use red status treatment.
-- Web console must show multi-client deployment state as a fleet view, selected run details, validation evidence, and log tailing.
-- Validation Evidence must read parsed status events for the selected run, preferring `<runId>.jsonl` over the global `progress.jsonl` tail. Missing evidence should be shown as `Not reported`; explicitly empty no-redownload fields such as `imageFileUrl` should be shown as `<empty>`.
-- Deployment payload includes selected client app installation during Windows SetupComplete, with `windows-apps-start`, `windows-apps-finished`, and `windows-apps-error` status stages.
-- Web `Profiles` > `Software Catalog` > `Add software` is the operator-facing path for adding a new optional client software package. It accepts one MSI/EXE upload, generates the software id server-side, writes an ignored repo-local installer payload under `Softwares\<software-id>\`, generates or stores `install.ps1`, appends `config\software-catalog.json`, and returns installer size/SHA256 evidence. Operators do not type the software id. Add a matching `config\runtime-artifacts.json` download recipe before handoff; installer payloads must not be committed. It must not stop services, publish live `Apps`, change active profile, sync endpoint, mount `boot.wim`, or touch `C:\OSDCloud`.
-- Web `Profiles` > `Custom Scripts` > `Add script` is the operator-facing path for adding an arbitrary PowerShell task (e.g. firewall rules, registry tweaks) that must run on the client during deployment. It accepts one `.ps1` upload (≤1 MB), generates the script id server-side with `SC-` prefix, writes repo `Scripts\<script-id>\run.ps1` (1:1 copy, no template rewriting), appends `config\scripts-catalog.json` with `defaultPhase` ∈ `{before, after}`, and returns size/SHA256. Operators do not type the script id. Same isolation contract as software-add: must not stop services, publish live `Scripts`, change profiles, sync endpoint, mount `boot.wim`, or touch `C:\OSDCloud`. Profile editor lets each profile pick which scripts to include and override the phase per script.
-- Publishing a deployment profile must also publish its `customScripts`: copy each selected `Scripts\<id>\` into `C:\OSDCloud\Media\OSDCloud\Scripts\<id>\`, write `customScripts: [{id, phase}]` into `selected-profile.json` ordered before→after, and let `Install-Apps.ps1` run `Scripts\<id>\run.ps1` in the matching phase (before-apps loop, after-apps loop). Each custom script run must leave an individual client-side `C:\Windows\Temp\osdcloud-logs\custom-scripts\<scriptId>-<phase>-<timestamp>.log`, `C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`, and the parent `C:\Windows\Temp\osdcloud-logs\apps-install.log`; host status files only record `windows-apps-*` stages and do not ingest full custom-script stdout/stderr. Failed or missing scripts should be recorded and later scripts should still run, but the final `Install-Apps.ps1` result must be non-zero. Profiles without any selected custom scripts must remain backward-compatible — `Install-Apps.ps1` skips both phases when `customScripts` is absent or empty. If localized `Write-Host` output is important, script authors should write their own UTF-8 file output because redirected Windows PowerShell stdout can show mojibake.
-- Web deployment profile selection publishes profile-filtered client software payloads. Use `Select deployment profile` before starting services when the software set or install order changes; it must stop running HTTP/TFTP/DHCP services, write the active profile to the effective local config, clear stale live `Apps` content, copy only selected software from `Softwares\<software-id>` in profile order, write `selected-profile.json`, and let preflight verify the live payload matches the active profile.
-- Keep the normal `Default` profile on 7-Zip only unless the user deliberately selects a Chrome-enabled profile.
-- Endpoint sync hash verification must tolerate host PowerShell sessions where `Get-FileHash` is unavailable by falling back to .NET SHA256 hashing.
-- Deployment profile management supports `Add profile`, per-row `Edit` / `Set active` / `Delete`, and the `Edit active` / `Delete inactive` toolbar shortcuts. Add copies the current active profile software list and order but does not switch or publish. Edit preserves id/name/description/unknown fields unless explicitly changed and lets the operator reorder selected software per profile; editing the **active** profile then republishes live `Apps` and reruns preflight, while editing an **inactive** profile only rewrites that profile's JSON (services keep running, the live `Apps` payload is untouched) and the changes take effect the next time it is set active. Delete can only remove inactive profile JSON files.
-- Deployment profile creation generates an 8-character uppercase alphanumeric profile id server-side, with at least one letter and one digit, and must avoid collisions with existing profile ids and JSON file names. Operators edit the profile name as display text; profile id remains the stable service key.
-- Keep `GET /osdcloud/status` backward-compatible as the latest single status event, and use `GET /osdcloud/status/runs` plus `runs-index.json` for multi-run fleet status.
-- Driver pack host-first cache is supported through `windows-driverpack-cache-request`: client Windows only reports `C:\Drivers\*.json` metadata, and the host console downloads official driver packs into `C:\OSDCloud\Media\OSDCloud\DriverPacks`. Do not add a client-side custom downloader and do not grant deployed Windows write access to the SMB share.
-- Driver pack cache safety rules: `fileName` must be a plain file name with no path separators or `..`; allowed extensions are `.exe`, `.cab`, `.zip`, and `.msi`; v1 allowed download host is `downloads.dell.com`; resolved destinations must remain under the cache root; never overwrite an existing non-empty cache file.
-- `Clear status files` must also remove `runs-index.json`, `*.summary.json`, `*.latest.json`, `latest-screenshot.json`, `*.screenshots.jsonl`, and `status\screenshots\`.
-- Do not rewrite WinPE OSDCloud/SetupComplete behavior for Web console work unless the user explicitly expands scope.
-
-Validation contract:
-
-- `npm test` must pass for host console code changes.
-- `npm run smoke` must pass before handoff; it uses temporary roots and test ports and must not touch the live LAN or live `C:\OSDCloud`.
-- Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
-- Web layout or visual changes must also run `node --check tools/osdcloud-console/web/app.js`, `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/`. The read-only check may fetch `/`, `styles.css`, `app.js`, `/api/state`, `/api/interfaces`, and `/api/profiles`; it must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
-- A live deployment remains the final hardware validation when host-console networking behavior changes.
-- Deployment progress must include explicit run lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
-- Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer or custom-script failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.
-- Software catalog onboarding changes must test safe software ids, plain MSI/EXE filenames, duplicate catalog/source rejection, upload staging cleanup, template and raw `install.ps1` creation, and that adding catalog software does not mutate active profile or publish live `Apps`.
-- Custom script onboarding changes must test `SC-` id generation, `.ps1`-only upload rejection of `.exe`/`.msi`, duplicate catalog/source rejection, profile rejection of unknown script ids and invalid phases, `selectedScripts` resolution through `resolveDeploymentProfileState`, publish copying `Scripts\<id>\run.ps1` to the safe Scripts root, `customScripts` ordered before→after in `selected-profile.json`, read-only Web `View` of `run.ps1`, per-script log and summary generation for success/failure/missing cases, `evaluateDeploymentProfilePayload` script verification, delete-blocked-when-referenced by any profile, and backward compatibility when a profile has no `customScripts`.
-- Deployment profile changes must test catalog/profile validation, profile add/edit/delete validation, safe publish roots, selected-only ordered payload publishing, empty profiles, `Install-Apps.ps1` selected-only / ordered / missing-selected-app behavior, that publishing a profile also republishes its `osImage` to `selected-os.json` / `smb.imagePath`, and that editing an inactive profile only rewrites its JSON without stopping services, republishing live `Apps`, or rerunning preflight.
-- Multi-client host-console changes must include synthetic tests for at least two interleaved runs and must verify that one client does not overwrite another client's summary.
-- Screenshot behavior must preserve the status contract: `/osdcloud/status` stays JSON-only, `/osdcloud/screenshot` accepts PNG-only uploads capped at 5 MB, and PNG files remain local evidence rather than Git artifacts.
-- Driver pack cache changes must test validation failures, disallowed hosts, cache hits, download success/failure, and confirm status events still persist when cache backfill fails.
-- OS image source/cache changes must test official/custom catalog merging, custom host allowlist and required SHA256, browser-uploaded ISO/ESD/WIM inspect/import, staging cleanup, cache-hit hash validation, removed host-path API behavior, and the delete guard that refuses to remove an OS image referenced by any deployment profile. OS images no longer carry a separate active flag; the active selection is derived from the active profile's `osImage` field, and download/import simply add a cached image that becomes available for any profile to bind to.
-- If deployment behavior changes inside `C:\OSDCloud` or WinPE, update the live files first, mount/commit `boot.wim` when needed, then run `.\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts`.
-
-## VM VM Regression Notes
-
-These notes are regression evidence only. Do not use VM for the active physical-laptop iPXE path. If the user explicitly asks for VM regression, use Generation 2 VMs with:
-
-- Secure Boot enabled with `MicrosoftWindows` template
-- vTPM enabled
-- 4 vCPU
-- 6GB startup memory
-- 96GB VHDX
-- Default Switch
-- Automatic checkpoints disabled
-
-The final known-good test VM is:
-
-```text
-OSDCloud-Win11-NoTouch-01
-```
-
-The final known-good iPXE test VM is:
-
-```text
-OSDCloud-Win11-iPXE-01
-```
-
-The latest known-good vSwitch regression VM is:
-
-```text
-OSDCloud-Win11-vSwitch-04
-```
-
-Historical iPXE VM notes:
-
-- Earlier VM validation used `PXE-Lab`; the active physical-laptop path uses the host wired adapter directly.
-- Legacy host-side PXE helper scripts used PowerShell DHCP/TFTP plus Node HTTP. The Web/GUI console is now the host-side console; keep the legacy helper scripts as lower-level fallback. The Linux helper VM `PXE-Lab-Server-01` was not required for the successful validation.
-- Use static memory for iPXE timing VMs. `Timing-04` failed in WinPE DISM apply when Dynamic Memory assigned only about 1.5GB even though startup memory was configured higher.
-- Full iPXE deployment succeeded with PXE-stage Secure Boot temporarily off. Hard-disk boot was verified with Secure Boot `MicrosoftWindows` and vTPM.
-- For VM first-stage TFTP, do not disable `.efi` OACK/options handling. VM can send paired RRQs where one transfer logs `OACK not acknowledged` and the other succeeds with `SENT snponly.efi`; success is confirmed by later HTTP `boot.ipxe`. If the VM stays at `Downloading NBP file...`, debug TFTP service state before changing WinPE or OSDCloud.
-- After `osdcloud-finished`, do not force power off the VM. Let WinPE run `wpeutil reboot`; premature power-off can leave `Unattend.xml` or `SetupComplete.ps1` NUL-filled and cause Windows Setup unattend parse errors.
-- `tools\osdcloud-console\src\headless.js` starts the same HTTP/status, TFTP, and DHCP services without Web UI. Use it only for VM regression or automation, and stop the owning `node.exe` after the test so DHCP does not keep responding.
-- Record VM runs under VM / VM regression documentation only. Keep VM names, vSwitch IPs, VHDX details, VMConnect screenshots, and PowerShell Direct results out of the physical-laptop runbook.
-- Signed shim PXE remains a caveat: `snponly-shim.efi` and `ipxe-shim.efi` were both tested with `MicrosoftUEFICertificateAuthority`, but the probe did not reach HTTP and stopped during TFTP shim transfer.
+- Do not silently change Windows NIC IP settings.
 
 ## Documentation
 
-When behavior changes, update:
+When behavior changes, update the relevant docs in the same workflow:
 
 ```text
 README.md
+TEST-RESULT.md
 OSDCloud-Win11-Automated-Deployment-Test-Report.md
 AGENTS.md
+TEST-LOOP.md
+docs\agent-reference\...
 osdcloud-assets
 ```
 
-Keep `README.md` concise and user-facing. Keep the report detailed and evidence-oriented. Keep `AGENTS.md` as the operational contract for future agents.
+Keep `README.md` concise and user-facing. Keep the report detailed and evidence-oriented. Keep `AGENTS.md` focused on always-on operational rules. Keep `TEST-LOOP.md` focused on testing/debug iteration. Keep `docs\agent-reference` focused on conditional task references.
 
-`README.md` is also the human user manual. When changing deployment flow, Web console behavior, service-interface selection, endpoint synchronization, network topology, validation criteria, or failure triage, update the `README.md` `使用手冊` section in the same change so a human operator can still run the workflow without reading `AGENTS.md` or the detailed test report.
-
-For portability/setup changes, also update the README `交接快速流程` and `新主機 Clone 後啟動流程`, `osdcloud-assets\README.md`, and the report's fresh-clone readiness note. The docs must make clear that the repo can live anywhere, setup only installs the main app and local safe state, and `C:\OSDCloud` must be prepared from Web Runtime Readiness before deployment because large runtime artifacts are intentionally downloaded or generated outside Git. When Prepare runtime or boot artifact behavior changes, explicitly document why `boot.wim` is checked and that readiness failures do not imply deployment services were started.
-
-## Git Workflow
+## Git And Status Workflow
 
 Use Git to track docs and process definitions in this workspace.
 
-Before evaluating, planning, or editing in the development workspace, run `git status --short --branch`. If there are unexpected uncommitted changes, report them and stop before pulling. If the only changes are expected for the current task, run `git pull --ff-only origin-github master`, then read `.ai/status.json` and `git log --all --notes --decorate --date=iso --max-count=10 --format=fuller` before proceeding. If the pull brings in new commits, summarize them and re-evaluate the task against the updated tree.
+For read-only review, planning, or status checks, do not pull by default. Pull only when the worktree is clean and the task requires current remote state, the user requests it, or an existing workflow specifically requires it.
 
-After every code change, finish by updating the related documentation and Git state in the same workflow. Do not leave a code-only diff unless the user explicitly scoped the task to read-only inspection or a throwaway experiment. Update the applicable docs, such as `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, `osdcloud-assets`, or feature-specific docs; run the relevant development-workspace verification for the changed surface; and create a local commit whose staged set includes the code, docs, tests, synchronized assets, and `.ai/status.json` updates required by that change. After creating a code-change commit, verify remotes and branch tracking, then push the commit to `origin-github/master` for this repository. This push requirement is project-local to this workspace and does not apply to unrelated repositories. For documentation-only or process-only updates, push when the user explicitly requests it, the task is a handoff/release, or another existing repo rule requires it.
+Before editing, check for unexpected uncommitted changes. If unrelated changes exist, do not revert them. If they affect the task, work with them or stop and report the conflict.
 
-After pushing from the development workspace, switch to `C:\osdcloud-win11-deployment-lab\`, verify it is clean, run `git pull --ff-only origin master`, and confirm its HEAD matches the pushed development commit before any Web/runtime/PXE/deployment test. Deployment-facing tests must start from the deployment clone, not from `C:\Users\davis\Documents\Codex\osdcloud-project\`.
+After modifying code, docs, config, tests, tracked project behavior, verification state, commit/push state, or when the user asks for a status refresh, update `.ai/status.json` if the repository uses it.
 
-At the start of every new conversation in this workspace, before planning or editing, check for handoff context that may have been written by other agents:
+`.ai/status.json` dirty semantics:
 
-```powershell
-git status --short --branch
-git pull --ff-only origin-github master
-Get-Content .ai/status.json -Raw
-git log --all --notes --decorate --date=iso --max-count=10 --format=fuller
-```
+- `git.dirty` means uncommitted repo-tracked changes excluding `.ai/status.json` itself.
+- Use `git status --porcelain -- ':!.ai/status.json'` to determine dirty state.
+- If only `.ai/status.json` is modified, keep `git.dirty` as `false` and mention that the status file itself is uncommitted.
+- Maintain `recent_changes` as at most 5 newest entries, newest first, with concise structured entries and no secrets or long logs.
 
-Treat the recent commit subjects, commit bodies, and Git notes as multi-agent handoff material. If any recent commit mentions active work, deployment state, failing validation, endpoint changes, dirty worktree expectations, or files that should not be touched, summarize that context before acting and keep it in the plan. If the task is narrow and the recent log is unrelated, say that no relevant handoff note was found.
+After code changes, finish by updating related documentation and Git state in the same workflow unless the user explicitly scoped the task differently. For documentation-only or process-only updates, push only when the user requests it, the task is a handoff/release, or another repo rule requires it.
 
-Track these files by default:
-
-```text
-README.md
-AGENTS.md
-.ai/status.json
-OSDCloud-Win11-Automated-Deployment-Test-Report.md
-tools\Invoke-IpxeTimingRun.ps1
-Setup-DeploymentServer.cmd
-Deploy-DeploymentServer.cmd
-tools\Setup-DeploymentServer.ps1
-tools\Initialize-DeploymentServer.ps1
-tools\Export-DeploymentServerBundle.ps1
-tools\Set-IpxePhysicalNic.ps1
-tools\Set-OsdCloudIpxeEndpoint.ps1
-tools\Sync-OsdCloudAssets.ps1
-package.json
-package-lock.json
-config\osdcloud-console.json
-config\os-image-catalog.json
-config\os-download-sources.json
-config\software-catalog.json
-config\scripts-catalog.json
-config\deployment-profiles\...
-Softwares\...
-Scripts\...
-tools\osdcloud-console\...
-docs/history/TUI-REWRITE-PLAN.md
-osdcloud-assets\README.md
-osdcloud-assets\manifest.json
-osdcloud-assets\OSDCloud\...
-.gitignore
-```
+After pushing from the development workspace, update the deployment clone before any Web/runtime/PXE/deployment test. See `docs/agent-reference/repo-workflow.md` for the detailed handoff workflow.
 
 Do not commit generated deployment artifacts unless the user explicitly asks:
 
@@ -621,13 +136,3 @@ downloads/
 *.png
 *.log
 ```
-
-Before making Git changes, run:
-
-```powershell
-git status --short --branch
-```
-
-For normal documentation/process updates, commit only the intended text files and leave generated artifacts untracked or ignored.
-
-For OSDCloud behavior changes, the intended commit set must include the synchronized `osdcloud-assets` files. The sync mirror must not contain real deployment secrets; use ignored local secret files or environment variables for account and SMB passwords.

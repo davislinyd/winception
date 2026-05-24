@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-24T20:57:56+08:00",
+  "updated_at": "2026-05-24T21:45:51+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -21,7 +21,7 @@
     }
   },
   "development": {
-    "state": "runtime-readiness-fix-verified",
+    "state": "deployment-services-running-test-result-documented",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin-github",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin-github/master",
-    "last_checked_head": "e061ce40f9a5bbb4485b440bade605d86a1cb680",
-    "last_checked_head_short": "e061ce4",
+    "last_checked_head": "84b585849baa4feedc4201f1673d272b697be02f",
+    "last_checked_head_short": "84b5858",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -93,39 +93,43 @@
   },
   "recent_changes": [
     {
+      "id": "20260524214551-docs-test-result-runbook",
+      "at": "2026-05-24T21:45:51+08:00",
+      "kind": "docs",
+      "summary": "Added TEST-RESULT.md as the completed 0-to-1 deployment test evidence and no-AI rebuild runbook, and linked it from AGENTS.md.",
+      "commit": "84b585849baa4feedc4201f1673d272b697be02f",
+      "verification": "rg TEST-RESULT/0-to-1 references; git diff --check AGENTS.md TEST-RESULT.md .ai/status.json"
+    },
+    {
+      "id": "20260524213050-test-services-running",
+      "at": "2026-05-24T21:30:50+08:00",
+      "kind": "test",
+      "summary": "Started HTTP, TFTP, and DHCP deployment services on LAN 192.168.100.1 after DHCP-safe confirmation; PXE client can now boot.",
+      "commit": "84b585849baa4feedc4201f1673d272b697be02f",
+      "verification": "POST /api/services/start-all; TCP 80 and UDP 67/69 listening on 192.168.100.1; HTTP boot.ipxe/wimboot/bootmgr/bootx64.efi/BCD/boot.sdi returned 200; boot.wim HEAD returned 200"
+    },
+    {
+      "id": "20260524212841-test-endpoint-lan-ready",
+      "at": "2026-05-24T21:28:41+08:00",
+      "kind": "test",
+      "summary": "Applied Web endpoint sync to LAN 192.168.100.1/20; initialization is complete and all 19 preflight checks pass, with deployment services still stopped pending DHCP-safe start.",
+      "commit": "84b585849baa4feedc4201f1673d272b697be02f",
+      "verification": "POST /api/endpoint LAN; boot.ipxe now uses http://192.168.100.1/osdcloud; /api/state initialized=true; HTTP/TFTP/DHCP service states are stopped"
+    },
+    {
+      "id": "20260524212213-test-deployment-init-os-profile",
+      "at": "2026-05-24T21:22:13+08:00",
+      "kind": "test",
+      "summary": "Deployment clone pulled 84b5858, Web runtime readiness passed, Windows 11 Pro 25H2 zh-TW WIM was downloaded/exported, and the active profile was published; preflight is blocked only by unavailable endpoint 192.168.100.1.",
+      "commit": "84b585849baa4feedc4201f1673d272b697be02f",
+      "verification": "Web /api/state runtime 10/10 ready; OS image cache exported 26200.6584 zh-tw WIM; /api/profile/software published selected-os.json and profile payload; preflight failed Service IP/UDP67/UDP69/TCP80 because vEthernet 192.168.100.1 is absent; no HTTP/TFTP/DHCP services started"
+    },
+    {
       "id": "20260524205756-code-runtime-generated-winpe",
       "at": "2026-05-24T20:57:56+08:00",
       "kind": "code",
       "summary": "Adjusted runtime readiness so generated WinPE boot.wim is required by path but not pinned to host-specific size/hash.",
       "verification": "node --check runtimeArtifacts.js; JSON parse runtime-artifacts.json; node --test runtimeArtifacts.test.js; npm test; npm run smoke"
-    },
-    {
-      "id": "20260524204519-test-deployment-clone-setup",
-      "at": "2026-05-24T20:45:19+08:00",
-      "kind": "test",
-      "summary": "Verified deployment clone GitHub sync, setup install, smoke test, and Web startup; initialization stopped at missing deployment secrets.",
-      "verification": "git pull --ff-only origin master in deployment clone; Node.js LTS installed via winget; Setup-DeploymentServer.ps1 -WebHost 127.0.0.1 -NoLaunch; /api/state and /api/interfaces inspected; no HTTP/TFTP/DHCP deployment services started"
-    },
-    {
-      "id": "20260524193128-docs-contract-consistency",
-      "at": "2026-05-24T19:31:28+08:00",
-      "kind": "docs",
-      "summary": "Aligned TEST-LOOP.md and status workflow hints with AGENTS.md global guardrails.",
-      "verification": "rg cross-file consistency and workspace isolation checks; status JSON parse; git diff --check; no Web/runtime/PXE services started"
-    },
-    {
-      "id": "20260524174710-docs-global-guardrails",
-      "at": "2026-05-24T17:47:10+08:00",
-      "kind": "docs",
-      "summary": "Moved remaining non-global AGENTS guidance into agent reference files and added repo workflow reference.",
-      "verification": "rg structure, global-only, guardrail, and reference-retention checks; git diff --check; no Web/runtime/PXE services started"
-    },
-    {
-      "id": "20260524173200-docs-agent-reference",
-      "at": "2026-05-24T17:32:00+08:00",
-      "kind": "docs",
-      "summary": "Split task-specific agent guidance into docs/agent-reference and kept AGENTS.md as always-on rules.",
-      "verification": "rg reference, moved-section, content-retention, and safety checks; git diff --check; no Web/runtime/PXE services started"
     }
   ]
 }
