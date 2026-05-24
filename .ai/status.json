@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "updated_at": "2026-05-24T11:01:59+08:00",
+  "project": {
+    "name": "osdcloud-win11-deployment-lab",
+    "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
+    "current_goal": "Repeatable Web-console-first OSDCloud/iPXE deployment flow for Windows 11 Pro 25H2 zh-TW."
+  },
+  "paths": {
+    "development": {
+      "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
+      "purpose": "Edit code, docs, tests, commit, and push."
+    },
+    "deployment_clone": {
+      "root": "C:\\osdcloud-win11-deployment-lab",
+      "purpose": "Pull pushed commits and run deployment-facing tests from a production-like clone."
+    },
+    "runtime": {
+      "root": "C:\\OSDCloud",
+      "purpose": "Product-managed OSDCloud runtime/install root created or updated only by the normal deployment workflow."
+    }
+  },
+  "development": {
+    "state": "rules-updated",
+    "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
+    "primary_branch": "master",
+    "remote": "origin-github",
+    "summary": "Development happens in the copied Codex workspace; deployment-facing tests run only after push and deployment-clone pull.",
+    "baseline": {
+      "commit": "547e3595318c196c23214dc40665758c492b977e",
+      "short": "547e359",
+      "subject": "Fix runtime prepare completion check"
+    },
+    "repo_only": {
+      "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
+      "status": "historical-reference",
+      "latest_notice_commit": "4c78dc445ec97202e0bf7714ddcd01161510bb07",
+      "policy": "Do not use repo-only as the primary remote or a new development starting point."
+    }
+  },
+  "deployment_clone": {
+    "remote": "origin",
+    "branch": "master",
+    "required_update_before_tests": "git pull --ff-only origin master",
+    "head_must_match_development_push": true
+  },
+  "runtime": {
+    "manual_agent_edits_allowed": false,
+    "allowed_mutation_path": "Normal product workflow such as Web Runtime Readiness, Prepare runtime, endpoint sync, preflight, and deployment tests."
+  },
+  "git": {
+    "branch": "master",
+    "upstream": "origin-github/master",
+    "last_checked_head": "547e3595318c196c23214dc40665758c492b977e",
+    "last_checked_head_short": "547e359",
+    "dirty": false,
+    "ahead": 0,
+    "behind": 0,
+    "remotes": [
+      {
+        "name": "origin-github",
+        "fetch": "https://github.com/your-username/osdcloud-win11-deployment-lab.git",
+        "push": "https://github.com/your-username/osdcloud-win11-deployment-lab.git"
+      }
+    ],
+    "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
+  },
+  "workspace": {
+    "dirty_excludes_status_file": false,
+    "status_file_initialized": true,
+    "status_file_tracked": true,
+    "status_file_uncommitted": false
+  },
+  "required_workflow": {
+    "before_development_work": [
+      "git status --short --branch",
+      "git pull --ff-only origin-github master",
+      "Get-Content .ai/status.json -Raw",
+      "git log --all --notes --decorate --date=iso --max-count=10 --format=fuller"
+    ],
+    "after_development_push_before_tests": [
+      "cd C:\\osdcloud-win11-deployment-lab",
+      "git status --short --branch",
+      "git pull --ff-only origin master",
+      "confirm deployment clone HEAD equals the pushed development commit"
+    ],
+    "forbidden": [
+      "Do not use the development workspace as the deployment test clone.",
+      "Do not edit code directly in the deployment clone.",
+      "Do not manually patch, copy into, or directly edit C:\\OSDCloud."
+    ]
+  },
+  "recent_changes": [
+    {
+      "id": "20260524110159-status-workflow-isolation",
+      "at": "2026-05-24T11:01:59+08:00",
+      "kind": "status",
+      "summary": "Documented development/deployment-clone/runtime isolation and began tracking .ai/status.json.",
+      "verification": "git pull --ff-only origin-github master; inspected development workspace and deployment clone status/remotes; no direct C:\\OSDCloud mutation"
+    },
+    {
+      "id": "20260524093600-push-547e359",
+      "at": "2026-05-24T09:41:53+08:00",
+      "kind": "push",
+      "summary": "Pushed the runtime prepare completion check fix to origin-github/master.",
+      "commit": "547e3595318c196c23214dc40665758c492b977e",
+      "verification": "git push -u origin-github master; git rev-parse HEAD origin-github/master; git rev-list --left-right --count origin-github/master...HEAD; git status --porcelain -- ':!.ai/status.json'"
+    },
+    {
+      "id": "20260524093400-commit-547e359",
+      "at": "2026-05-24T09:33:03+08:00",
+      "kind": "commit",
+      "summary": "Committed the runtime prepare completion gate so Web fails the operation when post-restore readiness remains blocked.",
+      "commit": "547e3595318c196c23214dc40665758c492b977e",
+      "verification": "node --check tools/osdcloud-console/src/serviceController.js; node --test tools/osdcloud-console/test/activeOsImage.test.js tools/osdcloud-console/test/serviceController.test.js tools/osdcloud-console/test/webServer.test.js; git diff --check; npm test; npm run smoke; restarted npm run web after confirming deployment services were stopped"
+    },
+    {
+      "id": "20260524091843-push-7717b09",
+      "at": "2026-05-24T09:18:43+08:00",
+      "kind": "push",
+      "summary": "Pushed the runtime prepare log UTF-8 fix to origin-github/master.",
+      "commit": "7717b094bc451027e83c500825ba518b273a5949",
+      "verification": "git push -u origin-github master; git rev-parse HEAD origin-github/master; git rev-list --left-right --count origin-github/master...HEAD; git status --porcelain -- ':!.ai/status.json'"
+    },
+    {
+      "id": "20260524091138-code-7717b09",
+      "at": "2026-05-24T09:11:38+08:00",
+      "kind": "code",
+      "summary": "Fixed runtime prepare log encoding by forcing PowerShell UTF-8 output and streaming UTF-8 decoding in Node.",
+      "commit": "7717b094bc451027e83c500825ba518b273a5949",
+      "verification": "node --test tools/osdcloud-console/test/windows.test.js tools/osdcloud-console/test/runtimeArtifacts.test.js; node --test tools/osdcloud-console/test/webUi.test.js tools/osdcloud-console/test/webServer.test.js; npm run smoke; node --check tools/osdcloud-console/src/windows.js; powershell.exe -File tools/Restore-DeploymentArtifacts.ps1 -DryRun -SkipPrerequisiteCheck -SkipOsImageDownload -SkipWinPeBuild; git diff --check"
+    }
+  ]
+}

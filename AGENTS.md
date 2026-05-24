@@ -68,6 +68,14 @@ Fresh-clone / new-host rules:
 - Treat committed `config\osdcloud-console.json` as the last synced lab snapshot, not as a guaranteed production endpoint. New-host setup and Web endpoint selection should write ignored local overlay state, not force the operator to commit local machine endpoint settings.
 - When updating setup or deployment docs, keep the README `新主機 Clone 後啟動流程` current so another operator can clone, run lightweight setup, choose the Web service IP, follow the Web initialization wizard for secrets/runtime/endpoint/OS image/profile/preflight, manually start services, and validate completion without reading prior chats.
 
+Production-host development and test isolation:
+
+- On this host, `C:\Users\davis\Documents\Codex\osdcloud-project\` is the development workspace copied from the development environment. Continue editing code, docs, tests, and Git history only in this development workspace.
+- `C:\osdcloud-win11-deployment-lab\` is a separate Git clone used to simulate the production deployment environment. Do not edit code directly there. After pushing from the development workspace, pull this deployment clone and run deployment-facing tests from that clone only.
+- `C:\OSDCloud\` remains the product-managed runtime/install root encoded in the project. Deployment commands may create or update it through the normal Web/runtime/PXE workflow, but agents must not manually patch, copy into, or directly edit files under `C:\OSDCloud`.
+- If deployment testing fails, return to the development workspace, pull/check handoff state, modify code there, commit and push, then update the deployment clone before retesting. Do not hotfix the deployment clone or runtime root.
+- `.ai/status.json` is tracked project status for this repository. It should record the development workspace, deployment clone, runtime root, and canonical GitHub repo, while live Git state remains the source of truth for exact current HEAD.
+
 Local account:
 
 ```text
@@ -549,12 +557,18 @@ For portability/setup changes, also update the README `交接快速流程` and `
 
 Use Git to track docs and process definitions in this workspace.
 
-After every code change, finish by updating the related documentation and Git state in the same workflow. Do not leave a code-only diff unless the user explicitly scoped the task to read-only inspection or a throwaway experiment. Update the applicable docs, such as `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, `osdcloud-assets`, or feature-specific docs; run the relevant verification for the changed surface; and create a local commit whose staged set includes the code, docs, tests, and synchronized assets required by that change. After creating a code-change commit, verify remotes and branch tracking, then push the commit to the explicit upstream remote/branch for this repository. This push requirement is project-local to this workspace and does not apply to unrelated repositories. For documentation-only or process-only updates, push only when the user explicitly requests it, the task is a handoff/release, or another existing repo rule requires it.
+Before evaluating, planning, or editing in the development workspace, run `git status --short --branch`. If there are unexpected uncommitted changes, report them and stop before pulling. If the only changes are expected for the current task, run `git pull --ff-only origin-github master`, then read `.ai/status.json` and `git log --all --notes --decorate --date=iso --max-count=10 --format=fuller` before proceeding. If the pull brings in new commits, summarize them and re-evaluate the task against the updated tree.
+
+After every code change, finish by updating the related documentation and Git state in the same workflow. Do not leave a code-only diff unless the user explicitly scoped the task to read-only inspection or a throwaway experiment. Update the applicable docs, such as `README.md`, `OSDCloud-Win11-Automated-Deployment-Test-Report.md`, `AGENTS.md`, `osdcloud-assets`, or feature-specific docs; run the relevant development-workspace verification for the changed surface; and create a local commit whose staged set includes the code, docs, tests, synchronized assets, and `.ai/status.json` updates required by that change. After creating a code-change commit, verify remotes and branch tracking, then push the commit to `origin-github/master` for this repository. This push requirement is project-local to this workspace and does not apply to unrelated repositories. For documentation-only or process-only updates, push when the user explicitly requests it, the task is a handoff/release, or another existing repo rule requires it.
+
+After pushing from the development workspace, switch to `C:\osdcloud-win11-deployment-lab\`, verify it is clean, run `git pull --ff-only origin master`, and confirm its HEAD matches the pushed development commit before any Web/runtime/PXE/deployment test. Deployment-facing tests must start from the deployment clone, not from `C:\Users\davis\Documents\Codex\osdcloud-project\`.
 
 At the start of every new conversation in this workspace, before planning or editing, check for handoff context that may have been written by other agents:
 
 ```powershell
 git status --short --branch
+git pull --ff-only origin-github master
+Get-Content .ai/status.json -Raw
 git log --all --notes --decorate --date=iso --max-count=10 --format=fuller
 ```
 
@@ -565,6 +579,7 @@ Track these files by default:
 ```text
 README.md
 AGENTS.md
+.ai/status.json
 OSDCloud-Win11-Automated-Deployment-Test-Report.md
 tools\Invoke-IpxeTimingRun.ps1
 Setup-DeploymentServer.cmd
