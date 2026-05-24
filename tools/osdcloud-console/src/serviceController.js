@@ -324,6 +324,25 @@ function runtimeInitializationDetailItems(runtime) {
   return items.length > 0 ? items : undefined;
 }
 
+function runtimeReadinessFailureMessage(readiness) {
+  const missing = Array.isArray(readiness?.missing) ? readiness.missing : [];
+  if (missing.length === 0) {
+    return 'Runtime prepare finished, but runtime readiness is still blocked.';
+  }
+  const details = missing.slice(0, 5).map((artifact) => {
+    const target = Array.isArray(artifact.targets) ? artifact.targets[0] : null;
+    const targetText = target
+      ? `${target.reason ?? 'not-ready'}${target.filePath ? ` ${target.filePath}` : ''}`
+      : (artifact.status ?? 'not-ready');
+    const blockedBy = Array.isArray(artifact.blockedBy) && artifact.blockedBy.length > 0
+      ? ` blocked by ${artifact.blockedBy.map((dependency) => dependency.name ?? dependency.id).join(', ')}`
+      : '';
+    return `${artifact.name ?? artifact.id}: ${targetText}${blockedBy}`;
+  });
+  const remaining = missing.length > details.length ? `; ${missing.length - details.length} more` : '';
+  return `Runtime prepare finished, but ${missing.length} artifact group(s) are still not ready: ${details.join('; ')}${remaining}`;
+}
+
 function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight }) {
   const web = webServerConfig(config);
   const webReady = Boolean(web.host) && Number.isInteger(web.port) && web.port >= 0;
@@ -884,6 +903,9 @@ export class ServiceController extends EventEmitter {
           onOutput: stream.write,
         });
         const readiness = this.dependencies.getRuntimeReadiness(this.config);
+        if (readiness.ready !== true) {
+          throw errorWithStatus(runtimeReadinessFailureMessage(readiness), 500);
+        }
         return {
           output,
           readiness,

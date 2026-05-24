@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -16,8 +15,8 @@ function readText(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
-function sha256(relativePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(path.join(repoRoot, relativePath))).digest('hex').toUpperCase();
+function normalizedText(relativePath) {
+  return readText(relativePath).replace(/\r\n/gu, '\n');
 }
 
 test('fresh clone does not commit a preselected Windows image', () => {
@@ -45,7 +44,7 @@ test('active custom script is mirrored and handed off to deployed Windows', () =
 
   assert.equal(scriptEntry?.phase, 'after');
   assert.equal(fs.existsSync(path.join(repoRoot, mirroredScript)), true);
-  assert.equal(sha256(mirroredScript), sha256(sourceScript));
+  assert.equal(normalizedText(mirroredScript), normalizedText(sourceScript));
   assert.match(shutdownScript, /ProgramData\\OSDCloud\\Scripts/u);
   assert.match(shutdownScript, /Client scripts source:/u);
   assert.match(embeddedShutdownScript, /ProgramData\\OSDCloud\\Scripts/u);

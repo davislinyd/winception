@@ -894,3 +894,53 @@ test('runtime readiness is exposed and prepare runtime runs without starting ser
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('prepare runtime fails when post-prepare readiness is still blocked', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-runtime-blocked-'));
+  try {
+    const blockedReadiness = {
+      ready: false,
+      requiredCount: 1,
+      readyCount: 0,
+      missingCount: 1,
+      missing: [{
+        id: 'boot-wim',
+        name: 'WinPE boot image',
+        kind: 'winpe',
+        sourceType: 'generated-winpe',
+        status: 'blocked',
+        prepareGroup: 'winpe-workspace',
+        prepareReason: 'Build from ADK WinPE template',
+        blockedBy: [],
+        targets: [
+          { reason: 'size-mismatch', filePath: 'C:\\OSDCloud\\Media\\sources\\boot.wim' },
+        ],
+      }],
+      artifacts: [],
+    };
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        getRuntimeReadiness: () => blockedReadiness,
+        prepareRuntimeArtifacts: async (_config, options = {}) => {
+          options.onOutput?.('restore completed\n', 'stdout');
+          return 'restore completed';
+        },
+      },
+    });
+
+    await assert.rejects(
+      () => controller.prepareRuntime(),
+      /Runtime prepare finished, but 1 artifact group\(s\) are still not ready: WinPE boot image: size-mismatch C:\\OSDCloud\\Media\\sources\\boot\.wim/u,
+    );
+    const state = controller.getState();
+    assert.equal(state.operation.status, 'failed');
+    assert.match(state.operation.error, /WinPE boot image: size-mismatch/u);
+    assert.equal(services.http.running, false);
+    assert.equal(services.tftp.running, false);
+    assert.equal(services.dhcp.running, false);
+    assert.match(controller.getLogs().join('\n'), /restore completed/);
+    assert.match(controller.getLogs().join('\n'), /Preparing runtime artifacts failed/u);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
