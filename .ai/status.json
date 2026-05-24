@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-24T21:45:51+08:00",
+  "updated_at": "2026-05-24T21:58:44+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -21,7 +21,7 @@
     }
   },
   "development": {
-    "state": "deployment-services-running-test-result-documented",
+    "state": "test-result-runbook-pushed",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin-github",
@@ -51,9 +51,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin-github/master",
-    "last_checked_head": "84b585849baa4feedc4201f1673d272b697be02f",
-    "last_checked_head_short": "84b5858",
-    "dirty": true,
+    "last_checked_head": "77e453a3fa985a32f272cbba3f1bf2895c4308c2",
+    "last_checked_head_short": "77e453a",
+    "dirty": false,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -66,10 +66,10 @@
     "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
   },
   "workspace": {
-    "dirty_excludes_status_file": true,
+    "dirty_excludes_status_file": false,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": true
+    "status_file_uncommitted": false
   },
   "required_workflow": {
     "before_development_work": [
@@ -92,6 +92,14 @@
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260524215844-push-test-result-runbook",
+      "at": "2026-05-24T21:58:44+08:00",
+      "kind": "push",
+      "summary": "Pushed the zero-to-one deployment test result runbook and agent reference documentation to origin-github/master.",
+      "commit": "77e453a3fa985a32f272cbba3f1bf2895c4308c2",
+      "verification": "git push -u origin-github master; git ls-remote --heads origin-github"
+    },
     {
       "id": "20260524214551-docs-test-result-runbook",
       "at": "2026-05-24T21:45:51+08:00",
@@ -123,13 +131,6 @@
       "summary": "Deployment clone pulled 84b5858, Web runtime readiness passed, Windows 11 Pro 25H2 zh-TW WIM was downloaded/exported, and the active profile was published; preflight is blocked only by unavailable endpoint 192.168.100.1.",
       "commit": "84b585849baa4feedc4201f1673d272b697be02f",
       "verification": "Web /api/state runtime 10/10 ready; OS image cache exported 26200.6584 zh-tw WIM; /api/profile/software published selected-os.json and profile payload; preflight failed Service IP/UDP67/UDP69/TCP80 because vEthernet 192.168.100.1 is absent; no HTTP/TFTP/DHCP services started"
-    },
-    {
-      "id": "20260524205756-code-runtime-generated-winpe",
-      "at": "2026-05-24T20:57:56+08:00",
-      "kind": "code",
-      "summary": "Adjusted runtime readiness so generated WinPE boot.wim is required by path but not pinned to host-specific size/hash.",
-      "verification": "node --check runtimeArtifacts.js; JSON parse runtime-artifacts.json; node --test runtimeArtifacts.test.js; npm test; npm run smoke"
     }
   ]
 }
