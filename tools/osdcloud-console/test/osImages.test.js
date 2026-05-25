@@ -165,6 +165,7 @@ test('OS image download uses staging and does not overwrite cached files', async
     assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'install.wim'), 'utf8'), 'install image');
 
     const body = Buffer.from('downloaded source image');
+    const progressEvents = [];
     const downloaded = await downloadOsImageFromCatalogItem(config, {
       id: 'SMOKE-DOWNLOAD-PRO',
       name: 'Smoke Download Pro',
@@ -185,6 +186,7 @@ test('OS image download uses staging and does not overwrite cached files', async
       exportImageToWim: async (source, destination) => {
         fs.writeFileSync(destination, `${fs.readFileSync(source, 'utf8')} exported`, 'utf8');
       },
+      onProgress: (progress) => progressEvents.push(progress),
       validateImage: false,
     });
     assert.equal(downloaded.status, 'downloaded');
@@ -194,6 +196,15 @@ test('OS image download uses staging and does not overwrite cached files', async
     assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'download.wim'), 'utf8'), 'downloaded source image exported');
     assert.deepEqual(fs.readdirSync(config.osImage.downloadStagingRoot), []);
     assert.match(fs.readFileSync(path.join(config.osImage.cacheRoot, 'os-image-cache.jsonl'), 'utf8'), /SMOKE-DOWNLOAD-PRO/);
+    assert.deepEqual(progressEvents.map((event) => event.phase), [
+      'downloading-source',
+      'download-complete',
+      'verifying-source',
+      'exporting-wim',
+      'verifying-wim',
+      'caching',
+    ]);
+    assert.equal(progressEvents.find((event) => event.phase === 'exporting-wim').message, 'Exporting deployable WIM with DISM. This can take several minutes.');
 
     await assert.rejects(() => downloadOsImageFromCatalogItem(config, {
       id: 'BAD-HOST',

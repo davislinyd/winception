@@ -11,6 +11,7 @@ const state = {
   osDownloadCatalogError: null,
   osDownloadCatalogFilters: null,
   osDownloadStarting: false,
+  refreshError: null,
   osImportInspection: null,
   busy: false,
   clientFleetSignature: '',
@@ -215,6 +216,52 @@ function bytes(value) {
   return `${current.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+function osDownloadBytes(status) {
+  const total = status?.totalBytes ? ` / ${bytes(status.totalBytes)}` : '';
+  return `${bytes(status?.bytes)}${total}`;
+}
+
+function osDownloadStatusText(status) {
+  if (!status) {
+    return '';
+  }
+  if (status.status === 'failed') {
+    return `Failed: ${text(status.error, 'unknown error')}`;
+  }
+  if (status.status === 'downloaded' || status.status === 'cache-hit') {
+    return `Cached ${text(status.fileName ?? status.catalogId)}.`;
+  }
+  if (status.phase === 'downloading-source') {
+    return `Downloading source image ${osDownloadBytes(status)}`;
+  }
+  if (status.phase === 'download-complete') {
+    return 'Download complete; preparing image...';
+  }
+  if (status.message) {
+    return status.message;
+  }
+  if (status.status === 'starting') {
+    return 'Starting OS image download...';
+  }
+  return `${text(status.status)} ${text(status.fileName ?? status.catalogId)} ${osDownloadBytes(status)}`;
+}
+
+function osDownloadButtonText(status) {
+  if (!status || status.status === 'starting' || status.phase === 'starting') {
+    return 'Starting...';
+  }
+  if (status.phase === 'downloading-source') {
+    return `Downloading ${osDownloadBytes(status)}`;
+  }
+  if (status.phase === 'exporting-wim') {
+    return 'Exporting WIM...';
+  }
+  if (status.running) {
+    return 'Processing...';
+  }
+  return status.status === 'failed' ? 'Failed' : 'Download';
+}
+
 function osImageLabel(image) {
   if (!image) {
     return '-';
@@ -289,10 +336,17 @@ async function api(path, options = {}) {
 
 async function refresh() {
   const query = state.selectedRunId ? `?runId=${encodeURIComponent(state.selectedRunId)}` : '';
-  const payload = await api(`/api/state${query}`);
-  state.current = payload.state;
-  state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
-  render();
+  try {
+    const payload = await api(`/api/state${query}`);
+    state.current = payload.state;
+    state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
+    state.refreshError = null;
+    render();
+  } catch (error) {
+    state.refreshError = error.message;
+    render();
+    throw error;
+  }
 }
 
 async function loadInterfaces() {
@@ -1263,8 +1317,9 @@ function renderOsDownloadStatus(appState) {
   }
   const status = appState.osDownloadStatus;
   if (status) {
-    const total = status.totalBytes ? ` / ${bytes(status.totalBytes)}` : '';
-    elements.osDownloadStatus.textContent = `${text(status.status)} ${text(status.fileName ?? status.catalogId)} ${bytes(status.bytes)}${total}`;
+    elements.osDownloadStatus.textContent = status.running && state.refreshError
+      ? 'Connection to Web console lost; status may be stale.'
+      : osDownloadStatusText(status);
     return;
   }
   if (!readiness.ready) {
@@ -1494,10 +1549,7 @@ function renderOsImages(appState) {
     if (downloadRunning) {
       button.disabled = true;
       if (downloadStatus?.catalogId === image.id) {
-        const total = downloadStatus.totalBytes ? ` / ${bytes(downloadStatus.totalBytes)}` : '';
-        button.textContent = downloadStatus.status === 'starting'
-          ? 'Starting...'
-          : `Downloading ${bytes(downloadStatus.bytes)}${total}`;
+        button.textContent = osDownloadButtonText(downloadStatus);
         button.dataset.icon = 'hourglass_top';
       }
     }

@@ -1395,6 +1395,8 @@ function createProgressTransform(progress) {
       progress.bytes += chunk.length;
       progress.onProgress?.({
         status: 'downloading',
+        phase: 'downloading-source',
+        message: 'Downloading source image...',
         bytes: progress.bytes,
         totalBytes: progress.totalBytes,
         fileName: progress.fileName,
@@ -1424,7 +1426,7 @@ async function downloadToFile(url, destination, options = {}) {
   const progress = {
     bytes: 0,
     totalBytes,
-    fileName: path.basename(destination),
+    fileName: options.fileName ?? path.basename(destination),
     startedAt: new Date().toISOString(),
     onProgress: options.onProgress,
   };
@@ -1441,6 +1443,8 @@ async function downloadToFile(url, destination, options = {}) {
     progress.bytes = body.length;
     progress.onProgress?.({
       status: 'downloading',
+      phase: 'downloading-source',
+      message: 'Downloading source image...',
       bytes: progress.bytes,
       totalBytes,
       fileName: progress.fileName,
@@ -1487,6 +1491,15 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
       size: existingStat.size,
       sha256: await sha256File(destination),
     };
+    options.onProgress?.({
+      status: 'cache-hit',
+      phase: 'cache-hit',
+      message: `Cached ${cached.fileName}.`,
+      bytes: cached.size,
+      totalBytes: cached.size,
+      fileName: cached.fileName,
+      imageId: cached.id,
+    });
     upsertCatalogImage(config, cached, options);
     appendCacheLog(config, { status: 'cache-hit', imageId: cached.id, fileName: cached.fileName, bytes: cached.size }, options);
     return { status: 'cache-hit', image: cached, filePath: destination, bytes: cached.size };
@@ -1500,10 +1513,27 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
     await downloadToFile(sourceImage.url, sourceStagingPath, {
       config,
       fetchImpl: options.fetchImpl,
+      fileName: sourceImage.fileName,
       microsoftDownloadHosts: options.microsoftDownloadHosts,
       onProgress: options.onProgress,
     });
     const stat = fs.statSync(sourceStagingPath);
+    options.onProgress?.({
+      status: 'downloading',
+      phase: 'download-complete',
+      message: 'Download complete; preparing image...',
+      bytes: stat.size,
+      totalBytes: sourceImage.size || stat.size,
+      fileName: sourceImage.fileName,
+    });
+    options.onProgress?.({
+      status: 'downloading',
+      phase: 'verifying-source',
+      message: 'Verifying source image...',
+      bytes: stat.size,
+      totalBytes: sourceImage.size || stat.size,
+      fileName: sourceImage.fileName,
+    });
     if (stat.size <= 0) {
       throw new Error('OS image download produced an empty file');
     }
@@ -1523,11 +1553,35 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
       }
     }
     if (options.validateImage !== false) {
+      options.onProgress?.({
+        status: 'downloading',
+        phase: 'inspecting-source',
+        message: 'Inspecting source image with DISM...',
+        bytes: stat.size,
+        totalBytes: sourceImage.size || stat.size,
+        fileName: sourceImage.fileName,
+      });
       await validateImageIndex(sourceStagingPath, sourceImage.imageIndex, options);
     }
 
+    options.onProgress?.({
+      status: 'downloading',
+      phase: 'exporting-wim',
+      message: 'Exporting deployable WIM with DISM. This can take several minutes.',
+      bytes: stat.size,
+      totalBytes: sourceImage.size || stat.size,
+      fileName: image.fileName,
+    });
     await exportImageToWim(sourceStagingPath, exportStagingPath, sourceImage.imageIndex, options);
     const exportStat = fs.statSync(exportStagingPath);
+    options.onProgress?.({
+      status: 'downloading',
+      phase: 'verifying-wim',
+      message: 'Verifying exported deployable WIM...',
+      bytes: exportStat.size,
+      totalBytes: exportStat.size,
+      fileName: image.fileName,
+    });
     if (exportStat.size <= 0) {
       throw new Error('OS image export produced an empty WIM');
     }
@@ -1541,6 +1595,15 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
       sourceSize: stat.size,
       sourceSha256: sourceSha256 || sourceImage.sha256,
     };
+    options.onProgress?.({
+      status: 'downloading',
+      phase: 'caching',
+      message: 'Caching deployable WIM...',
+      bytes: finalImage.size,
+      totalBytes: finalImage.size,
+      fileName: finalImage.fileName,
+      imageId: finalImage.id,
+    });
     fs.renameSync(exportStagingPath, destination);
     upsertCatalogImage(config, finalImage, options);
     appendCacheLog(config, { status: 'downloaded', imageId: finalImage.id, fileName: finalImage.fileName, bytes: finalImage.size }, options);

@@ -304,6 +304,7 @@ http://127.0.0.1:8080
 - `Select service interface` 會先開啟 endpoint settings drawer 並背景載入 live Windows 介面清單；真正選定並同步 endpoint 時，才會停止 running services、更新 ignored local overlay、同步 live `boot.ipxe`、WinPE endpoint、published `boot.wim`、SMB firewall 與 `osdcloud-assets`。
 - `Select deployment profile` 會停止 running services，依 profile 內 `software` 陣列順序重建 live `C:\OSDCloud\Media\OSDCloud\Apps` payload，並要求 profile 已綁定可部署 WIM 才能同步發佈 `selected-os.json`。
 - `OS Image Cache` 會下載或匯入 Windows ISO/ESD/WIM 到 host cache，讀取 DISM indexes，讓 operator 選定 index 後匯出成單一 `.wim`。fresh clone 可以沒有 active OS；要切換實際 deploy 的 OS，請先完成匯出，再在 `Deployment Profiles` 編輯 active profile 的 `osImage` 或切換到綁定其他 OS image 的 profile。被任何 profile 引用的 OS image 不能刪除。
+- 大型 OS image acquisition 在 network download 顯示 100% 後，仍會繼續做本機 size/hash 驗證、DISM source inspection、deployable WIM export、output verification 與 cache finalize；Web 會用階段文字顯示這些後處理狀態。
 - `Clear status files` 會清除 configured status root 內的 JSON/JSONL/screenshot metadata。
 - `Start DHCP` / `Start all services` 不改檔案，但會讓 host DHCP responder 開始回答 client；只有確認真實 LAN DHCP server 已停用後才執行。
 

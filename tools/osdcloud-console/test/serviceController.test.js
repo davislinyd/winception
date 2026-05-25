@@ -627,6 +627,8 @@ test('OS image download runs as a recoverable background job', async () => {
           downloadedCatalogId = catalogId;
           options.onProgress?.({
             status: 'downloading',
+            phase: 'downloading-source',
+            message: 'Downloading source image...',
             bytes: 12,
             totalBytes: 100,
             fileName: 'download.esd',
@@ -653,6 +655,8 @@ test('OS image download runs as a recoverable background job', async () => {
     let downloadStatus = controller.getState().osDownloadStatus;
     assert.equal(downloadedCatalogId, 'SMOKE-DOWNLOAD-PRO');
     assert.equal(downloadStatus.status, 'downloading');
+    assert.equal(downloadStatus.phase, 'downloading-source');
+    assert.equal(downloadStatus.message, 'Downloading source image...');
     assert.equal(downloadStatus.bytes, 12);
     assert.equal(downloadStatus.totalBytes, 100);
     assert.equal(downloadStatus.running, true);
@@ -666,6 +670,8 @@ test('OS image download runs as a recoverable background job', async () => {
     assert.equal(downloaded.status, 'downloaded');
     downloadStatus = controller.getState().osDownloadStatus;
     assert.equal(downloadStatus.status, 'downloaded');
+    assert.equal(downloadStatus.phase, 'downloaded');
+    assert.equal(downloadStatus.message, 'Cached download.esd.');
     assert.equal(downloadStatus.running, false);
     assert.equal(downloadStatus.imageId, 'SMOKE-DOWNLOAD-PRO');
     assert.equal(downloadStatus.fileName, 'download.esd');
@@ -682,6 +688,12 @@ test('OS image background download failure records state without changing active
     const { controller } = makeController(root, {
       dependencies: {
         downloadOsImageFromCatalog: async () => {
+          controller.osDownloadStatus = {
+            ...controller.osDownloadStatus,
+            status: 'downloading',
+            phase: 'exporting-wim',
+            message: 'Exporting deployable WIM with DISM. This can take several minutes.',
+          };
           throw new Error('download exploded');
         },
       },
@@ -693,6 +705,8 @@ test('OS image background download failure records state without changing active
 
     const downloadStatus = controller.getState().osDownloadStatus;
     assert.equal(downloadStatus.status, 'failed');
+    assert.equal(downloadStatus.phase, 'exporting-wim');
+    assert.equal(downloadStatus.message, 'Exporting deployable WIM with DISM. This can take several minutes.');
     assert.equal(downloadStatus.running, false);
     assert.equal(downloadStatus.error, 'download exploded');
     assert.equal(controller.getState().osImage.activeImage?.id, before);

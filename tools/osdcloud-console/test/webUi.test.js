@@ -242,7 +242,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /osDownloadStarting/);
   assert.match(script, /\/api\/os-download/);
   assert.match(script, /Starting\.\.\./);
-  assert.match(script, /Downloading \$\{bytes\(downloadStatus\.bytes\)\}/);
+  assert.match(script, /osDownloadStatusText/);
+  assert.match(script, /Downloading source image \$\{osDownloadBytes\(status\)\}/);
+  assert.match(script, /return status\.message/);
+  assert.match(script, /Exporting WIM\.\.\./);
+  assert.match(script, /Connection to Web console lost; status may be stale\./);
   assert.doesNotMatch(script, /mutate\('\/api\/os-download'/);
   assert.match(script, /handleOsImageUploadInspect/);
   assert.match(script, /handleOsImageImport/);
