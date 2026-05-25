@@ -98,6 +98,12 @@ function makeOutputLogger(writeLine, prefix, options = {}) {
   };
 }
 
+function softwarePayloadLogLines(payloads = []) {
+  return payloads
+    .filter((payload) => payload?.status === 'reused' || payload?.status === 'downloaded')
+    .map((payload) => `Software payload ${payload.status}: ${payload.id}`);
+}
+
 function serviceSummary(service, config) {
   return {
     running: Boolean(service?.running),
@@ -1028,6 +1034,9 @@ export class ServiceController extends EventEmitter {
       this.config.deploymentProfiles.activeProfile = result.profile.id;
       const savedPath = this.dependencies.saveConfig(this.config);
       this.addLog(`Published deployment profile ${result.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+      for (const line of softwarePayloadLogLines(result.softwarePayloads)) {
+        this.addLog(line);
+      }
       if (result.osImage?.image) {
         this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
       }
@@ -1325,6 +1334,9 @@ export class ServiceController extends EventEmitter {
         publishOsImage: this.dependencies.publishSelectedOsImage,
       });
       this.addLog(`Saved deployment profile ${updated.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+      for (const line of softwarePayloadLogLines(result.softwarePayloads)) {
+        this.addLog(line);
+      }
       if (result.osImage?.image) {
         this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
       }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { mediaHttpServerConfig } from './config.js';
 import {
   createDeploymentProfile,
@@ -30,6 +31,10 @@ const customScriptsRoot = path.join(root, 'Scripts');
 const customScriptsAppsRoot = path.join(root, 'Media', 'Scripts');
 const customScriptsCatalogPath = path.join(root, 'scripts-catalog.json');
 const driverPackFileName = 'PA14250-YWNJX_Win11_1.0_A06.exe';
+function sha256Text(value) {
+  return createHash('sha256').update(value).digest('hex').toUpperCase();
+}
+
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
   'base64',
@@ -49,10 +54,26 @@ fs.mkdirSync(customScriptsRoot, { recursive: true });
 fs.writeFileSync(path.join(root, 'Install-Apps.ps1'), "Write-Host 'smoke installer'\n", 'utf8');
 fs.writeFileSync(path.join(softwareRoot, 'smoke-app', 'install.ps1'), "Write-Host 'smoke app'\n", 'utf8');
 fs.writeFileSync(path.join(softwareRoot, 'smoke-extra', 'install.ps1'), "Write-Host 'smoke extra'\n", 'utf8');
+fs.writeFileSync(path.join(softwareRoot, 'smoke-app', 'smoke-app.msi'), 'smoke-app installer', 'utf8');
+fs.writeFileSync(path.join(softwareRoot, 'smoke-extra', 'smoke-extra.msi'), 'smoke-extra installer', 'utf8');
 fs.writeFileSync(path.join(root, 'software-catalog.json'), JSON.stringify({
   software: [
-    { id: 'smoke-app', name: 'Smoke App', source: 'smoke-app' },
-    { id: 'smoke-extra', name: 'Smoke Extra', source: 'smoke-extra' },
+    {
+      id: 'smoke-app',
+      name: 'Smoke App',
+      source: 'smoke-app',
+      installerFileName: 'smoke-app.msi',
+      installerBytes: Buffer.byteLength('smoke-app installer'),
+      installerSha256: sha256Text('smoke-app installer'),
+    },
+    {
+      id: 'smoke-extra',
+      name: 'Smoke Extra',
+      source: 'smoke-extra',
+      installerFileName: 'smoke-extra.msi',
+      installerBytes: Buffer.byteLength('smoke-extra installer'),
+      installerSha256: sha256Text('smoke-extra installer'),
+    },
   ],
 }, null, 2));
 fs.writeFileSync(customScriptsCatalogPath, JSON.stringify({ scripts: [] }, null, 2));

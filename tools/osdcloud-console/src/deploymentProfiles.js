@@ -41,6 +41,7 @@ function deploymentProfileDefaults(root) {
     installerScript: path.join(root, 'Softwares', 'Install-Apps.ps1'),
     softwareUploadRoot: path.join(root, '.osdcloud-console', 'software-uploads'),
     softwareUploadMaxBytes: defaultSoftwareUploadMaxBytes,
+    softwarePayloadStagingRoot: path.join(root, '.downloads', 'software-payloads'),
     customScriptsCatalogPath: path.join(root, 'config', 'scripts-catalog.json'),
     customScriptsSourceRoot: path.join(root, 'Scripts'),
     customScriptsAppsRoot: 'C:\\OSDCloud\\Media\\OSDCloud\\Scripts',
@@ -328,6 +329,7 @@ function softwareInstallMetadata(row, sourcePath, installScript) {
     verificationMode,
     installerBytes,
     installerSha256: maybeString(row.installerSha256 ?? row.sha256),
+    downloadUrl: maybeString(row.downloadUrl),
   };
 }
 
@@ -460,6 +462,7 @@ export function deploymentProfileOptions(config = {}, overrides = {}) {
     softwareUploadMaxBytes: Number(section.softwareUploadMaxBytes) > 0
       ? Number(section.softwareUploadMaxBytes)
       : defaultSoftwareUploadMaxBytes,
+    softwarePayloadStagingRoot: resolveConfiguredPath(root, section.softwarePayloadStagingRoot),
     customScriptsCatalogPath: resolveConfiguredPath(root, section.customScriptsCatalogPath),
     customScriptsSourceRoot: resolveConfiguredPath(root, section.customScriptsSourceRoot),
     customScriptsAppsRoot: resolveConfiguredPath(root, section.customScriptsAppsRoot),
@@ -562,6 +565,154 @@ function hashFile(filePath, algorithm = 'sha256') {
 }
 
 const sha256File = (filePath) => hashFile(filePath, 'sha256');
+
+function formatSoftwarePayloadIssue(result) {
+  if (result.reason === 'size-mismatch') {
+    return `size ${result.actualLength} expected ${result.expectedLength}`;
+  }
+  if (result.reason === 'hash-mismatch') {
+    return `sha256 ${result.actualSha256} expected ${result.expectedSha256}`;
+  }
+  return result.reason;
+}
+
+function softwarePayloadTarget(software) {
+  const installerFileName = cleanSoftwareInstallerFileName(software.installerFileName, `software ${software.id} installerFileName`);
+  const installerPath = assertInside(
+    software.sourcePath,
+    path.join(software.sourcePath, installerFileName),
+    `Software ${software.id} installer path`,
+  );
+  return { installerFileName, installerPath };
+}
+
+async function inspectSoftwarePayload(software, installerPath) {
+  if (!fs.existsSync(installerPath)) {
+    return { ok: false, reason: 'missing', filePath: installerPath };
+  }
+  const stat = fs.statSync(installerPath);
+  if (!stat.isFile()) {
+    return { ok: false, reason: 'not-file', filePath: installerPath };
+  }
+  if (software.installerBytes && stat.size !== software.installerBytes) {
+    return {
+      ok: false,
+      reason: 'size-mismatch',
+      filePath: installerPath,
+      actualLength: stat.size,
+      expectedLength: software.installerBytes,
+    };
+  }
+  if (software.installerSha256) {
+    const actualSha256 = await sha256File(installerPath);
+    if (actualSha256 !== software.installerSha256) {
+      return {
+        ok: false,
+        reason: 'hash-mismatch',
+        filePath: installerPath,
+        actualSha256,
+        expectedSha256: software.installerSha256,
+      };
+    }
+  }
+  return { ok: true, reason: 'matches', filePath: installerPath, length: stat.size };
+}
+
+function softwareDownloadUrl(software) {
+  const text = maybeString(software.downloadUrl);
+  if (!text) {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = new URL(text);
+  } catch {
+    throw new Error(`Invalid downloadUrl for software ${software.id}: ${text}`);
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error(`Invalid downloadUrl protocol for software ${software.id}: ${parsed.protocol}`);
+  }
+  return parsed.toString();
+}
+
+async function downloadSoftwarePayload(software, targetPath, options = {}) {
+  const fetchFn = options.fetch ?? globalThis.fetch;
+  if (typeof fetchFn !== 'function') {
+    throw new Error('Software payload download requires fetch support');
+  }
+  const url = softwareDownloadUrl(software);
+  if (!url) {
+    throw new Error(`Software ${software.id} has no downloadUrl`);
+  }
+  const response = await fetchFn(url);
+  if (!response.ok) {
+    throw new Error(`Download failed for software ${software.id}: HTTP ${response.status}`);
+  }
+  if (!response.body) {
+    throw new Error(`Download failed for software ${software.id}: empty response body`);
+  }
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(targetPath));
+  return { filePath: targetPath };
+}
+
+async function ensureSoftwarePayload(software, profileOptions, options = {}) {
+  if (!software.installerFileName) {
+    throw new Error(`Selected software ${software.id} has no installerFileName in software catalog`);
+  }
+  const { installerFileName, installerPath } = softwarePayloadTarget(software);
+  const existing = await inspectSoftwarePayload(software, installerPath);
+  if (existing.ok) {
+    return { id: software.id, status: 'reused', filePath: installerPath, bytes: existing.length };
+  }
+
+  const downloadUrl = softwareDownloadUrl(software);
+  if (!downloadUrl) {
+    throw new Error(
+      `Selected software payload ${formatSoftwarePayloadIssue(existing)} for ${software.id} (${software.source}\\${installerFileName}) and no downloadUrl is configured`,
+    );
+  }
+
+  const stagingRoot = assertInside(
+    profileOptions.softwarePayloadStagingRoot,
+    path.join(profileOptions.softwarePayloadStagingRoot, software.id),
+    `Software ${software.id} payload staging path`,
+  );
+  const stagingPath = assertInside(
+    stagingRoot,
+    path.join(stagingRoot, installerFileName),
+    `Software ${software.id} staged payload`,
+  );
+  fs.rmSync(stagingPath, { force: true });
+  const downloader = options.downloadSoftwarePayload ?? downloadSoftwarePayload;
+  const downloaded = await downloader(software, stagingPath, { fetch: options.fetch });
+  const downloadedPath = downloaded?.filePath ?? stagingPath;
+  const validation = await inspectSoftwarePayload(software, downloadedPath);
+  if (!validation.ok) {
+    throw new Error(
+      `Downloaded software payload failed validation for ${software.id} (${software.source}\\${installerFileName}): ${formatSoftwarePayloadIssue(validation)}`,
+    );
+  }
+
+  fs.mkdirSync(software.sourcePath, { recursive: true });
+  fs.copyFileSync(downloadedPath, installerPath);
+  const finalValidation = await inspectSoftwarePayload(software, installerPath);
+  if (!finalValidation.ok) {
+    throw new Error(
+      `Stored software payload failed validation for ${software.id} (${software.source}\\${installerFileName}): ${formatSoftwarePayloadIssue(finalValidation)}`,
+    );
+  }
+  return { id: software.id, status: 'downloaded', filePath: installerPath, bytes: finalValidation.length };
+}
+
+async function ensureSelectedSoftwarePayloads(state, options = {}) {
+  const payloads = [];
+  for (const software of state.selectedSoftware) {
+    const result = await ensureSoftwarePayload(software, state.options, options);
+    payloads.push(result);
+  }
+  return payloads;
+}
 
 function softwareUploadDirectory(profileOptions, uploadId) {
   const root = profileOptions.softwareUploadRoot;
@@ -1641,6 +1792,8 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
     throw new Error(`Install-Apps.ps1 source not found: ${state.options.installerScript}`);
   }
 
+  const softwarePayloads = await ensureSelectedSoftwarePayloads(state, options);
+
   let osImageResult = null;
   if (typeof options.publishOsImage === 'function') {
     osImageResult = await options.publishOsImage(
@@ -1694,6 +1847,7 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
     removed,
     osImage: osImageResult,
     customScripts: scriptsPublished,
+    softwarePayloads,
   };
 }
 

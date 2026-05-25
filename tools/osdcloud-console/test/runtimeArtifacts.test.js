@@ -24,7 +24,7 @@ function makeCatalog(root, body) {
   return catalogPath;
 }
 
-test('runtime artifact catalog validates download recipes and plans required artifacts', () => {
+test('runtime artifact catalog validates download recipes and ignores software rows', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-artifacts-'));
   try {
     const catalogPath = makeCatalog(root, {
@@ -67,15 +67,15 @@ test('runtime artifact catalog validates download recipes and plans required art
     });
 
     const catalog = loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath });
-    assert.equal(catalog.artifacts.length, 3);
+    assert.equal(catalog.artifacts.length, 2);
     assert.equal(catalog.artifacts[0].prepareGroup, 'winpe-workspace');
     assert.equal(catalog.artifacts[0].prepareReason, 'Builds test WinPE image');
     assert.deepEqual(catalog.artifacts[0].dependencyIds, []);
-    assert.deepEqual(catalog.checkOrder, ['boot-wim', 'optional-en-us', '7zip']);
-    assert.deepEqual(planRuntimeArtifacts(catalog).map((artifact) => artifact.id), ['boot-wim', '7zip']);
+    assert.deepEqual(catalog.checkOrder, ['boot-wim', 'optional-en-us']);
+    assert.deepEqual(planRuntimeArtifacts(catalog).map((artifact) => artifact.id), ['boot-wim']);
     assert.deepEqual(
       planRuntimeArtifacts(catalog, { includeOptional: true }).map((artifact) => artifact.id),
-      ['boot-wim', 'optional-en-us', '7zip'],
+      ['boot-wim', 'optional-en-us'],
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -459,6 +459,7 @@ test('runtime restore uses the base Web config path while preserving local overl
 
   assert.match(script, /\[string\] \$ConfigPath/);
   assert.match(script, /--config[\s\S]*\$ConfigPath/);
+  assert.doesNotMatch(script, /\$catalog\.software/);
   assert.match(windows, /function resolveBaseConfigPath/);
   assert.match(windows, /const baseConfigPath = resolveBaseConfigPath\(config, repoRoot\)/);
   assert.match(windows, /'-ConfigPath'[\s\S]*baseConfigPath/);
@@ -500,10 +501,12 @@ test('checked-in runtime artifact catalog is valid', () => {
   const catalog = loadRuntimeArtifactCatalog();
   assert.ok(catalog.artifacts.length >= 1);
   assert.equal(catalog.artifacts.some((artifact) => artifact.kind === 'osImage'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(catalog.raw, 'software'), false);
   const winpe = catalog.artifacts.find((artifact) => artifact.id === 'winpe-boot-wim');
   assert.equal(winpe.prepareGroup, 'winpe-workspace');
   assert.ok(catalog.artifacts.some((artifact) => artifact.dependencyIds.includes('winpe-boot-wim')));
-  assert.ok(catalog.artifacts.some((artifact) => artifact.id === '7zip' && artifact.prepareGroup === 'software-payloads'));
+  assert.equal(catalog.artifacts.some((artifact) => artifact.kind === 'software'), false);
+  assert.equal(catalog.artifacts.some((artifact) => artifact.prepareGroup === 'software-payloads'), false);
 });
 
 test('runtime restore creates SMB account password without Security module cmdlets', () => {

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   createCustomScript,
   createSoftwarePackage,
@@ -39,9 +40,26 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
+function sha256Text(value) {
+  return createHash('sha256').update(value).digest('hex').toUpperCase();
+}
+
+function catalogSoftware(id, name) {
+  const installerContent = `${id} installer`;
+  return {
+    id,
+    name,
+    source: id,
+    installerFileName: `${id}.msi`,
+    installerBytes: Buffer.byteLength(installerContent),
+    installerSha256: sha256Text(installerContent),
+  };
+}
+
 function writeSoftware(root, id, script = "Write-Host 'installed'\n") {
   const softwareRoot = path.join(root, 'Softwares', id);
   fs.mkdirSync(softwareRoot, { recursive: true });
+  fs.writeFileSync(path.join(softwareRoot, `${id}.msi`), `${id} installer`, 'utf8');
   fs.writeFileSync(path.join(softwareRoot, 'install.ps1'), script, 'utf8');
 }
 
@@ -61,6 +79,7 @@ function configFor(root, overrides = {}) {
       softwareSourceRoot: 'Softwares',
       appsRoot: path.join(root, 'Apps'),
       installerScript: 'Install-Apps.ps1',
+      softwarePayloadStagingRoot: path.join(root, '.downloads', 'software-payloads'),
       customScriptsCatalogPath: 'scripts-catalog.json',
       customScriptsSourceRoot: 'Scripts',
       customScriptsAppsRoot: path.join(root, 'Media', 'Scripts'),
@@ -78,8 +97,8 @@ function writeBaseFiles(root, options = {}) {
   writeInstallerScript(root);
   writeJson(path.join(root, 'software-catalog.json'), {
     software: options.catalog ?? [
-      { id: 'one', name: 'One App', source: 'one' },
-      { id: 'two', name: 'Two App', source: 'two' },
+      catalogSoftware('one', 'One App'),
+      catalogSoftware('two', 'Two App'),
     ],
   });
   writeJson(path.join(root, 'profiles', 'default.json'), options.defaultProfile ?? {
@@ -853,12 +872,180 @@ test('publishes only selected software and removes stale apps', async () => {
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'two', 'install.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'stale')), false);
     assert.deepEqual(result.copied, ['two', 'one']);
+    assert.deepEqual(result.softwarePayloads.map((payload) => `${payload.id}:${payload.status}`), ['two:reused', 'one:reused']);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
     assert.equal(manifest.profileId, 'default');
     assert.deepEqual(manifest.selectedSoftware, ['two', 'one']);
     assert.deepEqual(manifest.software.map((software) => software.id), ['two', 'one']);
     assert.equal(evaluateDeploymentProfilePayload(configFor(root)).ok, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('publishes Minimal profile without downloading software payloads', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Minimal',
+        software: [],
+        osImage: 'TEST-OS',
+      },
+    });
+    const result = await publishDeploymentProfile(configFor(root), null, {
+      downloadSoftwarePayload() {
+        throw new Error('download should not run');
+      },
+    });
+
+    assert.deepEqual(result.selectedSoftware, []);
+    assert.deepEqual(result.softwarePayloads, []);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'Install-Apps.ps1')), true);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'one')), false);
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
+    assert.deepEqual(manifest.selectedSoftware, []);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('profile publish downloads only missing selected software payloads', async () => {
+  const root = makeRoot();
+  try {
+    const downloadedContent = 'one payload from catalog';
+    writeBaseFiles(root, {
+      catalog: [{
+        ...catalogSoftware('one', 'One App'),
+        installerBytes: Buffer.byteLength(downloadedContent),
+        installerSha256: sha256Text(downloadedContent),
+        downloadUrl: 'https://example.test/one.msi',
+      }, catalogSoftware('two', 'Two App')],
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        osImage: 'TEST-OS',
+      },
+    });
+    fs.rmSync(path.join(root, 'Softwares', 'one', 'one.msi'));
+    const downloadedIds = [];
+
+    const result = await publishDeploymentProfile(configFor(root), null, {
+      downloadSoftwarePayload(software, stagingPath) {
+        downloadedIds.push(software.id);
+        fs.mkdirSync(path.dirname(stagingPath), { recursive: true });
+        fs.writeFileSync(stagingPath, downloadedContent, 'utf8');
+        return { filePath: stagingPath };
+      },
+    });
+
+    assert.deepEqual(downloadedIds, ['one']);
+    assert.deepEqual(result.copied, ['one']);
+    assert.deepEqual(result.softwarePayloads.map((payload) => `${payload.id}:${payload.status}`), ['one:downloaded']);
+    assert.equal(fs.readFileSync(path.join(root, 'Softwares', 'one', 'one.msi'), 'utf8'), downloadedContent);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'one', 'one.msi')), true);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'two')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('All in One publish restores only selected software payloads in profile order', async () => {
+  const root = makeRoot();
+  try {
+    for (const id of ['7zip', 'chrome', 'SW-4UT7PDID', 'unused']) {
+      writeSoftware(root, id);
+    }
+    writeInstallerScript(root);
+    writeJson(path.join(root, 'software-catalog.json'), {
+      software: [
+        catalogSoftware('7zip', '7-Zip'),
+        catalogSoftware('chrome', 'Chrome'),
+        catalogSoftware('SW-4UT7PDID', 'Notepad++'),
+        catalogSoftware('unused', 'Unused'),
+      ],
+    });
+    writeJson(path.join(root, 'profiles', 'default.json'), {
+      id: 'default',
+      name: 'All in One',
+      software: ['7zip', 'chrome', 'SW-4UT7PDID'],
+      osImage: 'TEST-OS',
+    });
+
+    const result = await publishDeploymentProfile(configFor(root));
+
+    assert.deepEqual(result.copied, ['7zip', 'chrome', 'SW-4UT7PDID']);
+    assert.deepEqual(result.softwarePayloads.map((payload) => payload.id), ['7zip', 'chrome', 'SW-4UT7PDID']);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'unused')), false);
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
+    assert.deepEqual(manifest.selectedSoftware, ['7zip', 'chrome', 'SW-4UT7PDID']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('profile publish fails closed when selected installer is missing without downloadUrl', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        osImage: 'TEST-OS',
+      },
+    });
+    fs.mkdirSync(path.join(root, 'Apps', 'stale'), { recursive: true });
+    fs.rmSync(path.join(root, 'Softwares', 'one', 'one.msi'));
+
+    await assert.rejects(
+      () => publishDeploymentProfile(configFor(root)),
+      /Selected software payload missing for one .* no downloadUrl is configured/,
+    );
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'stale')), true);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('profile publish fails before live Apps changes when downloaded payload fails validation', async () => {
+  const root = makeRoot();
+  try {
+    const expectedContent = 'expected one payload';
+    writeBaseFiles(root, {
+      catalog: [{
+        ...catalogSoftware('one', 'One App'),
+        installerBytes: Buffer.byteLength(expectedContent),
+        installerSha256: sha256Text(expectedContent),
+        downloadUrl: 'https://example.test/one.msi',
+      }],
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        osImage: 'TEST-OS',
+      },
+    });
+    fs.mkdirSync(path.join(root, 'Apps', 'stale'), { recursive: true });
+    fs.rmSync(path.join(root, 'Softwares', 'one', 'one.msi'));
+
+    await assert.rejects(
+      () => publishDeploymentProfile(configFor(root), null, {
+        downloadSoftwarePayload(_software, stagingPath) {
+          fs.mkdirSync(path.dirname(stagingPath), { recursive: true });
+          fs.writeFileSync(stagingPath, 'bad payload', 'utf8');
+          return { filePath: stagingPath };
+        },
+      }),
+      /Downloaded software payload failed validation for one/,
+    );
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'stale')), true);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), false);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'one')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

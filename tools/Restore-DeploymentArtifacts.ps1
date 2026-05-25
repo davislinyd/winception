@@ -161,9 +161,6 @@ function Read-RuntimeCatalog {
     foreach ($artifact in @($catalog.artifacts)) {
         $items.Add($artifact)
     }
-    foreach ($artifact in @($catalog.software)) {
-        $items.Add($artifact)
-    }
     $items.ToArray()
 }
 

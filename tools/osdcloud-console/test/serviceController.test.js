@@ -320,6 +320,7 @@ test('deployment profile management actions create, update active software, and 
             profile: { id: profileId, name: 'Default', description: '', softwareIds: updatedSoftwareIds },
             selectedSoftware: updatedSoftwareIds.map((id) => ({ id, name: id })),
             appsRoot: path.join(root, 'Apps'),
+            softwarePayloads: updatedSoftwareIds.map((id) => ({ id, status: id === 'chrome' ? 'downloaded' : 'reused' })),
           };
         },
         deleteDeploymentProfile(_config, profileId) {
@@ -349,6 +350,8 @@ test('deployment profile management actions create, update active software, and 
     assert.equal(updated.profile.name, 'Renamed');
     assert.equal(updated.profile.description, 'Updated active profile');
     assert.equal(updated.preflight[0].ok, true);
+    assert.match(controller.getLogs().join('\n'), /Software payload downloaded: chrome/);
+    assert.match(controller.getLogs().join('\n'), /Software payload reused: 7zip/);
     assert.equal(services.http.running, false);
     assert.equal(services.tftp.running, false);
     assert.equal(services.dhcp.running, false);

@@ -10,6 +10,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Web first-run initialization owns secrets, Runtime Readiness / Prepare runtime, PXE/service endpoint sync, OS Image Cache, profile publish, preflight, and service controls.
 - During testing, agents may use the Web/API initialization flow to save or refresh deployment secrets without extra confirmation when usable values are already available from ignored local files, approved environment variables, or prior user input. Never print, commit, or record plaintext secret values.
 - Prepare runtime must treat both `C:\OSDCloud\Media\sources\boot.wim` and `C:\OSDCloud\PXE-HttpRoot\osdcloud\boot.wim` as required boot artifacts.
+- Prepare runtime is only for boot/iPXE/WinPE runtime artifacts. It must not download client software merely because software exists in the catalog.
 - Do not pin exact size/hash for the generated WinPE `boot.wim` in the runtime catalog. It is host- and endpoint-specific after ADK/OSDCloud generation and endpoint sync; readiness should require the source and published paths to exist, while stable downloaded artifacts and boot binaries keep size/SHA validation.
 - A `size-mismatch` readiness result means the artifact is incomplete or out of sync, not that deployment services are running.
 
@@ -43,6 +44,8 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - OS image acquisition is host/Admin Console only.
 - Web OS Image Cache downloads or imports ISO/ESD/WIM sources, inspects DISM indexes, exports one selected index to a deployable WIM, and publishes `selected-os.json` with deploy index `1`.
 - Client app and custom script payloads are selected by deployment profiles and live Web/API/config state. Do not hard-code a current software list; read the active profile and catalog.
+- Profile publish is responsible for selected client software payloads. Before clearing live `Apps`, it must verify each selected software installer from `config\software-catalog.json`; if the installer is missing and `downloadUrl` is configured, download to repo-local staging, verify size/SHA-256, then publish only selected folders. Missing or mismatched selected installers without a usable download must fail closed.
+- Minimal/no-software profiles should still publish `Install-Apps.ps1` and `selected-profile.json` without downloading any client software. Preflight validates published `Apps` plus `selected-profile.json`, not unselected catalog software.
 
 ## Deployment Behavior
 

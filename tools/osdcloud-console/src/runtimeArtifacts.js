@@ -220,7 +220,6 @@ export function loadRuntimeArtifactCatalog(config = {}, overrides = {}) {
 
   const sections = [
     ['runtime', raw.artifacts ?? []],
-    ['software', raw.software ?? []],
   ];
   const artifacts = [];
   const ids = new Set();
@@ -321,11 +320,7 @@ export function verifyArtifactFile(filePath, artifact) {
 }
 
 export function resolveRuntimeArtifactTarget(catalog, artifact, relativeTarget) {
-  const target = String(relativeTarget ?? '');
-  if (target.replace(/\//gu, '\\').toLowerCase().startsWith('softwares\\')) {
-    return resolveArtifactTarget(catalog.options.repoRoot, target);
-  }
-  return resolveArtifactTarget(catalog.options.liveRoot, target);
+  return resolveArtifactTarget(catalog.options.liveRoot, relativeTarget);
 }
 
 export function inspectRuntimeArtifactFile(filePath, artifact) {

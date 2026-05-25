@@ -2,7 +2,7 @@
 
 This folder is a Git-friendly mirror of the small deployment files that actually live under `C:\OSDCloud`.
 
-It is not a complete runnable backup. A fresh clone first runs the lightweight setup wizard, then uses Web `Runtime Readiness` / `Prepare runtime` to rebuild the live `C:\OSDCloud` tree before PXE deployment can start. This mirror is one source used during that rebuild; it is not a replacement for the runtime artifact catalog, ADK/WinPE build output, downloaded OS image, or installer payload cache.
+It is not a complete runnable backup. A fresh clone first runs the lightweight setup wizard, then uses Web `Runtime Readiness` / `Prepare runtime` to rebuild the live boot/iPXE/WinPE runtime before PXE deployment can start. This mirror is one source used during that rebuild; it is not a replacement for the runtime artifact catalog, ADK/WinPE build output, downloaded OS image, or selected profile software payload cache.
 
 The live lab still runs from:
 
@@ -25,16 +25,16 @@ The repo tracks the small source/config files that define deployment behavior:
   - `OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1`
   - `OSDCloud\WinPE\OSDCloud\Config\Scripts\...`
 
-Large generated or upstream binary artifacts are not committed and must be downloaded, verified, or rebuilt by Web `Prepare runtime`:
+Large generated or upstream binary artifacts are not committed and must be downloaded, verified, or rebuilt by the owning Web workflow:
 
 - ISO / WIM / ESD / VHDX, including source OS images and Web-exported deployable Windows WIMs
 - WinPE `boot.wim`, both the source copy and the published HTTP copy
-- client app installer payloads such as MSI / EXE files
+- client app installer payloads such as MSI / EXE files, restored only when the selected deployment profile is published
 - Windows boot binaries such as `bootmgr`, `bootx64.efi`, `BCD`, and `boot.sdi`
 - iPXE / shim / wimboot binaries
 - timing logs, transcripts, and screenshots
 
-Runtime downloads and stable generated artifacts are recorded in `config\runtime-artifacts.json` with source, target, size, SHA-256, and required/optional status. The generated WinPE `boot.wim` is mutable across ADK/OSDCloud builds and endpoint sync, so the runtime catalog requires its source and published paths without pinning exact size/hash. `manifest.json` remains a snapshot of mirrored small files plus generated/excluded boot and OS evidence.
+Runtime downloads and stable generated artifacts are recorded in `config\runtime-artifacts.json` with source, target, size, SHA-256, and required/optional status. Client software download metadata lives in `config\software-catalog.json` and is used by profile publish, not by `Prepare runtime`. The generated WinPE `boot.wim` is mutable across ADK/OSDCloud builds and endpoint sync, so the runtime catalog requires its source and published paths without pinning exact size/hash. `manifest.json` remains a snapshot of mirrored small files plus generated/excluded boot and OS evidence.
 
 ## Using This Mirror On A New Host
 
@@ -46,7 +46,7 @@ After cloning the repo on another Windows host, run the lightweight setup wizard
 
 Setup can ask to install Node.js LTS when `node`/`npm` are missing, installs Node dependencies, runs the lightweight smoke check, and starts the Web console. It does not capture deployment secrets, record endpoint overlay state, create the `C:\OSDCloud` runtime skeleton, create SMB accounts/shares, download cataloged installers, export OS image artifacts, build ADK/WinPE content, create `boot.wim`, or download `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
 
-In the Web console, use `Runtime Readiness` > `Prepare runtime` to create the flat `C:\OSDCloud` structure, prepare `pxeinstall` / `OSDCloudiPXE`, restore this mirror, download cataloged installers/iPXE binaries through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. If this action starts from the Initialization Wizard, the wizard remains open and shows the operation status, a scrollable full operation log with a copy button, and completed/failed result; from the main Runtime Readiness card, use the operation badge and System Log for the same backend operation. `boot.wim` is required because iPXE loads it over HTTP to enter WinPE, and that WinPE contains the OSDCloud startup scripts, SMB mapping, status callback, SetupComplete handoff, and local secret injection used by the deployment. Readiness requires both `boot.wim` paths to exist, while exact hash evidence for the mutable image belongs in `manifest.json` after asset sync.
+In the Web console, use `Runtime Readiness` > `Prepare runtime` to create the flat `C:\OSDCloud` structure, prepare `pxeinstall` / `OSDCloudiPXE`, restore this mirror, download cataloged iPXE binaries through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. If this action starts from the Initialization Wizard, the wizard remains open and shows the operation status, a scrollable full operation log with a copy button, and completed/failed result; from the main Runtime Readiness card, use the operation badge and System Log for the same backend operation. `boot.wim` is required because iPXE loads it over HTTP to enter WinPE, and that WinPE contains the OSDCloud startup scripts, SMB mapping, status callback, SetupComplete handoff, and local secret injection used by the deployment. Client software installers are restored later when the selected deployment profile is published. Readiness requires both `boot.wim` paths to exist, while exact hash evidence for the mutable image belongs in `manifest.json` after asset sync.
 
 OS images are prepared separately in Web `OS Image Cache`: download or import ISO/ESD/WIM, inspect DISM indexes, choose one index, export it to one deployable WIM under `C:\OSDCloud\Media\OSDCloud\OS`, then publish `selected-os.json`. Fresh clone can have no active OS image and no selected manifest until the operator completes that flow.
 
@@ -96,6 +96,6 @@ For iPXE, `Invoke-DavisOobe.ps1` copies SetupComplete from inside `boot.wim` fir
 
 The current iPXE `SetupComplete.ps1` installs the client app payload and the JSON desktop-ready reporter for Windows completion. It does not install a desktop screenshot Startup helper, because that path was blocked by Defender/AMSI as `ScriptContainedMaliciousContent`. The desktop-ready reporter retries every 5 seconds for up to 30 minutes from `windows-logon-start`; after a successful HTTP POST or WebClient fallback it must return success and unregister `OSDCloudDesktopReadyReport`.
 
-The app payload is profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes install scripts, but not generated `selected-profile.json` or MSI/EXE installer payloads. `Install-Apps.ps1` reads the selected profile published into the live runtime and installs only the selected software after Web runtime preparation has downloaded the cataloged installers into live `Apps`. The current `Default` profile publishes 7-Zip; `All in One` publishes 7-Zip plus Google Chrome Enterprise and Notepad++; `Minimal` publishes no client software. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
+The app payload is profile-filtered by the Web console before deployment. The mirrored `Apps` folder includes install scripts, but not generated `selected-profile.json` or MSI/EXE installer payloads. `Install-Apps.ps1` reads the selected profile published into the live runtime and installs only the selected software. During profile publish / Set active, Web verifies or downloads only the selected installers from `config\software-catalog.json`, then publishes those folders into live `Apps`. The current `Default` profile publishes 7-Zip; `All in One` publishes 7-Zip plus Google Chrome Enterprise and Notepad++; `Minimal` publishes no client software and downloads no client installers. App installation logs go to `C:\Windows\Temp\osdcloud-logs\apps-install.log` and per-app logs such as `7zip-msi.log` and `google-chrome-msi.log` on the deployed client.
 
 The files name the lab-only accounts such as local `davis` and SMB `pxeinstall`, but real passwords must stay outside Git. Prefer the Web initialization wizard to write the ignored `config\osdcloud-secrets.json`; API responses and logs must report only redacted presence/missing status. Endpoint sync injects the local secret file into live `boot.wim`.
