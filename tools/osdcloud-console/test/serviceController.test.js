@@ -895,6 +895,39 @@ test('runtime readiness is exposed and prepare runtime runs without starting ser
   }
 });
 
+test('prepare runtime suppresses benign ObjectSecurity TypeData duplicate noise', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-runtime-typedata-'));
+  try {
+    const { controller } = makeController(root, {
+      dependencies: {
+        getRuntimeReadiness: () => ({
+          ready: true,
+          requiredCount: 1,
+          readyCount: 1,
+          missingCount: 0,
+          missing: [],
+          artifacts: [],
+        }),
+        prepareRuntimeArtifacts: async (_config, options = {}) => {
+          options.onOutput?.('TypeData "System.Security.AccessControl.ObjectSecurity" 中有錯誤: Group 成員已經存在。\n', 'stdout');
+          options.onOutput?.('Error in TypeData "System.Security.AccessControl.ObjectSecurity": The member Owner is already present.\n', 'stderr');
+          options.onOutput?.('restore completed\n', 'stdout');
+          return 'restore completed';
+        },
+      },
+    });
+
+    await controller.prepareRuntime();
+    const logs = controller.getLogs().join('\n');
+    assert.doesNotMatch(logs, /System\.Security\.AccessControl\.ObjectSecurity/u);
+    assert.doesNotMatch(logs, /成員已經存在/u);
+    assert.match(logs, /restore completed/u);
+    assert.match(logs, /Preparing runtime artifacts complete/u);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('prepare runtime fails when post-prepare readiness is still blocked', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-runtime-blocked-'));
   try {

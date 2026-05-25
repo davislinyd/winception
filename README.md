@@ -193,7 +193,7 @@ Web console 每次載入 `/api/state` 都會從 live state 重新計算 `initial
 
 Runtime Readiness 面板仍會顯示 `C:\OSDCloud` 是否缺少必要 artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot / installer artifact。這一步沿用 `config\runtime-artifacts.json`，所有下載先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。由 ADK/OSDCloud 生成、且會被 endpoint sync 注入本機 endpoint/secrets 的 `boot.wim` 只用必要路徑存在性判定 readiness，不在 runtime catalog 固定 size/hash。
 
-從 Initialization Wizard 按 `Prepare runtime` 時，確認後 wizard 會保持開啟並顯示 `Preparing runtime artifacts` 的 running/completed/failed 狀態、錯誤訊息與可捲動的完整 operation log；標題列 copy 按鈕會複製本次 operation 全部 log。`/api/runtime/prepare` 會在 restore 子程序結束後重新檢查 Runtime Readiness；如果仍有 artifact blocked，operation 必須顯示 failed 並列出未完成項目，不可只因子程序 exit code 成功就標示 completed。這只是 UI 進度呈現；實際仍沿用同一個 `/api/runtime/prepare` 長任務，不新增取消功能，也不啟動 HTTP/TFTP/DHCP。若從主畫面 Runtime Readiness 卡片按 `Prepare runtime`，仍維持主畫面流程並可從 operation badge / System Log 監看。
+從 Initialization Wizard 按 `Prepare runtime` 時，確認後 wizard 會保持開啟並顯示 `Preparing runtime artifacts` 的 running/completed/failed 狀態、錯誤訊息與可捲動的完整 operation log；標題列 copy 按鈕會複製本次 operation 全部 log。Web 會隱藏 ADK/WinPE installer 可能輸出的無害 `System.Security.AccessControl.ObjectSecurity` duplicate TypeData 訊息，但保留其他 stdout/stderr。`/api/runtime/prepare` 會在 restore 子程序結束後重新檢查 Runtime Readiness；如果仍有 artifact blocked，operation 必須顯示 failed 並列出未完成項目，不可只因子程序 exit code 成功就標示 completed。這只是 UI 進度呈現；實際仍沿用同一個 `/api/runtime/prepare` 長任務，不新增取消功能，也不啟動 HTTP/TFTP/DHCP。若從主畫面 Runtime Readiness 卡片按 `Prepare runtime`，仍維持主畫面流程並可從 operation badge / System Log 監看。
 
 Initialization Wizard 的 `Prepare runtime` 步驟會在按下執行前展開缺失 artifact 摘要，列出名稱、類型、來源/處理方式、原因與第一個目標路徑；多個 target 缺失時會顯示 target 數量。這只是執行前資訊揭露，不代表已啟動 HTTP/TFTP/DHCP，也不能逐項勾選或跳過。
 

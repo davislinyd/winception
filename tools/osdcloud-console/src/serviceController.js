@@ -68,7 +68,18 @@ function errorWithStatus(message, statusCode = 500) {
   return error;
 }
 
-function makeOutputLogger(writeLine, prefix) {
+function isBenignObjectSecurityTypeDataLine(line) {
+  const text = String(line ?? '');
+  if (!/TypeData\s+"System\.Security\.AccessControl\.ObjectSecurity"/u.test(text)) {
+    return false;
+  }
+  if (!/\b(?:Access|Group|Owner|Path)\b/u.test(text)) {
+    return false;
+  }
+  return /成員已經存在|member\s+(?:Access|Group|Owner|Path)\s+is\s+already\s+present|already\s+present|already\s+exists/iu.test(text);
+}
+
+function makeOutputLogger(writeLine, prefix, options = {}) {
   let pending = '';
   return {
     write(chunk, stream = 'stdout') {
@@ -76,13 +87,13 @@ function makeOutputLogger(writeLine, prefix) {
       const lines = pending.split(/\r?\n/u);
       pending = lines.pop() ?? '';
       for (const line of lines) {
-        if (line.trim()) {
+        if (line.trim() && !options.ignoreLine?.(line)) {
           writeLine(`${prefix} ${stream}: ${line}`);
         }
       }
     },
     flush() {
-      if (pending.trim()) {
+      if (pending.trim() && !options.ignoreLine?.(pending)) {
         writeLine(`${prefix} ${pending}`);
       }
       pending = '';
@@ -897,7 +908,9 @@ export class ServiceController extends EventEmitter {
 
   async prepareRuntime() {
     return this.runOperation('Preparing runtime artifacts', async () => {
-      const stream = makeOutputLogger((line) => this.addLog(line), '[runtime]');
+      const stream = makeOutputLogger((line) => this.addLog(line), '[runtime]', {
+        ignoreLine: isBenignObjectSecurityTypeDataLine,
+      });
       try {
         const output = await this.dependencies.prepareRuntimeArtifacts(this.config, {
           onOutput: stream.write,
