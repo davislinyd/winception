@@ -1,19 +1,19 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-25T13:39:58+08:00",
+  "updated_at": "2026-05-25T14:58:00+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
-    "root": "C:\\Users\\Davis\\Documents\\New project",
+    "root": "C:\\osdcloud-win11-deployment-lab",
     "current_goal": "Repeatable Web-console-first OSDCloud/iPXE deployment flow for Windows 11 Pro 25H2 zh-TW."
   },
   "paths": {
     "development": {
-      "root": "C:\\Users\\Davis\\Documents\\New project",
-      "purpose": "Edit code, docs, tests, commit, and push."
+      "root": "C:\\osdcloud-win11-deployment-lab",
+      "purpose": "Active checkout for code, docs, tests, commits, pushes, and deployment-facing validation."
     },
     "deployment_clone": {
       "root": "C:\\osdcloud-win11-deployment-lab",
-      "purpose": "Pull pushed commits and run deployment-facing tests from a production-like clone."
+      "purpose": "Current production-like checkout; old C:\\Users\\Davis\\Documents\\New project path is retired for new work."
     },
     "runtime": {
       "root": "C:\\OSDCloud",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "os-download-phase-progress-pushed",
+    "state": "host-process-output-utf8-standardized",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
-    "remote": "origin-github",
-    "summary": "Web OS Image Cache downloads now expose phase-aware progress through validation, DISM export, cache finalization, and stale polling detection.",
+    "remote": "origin",
+    "summary": "Host/Web external process output now uses shared UTF-8 decoding and host PowerShell entrypoints initialize UTF-8 console encoding.",
     "baseline": {
-      "commit": "01c00a9af2dd0533bf5c636ad9b048e7b42b4c5a",
-      "short": "01c00a9",
-      "subject": "Show OS image download phases"
+      "commit": "f2fbc1137c57eb6aeed960dd118d568620bf265a",
+      "short": "f2fbc11",
+      "subject": "Standardize host process output encoding"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -41,7 +41,7 @@
   "deployment_clone": {
     "remote": "origin",
     "branch": "master",
-    "required_update_before_tests": "git pull --ff-only origin master",
+    "required_update_before_tests": "This active checkout is already the deployment-facing path; from any other clone, run git pull --ff-only origin master before tests.",
     "head_must_match_development_push": true
   },
   "runtime": {
@@ -50,15 +50,15 @@
   },
   "git": {
     "branch": "master",
-    "upstream": "origin-github/master",
-    "last_checked_head": "01c00a9af2dd0533bf5c636ad9b048e7b42b4c5a",
-    "last_checked_head_short": "01c00a9",
+    "upstream": "origin/master",
+    "last_checked_head": "f2fbc1137c57eb6aeed960dd118d568620bf265a",
+    "last_checked_head_short": "f2fbc11",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
     "remotes": [
       {
-        "name": "origin-github",
+        "name": "origin",
         "fetch": "https://github.com/your-username/osdcloud-win11-deployment-lab.git",
         "push": "https://github.com/your-username/osdcloud-win11-deployment-lab.git"
       }
@@ -77,21 +77,29 @@
       "git remote -v",
       "Get-Content .ai/status.json -Raw",
       "git log --all --notes --decorate --date=iso --max-count=10 --format=fuller",
-      "Only run git pull --ff-only origin-github master when the worktree is clean and current remote state is required or explicitly requested."
+      "Only run git pull --ff-only origin master when the worktree is clean and current remote state is required or explicitly requested."
     ],
     "after_development_push_before_tests": [
       "cd C:\\osdcloud-win11-deployment-lab",
       "git status --short --branch",
-      "git pull --ff-only origin master",
-      "confirm deployment clone HEAD equals the pushed development commit"
+      "git rev-parse HEAD origin/master",
+      "confirm this active checkout HEAD equals the pushed origin/master commit"
     ],
     "forbidden": [
-      "Do not use the development workspace as the deployment test clone.",
-      "Do not edit code directly in the deployment clone.",
-      "Do not manually patch, copy into, or directly edit C:\\OSDCloud."
+      "Do not use C:\\Users\\Davis\\Documents\\New project for new work.",
+      "Do not manually patch, copy into, or directly edit C:\\OSDCloud.",
+      "Do not commit generated deployment artifacts or local secrets."
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260525145800-code-f2fbc11",
+      "at": "2026-05-25T14:58:00+08:00",
+      "kind": "code",
+      "summary": "Standardized Host/Web external process stdout/stderr handling with shared UTF-8 decoding and UTF-8 console setup for host PowerShell entrypoints.",
+      "commit": "f2fbc1137c57eb6aeed960dd118d568620bf265a",
+      "verification": "node --test tools/osdcloud-console/test/windows.test.js tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/osImages.test.js tools/osdcloud-console/test/deploymentProfiles.test.js tools/osdcloud-console/test/processOutput.test.js; PowerShell parser check for host tools; node --check changed modules; git diff --check; npm test; npm run smoke; no Web endpoint sync or live runtime/PXE mutation"
+    },
     {
       "id": "20260525133500-push-01c00a9",
       "at": "2026-05-25T13:39:58+08:00",
@@ -123,14 +131,6 @@
       "summary": "Added TEST-RESULT.md as the completed 0-to-1 deployment test evidence and no-AI rebuild runbook, and linked it from AGENTS.md.",
       "commit": "84b585849baa4feedc4201f1673d272b697be02f",
       "verification": "rg TEST-RESULT/0-to-1 references; git diff --check AGENTS.md TEST-RESULT.md .ai/status.json"
-    },
-    {
-      "id": "20260524213050-test-services-running",
-      "at": "2026-05-24T21:30:50+08:00",
-      "kind": "test",
-      "summary": "Started HTTP, TFTP, and DHCP deployment services on LAN 192.168.100.1 after DHCP-safe confirmation; PXE client can now boot.",
-      "commit": "84b585849baa4feedc4201f1673d272b697be02f",
-      "verification": "POST /api/services/start-all; TCP 80 and UDP 67/69 listening on 192.168.100.1; HTTP boot.ipxe/wimboot/bootmgr/bootx64.efi/BCD/boot.sdi returned 200; boot.wim HEAD returned 200"
     }
   ]
 }
