@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-26T02:28:56+08:00",
+  "updated_at": "2026-05-26T02:55:31.174+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "initialization-detail-scroll-preserved",
+    "state": "initialization-endpoint-sync-preserved",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Initialization Wizard Prepare runtime artifact detail lists preserve scroll position across Web state polling re-renders.",
+    "summary": "Initialization Wizard keeps the operator in the wizard during endpoint sync and surfaces the endpoint-sync operation state.",
     "baseline": {
-      "commit": "5f58f8c0859a12f4ed049c18e5cdb76295ad56a1",
-      "short": "5f58f8c",
-      "subject": "Preserve initialization detail scroll"
+      "commit": "25562b89b75c5731d1ae0d564cca0bde046e7280",
+      "short": "25562b8",
+      "subject": "Keep initialization open during endpoint sync"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "5f58f8c0859a12f4ed049c18e5cdb76295ad56a1",
-    "last_checked_head_short": "5f58f8c",
+    "last_checked_head": "25562b89b75c5731d1ae0d564cca0bde046e7280",
+    "last_checked_head_short": "25562b8",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260526025531-code-25562b8",
+      "at": "2026-05-26T02:55:31.174+08:00",
+      "kind": "code",
+      "summary": "Kept Initialization Wizard open during endpoint sync when the sync starts from the wizard, while preserving normal dashboard sync behavior.",
+      "commit": "25562b89b75c5731d1ae0d564cca0bde046e7280",
+      "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); no Web endpoint sync or live runtime/PXE mutation"
+    },
+    {
       "id": "20260526022856-code-5f58f8c",
       "at": "2026-05-26T02:28:56+08:00",
       "kind": "code",
@@ -123,14 +131,6 @@
       "summary": "Standardized Host/Web external process stdout/stderr handling with shared UTF-8 decoding and UTF-8 console setup for host PowerShell entrypoints.",
       "commit": "f2fbc1137c57eb6aeed960dd118d568620bf265a",
       "verification": "node --test tools/osdcloud-console/test/windows.test.js tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/osImages.test.js tools/osdcloud-console/test/deploymentProfiles.test.js tools/osdcloud-console/test/processOutput.test.js; PowerShell parser check for host tools; node --check changed modules; git diff --check; npm test; npm run smoke; no Web endpoint sync or live runtime/PXE mutation"
-    },
-    {
-      "id": "20260525133500-push-01c00a9",
-      "at": "2026-05-25T13:39:58+08:00",
-      "kind": "push",
-      "summary": "Pushed phase-aware OS Image Cache download progress and stale Web-console status text to origin-github/master.",
-      "commit": "01c00a9af2dd0533bf5c636ad9b048e7b42b4c5a",
-      "verification": "node --test tools/osdcloud-console/test/osImages.test.js tools/osdcloud-console/test/serviceController.test.js tools/osdcloud-console/test/webUi.test.js; npm test; git diff --check; git push -u origin-github master; git rev-parse HEAD origin-github/master; no Web/runtime/PXE services started"
     }
   ]
 }
