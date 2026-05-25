@@ -140,7 +140,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /id="init-davis-password"/);
   assert.doesNotMatch(html, /id="init-pxeinstall-password"/);
   assert.match(script, /function renderRuntimeReadiness\(appState\)/);
-  assert.match(script, /function appendInitializationDetailItems\(body, detailItems = \[\]\)/);
+  assert.match(script, /function appendInitializationDetailItems\(body, stepId, detailItems = \[\]\)/);
   assert.match(script, /statusClass/);
   assert.match(script, /item\.status/);
   assert.match(script, /function appendInitializationSecretsForm\(body\)/);
@@ -164,11 +164,18 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /navigator\.clipboard\?\.writeText/);
   assert.match(script, /fallbackCopyText\(text\)/);
   assert.match(script, /log\.scrollTop = wasAtBottom \? log\.scrollHeight : previousScrollTop/);
+  assert.match(script, /initializationDetailScrollPositions: \{\}/);
   assert.match(script, /function renderInitialization\(appState\)/);
+  assert.match(script, /function captureInitializationDetailScrollPositions\(\)/);
+  assert.match(script, /querySelectorAll\('\.initialization-detail-list\[data-initialization-step-id\]'\)/);
+  assert.match(script, /function restoreInitializationDetailScrollPosition\(stepId, list\)/);
+  assert.match(script, /state\.initializationDetailScrollPositions = captureInitializationDetailScrollPositions\(\);[\s\S]*elements\.initializationSteps\.replaceChildren\(\);/);
   assert.match(script, /initializationPendingAction/);
   assert.match(script, /initializationOperationAction/);
   assert.match(script, /step\.id === 'secrets' && !step\.done/);
   assert.match(script, /appendInitializationSecretsForm\(body\)/);
+  assert.match(script, /const detailList = appendInitializationDetailItems\(body, step\.id, step\.detailItems\);/);
+  assert.match(script, /restoreInitializationDetailScrollPosition\(step\.id, detailList\);/);
   assert.match(script, /!hasInlineSecretsForm/);
   assert.match(script, /dataset\.initAction = 'save-secrets'/);
   assert.match(script, /initializationAutoOpened/);

@@ -21,6 +21,7 @@ const state = {
   initializationPendingAction: null,
   initializationOperationAction: null,
   initializationOperationLogText: '',
+  initializationDetailScrollPositions: {},
   initializationSecretsDraft: {
     davisPassword: '',
     pxeinstallPassword: '',
@@ -787,12 +788,15 @@ function initializationActionIcon(action) {
   return icons[action] ?? 'arrow_forward';
 }
 
-function appendInitializationDetailItems(body, detailItems = []) {
+function appendInitializationDetailItems(body, stepId, detailItems = []) {
   if (!Array.isArray(detailItems) || detailItems.length === 0) {
-    return;
+    return null;
   }
   const list = document.createElement('div');
   list.className = 'initialization-detail-list';
+  if (stepId) {
+    list.dataset.initializationStepId = String(stepId);
+  }
   for (const item of detailItems) {
     const row = document.createElement('div');
     row.className = 'initialization-detail-item';
@@ -813,6 +817,34 @@ function appendInitializationDetailItems(body, detailItems = []) {
     list.append(row);
   }
   body.append(list);
+  return list;
+}
+
+function captureInitializationDetailScrollPositions() {
+  const positions = {};
+  elements.initializationSteps?.querySelectorAll('.initialization-detail-list[data-initialization-step-id]').forEach((list) => {
+    const stepId = list.dataset.initializationStepId;
+    if (!stepId) {
+      return;
+    }
+    positions[stepId] = {
+      atBottom: isScrolledToBottom(list),
+      scrollTop: list.scrollTop,
+    };
+  });
+  return positions;
+}
+
+function restoreInitializationDetailScrollPosition(stepId, list) {
+  if (!stepId || !list) {
+    return;
+  }
+  const position = state.initializationDetailScrollPositions?.[stepId];
+  if (!position) {
+    return;
+  }
+  const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
+  list.scrollTop = position.atBottom ? list.scrollHeight : Math.min(position.scrollTop, maxScrollTop);
 }
 
 function initializationSecretsControls() {
@@ -1071,6 +1103,7 @@ function renderInitialization(appState) {
     ? 'Deployment prerequisites are complete. Run preflight before starting services.'
     : `Next: ${nextStep?.label ?? 'Run preflight'}`;
   renderInitializationOperation(appState);
+  state.initializationDetailScrollPositions = captureInitializationDetailScrollPositions();
   elements.initializationSteps.replaceChildren();
 
   for (const step of initialization.steps ?? []) {
@@ -1100,7 +1133,7 @@ function renderInitialization(appState) {
     const detail = document.createElement('span');
     detail.textContent = step.detail ?? '';
     body.append(title, detail);
-    appendInitializationDetailItems(body, step.detailItems);
+    const detailList = appendInitializationDetailItems(body, step.id, step.detailItems);
     if (hasInlineSecretsForm) {
       appendInitializationSecretsForm(body);
     }
@@ -1116,6 +1149,7 @@ function renderInitialization(appState) {
       row.append(button);
     }
     elements.initializationSteps.append(row);
+    restoreInitializationDetailScrollPosition(step.id, detailList);
   }
 
   if (nextStep?.action && nextStep.action !== 'setup') {
