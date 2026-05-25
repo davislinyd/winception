@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-25T12:36:41+08:00",
+  "updated_at": "2026-05-25T13:39:58+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
-    "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
+    "root": "C:\\Users\\Davis\\Documents\\New project",
     "current_goal": "Repeatable Web-console-first OSDCloud/iPXE deployment flow for Windows 11 Pro 25H2 zh-TW."
   },
   "paths": {
     "development": {
-      "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
+      "root": "C:\\Users\\Davis\\Documents\\New project",
       "purpose": "Edit code, docs, tests, commit, and push."
     },
     "deployment_clone": {
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "runtime-log-noise-filter-pushed",
+    "state": "os-download-phase-progress-pushed",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin-github",
-    "summary": "Development workspace filters harmless Prepare runtime TypeData noise; deployment-facing tests run only after push and deployment-clone pull.",
+    "summary": "Web OS Image Cache downloads now expose phase-aware progress through validation, DISM export, cache finalization, and stale polling detection.",
     "baseline": {
-      "commit": "ba01202b26b6dea77beff4b72c24f4c7e4089955",
-      "short": "ba01202",
-      "subject": "Filter benign runtime TypeData log noise"
+      "commit": "01c00a9af2dd0533bf5c636ad9b048e7b42b4c5a",
+      "short": "01c00a9",
+      "subject": "Show OS image download phases"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin-github/master",
-    "last_checked_head": "ba01202b26b6dea77beff4b72c24f4c7e4089955",
-    "last_checked_head_short": "ba01202",
+    "last_checked_head": "01c00a9af2dd0533bf5c636ad9b048e7b42b4c5a",
+    "last_checked_head_short": "01c00a9",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260525133500-push-01c00a9",
+      "at": "2026-05-25T13:39:58+08:00",
+      "kind": "push",
+      "summary": "Pushed phase-aware OS Image Cache download progress and stale Web-console status text to origin-github/master.",
+      "commit": "01c00a9af2dd0533bf5c636ad9b048e7b42b4c5a",
+      "verification": "node --test tools/osdcloud-console/test/osImages.test.js tools/osdcloud-console/test/serviceController.test.js tools/osdcloud-console/test/webUi.test.js; npm test; git diff --check; git push -u origin-github master; git rev-parse HEAD origin-github/master; no Web/runtime/PXE services started"
+    },
+    {
       "id": "20260525123641-push-runtime-log-filter",
       "at": "2026-05-25T12:36:41+08:00",
       "kind": "push",
@@ -123,14 +131,6 @@
       "summary": "Started HTTP, TFTP, and DHCP deployment services on LAN 192.168.100.1 after DHCP-safe confirmation; PXE client can now boot.",
       "commit": "84b585849baa4feedc4201f1673d272b697be02f",
       "verification": "POST /api/services/start-all; TCP 80 and UDP 67/69 listening on 192.168.100.1; HTTP boot.ipxe/wimboot/bootmgr/bootx64.efi/BCD/boot.sdi returned 200; boot.wim HEAD returned 200"
-    },
-    {
-      "id": "20260524212841-test-endpoint-lan-ready",
-      "at": "2026-05-24T21:28:41+08:00",
-      "kind": "test",
-      "summary": "Applied Web endpoint sync to LAN 192.168.100.1/20; initialization is complete and all 19 preflight checks pass, with deployment services still stopped pending DHCP-safe start.",
-      "commit": "84b585849baa4feedc4201f1673d272b697be02f",
-      "verification": "POST /api/endpoint LAN; boot.ipxe now uses http://192.168.100.1/osdcloud; /api/state initialized=true; HTTP/TFTP/DHCP service states are stopped"
     }
   ]
 }
