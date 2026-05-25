@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-25T23:49:19+08:00",
+  "updated_at": "2026-05-26T01:12:54+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "prepare-runtime-log-cleanup",
+    "state": "prepare-runtime-lightweight-profile-payloads",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Prepare runtime logs now suppress benign ObjectSecurity TypeData noise, quiet curl progress, and report optional fallback/WinPE module skips with clearer non-blocking messages.",
+    "summary": "Prepare runtime now restores only boot/iPXE/WinPE runtime artifacts; selected deployment profiles restore and verify only their required client software payloads during publish.",
     "baseline": {
-      "commit": "2ac145a4ae8c423291ea1cc872b36cd2a6c25345",
-      "short": "2ac145a",
-      "subject": "Clean up prepare runtime log noise"
+      "commit": "f175d905d810adc1b9e70383662c9e00417f566e",
+      "short": "f175d90",
+      "subject": "Defer software payload restore to profile publish"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "2ac145a4ae8c423291ea1cc872b36cd2a6c25345",
-    "last_checked_head_short": "2ac145a",
+    "last_checked_head": "f175d905d810adc1b9e70383662c9e00417f566e",
+    "last_checked_head_short": "f175d90",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260526011228-code-f175d90",
+      "at": "2026-05-26T01:12:54+08:00",
+      "kind": "code",
+      "summary": "Lightened Prepare runtime to boot/iPXE/WinPE artifacts and moved selected client software payload restore/verification into deployment profile publish.",
+      "commit": "f175d905d810adc1b9e70383662c9e00417f566e",
+      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/deploymentProfiles.test.js tools/osdcloud-console/test/serviceController.test.js; PowerShell parser check for tools/Restore-DeploymentArtifacts.ps1; node --check changed JS modules; npm test; npm run smoke; git diff --check; no Web endpoint sync or live runtime/PXE mutation"
+    },
+    {
       "id": "20260525234919-code-2ac145a",
       "at": "2026-05-25T23:49:19+08:00",
       "kind": "code",
@@ -123,14 +131,6 @@
       "summary": "Pushed the Web Prepare runtime ObjectSecurity duplicate TypeData log filter to origin-github/master.",
       "commit": "ba01202b26b6dea77beff4b72c24f4c7e4089955",
       "verification": "node --test tools/osdcloud-console/test/serviceController.test.js; npm test; git diff --check; git push -u origin-github master; no Web/runtime/PXE services started"
-    },
-    {
-      "id": "20260524215844-push-test-result-runbook",
-      "at": "2026-05-24T21:58:44+08:00",
-      "kind": "push",
-      "summary": "Pushed the zero-to-one deployment test result runbook and agent reference documentation to origin-github/master.",
-      "commit": "77e453a3fa985a32f272cbba3f1bf2895c4308c2",
-      "verification": "git push -u origin-github master; git ls-remote --heads origin-github"
     }
   ]
 }
