@@ -9,6 +9,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $Utf8NoBom
+[Console]::InputEncoding = $Utf8NoBom
+$OutputEncoding = $Utf8NoBom
+
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
 $LocalConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.local.json'

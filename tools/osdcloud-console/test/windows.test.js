@@ -21,15 +21,16 @@ import {
 test('prepends UTF-8 output settings to PowerShell command calls', () => {
   const args = preparePowerShellArgs(['-NoProfile', '-Command', 'Get-NetAdapter | ConvertTo-Json']);
   assert.match(args[2], /\[Console\]::OutputEncoding/);
+  assert.match(args[2], /\[Console\]::InputEncoding/);
+  assert.match(args[2], /\$OutputEncoding/);
   assert.match(args[2], /Get-NetAdapter/);
   assert.deepEqual(preparePowerShellArgs(['-NoProfile', '-File', 'script.ps1']), ['-NoProfile', '-File', 'script.ps1']);
 });
 
-test('decodes PowerShell output with a streaming UTF-8 decoder', () => {
+test('PowerShell output uses shared UTF-8 process decoder', () => {
   const source = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
 
-  assert.match(source, /StringDecoder/);
-  assert.match(source, /new StringDecoder\('utf8'\)/);
+  assert.match(source, /collectProcessOutput/);
   assert.doesNotMatch(source, /chunk\.toString\(\)/);
 });
 

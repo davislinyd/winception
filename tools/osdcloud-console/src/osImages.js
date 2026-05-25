@@ -6,6 +6,7 @@ import { Readable } from 'node:stream';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { collectProcessOutput, preparePowerShellArgs } from './processOutput.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..', '..');
@@ -683,25 +684,16 @@ export async function validateImageIndex(filePath, imageIndex, options = {}) {
   }
   const index = normalizeNumber(imageIndex, 'OS image index', { min: 1 });
   const args = ['/English', '/Get-WimInfo', `/WimFile:${filePath}`, `/Index:${index}`];
-  return new Promise((resolve, reject) => {
-    const child = spawn(options.dismPath ?? 'dism.exe', args, { windowsHide: true });
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve({ ok: true, stdout, stderr });
-      } else {
-        const error = new Error(stderr.trim() || stdout.trim() || `DISM Get-WimInfo exited with code ${code}`);
-        error.stdout = stdout;
-        error.stderr = stderr;
-        error.code = code;
-        reject(error);
-      }
-    });
-  });
+  const child = spawn(options.dismPath ?? 'dism.exe', args, { windowsHide: true });
+  const result = await collectProcessOutput(child);
+  if (result.code === 0) {
+    return { ok: true, stdout: result.stdout, stderr: result.stderr };
+  }
+  const error = new Error(result.stderr.trim() || result.stdout.trim() || `DISM Get-WimInfo exited with code ${result.code}`);
+  error.stdout = result.stdout;
+  error.stderr = result.stderr;
+  error.code = result.code;
+  throw error;
 }
 
 function parseDismWimInfo(stdout = '') {
@@ -745,21 +737,12 @@ async function inspectWimInfo(filePath, options = {}) {
   if (typeof options.inspectWimInfo === 'function') {
     return options.inspectWimInfo(filePath);
   }
-  return new Promise((resolve, reject) => {
-    const child = spawn(options.dismPath ?? 'dism.exe', ['/English', '/Get-WimInfo', `/WimFile:${filePath}`], { windowsHide: true });
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve(parseDismWimInfo(stdout));
-      } else {
-        reject(new Error(stderr.trim() || stdout.trim() || `DISM Get-WimInfo exited with code ${code}`));
-      }
-    });
-  });
+  const child = spawn(options.dismPath ?? 'dism.exe', ['/English', '/Get-WimInfo', `/WimFile:${filePath}`], { windowsHide: true });
+  const result = await collectProcessOutput(child);
+  if (result.code === 0) {
+    return parseDismWimInfo(result.stdout);
+  }
+  throw new Error(result.stderr.trim() || result.stdout.trim() || `DISM Get-WimInfo exited with code ${result.code}`);
 }
 
 function localSourcePath(sourcePath) {
@@ -910,34 +893,25 @@ async function exportImageToWim(sourcePath, destinationPath, sourceIndex, option
     return options.exportImageToWim(sourcePath, destinationPath, sourceIndex, options);
   }
   const index = normalizeNumber(sourceIndex, 'OS image export source index', { min: 1 });
-  return new Promise((resolve, reject) => {
-    const args = [
-      '/English',
-      '/Export-Image',
-      `/SourceImageFile:${sourcePath}`,
-      `/SourceIndex:${index}`,
-      `/DestinationImageFile:${destinationPath}`,
-      '/Compress:Max',
-      '/CheckIntegrity',
-    ];
-    const child = spawn(options.dismPath ?? 'dism.exe', args, { windowsHide: true });
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve({ ok: true, stdout, stderr });
-      } else {
-        const error = new Error(stderr.trim() || stdout.trim() || `DISM Export-Image exited with code ${code}`);
-        error.stdout = stdout;
-        error.stderr = stderr;
-        error.code = code;
-        reject(error);
-      }
-    });
-  });
+  const args = [
+    '/English',
+    '/Export-Image',
+    `/SourceImageFile:${sourcePath}`,
+    `/SourceIndex:${index}`,
+    `/DestinationImageFile:${destinationPath}`,
+    '/Compress:Max',
+    '/CheckIntegrity',
+  ];
+  const child = spawn(options.dismPath ?? 'dism.exe', args, { windowsHide: true });
+  const result = await collectProcessOutput(child);
+  if (result.code === 0) {
+    return { ok: true, stdout: result.stdout, stderr: result.stderr };
+  }
+  const error = new Error(result.stderr.trim() || result.stdout.trim() || `DISM Export-Image exited with code ${result.code}`);
+  error.stdout = result.stdout;
+  error.stderr = result.stderr;
+  error.code = result.code;
+  throw error;
 }
 
 async function resolveImportImage(sourcePath, options = {}) {
@@ -1194,34 +1168,25 @@ export async function importUploadedOsImage(config = {}, input = {}, options = {
 }
 
 async function runPowerShellJson(script, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(powershellExe(), [
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-Command',
-      `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false);\n${script}`,
-    ], {
-      windowsHide: true,
-      cwd: options.cwd,
-    });
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(stderr.trim() || stdout.trim() || `PowerShell exited with code ${code}`));
-        return;
-      }
-      try {
-        resolve(JSON.parse(stdout || '[]'));
-      } catch (error) {
-        reject(new Error(`Unable to parse OS download catalog JSON: ${error.message}`));
-      }
-    });
+  const child = spawn(powershellExe(), preparePowerShellArgs([
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command',
+    script,
+  ]), {
+    windowsHide: true,
+    cwd: options.cwd,
   });
+  const result = await collectProcessOutput(child);
+  if (result.code !== 0) {
+    throw new Error(result.stderr.trim() || result.stdout.trim() || `PowerShell exited with code ${result.code}`);
+  }
+  try {
+    return JSON.parse(result.stdout || '[]');
+  } catch (error) {
+    throw new Error(`Unable to parse OS download catalog JSON: ${error.message}`);
+  }
 }
 
 export async function listOsDownloadCatalog(config = {}, options = {}) {

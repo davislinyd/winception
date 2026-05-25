@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { collectProcessOutput, preparePowerShellArgs } from './processOutput.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..', '..');
@@ -356,31 +357,23 @@ export function readSoftwareInstallScript(config = {}, softwareId, options = {})
   };
 }
 
-function spawnAndWait(command, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: false,
-      ...options,
-    });
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr?.on('data', (chunk) => {
-      stderr += chunk.toString();
-    });
-    child.once('error', reject);
-    child.once('close', (code) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-      const detail = (stderr || stdout || '').trim();
-      reject(new Error(detail ? `${command} exited ${code}: ${detail}` : `${command} exited ${code}`));
-    });
+function isPowerShellCommand(command) {
+  const name = path.basename(String(command)).toLowerCase();
+  return ['powershell.exe', 'powershell', 'pwsh.exe', 'pwsh'].includes(name);
+}
+
+async function spawnAndWait(command, args, options = {}) {
+  const child = spawn(command, isPowerShellCommand(command) ? preparePowerShellArgs(args) : args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: false,
+    ...options,
   });
+  const result = await collectProcessOutput(child);
+  if (result.code === 0) {
+    return { stdout: result.stdout, stderr: result.stderr };
+  }
+  const detail = (result.stderr || result.stdout || '').trim();
+  throw new Error(detail ? `${command} exited ${result.code}: ${detail}` : `${command} exited ${result.code}`);
 }
 
 async function launchWindowsOpenWith(scriptPath) {

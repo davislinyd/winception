@@ -3,73 +3,36 @@ import fs from 'node:fs';
 import net from 'node:net';
 import dgram from 'node:dgram';
 import path from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 import { defaultRepoRoot, resolveHttpFile } from './config.js';
 import { ipv4ToUInt32 } from './dhcp.js';
 import { evaluateDeploymentProfilePayload } from './deploymentProfiles.js';
 import { evaluateOsImageCache } from './osImages.js';
+import {
+  collectProcessOutput,
+  preparePowerShellArgs as prepareProcessPowerShellArgs,
+} from './processOutput.js';
+
+export { preparePowerShellArgs } from './processOutput.js';
 
 function powershellExe() {
   return process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
 }
 
-const utf8OutputPrelude = "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false);";
-
-export function preparePowerShellArgs(args) {
-  const prepared = [...args];
-  const commandIndex = prepared.findIndex((arg) => ['-command', '-c'].includes(String(arg).toLowerCase()));
-  if (commandIndex >= 0 && commandIndex + 1 < prepared.length) {
-    const command = String(prepared[commandIndex + 1]);
-    if (!command.includes('[Console]::OutputEncoding')) {
-      prepared[commandIndex + 1] = `${utf8OutputPrelude}\n${command}`;
-    }
-  }
-  return prepared;
-}
-
 export function runPowerShell(args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const { onStdout, onStderr, ...spawnOptions } = options;
-    const child = spawn(powershellExe(), preparePowerShellArgs(args), {
-      windowsHide: true,
-      ...spawnOptions,
-    });
-    let stdout = '';
-    let stderr = '';
-    const stdoutDecoder = new StringDecoder('utf8');
-    const stderrDecoder = new StringDecoder('utf8');
-    child.stdout?.on('data', (chunk) => {
-      const text = stdoutDecoder.write(chunk);
-      stdout += text;
-      onStdout?.(text);
-    });
-    child.stderr?.on('data', (chunk) => {
-      const text = stderrDecoder.write(chunk);
-      stderr += text;
-      onStderr?.(text);
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      const remainingStdout = stdoutDecoder.end();
-      if (remainingStdout) {
-        stdout += remainingStdout;
-        onStdout?.(remainingStdout);
-      }
-      const remainingStderr = stderrDecoder.end();
-      if (remainingStderr) {
-        stderr += remainingStderr;
-        onStderr?.(remainingStderr);
-      }
-      if (code === 0) {
-        resolve({ stdout, stderr, code });
-      } else {
-        const error = new Error(stderr.trim() || stdout.trim() || `PowerShell exited with code ${code}`);
-        error.stdout = stdout;
-        error.stderr = stderr;
-        error.code = code;
-        reject(error);
-      }
-    });
+  const { onStdout, onStderr, ...spawnOptions } = options;
+  const child = spawn(powershellExe(), prepareProcessPowerShellArgs(args), {
+    windowsHide: true,
+    ...spawnOptions,
+  });
+  return collectProcessOutput(child, { onStdout, onStderr }).then((result) => {
+    if (result.code === 0) {
+      return result;
+    }
+    const error = new Error(result.stderr.trim() || result.stdout.trim() || `PowerShell exited with code ${result.code}`);
+    error.stdout = result.stdout;
+    error.stderr = result.stderr;
+    error.code = result.code;
+    throw error;
   });
 }
 

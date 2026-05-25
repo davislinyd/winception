@@ -10,6 +10,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $Utf8NoBom
+[Console]::InputEncoding = $Utf8NoBom
+$OutputEncoding = $Utf8NoBom
 
 $adapter = Get-NetAdapter -Name $InterfaceAlias -ErrorAction Stop
 if ($adapter.Status -eq 'Disabled') {

@@ -477,6 +477,25 @@ test('runtime restore initializes UTF-8 console output before execution', () => 
   assert.match(script, /\$OutputEncoding = \$Utf8NoBom/);
 });
 
+test('host PowerShell entrypoints initialize UTF-8 console output', () => {
+  for (const relativePath of [
+    'tools/Setup-DeploymentServer.ps1',
+    'tools/Initialize-DeploymentServer.ps1',
+    'tools/Set-OsdCloudIpxeEndpoint.ps1',
+    'tools/Set-IpxePhysicalNic.ps1',
+    'tools/Sync-OsdCloudAssets.ps1',
+    'tools/Export-DeploymentServerBundle.ps1',
+    'tools/Invoke-IpxeTimingRun.ps1',
+    'tools/Restore-DeploymentArtifacts.ps1',
+  ]) {
+    const script = fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
+    assert.match(script, /\$Utf8NoBom = \[System\.Text\.UTF8Encoding\]::new\(\$false\)/, relativePath);
+    assert.match(script, /\[Console\]::OutputEncoding = \$Utf8NoBom/, relativePath);
+    assert.match(script, /\[Console\]::InputEncoding = \$Utf8NoBom/, relativePath);
+    assert.match(script, /\$OutputEncoding = \$Utf8NoBom/, relativePath);
+  }
+});
+
 test('checked-in runtime artifact catalog is valid', () => {
   const catalog = loadRuntimeArtifactCatalog();
   assert.ok(catalog.artifacts.length >= 1);
