@@ -73,10 +73,7 @@ function isBenignObjectSecurityTypeDataLine(line) {
   if (!/TypeData\s+"System\.Security\.AccessControl\.ObjectSecurity"/u.test(text)) {
     return false;
   }
-  if (!/\b(?:Access|Group|Owner|Path)\b/u.test(text)) {
-    return false;
-  }
-  return /成員已經存在|member\s+(?:Access|Group|Owner|Path)\s+is\s+already\s+present|already\s+present|already\s+exists/iu.test(text);
+  return /成員已經存在|member\s+.+?\s+is\s+already\s+present|already\s+present|already\s+exists/iu.test(text);
 }
 
 function makeOutputLogger(writeLine, prefix, options = {}) {

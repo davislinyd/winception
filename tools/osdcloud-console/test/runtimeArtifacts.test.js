@@ -527,8 +527,11 @@ test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft in
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
   assert.match(script, /linkid=2289980/);
   assert.match(script, /linkid=2289981/);
+  assert.match(script, /--silent --show-error --location --fail --retry 3/);
+  assert.match(script, /curl\.exe failed with exit code/);
   assert.match(script, /Get-AuthenticodeSignature/);
   assert.match(script, /WinVerifyTrust/);
+  assert.match(script, /validated with WinVerifyTrust fallback after Get-AuthenticodeSignature could not complete/);
   assert.match(script, /CreateFromSignedFile/);
   assert.match(script, /Get-Command -Name Get-FileHash/);
   assert.match(script, /System\.Security\.Cryptography\.SHA256/);
@@ -543,7 +546,7 @@ test('restore bootstrap creates missing OSDCloud template before workspace build
   assert.match(script, /Test-OsdCloudTemplateReady/);
   assert.match(script, /Set-OsdCloudTemplateGalleryFallback/);
   assert.match(script, /New-OSDCloudTemplate -Name 'default'/);
-  assert.match(script, /Skipping WinPE PowerShell Gallery module injection/);
+  assert.match(script, /Optional WinPE PowerShell Gallery module injection skipped/);
   assert.match(script, /Media\\sources\\boot\.wim/);
   assert.match(script, /workspace build did not produce required boot\.wim/);
 });

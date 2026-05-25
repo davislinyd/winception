@@ -924,6 +924,9 @@ test('prepare runtime suppresses benign ObjectSecurity TypeData duplicate noise'
         }),
         prepareRuntimeArtifacts: async (_config, options = {}) => {
           options.onOutput?.('TypeData "System.Security.AccessControl.ObjectSecurity" 中有錯誤: Group 成員已經存在。\n', 'stdout');
+          options.onOutput?.('TypeData "System.Security.AccessControl.ObjectSecurity" 中有錯誤: AuditToString 成員已經存在。\n', 'stdout');
+          options.onOutput?.('TypeData "System.Security.AccessControl.ObjectSecurity" 中有錯誤: AccessToString 成員已經存在。\n', 'stdout');
+          options.onOutput?.('TypeData "System.Security.AccessControl.ObjectSecurity" 中有錯誤: Sddl 成員已經存在。\n', 'stdout');
           options.onOutput?.('Error in TypeData "System.Security.AccessControl.ObjectSecurity": The member Owner is already present.\n', 'stderr');
           options.onOutput?.('restore completed\n', 'stdout');
           return 'restore completed';

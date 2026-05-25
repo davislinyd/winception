@@ -232,7 +232,7 @@ function Invoke-DownloadFile {
         Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
         try {
             if ($curl) {
-                & $curl.Source --location --fail --retry 3 --retry-delay 5 --connect-timeout 30 --output $Destination $Url
+                & $curl.Source --silent --show-error --location --fail --retry 3 --retry-delay 5 --connect-timeout 30 --output $Destination $Url
                 if ($LASTEXITCODE -ne 0) {
                     throw "curl.exe failed with exit code $LASTEXITCODE"
                 }
@@ -477,6 +477,7 @@ function Assert-MicrosoftSignedFile {
         [Parameter(Mandatory)][string] $Label
     )
 
+    $authenticodeFallbackReason = $null
     try {
         Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
         $signature = Get-AuthenticodeSignature -FilePath $Path -ErrorAction Stop
@@ -487,12 +488,15 @@ function Assert-MicrosoftSignedFile {
         return
     }
     catch {
-        Write-Warning "$Label could not be validated with Get-AuthenticodeSignature; using WinVerifyTrust fallback. $($_.Exception.Message)"
+        $authenticodeFallbackReason = $_.Exception.Message
     }
 
     Assert-WinTrustSignature -Path $Path -Label $Label
     $certificate = Get-EmbeddedSignerCertificate -Path $Path -Label $Label
     Assert-MicrosoftSignerCertificate -Certificate $certificate -Label $Label
+    if (-not [string]::IsNullOrWhiteSpace($authenticodeFallbackReason)) {
+        Write-Host "$Label validated with WinVerifyTrust fallback after Get-AuthenticodeSignature could not complete."
+    }
 }
 
 function Invoke-Installer {
@@ -715,7 +719,7 @@ HKLM,"SYSTEM\ControlSet001\Control\Session Manager\Environment",LOCALAPPDATA,0x0
                         Save-Module -Name PowerShellGet -Path "$mountPath\Program Files\WindowsPowerShell\Modules" -Force -ErrorAction Stop
                     }
                     catch {
-                        Write-Warning "Skipping WinPE PowerShell Gallery module injection because PowerShellGet/Save-Module failed: $($_.Exception.Message)"
+                        Write-Host "Optional WinPE PowerShell Gallery module injection skipped because PowerShellGet/Save-Module could not run."
                     }
 
                     Get-WindowsImage -Mounted | Where-Object { $_.Path -eq $mountPath }
