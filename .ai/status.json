@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-24T21:58:44+08:00",
+  "updated_at": "2026-05-25T12:36:41+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "test-result-runbook-pushed",
+    "state": "runtime-log-noise-filter-pushed",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin-github",
-    "summary": "Development happens in the copied Codex workspace; deployment-facing tests run only after push and deployment-clone pull.",
+    "summary": "Development workspace filters harmless Prepare runtime TypeData noise; deployment-facing tests run only after push and deployment-clone pull.",
     "baseline": {
-      "commit": "e061ce40f9a5bbb4485b440bade605d86a1cb680",
-      "short": "e061ce4",
-      "subject": "Document production clone workflow"
+      "commit": "ba01202b26b6dea77beff4b72c24f4c7e4089955",
+      "short": "ba01202",
+      "subject": "Filter benign runtime TypeData log noise"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin-github/master",
-    "last_checked_head": "77e453a3fa985a32f272cbba3f1bf2895c4308c2",
-    "last_checked_head_short": "77e453a",
+    "last_checked_head": "ba01202b26b6dea77beff4b72c24f4c7e4089955",
+    "last_checked_head_short": "ba01202",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260525123641-push-runtime-log-filter",
+      "at": "2026-05-25T12:36:41+08:00",
+      "kind": "push",
+      "summary": "Pushed the Web Prepare runtime ObjectSecurity duplicate TypeData log filter to origin-github/master.",
+      "commit": "ba01202b26b6dea77beff4b72c24f4c7e4089955",
+      "verification": "node --test tools/osdcloud-console/test/serviceController.test.js; npm test; git diff --check; git push -u origin-github master; no Web/runtime/PXE services started"
+    },
+    {
       "id": "20260524215844-push-test-result-runbook",
       "at": "2026-05-24T21:58:44+08:00",
       "kind": "push",
@@ -123,14 +131,6 @@
       "summary": "Applied Web endpoint sync to LAN 192.168.100.1/20; initialization is complete and all 19 preflight checks pass, with deployment services still stopped pending DHCP-safe start.",
       "commit": "84b585849baa4feedc4201f1673d272b697be02f",
       "verification": "POST /api/endpoint LAN; boot.ipxe now uses http://192.168.100.1/osdcloud; /api/state initialized=true; HTTP/TFTP/DHCP service states are stopped"
-    },
-    {
-      "id": "20260524212213-test-deployment-init-os-profile",
-      "at": "2026-05-24T21:22:13+08:00",
-      "kind": "test",
-      "summary": "Deployment clone pulled 84b5858, Web runtime readiness passed, Windows 11 Pro 25H2 zh-TW WIM was downloaded/exported, and the active profile was published; preflight is blocked only by unavailable endpoint 192.168.100.1.",
-      "commit": "84b585849baa4feedc4201f1673d272b697be02f",
-      "verification": "Web /api/state runtime 10/10 ready; OS image cache exported 26200.6584 zh-tw WIM; /api/profile/software published selected-os.json and profile payload; preflight failed Service IP/UDP67/UDP69/TCP80 because vEthernet 192.168.100.1 is absent; no HTTP/TFTP/DHCP services started"
     }
   ]
 }
