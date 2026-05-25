@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-25T14:58:00+08:00",
+  "updated_at": "2026-05-25T23:49:19+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "host-process-output-utf8-standardized",
+    "state": "prepare-runtime-log-cleanup",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Host/Web external process output now uses shared UTF-8 decoding and host PowerShell entrypoints initialize UTF-8 console encoding.",
+    "summary": "Prepare runtime logs now suppress benign ObjectSecurity TypeData noise, quiet curl progress, and report optional fallback/WinPE module skips with clearer non-blocking messages.",
     "baseline": {
-      "commit": "f2fbc1137c57eb6aeed960dd118d568620bf265a",
-      "short": "f2fbc11",
-      "subject": "Standardize host process output encoding"
+      "commit": "2ac145a4ae8c423291ea1cc872b36cd2a6c25345",
+      "short": "2ac145a",
+      "subject": "Clean up prepare runtime log noise"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "f2fbc1137c57eb6aeed960dd118d568620bf265a",
-    "last_checked_head_short": "f2fbc11",
+    "last_checked_head": "2ac145a4ae8c423291ea1cc872b36cd2a6c25345",
+    "last_checked_head_short": "2ac145a",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260525234919-code-2ac145a",
+      "at": "2026-05-25T23:49:19+08:00",
+      "kind": "code",
+      "summary": "Cleaned up Web Prepare runtime log noise for ObjectSecurity TypeData duplicates, curl progress, Authenticode fallback, and optional WinPE Gallery injection skips.",
+      "commit": "2ac145a4ae8c423291ea1cc872b36cd2a6c25345",
+      "verification": "node --test tools/osdcloud-console/test/serviceController.test.js tools/osdcloud-console/test/runtimeArtifacts.test.js; PowerShell parser check for tools/Restore-DeploymentArtifacts.ps1; node --check tools/osdcloud-console/src/serviceController.js; npm test; npm run smoke; git diff --check; no Web endpoint sync or live runtime/PXE mutation"
+    },
+    {
       "id": "20260525145800-code-f2fbc11",
       "at": "2026-05-25T14:58:00+08:00",
       "kind": "code",
@@ -123,14 +131,6 @@
       "summary": "Pushed the zero-to-one deployment test result runbook and agent reference documentation to origin-github/master.",
       "commit": "77e453a3fa985a32f272cbba3f1bf2895c4308c2",
       "verification": "git push -u origin-github master; git ls-remote --heads origin-github"
-    },
-    {
-      "id": "20260524214551-docs-test-result-runbook",
-      "at": "2026-05-24T21:45:51+08:00",
-      "kind": "docs",
-      "summary": "Added TEST-RESULT.md as the completed 0-to-1 deployment test evidence and no-AI rebuild runbook, and linked it from AGENTS.md.",
-      "commit": "84b585849baa4feedc4201f1673d272b697be02f",
-      "verification": "rg TEST-RESULT/0-to-1 references; git diff --check AGENTS.md TEST-RESULT.md .ai/status.json"
     }
   ]
 }
