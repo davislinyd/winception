@@ -22,6 +22,7 @@ const state = {
   initializationOperationAction: null,
   initializationOperationLogText: '',
   initializationDetailScrollPositions: {},
+  endpointSyncReturnToInitialization: false,
   initializationSecretsDraft: {
     davisPassword: '',
     pxeinstallPassword: '',
@@ -768,6 +769,7 @@ function initializationActionLabel(action) {
   const labels = {
     secrets: 'Save secrets',
     'prepare-runtime': 'Prepare runtime',
+    'endpoint-sync': 'Sync endpoint',
     interfaces: 'Select endpoint',
     'os-images': 'Open OS images',
     profiles: 'Publish profile',
@@ -780,6 +782,7 @@ function initializationActionIcon(action) {
   const icons = {
     secrets: 'password',
     'prepare-runtime': 'deployed_code_update',
+    'endpoint-sync': 'sync_alt',
     interfaces: 'settings_ethernet',
     'os-images': 'deployed_code',
     profiles: 'list_alt',
@@ -997,6 +1000,9 @@ function initializationActionForOperation(operation) {
   if (operation.label === 'Running preflight') {
     return 'preflight';
   }
+  if (operation.label === 'Applying service endpoint') {
+    return 'endpoint-sync';
+  }
   return null;
 }
 
@@ -1109,6 +1115,7 @@ function renderInitialization(appState) {
   for (const step of initialization.steps ?? []) {
     const hasInlineSecretsForm = step.id === 'secrets' && !step.done;
     const stepIsRunning = (step.id === 'runtime' && activeOperation?.action === 'prepare-runtime' && initializationBusy)
+      || (step.id === 'endpoint' && activeOperation?.action === 'endpoint-sync' && initializationBusy)
       || (step.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy);
     const row = document.createElement('div');
     row.className = `initialization-step ${step.done ? 'done' : step.required ? 'blocked' : 'optional'}`;
@@ -3376,9 +3383,25 @@ async function confirmEndpointSync(choice) {
   if (!ok) {
     return;
   }
+  const returnToInitialization = state.endpointSyncReturnToInitialization;
   state.pendingInterface = choice;
   closeDialog(elements.endpointSettingsDialog);
-  await mutate('/api/endpoint', choice);
+  if (returnToInitialization) {
+    state.initializationPendingAction = 'endpoint-sync';
+    state.initializationOperationAction = 'endpoint-sync';
+    openDialog(elements.initializationDialog);
+    render();
+  }
+  try {
+    await mutate('/api/endpoint', choice, { alertOnError: !returnToInitialization });
+  } finally {
+    if (returnToInitialization) {
+      state.endpointSyncReturnToInitialization = false;
+      state.initializationPendingAction = null;
+      openDialog(elements.initializationDialog);
+      render();
+    }
+  }
 }
 
 async function handleProfileDelete(profile) {
@@ -3730,6 +3753,9 @@ async function handleInitializationAction(action, source = null) {
     return;
   }
   closeDialog(elements.initializationDialog);
+  if (resolvedAction === 'interfaces') {
+    state.endpointSyncReturnToInitialization = true;
+  }
   await handleAction(resolvedAction, source);
 }
 
@@ -4041,6 +4067,12 @@ document.addEventListener('submit', (event) => {
   }
   event.preventDefault();
   closeDialog(dialog, event.submitter?.value ?? '');
+});
+
+elements.endpointSettingsDialog?.addEventListener('close', () => {
+  if (!state.initializationPendingAction) {
+    state.endpointSyncReturnToInitialization = false;
+  }
 });
 
 document.addEventListener('keydown', (event) => {

@@ -186,6 +186,14 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /await mutate\('\/api\/runtime\/prepare', null, \{ alertOnError: false \}\)/);
   assert.match(script, /closeDialog\(elements\.initializationDialog\);[\s\S]*const ok = await confirmPrepareRuntime\(runtime\);[\s\S]*if \(!ok\) \{[\s\S]*openDialog\(elements\.initializationDialog\);/);
   assert.match(script, /state\.initializationPendingAction = action;[\s\S]*state\.initializationOperationAction = action;[\s\S]*openDialog\(elements\.initializationDialog\);/);
+  assert.match(script, /endpointSyncReturnToInitialization: false/);
+  assert.match(script, /if \(operation\.label === 'Applying service endpoint'\) \{\s*return 'endpoint-sync';\s*\}/);
+  assert.match(script, /step\.id === 'endpoint' && activeOperation\?\.action === 'endpoint-sync' && initializationBusy/);
+  assert.match(script, /if \(resolvedAction === 'interfaces'\) \{\s*state\.endpointSyncReturnToInitialization = true;\s*\}/);
+  assert.match(script, /const returnToInitialization = state\.endpointSyncReturnToInitialization/);
+  assert.match(script, /state\.initializationPendingAction = 'endpoint-sync';[\s\S]*state\.initializationOperationAction = 'endpoint-sync';[\s\S]*openDialog\(elements\.initializationDialog\);/);
+  assert.match(script, /await mutate\('\/api\/endpoint', choice, \{ alertOnError: !returnToInitialization \}\)/);
+  assert.match(script, /elements\.endpointSettingsDialog\?\.addEventListener\('close', \(\) => \{[\s\S]*state\.endpointSyncReturnToInitialization = false;/);
   assert.match(script, /Prepare runtime/);
   assert.match(styles, /\.runtime-readiness-panel/);
   assert.match(styles, /\.initialization-dialog \{\s*width: min\(1180px, calc\(100vw - 32px\)\);/);
