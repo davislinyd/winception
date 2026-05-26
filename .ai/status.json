@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-26T23:30:25.792+08:00",
+  "updated_at": "2026-05-26T23:33:02.847+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "unused-artifact-cleanup-pending",
+    "state": "unused-artifact-cleanup-committed",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
     "summary": "Unused historical plan and review artifacts were removed without changing deployment runtime or functional source files.",
     "baseline": {
-      "commit": "2a06851ba3a6f4ec381055c496e24b02b1efdea7",
-      "short": "2a06851",
-      "subject": "Update project status after snponly hash fix"
+      "commit": "d85cb7e3d73381670628eb8c2e063fcc5a2e0d27",
+      "short": "d85cb7e",
+      "subject": "Remove unused historical artifacts"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,10 +51,10 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "2a06851ba3a6f4ec381055c496e24b02b1efdea7",
-    "last_checked_head_short": "2a06851",
-    "dirty": true,
-    "ahead": 0,
+    "last_checked_head": "d85cb7e3d73381670628eb8c2e063fcc5a2e0d27",
+    "last_checked_head_short": "d85cb7e",
+    "dirty": false,
+    "ahead": 1,
     "behind": 0,
     "remotes": [
       {
@@ -66,10 +66,10 @@
     "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
   },
   "workspace": {
-    "dirty_excludes_status_file": true,
+    "dirty_excludes_status_file": false,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": true
+    "status_file_uncommitted": false
   },
   "required_workflow": {
     "before_development_work": [
@@ -93,11 +93,12 @@
   },
   "recent_changes": [
     {
-      "id": "20260526233025-docs-unused-artifact-cleanup",
-      "at": "2026-05-26T23:30:25.792+08:00",
+      "id": "20260526233302-docs-d85cb7e",
+      "at": "2026-05-26T23:33:02.847+08:00",
       "kind": "docs",
       "summary": "Removed unused historical plan and review artifacts.",
-      "verification": "rg unused artifact names; npm test; npm run smoke"
+      "commit": "d85cb7e3d73381670628eb8c2e063fcc5a2e0d27",
+      "verification": "rg unused artifact names; npm test; npm run smoke; git diff --check (LF/CRLF warnings only)"
     },
     {
       "id": "20260526223030-code-f09810e",
