@@ -791,6 +791,16 @@ function initializationActionIcon(action) {
   return icons[action] ?? 'arrow_forward';
 }
 
+function initializationDetailStatusLabel(statusClass) {
+  if (statusClass === 'blocked') {
+    return 'MISSING';
+  }
+  if (statusClass === 'blocked-by-dependency') {
+    return 'BLOCKED';
+  }
+  return statusClass ? statusClass.replace(/-/gu, ' ').toUpperCase() : '';
+}
+
 function appendInitializationDetailItems(body, stepId, detailItems = []) {
   if (!Array.isArray(detailItems) || detailItems.length === 0) {
     return null;
@@ -807,6 +817,13 @@ function appendInitializationDetailItems(body, stepId, detailItems = []) {
     if (statusClass) {
       row.classList.add(`status-${statusClass}`);
     }
+    const statusLabel = initializationDetailStatusLabel(statusClass);
+    const status = document.createElement('span');
+    status.className = 'initialization-detail-status';
+    status.textContent = statusLabel;
+    if (statusLabel) {
+      row.classList.add('has-status');
+    }
     const title = document.createElement('span');
     title.className = 'initialization-detail-title';
     title.textContent = item.title ?? 'Runtime artifact';
@@ -816,7 +833,7 @@ function appendInitializationDetailItems(body, stepId, detailItems = []) {
     const detail = document.createElement('span');
     detail.className = 'initialization-detail-text';
     detail.textContent = item.detail ?? '';
-    row.append(title, meta, detail);
+    row.append(status, title, meta, detail);
     list.append(row);
   }
   body.append(list);

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-26T02:55:31.174+08:00",
+  "updated_at": "2026-05-26T21:33:36.139+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "initialization-endpoint-sync-preserved",
+    "state": "prepare-runtime-artifact-status-badges",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Initialization Wizard keeps the operator in the wizard during endpoint sync and surfaces the endpoint-sync operation state.",
+    "summary": "Initialization Wizard Prepare runtime artifact rows show explicit MISSING/BLOCKED status badges with stronger red/orange row styling.",
     "baseline": {
-      "commit": "25562b89b75c5731d1ae0d564cca0bde046e7280",
-      "short": "25562b8",
-      "subject": "Keep initialization open during endpoint sync"
+      "commit": "ea275ca48d91d1f8a4ff10c932c3ecf61dd28192",
+      "short": "ea275ca",
+      "subject": "Update project status after endpoint sync UI fix"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,9 +51,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "25562b89b75c5731d1ae0d564cca0bde046e7280",
-    "last_checked_head_short": "25562b8",
-    "dirty": false,
+    "last_checked_head": "ea275ca48d91d1f8a4ff10c932c3ecf61dd28192",
+    "last_checked_head_short": "ea275ca",
+    "dirty": true,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -66,10 +66,10 @@
     "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
   },
   "workspace": {
-    "dirty_excludes_status_file": false,
+    "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": false
+    "status_file_uncommitted": true
   },
   "required_workflow": {
     "before_development_work": [
@@ -92,6 +92,13 @@
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260526213336-code-uncommitted",
+      "at": "2026-05-26T21:33:36.139+08:00",
+      "kind": "code",
+      "summary": "Strengthened Prepare runtime artifact status rows with explicit MISSING/BLOCKED badges and red/orange row treatment.",
+      "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); browser read-only check confirmed 7 live detail rows render status badges and styling"
+    },
     {
       "id": "20260526025531-code-25562b8",
       "at": "2026-05-26T02:55:31.174+08:00",
@@ -123,14 +130,6 @@
       "summary": "Cleaned up Web Prepare runtime log noise for ObjectSecurity TypeData duplicates, curl progress, Authenticode fallback, and optional WinPE Gallery injection skips.",
       "commit": "2ac145a4ae8c423291ea1cc872b36cd2a6c25345",
       "verification": "node --test tools/osdcloud-console/test/serviceController.test.js tools/osdcloud-console/test/runtimeArtifacts.test.js; PowerShell parser check for tools/Restore-DeploymentArtifacts.ps1; node --check tools/osdcloud-console/src/serviceController.js; npm test; npm run smoke; git diff --check; no Web endpoint sync or live runtime/PXE mutation"
-    },
-    {
-      "id": "20260525145800-code-f2fbc11",
-      "at": "2026-05-25T14:58:00+08:00",
-      "kind": "code",
-      "summary": "Standardized Host/Web external process stdout/stderr handling with shared UTF-8 decoding and UTF-8 console setup for host PowerShell entrypoints.",
-      "commit": "f2fbc1137c57eb6aeed960dd118d568620bf265a",
-      "verification": "node --test tools/osdcloud-console/test/windows.test.js tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/osImages.test.js tools/osdcloud-console/test/deploymentProfiles.test.js tools/osdcloud-console/test/processOutput.test.js; PowerShell parser check for host tools; node --check changed modules; git diff --check; npm test; npm run smoke; no Web endpoint sync or live runtime/PXE mutation"
     }
   ]
 }
