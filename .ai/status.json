@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-26T23:33:02.847+08:00",
+  "updated_at": "2026-05-26T23:33:53.107+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "unused-artifact-cleanup-committed",
+    "state": "unused-artifact-cleanup-pushed",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Unused historical plan and review artifacts were removed without changing deployment runtime or functional source files.",
+    "summary": "Unused historical plan and review artifacts were removed and pushed without changing deployment runtime or functional source files.",
     "baseline": {
-      "commit": "d85cb7e3d73381670628eb8c2e063fcc5a2e0d27",
-      "short": "d85cb7e",
-      "subject": "Remove unused historical artifacts"
+      "commit": "1dd48884d9a7970def45f68f0f5983fcd338123e",
+      "short": "1dd4888",
+      "subject": "Update project status after artifact cleanup"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,10 +51,10 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "d85cb7e3d73381670628eb8c2e063fcc5a2e0d27",
-    "last_checked_head_short": "d85cb7e",
+    "last_checked_head": "1dd48884d9a7970def45f68f0f5983fcd338123e",
+    "last_checked_head_short": "1dd4888",
     "dirty": false,
-    "ahead": 1,
+    "ahead": 0,
     "behind": 0,
     "remotes": [
       {
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260526233353-push-1dd4888",
+      "at": "2026-05-26T23:33:53.107+08:00",
+      "kind": "push",
+      "summary": "Pushed unused artifact cleanup and status update to origin/master.",
+      "commit": "1dd48884d9a7970def45f68f0f5983fcd338123e",
+      "verification": "git push -u origin master; git status --short --branch; git rev-parse HEAD origin/master"
+    },
+    {
       "id": "20260526233302-docs-d85cb7e",
       "at": "2026-05-26T23:33:02.847+08:00",
       "kind": "docs",
@@ -123,14 +131,6 @@
       "summary": "Strengthened Prepare runtime artifact status rows with explicit MISSING/BLOCKED badges and red/orange row treatment.",
       "commit": "620344060b6b869f88d7cab2c29f2693205cd2aa",
       "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); browser read-only check confirmed 7 live detail rows render status badges and styling"
-    },
-    {
-      "id": "20260526025531-code-25562b8",
-      "at": "2026-05-26T02:55:31.174+08:00",
-      "kind": "code",
-      "summary": "Kept Initialization Wizard open during endpoint sync when the sync starts from the wizard, while preserving normal dashboard sync behavior.",
-      "commit": "25562b89b75c5731d1ae0d564cca0bde046e7280",
-      "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); no Web endpoint sync or live runtime/PXE mutation"
     }
   ]
 }
