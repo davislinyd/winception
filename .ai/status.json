@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-26T22:30:30.849+08:00",
+  "updated_at": "2026-05-26T23:30:25.792+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "prepare-runtime-snponly-hash-updated",
+    "state": "unused-artifact-cleanup-pending",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Runtime artifact catalog pins the current validated boot.ipxe.org snponly.efi SHA-256 so Prepare runtime can restore iPXE boot files.",
+    "summary": "Unused historical plan and review artifacts were removed without changing deployment runtime or functional source files.",
     "baseline": {
-      "commit": "f09810e21600a39a056fcf4fa3e6162659fd2ae3",
-      "short": "f09810e",
-      "subject": "Update iPXE snponly runtime artifact hash"
+      "commit": "2a06851ba3a6f4ec381055c496e24b02b1efdea7",
+      "short": "2a06851",
+      "subject": "Update project status after snponly hash fix"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,10 +51,10 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "f09810e21600a39a056fcf4fa3e6162659fd2ae3",
-    "last_checked_head_short": "f09810e",
-    "dirty": false,
-    "ahead": 1,
+    "last_checked_head": "2a06851ba3a6f4ec381055c496e24b02b1efdea7",
+    "last_checked_head_short": "2a06851",
+    "dirty": true,
+    "ahead": 0,
     "behind": 0,
     "remotes": [
       {
@@ -66,10 +66,10 @@
     "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
   },
   "workspace": {
-    "dirty_excludes_status_file": false,
+    "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": false
+    "status_file_uncommitted": true
   },
   "required_workflow": {
     "before_development_work": [
@@ -92,6 +92,13 @@
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260526233025-docs-unused-artifact-cleanup",
+      "at": "2026-05-26T23:30:25.792+08:00",
+      "kind": "docs",
+      "summary": "Removed unused historical plan and review artifacts.",
+      "verification": "rg unused artifact names; npm test; npm run smoke"
+    },
     {
       "id": "20260526223030-code-f09810e",
       "at": "2026-05-26T22:30:30.849+08:00",
@@ -123,14 +130,6 @@
       "summary": "Kept Initialization Wizard open during endpoint sync when the sync starts from the wizard, while preserving normal dashboard sync behavior.",
       "commit": "25562b89b75c5731d1ae0d564cca0bde046e7280",
       "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); no Web endpoint sync or live runtime/PXE mutation"
-    },
-    {
-      "id": "20260526022856-code-5f58f8c",
-      "at": "2026-05-26T02:28:56+08:00",
-      "kind": "code",
-      "summary": "Preserved Initialization Wizard Prepare runtime artifact detail scroll position across polling re-renders.",
-      "commit": "5f58f8c0859a12f4ed049c18e5cdb76295ad56a1",
-      "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); browser opened read-only but current live state had no detailItems to scroll-test"
     }
   ]
 }
