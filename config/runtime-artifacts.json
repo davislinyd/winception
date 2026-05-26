@@ -98,7 +98,7 @@
       "prepareGroup": "ipxe-downloads",
       "target": "PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi",
       "length": 288256,
-      "sha256": "940EFA5E8D1D777A65786AF3D69D6391CC93290DDF9C65E0BADB7B828C6D8D74"
+      "sha256": "A6EA6BD7580791EA3130F95247D560734A6FC8B9CF7C1D75EAAEBB688698D792"
     }
   ]
 }
