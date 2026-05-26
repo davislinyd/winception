@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-26T21:40:18.842+08:00",
+  "updated_at": "2026-05-26T21:54:38.586+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -51,10 +51,10 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "620344060b6b869f88d7cab2c29f2693205cd2aa",
-    "last_checked_head_short": "6203440",
+    "last_checked_head": "d13320b97569442677ca36c21ee7f1c3472e671f",
+    "last_checked_head_short": "d13320b",
     "dirty": false,
-    "ahead": 1,
+    "ahead": 0,
     "behind": 0,
     "remotes": [
       {
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260526215438-push-d13320b",
+      "at": "2026-05-26T21:54:38.586+08:00",
+      "kind": "push",
+      "summary": "Pushed Prepare runtime artifact status UI fix and status update to origin/master.",
+      "commit": "d13320b97569442677ca36c21ee7f1c3472e671f",
+      "verification": "git push origin master; git status --short --branch; git rev-parse HEAD origin/master"
+    },
+    {
       "id": "20260526214018-code-6203440",
       "at": "2026-05-26T21:40:18.842+08:00",
       "kind": "code",
@@ -123,14 +131,6 @@
       "summary": "Lightened Prepare runtime to boot/iPXE/WinPE artifacts and moved selected client software payload restore/verification into deployment profile publish.",
       "commit": "f175d905d810adc1b9e70383662c9e00417f566e",
       "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/deploymentProfiles.test.js tools/osdcloud-console/test/serviceController.test.js; PowerShell parser check for tools/Restore-DeploymentArtifacts.ps1; node --check changed JS modules; npm test; npm run smoke; git diff --check; no Web endpoint sync or live runtime/PXE mutation"
-    },
-    {
-      "id": "20260525234919-code-2ac145a",
-      "at": "2026-05-25T23:49:19+08:00",
-      "kind": "code",
-      "summary": "Cleaned up Web Prepare runtime log noise for ObjectSecurity TypeData duplicates, curl progress, Authenticode fallback, and optional WinPE Gallery injection skips.",
-      "commit": "2ac145a4ae8c423291ea1cc872b36cd2a6c25345",
-      "verification": "node --test tools/osdcloud-console/test/serviceController.test.js tools/osdcloud-console/test/runtimeArtifacts.test.js; PowerShell parser check for tools/Restore-DeploymentArtifacts.ps1; node --check tools/osdcloud-console/src/serviceController.js; npm test; npm run smoke; git diff --check; no Web endpoint sync or live runtime/PXE mutation"
     }
   ]
 }
