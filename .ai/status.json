@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-26T21:54:38.586+08:00",
+  "updated_at": "2026-05-26T22:30:30.849+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "prepare-runtime-artifact-status-badges",
+    "state": "prepare-runtime-snponly-hash-updated",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Initialization Wizard Prepare runtime artifact rows show explicit MISSING/BLOCKED status badges with stronger red/orange row styling.",
+    "summary": "Runtime artifact catalog pins the current validated boot.ipxe.org snponly.efi SHA-256 so Prepare runtime can restore iPXE boot files.",
     "baseline": {
-      "commit": "620344060b6b869f88d7cab2c29f2693205cd2aa",
-      "short": "6203440",
-      "subject": "Highlight prepare runtime artifact statuses"
+      "commit": "f09810e21600a39a056fcf4fa3e6162659fd2ae3",
+      "short": "f09810e",
+      "subject": "Update iPXE snponly runtime artifact hash"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,10 +51,10 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "d13320b97569442677ca36c21ee7f1c3472e671f",
-    "last_checked_head_short": "d13320b",
+    "last_checked_head": "f09810e21600a39a056fcf4fa3e6162659fd2ae3",
+    "last_checked_head_short": "f09810e",
     "dirty": false,
-    "ahead": 0,
+    "ahead": 1,
     "behind": 0,
     "remotes": [
       {
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260526223030-code-f09810e",
+      "at": "2026-05-26T22:30:30.849+08:00",
+      "kind": "code",
+      "summary": "Updated the pinned SHA-256 for iPXE snponly.efi after verifying the current boot.ipxe.org download.",
+      "commit": "f09810e21600a39a056fcf4fa3e6162659fd2ae3",
+      "verification": "Direct download from https://boot.ipxe.org/x86_64-efi/snponly.efi length 288256 sha256 A6EA6BD7580791EA3130F95247D560734A6FC8B9CF7C1D75EAAEBB688698D792 and MZ header; node --test tools/osdcloud-console/test/runtimeArtifacts.test.js; powershell -File tools/Restore-DeploymentArtifacts.ps1 -DryRun -SkipPrerequisiteCheck; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); full live prepare not rerun because local deployment secrets are currently absent"
+    },
+    {
       "id": "20260526215438-push-d13320b",
       "at": "2026-05-26T21:54:38.586+08:00",
       "kind": "push",
@@ -123,14 +131,6 @@
       "summary": "Preserved Initialization Wizard Prepare runtime artifact detail scroll position across polling re-renders.",
       "commit": "5f58f8c0859a12f4ed049c18e5cdb76295ad56a1",
       "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); browser opened read-only but current live state had no detailItems to scroll-test"
-    },
-    {
-      "id": "20260526011228-code-f175d90",
-      "at": "2026-05-26T01:12:54+08:00",
-      "kind": "code",
-      "summary": "Lightened Prepare runtime to boot/iPXE/WinPE artifacts and moved selected client software payload restore/verification into deployment profile publish.",
-      "commit": "f175d905d810adc1b9e70383662c9e00417f566e",
-      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/deploymentProfiles.test.js tools/osdcloud-console/test/serviceController.test.js; PowerShell parser check for tools/Restore-DeploymentArtifacts.ps1; node --check changed JS modules; npm test; npm run smoke; git diff --check; no Web endpoint sync or live runtime/PXE mutation"
     }
   ]
 }
