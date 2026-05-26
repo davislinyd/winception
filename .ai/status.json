@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-26T21:33:36.139+08:00",
+  "updated_at": "2026-05-26T21:40:18.842+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -27,9 +27,9 @@
     "remote": "origin",
     "summary": "Initialization Wizard Prepare runtime artifact rows show explicit MISSING/BLOCKED status badges with stronger red/orange row styling.",
     "baseline": {
-      "commit": "ea275ca48d91d1f8a4ff10c932c3ecf61dd28192",
-      "short": "ea275ca",
-      "subject": "Update project status after endpoint sync UI fix"
+      "commit": "620344060b6b869f88d7cab2c29f2693205cd2aa",
+      "short": "6203440",
+      "subject": "Highlight prepare runtime artifact statuses"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,10 +51,10 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "ea275ca48d91d1f8a4ff10c932c3ecf61dd28192",
-    "last_checked_head_short": "ea275ca",
-    "dirty": true,
-    "ahead": 0,
+    "last_checked_head": "620344060b6b869f88d7cab2c29f2693205cd2aa",
+    "last_checked_head_short": "6203440",
+    "dirty": false,
+    "ahead": 1,
     "behind": 0,
     "remotes": [
       {
@@ -66,10 +66,10 @@
     "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
   },
   "workspace": {
-    "dirty_excludes_status_file": true,
+    "dirty_excludes_status_file": false,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": true
+    "status_file_uncommitted": false
   },
   "required_workflow": {
     "before_development_work": [
@@ -93,10 +93,11 @@
   },
   "recent_changes": [
     {
-      "id": "20260526213336-code-uncommitted",
-      "at": "2026-05-26T21:33:36.139+08:00",
+      "id": "20260526214018-code-6203440",
+      "at": "2026-05-26T21:40:18.842+08:00",
       "kind": "code",
       "summary": "Strengthened Prepare runtime artifact status rows with explicit MISSING/BLOCKED badges and red/orange row treatment.",
+      "commit": "620344060b6b869f88d7cab2c29f2693205cd2aa",
       "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; git diff --check (LF/CRLF warnings only); browser read-only check confirmed 7 live detail rows render status badges and styling"
     },
     {
