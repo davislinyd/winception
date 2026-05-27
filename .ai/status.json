@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-27T16:09:21.497+08:00",
+  "updated_at": "2026-05-27T16:20:00.000+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "validated-hyperv-desktop-ready",
+    "state": "deployment-fix-committed",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "WinPE Startnet and OSD module injection are fixed; VM vSwitch deployment completed to windows-desktop-ready, apps installed, and custom post script SC-J5GF07Y2 succeeded with auto.txt on the davis desktop.",
+    "summary": "WinPE Startnet/module injection and custom post script encoding fixes were committed after VM vSwitch deployment reached windows-desktop-ready.",
     "baseline": {
-      "commit": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
-      "short": "f4dd1ab",
-      "subject": "Update project status after cleanup push"
+      "commit": "4dd9908f6391e2abfadce2073f85731452951025",
+      "short": "4dd9908",
+      "subject": "Fix WinPE startup chain and post script deployment"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,10 +51,10 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
-    "last_checked_head_short": "f4dd1ab",
+    "last_checked_head": "4dd9908f6391e2abfadce2073f85731452951025",
+    "last_checked_head_short": "4dd9908",
     "dirty": true,
-    "ahead": 0,
+    "ahead": 1,
     "behind": 0,
     "remotes": [
       {
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260527162000-commit-4dd9908",
+      "at": "2026-05-27T16:20:00.000+08:00",
+      "kind": "commit",
+      "summary": "Committed WinPE startup-chain, OSD module injection, SetupComplete diagnostics, and post-script encoding fixes.",
+      "commit": "4dd9908f6391e2abfadce2073f85731452951025",
+      "verification": "git diff --cached --check; node --test tools/osdcloud-console/test/runtimeArtifacts.test.js; VM status run 20260527-155811 reached windows-desktop-ready; local OS image/profile selection remains uncommitted"
+    },
+    {
       "id": "20260527160552-test-f4dd1ab",
       "at": "2026-05-27T16:05:52.416+08:00",
       "kind": "test",
@@ -123,14 +131,6 @@
       "summary": "Restored WinPE Startnet boot-chain injection during endpoint sync; live boot.wim commit is blocked until rerun elevated.",
       "commit": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
       "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed; npm test failed on unrelated dirty OS image catalog and non-elevated C:\\Windows\\Temp access; Set-OsdCloudIpxeEndpoint -CommitWinPe failed with DISM Error 740; npm run server:preflight failed on non-elevated admin gate and missing active SMB/OS image state; git diff --check warnings only"
-    },
-    {
-      "id": "20260526233353-push-1dd4888",
-      "at": "2026-05-26T23:33:53.107+08:00",
-      "kind": "push",
-      "summary": "Pushed unused artifact cleanup and status update to origin/master.",
-      "commit": "1dd48884d9a7970def45f68f0f5983fcd338123e",
-      "verification": "git push -u origin master; git status --short --branch; git rev-parse HEAD origin/master"
     }
   ]
 }
