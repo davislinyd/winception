@@ -401,6 +401,34 @@ function Copy-IfPresent {
     return $false
 }
 
+function Copy-WinPePowerShellModule {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Name,
+        [Parameter(Mandatory)]
+        [string] $MountDir
+    )
+
+    $module = Get-Module -ListAvailable -Name $Name |
+        Sort-Object -Property Version -Descending |
+        Select-Object -First 1
+    if (-not $module) {
+        throw "PowerShell module '$Name' is not installed on the host. Install it before committing WinPE."
+    }
+
+    $destination = Join-Path $MountDir "Program Files\WindowsPowerShell\Modules\$Name"
+    if ((Split-Path -Leaf $module.ModuleBase) -eq ([string] $module.Version)) {
+        $destination = Join-Path $destination ([string] $module.Version)
+    }
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+    if (Test-Path -LiteralPath $destination) {
+        Remove-Item -LiteralPath $destination -Recurse -Force
+    }
+    Copy-Item -LiteralPath $module.ModuleBase -Destination $destination -Recurse -Force
+    Write-Host "Injected PowerShell module '$Name' into boot.wim from $($module.ModuleBase)"
+}
+
 function Restore-EndpointFileIfMissing {
     param(
         [Parameter(Mandatory)]
@@ -642,6 +670,9 @@ if ($CommitWinPe) {
         $mounted = $true
 
         Copy-IfPresent `
+            -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\Windows\System32\Startnet.cmd') `
+            -Destination (Join-Path $mountDir 'Windows\System32\Startnet.cmd') | Out-Null
+        Copy-IfPresent `
             -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') `
             -Destination (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1') | Out-Null
         Copy-IfPresent `
@@ -656,6 +687,9 @@ if ($CommitWinPe) {
         Copy-IfPresent `
             -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1') `
             -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') | Out-Null
+
+        Copy-WinPePowerShellModule -Name 'OSD' -MountDir $mountDir
+        Copy-WinPePowerShellModule -Name 'OSDCloud' -MountDir $mountDir
 
         $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $repoRoot -IpxeLab $ipxeLab
         if ($deploymentSecretSource) {

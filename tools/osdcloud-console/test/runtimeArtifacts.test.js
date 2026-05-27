@@ -576,6 +576,27 @@ test('endpoint sync injects progress reporter into rebuilt WinPE', () => {
   assert.match(script, /Set-ProgressReporterEndpoint/);
 });
 
+test('endpoint sync injects Startnet boot chain into rebuilt WinPE', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  const startnet = fs.readFileSync(
+    path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'Windows', 'System32', 'Startnet.cmd'),
+    'utf8',
+  );
+
+  assert.match(script, /WinPE\\Windows\\System32\\Startnet\.cmd/);
+  assert.match(script, /Windows\\System32\\Startnet\.cmd/);
+  assert.match(startnet, /PowerShell -NoL -NoP -ExecutionPolicy Bypass -File X:\\OSDCloud\\Start-OSDCloud-iPXE\.ps1/);
+});
+
+test('endpoint sync injects OSD modules into rebuilt WinPE', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+
+  assert.match(script, /function Copy-WinPePowerShellModule/);
+  assert.match(script, /Program Files\\WindowsPowerShell\\Modules\\\$Name/);
+  assert.match(script, /Copy-WinPePowerShellModule -Name 'OSD' -MountDir \$mountDir/);
+  assert.match(script, /Copy-WinPePowerShellModule -Name 'OSDCloud' -MountDir \$mountDir/);
+});
+
 test('deployment bootstrap refreshes endpoint runtime files after validation', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Initialize-DeploymentServer.ps1'), 'utf8');
   assert.match(script, /Repair-EndpointRuntimeIfMissing/);

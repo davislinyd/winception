@@ -252,6 +252,19 @@ function Set-TargetUserEnvironment {
     }
 }
 
+function Get-TextFileTail {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [int] $Count = 40
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return @()
+    }
+
+    return @(Get-Content -LiteralPath $Path -Tail $Count -ErrorAction SilentlyContinue)
+}
+
 function Invoke-ClientAppInstallers {
     $appsRoot = 'C:\ProgramData\OSDCloud\Apps'
     $installer = Join-Path $appsRoot 'Install-Apps.ps1'
@@ -268,12 +281,22 @@ function Invoke-ClientAppInstallers {
 
     $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $argumentList = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$installer`""
-    $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -Wait -PassThru -WindowStyle Hidden
+    $stdoutPath = Join-Path $LogDir 'apps-install.stdout.log'
+    $stderrPath = Join-Path $LogDir 'apps-install.stderr.log'
+    $transcriptPath = Join-Path $LogDir 'apps-install.log'
+    Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
     $result = [ordered]@{
         found = $true
         root = $appsRoot
         script = $installer
         exitCode = $process.ExitCode
+        stdoutLog = $stdoutPath
+        stderrLog = $stderrPath
+        transcriptLog = $transcriptPath
+        stdoutTail = Get-TextFileTail -Path $stdoutPath
+        stderrTail = Get-TextFileTail -Path $stderrPath
+        transcriptTail = Get-TextFileTail -Path $transcriptPath -Count 80
     }
 
     if ($process.ExitCode -ne 0) {

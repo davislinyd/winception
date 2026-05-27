@@ -1,286 +1,297 @@
-{
-  "generatedAt": "2026-05-21T11:17:57.183Z",
-  "sourceRoot": "C:\\OSDCloud",
-  "assetsRoot": "<repo-root>\\osdcloud-assets",
-  "hashLargeArtifacts": true,
-  "exports": [
-    {
-      "source": "C:\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
-      "length": 12412,
-      "lastWriteTimeUtc": "2026-05-20T09:38:13.4622702Z",
-      "sha256": "6AA1EB09F41EDDBD618CB00873BA4B807EF34054CA1C584B7EB2739A597A245C"
-    },
-    {
-      "source": "C:\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd",
-      "length": 266,
-      "lastWriteTimeUtc": "2026-05-06T13:52:49.9838653Z",
-      "sha256": "F554CB5F3B2658E6F1132400E1C58B51EB68BC7F45919F0A16A9262DBCA7446B"
-    },
-    {
-      "source": "C:\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 23905,
-      "lastWriteTimeUtc": "2026-05-20T09:36:41.8253802Z",
-      "sha256": "D765BE337B49B87DB8C7C4105F49DFA38EE94E53A7506BDB7E6D2C75240D0E88"
-    },
-    {
-      "source": "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\7zip\\install.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/7zip/install.ps1",
-      "length": 938,
-      "lastWriteTimeUtc": "2026-05-10T17:55:51.4262479Z",
-      "sha256": "0BF698D3BE6511987B2E4E71B7D88F6EA5646AAD26D1BA6BDC26D7127335E3E8"
-    },
-    {
-      "source": "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\chrome\\install.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/chrome/install.ps1",
-      "length": 1271,
-      "lastWriteTimeUtc": "2026-05-10T18:29:44.8874035Z",
-      "sha256": "1C51B0DD9071821661C53579DBCC6382A56E32E414D1FADFCD63D2FC29164B9E"
-    },
-    {
-      "source": "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\Install-Apps.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/Install-Apps.ps1",
-      "length": 12508,
-      "lastWriteTimeUtc": "2026-05-19T17:31:18.1903692Z",
-      "sha256": "379E17CA6429F854C1871CA653E95CC8F79FCCF2D217CA470C917DEFEF57967B"
-    },
-    {
-      "source": "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\SW-4UT7PDID\\install.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/SW-4UT7PDID/install.ps1",
-      "length": 912,
-      "lastWriteTimeUtc": "2026-05-18T03:31:21.7997091Z",
-      "sha256": "E54B63A2444616DF422593E3DF973879EE468103B0381C9371ED3BDE9E0A487E"
-    },
-    {
-      "source": "C:\\OSDCloud\\Media\\OSDCloud\\Scripts\\SC-J5GF07Y2\\run.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Media/OSDCloud/Scripts/SC-J5GF07Y2/run.ps1",
-      "length": 890,
-      "lastWriteTimeUtc": "2026-05-19T16:32:52.4665376Z",
-      "sha256": "598F62DFE500B64F992B8FDCFB0C65F17926A256580D3BE5E938ABD84A6C6A27"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.ipxe",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/PXE-HttpRoot/osdcloud/boot.ipxe",
-      "length": 245,
-      "lastWriteTimeUtc": "2026-05-18T05:18:46.5211982Z",
-      "sha256": "07762D8F15B9FF2EAD9AEBCDA5D4ABBD9CDE50563F3092433D964B81B0A467DB"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-TFTP\\autoexec.ipxe.disabled",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/PXE-TFTP/autoexec.ipxe.disabled",
-      "length": 52,
-      "lastWriteTimeUtc": "2026-05-18T05:18:46.5211982Z",
-      "sha256": "9B5E94D61D8AF522D82C4DAE68AB9679A30649CAC863DD4FDCC3B9B03190678C"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\autoexec.ipxe.disabled",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/PXE-TFTP/ipxeboot/x86_64-sb/autoexec.ipxe.disabled",
-      "length": 52,
-      "lastWriteTimeUtc": "2026-05-18T05:18:46.5211982Z",
-      "sha256": "9B5E94D61D8AF522D82C4DAE68AB9679A30649CAC863DD4FDCC3B9B03190678C"
-    },
-    {
-      "source": "C:\\OSDCloud\\Tools\\Serve-OsdCloudMedia.mjs",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Tools/Serve-OsdCloudMedia.mjs",
-      "length": 7928,
-      "lastWriteTimeUtc": "2026-05-18T05:18:46.6902425Z",
-      "sha256": "8865164F8A73880AF05DB6F5B9BE0FCD28248807460FA72DE79F18EB3B1E3EBC"
-    },
-    {
-      "source": "C:\\OSDCloud\\Tools\\Serve-OsdCloudMedia.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Tools/Serve-OsdCloudMedia.ps1",
-      "length": 3214,
-      "lastWriteTimeUtc": "2026-05-18T05:18:46.6922541Z",
-      "sha256": "FDDD73F84A9F38BE1A0EFAF777CA176F47E889B33F89241A83E5FF270C373EAF"
-    },
-    {
-      "source": "C:\\OSDCloud\\Tools\\Start-PxeDhcp.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Tools/Start-PxeDhcp.ps1",
-      "length": 11645,
-      "lastWriteTimeUtc": "2026-05-18T05:18:46.6850601Z",
-      "sha256": "78FFA1E52E39D2E29BBC463DB6752813A425FA45EB0752E466C540A9F1861364"
-    },
-    {
-      "source": "C:\\OSDCloud\\Tools\\Start-PxeTftp.ps1",
-      "sourceKind": "filesystem",
-      "repoPath": "osdcloud-assets/OSDCloud/Tools/Start-PxeTftp.ps1",
-      "length": 7827,
-      "lastWriteTimeUtc": "2026-05-18T05:18:46.6882323Z",
-      "sha256": "8917E250CBB25D47993CE56E27FE4B0CD2B901D524B4AFD655690DB120119BF5"
-    },
-    {
-      "source": "C:\\OSDCloud\\MountReadOnly\\Windows\\System32\\Startnet.cmd",
-      "sourceKind": "boot.wim:index1",
-      "repoPath": "osdcloud-assets/OSDCloud/WinPE/Windows/System32/Startnet.cmd",
-      "length": 219,
-      "lastWriteTimeUtc": "2026-05-06T18:02:00.7651829Z",
-      "sha256": "ED574BCCD40260A3D276F551645E03B317F35B898A8AEBE887F42A6013F0C0E1"
-    },
-    {
-      "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
-      "sourceKind": "boot.wim:index1",
-      "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
-      "length": 12412,
-      "lastWriteTimeUtc": "2026-05-20T09:38:13.4632722Z",
-      "sha256": "6AA1EB09F41EDDBD618CB00873BA4B807EF34054CA1C584B7EB2739A597A245C"
-    },
-    {
-      "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
-      "sourceKind": "boot.wim:index1",
-      "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd",
-      "length": 266,
-      "lastWriteTimeUtc": "2026-05-06T13:52:49.9838653Z",
-      "sha256": "F554CB5F3B2658E6F1132400E1C58B51EB68BC7F45919F0A16A9262DBCA7446B"
-    },
-    {
-      "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
-      "sourceKind": "boot.wim:index1",
-      "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 23905,
-      "lastWriteTimeUtc": "2026-05-20T09:36:41.8253802Z",
-      "sha256": "D765BE337B49B87DB8C7C4105F49DFA38EE94E53A7506BDB7E6D2C75240D0E88"
-    },
-    {
-      "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Report-OSDCloudProgress.ps1",
-      "sourceKind": "boot.wim:index1",
-      "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Report-OSDCloudProgress.ps1",
-      "length": 9561,
-      "lastWriteTimeUtc": "2026-05-18T05:19:05.5797284Z",
-      "sha256": "1519C300BF08231B15B7F3F9853B83A0294E8C7CC830FEDF39FF3BE56E9E9E41"
-    },
-    {
-      "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Start-OSDCloud-iPXE.ps1",
-      "sourceKind": "boot.wim:index1",
-      "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1",
-      "length": 17538,
-      "lastWriteTimeUtc": "2026-05-20T09:38:46.2868041Z",
-      "sha256": "60DD9EBBDCD3196F0A5FFF0C1BFF6885F006B8E23CCDAF7AEE243E76E5CBEA53"
-    }
-  ],
-  "excludedArtifacts": [
-    {
-      "source": "C:\\OSDCloud\\Media\\sources\\boot.wim",
-      "exists": true,
-      "reason": "generated WinPE boot image, rebuilt from versioned scripts",
-      "length": 670788481,
-      "lastWriteTimeUtc": "2026-05-20T05:08:43.5625806Z",
-      "sha256": "8B52CE9A1DC81478B1FDE98C8342E195D400BD45901BCDA4D1A0F63CBA1874F5",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.wim",
-      "exists": true,
-      "reason": "published WinPE boot image hardlink/copy",
-      "length": 670788481,
-      "lastWriteTimeUtc": "2026-05-20T05:08:43.5625806Z",
-      "sha256": "8B52CE9A1DC81478B1FDE98C8342E195D400BD45901BCDA4D1A0F63CBA1874F5",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\BCD",
-      "exists": true,
-      "reason": "generated Windows boot binary",
-      "length": 262144,
-      "lastWriteTimeUtc": "2024-11-16T05:22:58Z",
-      "sha256": "21BF8054ADFE0614BABA6F21A4BAD0B7BFE71DBE9169D2422DE42A79258BEBA0",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.sdi",
-      "exists": true,
-      "reason": "generated Windows boot binary",
-      "length": 3170304,
-      "lastWriteTimeUtc": "2024-11-16T05:22:52Z",
-      "sha256": "CD2C00CE027687CE4A8BDC967F26A8AB82F651C9BECD703658BA282EC49702BD",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\bootmgr",
-      "exists": true,
-      "reason": "generated Windows boot binary",
-      "length": 478366,
-      "lastWriteTimeUtc": "2024-11-16T05:22:36Z",
-      "sha256": "D5855B74F40D1C4CE212549A868BF3939BA4B7206CB8CB7FC17A9A0F03E8F0DB",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\bootx64.efi",
-      "exists": true,
-      "reason": "generated Windows boot binary",
-      "length": 2772912,
-      "lastWriteTimeUtc": "2024-11-16T05:22:46Z",
-      "sha256": "B2355C3E8A5FA140AFB147D16646A7AA497A87D41937254B4925811614BA78A6",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\wimboot",
-      "exists": true,
-      "reason": "upstream iPXE wimboot binary",
-      "length": 66560,
-      "lastWriteTimeUtc": "2026-05-06T16:59:20.8104881Z",
-      "sha256": "ABE92880C0208B608CDC0F94E903B8B727D554B70D700606AD0484971713F870",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi",
-      "exists": true,
-      "reason": "upstream iPXE binary",
-      "length": 295784,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
-      "sha256": "B1E67C3E4A1E8708DDFD0079AD4505E3A02245ACB55EE9A95437AB3C507BE82A",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly-shim.efi",
-      "exists": true,
-      "reason": "upstream iPXE Secure Boot binary",
-      "length": 1038920,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
-      "sha256": "83AD71C7D4F2CF328B75B653D09BF3BEA5F29BEE2E67CA058F37D83C07133885",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\ipxe-shim.efi",
-      "exists": true,
-      "reason": "upstream iPXE Secure Boot binary",
-      "length": 1038920,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
-      "sha256": "83AD71C7D4F2CF328B75B653D09BF3BEA5F29BEE2E67CA058F37D83C07133885",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\shimx64.efi",
-      "exists": true,
-      "reason": "upstream shim binary",
-      "length": 1038920,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
-      "sha256": "83AD71C7D4F2CF328B75B653D09BF3BEA5F29BEE2E67CA058F37D83C07133885",
-      "hashStatus": "sha256"
-    },
-    {
-      "source": "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\ipxe.efi",
-      "exists": true,
-      "reason": "upstream iPXE binary",
-      "length": 397160,
-      "lastWriteTimeUtc": "2026-03-06T16:10:59Z",
-      "sha256": "6558E37887516B246D6A97122E8D18BEDFE4197B7BA7F67BF1BF102A16678D33",
-      "hashStatus": "sha256"
-    }
-  ]
+﻿{
+    "generatedAt":  "2026-05-27T06:52:07.0004284Z",
+    "sourceRoot":  "C:\\OSDCloud",
+    "assetsRoot":  "C:\\osdcloud-win11-deployment-lab\\osdcloud-assets",
+    "hashLargeArtifacts":  true,
+    "exports":  [
+                    {
+                        "source":  "C:\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
+                        "length":  12694,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7440111Z",
+                        "sha256":  "91A8A44DCDA34062FF38325D476FD33E5D3407B50C5F02444AA2E78C0687F212"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd",
+                        "length":  271,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7440111Z",
+                        "sha256":  "C05D262E54AB9A5182B18035122FC971C68905122B30FDBF0E8D3C28765C6D41"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
+                        "length":  24505,
+                        "lastWriteTimeUtc":  "2026-05-27T05:49:29.0754545Z",
+                        "sha256":  "3F03C6A38F8254AC0C6A4AE0E79142A6C709C74E45A9292D3CFF78003FDAB21B"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\7zip\\install.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/7zip/install.ps1",
+                        "length":  962,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7340125Z",
+                        "sha256":  "6BE6947F18EBF954335D68BE8C6331C7F5E1BB0F5CD163DD4657CCA98879A866"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\chrome\\install.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/chrome/install.ps1",
+                        "length":  1300,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7350067Z",
+                        "sha256":  "3C5DD0E43C4D50F51BA6BC10AD1411EA5C465E4912860D7446988E276D415C75"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\Install-Apps.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/Install-Apps.ps1",
+                        "length":  12738,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7340125Z",
+                        "sha256":  "302DD6EAC7E60978137F8725964D700E278C6B8FA8EE5DD53CF19E0E1CBB73AA"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\SW-4UT7PDID\\install.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/SW-4UT7PDID/install.ps1",
+                        "length":  933,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7340125Z",
+                        "sha256":  "67FFD57460FEDF38AF309DB460A874CD5A33980C089BBEF4146D7AD81CCC951F"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Media\\OSDCloud\\Scripts\\SC-J5GF07Y2\\run.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Media/OSDCloud/Scripts/SC-J5GF07Y2/run.ps1",
+                        "length":  633,
+                        "lastWriteTimeUtc":  "2026-05-27T07:52:49.7062397Z",
+                        "sha256":  "43FB7A6C049F010455006258ABD8C380080633836226AF046327AF0575DA3711"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.ipxe",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/PXE-HttpRoot/osdcloud/boot.ipxe",
+                        "length":  255,
+                        "lastWriteTimeUtc":  "2026-05-27T05:49:29.0035451Z",
+                        "sha256":  "93C22AB68FEC6175D044D52D33D577F42AE48D9911678E6749FFAD1173A1B69D"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\PXE-TFTP\\autoexec.ipxe.disabled",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/PXE-TFTP/autoexec.ipxe.disabled",
+                        "length":  54,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7480125Z",
+                        "sha256":  "3860AC7BFBEF1FD43A96F43E12B4CA78C555C4C9957851033D1E1E61252446EA"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\autoexec.ipxe.disabled",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/PXE-TFTP/ipxeboot/x86_64-sb/autoexec.ipxe.disabled",
+                        "length":  54,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7480125Z",
+                        "sha256":  "3860AC7BFBEF1FD43A96F43E12B4CA78C555C4C9957851033D1E1E61252446EA"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Tools\\Serve-OsdCloudMedia.mjs",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Tools/Serve-OsdCloudMedia.mjs",
+                        "length":  8139,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7480125Z",
+                        "sha256":  "334B47AAC81D43E95E36EF08A6D5E1FFAD96A5E0C4F6EDB57DF0F3BD755CD7E1"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Tools\\Serve-OsdCloudMedia.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Tools/Serve-OsdCloudMedia.ps1",
+                        "length":  3261,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7490123Z",
+                        "sha256":  "BEC50BC9C0C235ABC8F0BBA6EAAA03B9C2C4BE3DE37CD4E92D322700D4D9F9FA"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Tools\\Start-PxeDhcp.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Tools/Start-PxeDhcp.ps1",
+                        "length":  11952,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7490123Z",
+                        "sha256":  "1AB66CA4D160F5812D74AF0E4C4C1838E15820E0649F213C99980ED9BF024FEC"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\Tools\\Start-PxeTftp.ps1",
+                        "sourceKind":  "filesystem",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Tools/Start-PxeTftp.ps1",
+                        "length":  8011,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7490123Z",
+                        "sha256":  "770FC161B390173DC5A24EC9F18C2CDC647C07DE3F516A8AF6EF062C0C896EEF"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\MountReadOnly\\Windows\\System32\\Startnet.cmd",
+                        "sourceKind":  "boot.wim:index1",
+                        "repoPath":  "osdcloud-assets/OSDCloud/WinPE/Windows/System32/Startnet.cmd",
+                        "length":  215,
+                        "lastWriteTimeUtc":  "2026-05-27T06:26:37.8903112Z",
+                        "sha256":  "109E84C8A3900C9F7C304FF617C0DAB857C07EDEE12386FF181950951703339A"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
+                        "sourceKind":  "boot.wim:index1",
+                        "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
+                        "length":  12694,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7440111Z",
+                        "sha256":  "91A8A44DCDA34062FF38325D476FD33E5D3407B50C5F02444AA2E78C0687F212"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
+                        "sourceKind":  "boot.wim:index1",
+                        "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd",
+                        "length":  271,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7440111Z",
+                        "sha256":  "C05D262E54AB9A5182B18035122FC971C68905122B30FDBF0E8D3C28765C6D41"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
+                        "sourceKind":  "boot.wim:index1",
+                        "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
+                        "length":  24505,
+                        "lastWriteTimeUtc":  "2026-05-27T05:49:29.0754545Z",
+                        "sha256":  "3F03C6A38F8254AC0C6A4AE0E79142A6C709C74E45A9292D3CFF78003FDAB21B"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Report-OSDCloudProgress.ps1",
+                        "sourceKind":  "boot.wim:index1",
+                        "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Report-OSDCloudProgress.ps1",
+                        "length":  9896,
+                        "lastWriteTimeUtc":  "2026-05-25T05:22:11.7515383Z",
+                        "sha256":  "578361ACEAC6AB693ED8A21B1973293BC44CB74A06A5E28C00ABCDEF49D42BF9"
+                    },
+                    {
+                        "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Start-OSDCloud-iPXE.ps1",
+                        "sourceKind":  "boot.wim:index1",
+                        "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1",
+                        "length":  16984,
+                        "lastWriteTimeUtc":  "2026-05-27T05:49:46.2773443Z",
+                        "sha256":  "F4554096C0E4C53DFC7DF6A27FDED03ADA72E68A7BA58794AA9F65BC4788EE57"
+                    }
+                ],
+    "excludedArtifacts":  [
+                              {
+                                  "source":  "C:\\OSDCloud\\Media\\OSDCloud\\OS\\26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENTCONSUMER_RET_x64FRE_en-us.wim",
+                                  "exists":  true,
+                                  "reason":  "cached Windows image, too large for Git",
+                                  "length":  6199240405,
+                                  "lastWriteTimeUtc":  "2026-05-27T06:04:27.6952521Z",
+                                  "sha256":  "CC68D213DD9362019E5FCF78C081B6BF8931088206FC7FDD6119A733385A4701",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\Media\\OSDCloud\\OS\\os-image-cache.jsonl",
+                                  "exists":  true,
+                                  "reason":  "cached Windows image, too large for Git",
+                                  "length":  259,
+                                  "lastWriteTimeUtc":  "2026-05-27T06:04:35.2371093Z",
+                                  "sha256":  "D4F03BA0B67BF73E75F0A13EDA912F0322ECEBADC32ABA1D98D9B0245461039F",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\Media\\OSDCloud\\OS\\selected-os.json",
+                                  "exists":  true,
+                                  "reason":  "cached Windows image, too large for Git",
+                                  "length":  1164,
+                                  "lastWriteTimeUtc":  "2026-05-27T06:38:03.8793619Z",
+                                  "sha256":  "79529DAD8EDC7FF397044A2F68DBD0023CBF01845E8F8769CEC1FFF92C8B669C",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\Media\\sources\\boot.wim",
+                                  "exists":  true,
+                                  "reason":  "generated WinPE boot image, rebuilt from versioned scripts",
+                                  "length":  563956238,
+                                  "lastWriteTimeUtc":  "2026-05-27T06:51:33.3423445Z",
+                                  "sha256":  "76E06E48E08EA3094295946E4C4369F4F3C586821E9E9CF26FB1E4F692A0493A",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.wim",
+                                  "exists":  true,
+                                  "reason":  "published WinPE boot image hardlink/copy",
+                                  "length":  563956238,
+                                  "lastWriteTimeUtc":  "2026-05-27T06:51:33.3423445Z",
+                                  "sha256":  "76E06E48E08EA3094295946E4C4369F4F3C586821E9E9CF26FB1E4F692A0493A",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\BCD",
+                                  "exists":  true,
+                                  "reason":  "generated Windows boot binary",
+                                  "length":  262144,
+                                  "lastWriteTimeUtc":  "2024-11-16T05:22:58.0000000Z",
+                                  "sha256":  "21BF8054ADFE0614BABA6F21A4BAD0B7BFE71DBE9169D2422DE42A79258BEBA0",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.sdi",
+                                  "exists":  true,
+                                  "reason":  "generated Windows boot binary",
+                                  "length":  3170304,
+                                  "lastWriteTimeUtc":  "2024-11-16T05:22:52.0000000Z",
+                                  "sha256":  "CD2C00CE027687CE4A8BDC967F26A8AB82F651C9BECD703658BA282EC49702BD",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\bootmgr",
+                                  "exists":  true,
+                                  "reason":  "generated Windows boot binary",
+                                  "length":  478366,
+                                  "lastWriteTimeUtc":  "2024-11-16T05:22:36.0000000Z",
+                                  "sha256":  "D5855B74F40D1C4CE212549A868BF3939BA4B7206CB8CB7FC17A9A0F03E8F0DB",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\bootx64.efi",
+                                  "exists":  true,
+                                  "reason":  "generated Windows boot binary",
+                                  "length":  2772912,
+                                  "lastWriteTimeUtc":  "2024-11-16T05:22:46.0000000Z",
+                                  "sha256":  "B2355C3E8A5FA140AFB147D16646A7AA497A87D41937254B4925811614BA78A6",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\wimboot",
+                                  "exists":  true,
+                                  "reason":  "upstream iPXE wimboot binary",
+                                  "length":  62440,
+                                  "lastWriteTimeUtc":  "2026-05-27T05:49:00.6294144Z",
+                                  "sha256":  "74D4BF3D09386CCBBE907D9DB59030F8CD8C88F7B4CCB799D386F31DEF11B3FE",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi",
+                                  "exists":  true,
+                                  "reason":  "upstream iPXE binary",
+                                  "length":  288256,
+                                  "lastWriteTimeUtc":  "2026-05-27T05:49:01.5043664Z",
+                                  "sha256":  "A6EA6BD7580791EA3130F95247D560734A6FC8B9CF7C1D75EAAEBB688698D792",
+                                  "hashStatus":  "sha256"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly-shim.efi",
+                                  "exists":  false,
+                                  "reason":  "upstream iPXE Secure Boot binary"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\ipxe-shim.efi",
+                                  "exists":  false,
+                                  "reason":  "upstream iPXE Secure Boot binary"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\shimx64.efi",
+                                  "exists":  false,
+                                  "reason":  "upstream shim binary"
+                              },
+                              {
+                                  "source":  "C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\ipxe.efi",
+                                  "exists":  false,
+                                  "reason":  "upstream iPXE binary"
+                              }
+                          ]
 }
