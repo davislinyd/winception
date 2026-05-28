@@ -265,6 +265,15 @@ function Get-TextFileTail {
     return @(Get-Content -LiteralPath $Path -Tail $Count -ErrorAction SilentlyContinue)
 }
 
+function Get-TextFileTailText {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [int] $Count = 40
+    )
+
+    [string]::Join("`n", @(Get-TextFileTail -Path $Path -Count $Count))
+}
+
 function Invoke-ClientAppInstallers {
     $appsRoot = 'C:\ProgramData\OSDCloud\Apps'
     $installer = Join-Path $appsRoot 'Install-Apps.ps1'
@@ -294,9 +303,9 @@ function Invoke-ClientAppInstallers {
         stdoutLog = $stdoutPath
         stderrLog = $stderrPath
         transcriptLog = $transcriptPath
-        stdoutTail = @(Get-TextFileTail -Path $stdoutPath -Count 80)
-        stderrTail = @(Get-TextFileTail -Path $stderrPath -Count 80)
-        transcriptTail = @(Get-TextFileTail -Path $transcriptPath -Count 80)
+        stdoutTailText = Get-TextFileTailText -Path $stdoutPath -Count 80
+        stderrTailText = Get-TextFileTailText -Path $stderrPath -Count 80
+        transcriptTailText = Get-TextFileTailText -Path $transcriptPath -Count 80
     }
 
     if ($process.ExitCode -ne 0) {

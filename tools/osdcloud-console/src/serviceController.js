@@ -1049,12 +1049,12 @@ export class ServiceController extends EventEmitter {
       this.addEndpointStatus(`Endpoint ${previousEndpoint} -> ${this.config.adapter.interfaceAlias} ${this.config.adapter.serverIp}/${this.config.adapter.prefixLength}`, 'ok');
       this.addEndpointStatus(`iPXE boot URL ${previousBootUrl} -> ${this.config.dhcp.ipxeBootUrl}`, 'ok');
 
-      this.addEndpointStatus('Syncing boot.ipxe, WinPE endpoint, SMB firewall, boot.wim, and osdcloud-assets', 'run');
+      this.addEndpointStatus('Syncing boot.ipxe, repo-sourced endpoint files, SMB firewall, and boot.wim', 'run');
       const stream = makeOutputLogger((line) => this.addLog(line), '[endpoint-sync]');
       try {
         await this.dependencies.syncIpxeEndpoint(this.config, {
           commitWinPe: true,
-          syncAssets: true,
+          syncAssets: false,
           hashLargeArtifacts: true,
           onOutput: stream.write,
         });
@@ -1378,6 +1378,7 @@ export class ServiceController extends EventEmitter {
         description: input.description,
         softwareIds: input.softwareIds ?? input.software,
         customScripts: input.customScripts,
+        installSequence: input.installSequence,
         osImageId: input.osImageId,
       };
       if (!editingActive) {

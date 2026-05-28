@@ -34,6 +34,12 @@ test('PowerShell output uses shared UTF-8 process decoder', () => {
   assert.doesNotMatch(source, /chunk\.toString\(\)/);
 });
 
+test('endpoint sync adds -SyncAssets only when explicitly requested', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
+
+  assert.match(source, /if \(options\.syncAssets === true\) \{\s*args\.push\('-SyncAssets'\);/);
+});
+
 test('resolves endpoint sync paths from derived repo root by default', () => {
   assert.equal(resolveRepoRoot({ paths: {} }), path.resolve('.'));
   assert.equal(
@@ -324,6 +330,24 @@ test('desktop-ready reporter targets davis profile desktop instead of Public Des
   assert.match(setupComplete, /function Get-TargetUserProfilePath/);
   assert.match(setupComplete, /Join-Path \$targetUserDesktopPath 'OSDCloud-Desktop-Ready\.txt'/);
   assert.match(setupComplete, /\$facts\.explorerRunning -and \$facts\.interactiveUserIsTarget -and \$facts\.desktopReadyFile/);
+});
+
+test('windows apps error payload uses joined tail text for Windows PowerShell compatibility', () => {
+  const setupCompletePath = path.resolve(
+    'osdcloud-assets',
+    'OSDCloud',
+    'Config',
+    'Scripts',
+    'SetupComplete',
+    'SetupComplete.ps1',
+  );
+  const setupComplete = fs.readFileSync(setupCompletePath, 'utf8');
+
+  assert.match(setupComplete, /function Get-TextFileTailText/);
+  assert.match(setupComplete, /stdoutTailText = Get-TextFileTailText -Path \$stdoutPath -Count 80/);
+  assert.match(setupComplete, /stderrTailText = Get-TextFileTailText -Path \$stderrPath -Count 80/);
+  assert.match(setupComplete, /transcriptTailText = Get-TextFileTailText -Path \$transcriptPath -Count 80/);
+  assert.doesNotMatch(setupComplete, /stdoutTail = @\(Get-TextFileTail/);
 });
 
 test('desktop-ready status includes resolved davis desktop evidence fields', () => {

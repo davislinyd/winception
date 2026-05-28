@@ -387,7 +387,7 @@ export async function syncIpxeEndpoint(config, options = {}) {
   if (options.commitWinPe !== false) {
     args.push('-CommitWinPe');
   }
-  if (options.syncAssets !== false) {
+  if (options.syncAssets === true) {
     args.push('-SyncAssets');
   }
   if (options.hashLargeArtifacts !== false) {

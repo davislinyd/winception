@@ -160,6 +160,9 @@ async function makeServer(root, overrides = {}) {
           name: input.name ?? 'Default',
           description: input.description ?? '',
           softwareIds: input.softwareIds,
+          customScripts: input.customScripts,
+          installSequence: input.installSequence,
+          osImageId: input.osImageId,
         },
         filePath: path.join(root, `${profileId}.json`),
       }),
@@ -544,13 +547,29 @@ test('runs mutating API actions through the controller', async () => {
     response = await fetch(`${base}/api/profile/software`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Renamed Default', description: 'Chrome build', softwareIds: ['chrome', '7zip'] }),
+      body: JSON.stringify({
+        name: 'Renamed Default',
+        description: 'Chrome build',
+        softwareIds: ['chrome', '7zip'],
+        customScripts: [{ id: 'SC-TEST001', phase: 'after' }],
+        installSequence: [
+          { type: 'script', id: 'SC-TEST001', phase: 'after' },
+          { type: 'software', id: 'chrome' },
+          { type: 'software', id: '7zip' },
+        ],
+      }),
     });
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.name, 'Renamed Default');
     assert.equal(payload.result.profile.description, 'Chrome build');
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome', '7zip']);
+    assert.deepEqual(payload.result.profile.customScripts, [{ id: 'SC-TEST001', phase: 'after' }]);
+    assert.deepEqual(payload.result.profile.installSequence, [
+      { type: 'script', id: 'SC-TEST001', phase: 'after' },
+      { type: 'software', id: 'chrome' },
+      { type: 'software', id: '7zip' },
+    ]);
 
     response = await fetch(`${base}/api/profile/software`, {
       method: 'POST',
@@ -828,13 +847,19 @@ test('editing an inactive profile via /api/profile/software keeps services runni
     response = await fetch(`${base}/api/profile/software`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ profileId: 'minimal', name: 'Minimal Renamed', softwareIds: ['chrome'] }),
+      body: JSON.stringify({
+        profileId: 'minimal',
+        name: 'Minimal Renamed',
+        softwareIds: ['chrome'],
+        installSequence: [{ type: 'software', id: 'chrome' }],
+      }),
     });
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.id, 'minimal');
     assert.equal(payload.result.profile.name, 'Minimal Renamed');
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome']);
+    assert.deepEqual(payload.result.profile.installSequence, [{ type: 'software', id: 'chrome' }]);
     assert.equal(payload.result.selectedSoftware, undefined);
     assert.equal(publishCalled, false);
     assert.equal(payload.state.services.http.running, true);

@@ -82,6 +82,31 @@ test('runtime artifact catalog validates download recipes and ignores software r
   }
 });
 
+test('runtime artifact catalog accepts repo-managed artifacts with sourcePath', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-repo-file-'));
+  try {
+    const catalogPath = makeCatalog(root, {
+      schemaVersion: 1,
+      artifacts: [{
+        id: 'ipxe-snponly-efi',
+        sourceType: 'repo-file',
+        sourcePath: 'osdcloud-assets\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi',
+        target: 'PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi',
+        length: 288256,
+        sha256: 'A'.repeat(64),
+      }],
+    });
+
+    const catalog = loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath });
+    assert.equal(catalog.artifacts.length, 1);
+    assert.equal(catalog.artifacts[0].sourceType, 'repo-file');
+    assert.equal(catalog.artifacts[0].sourcePath, 'osdcloud-assets\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi');
+    assert.deepEqual(planRuntimeArtifacts(catalog).map((artifact) => artifact.action), ['repo-file']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('runtime artifact catalog rejects missing URLs and unsafe targets', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-artifacts-invalid-'));
   try {
@@ -113,6 +138,21 @@ test('runtime artifact catalog rejects missing URLs and unsafe targets', () => {
     assert.throws(
       () => loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath }),
       /escapes root/,
+    );
+
+    catalogPath = makeCatalog(root, {
+      schemaVersion: 1,
+      artifacts: [{
+        id: 'missing-source-path',
+        sourceType: 'repo-file',
+        target: 'PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi',
+        length: 1,
+        sha256: 'A'.repeat(64),
+      }],
+    });
+    assert.throws(
+      () => loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath }),
+      /sourcePath is required/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -556,7 +596,7 @@ test('restore bootstrap creates missing OSDCloud template before workspace build
 
 test('endpoint sync restores missing live endpoint templates from repo mirror', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
-  assert.match(script, /Restore-RequiredEndpointFiles/);
+  assert.match(script, /Sync-RequiredEndpointFilesFromRepo/);
   assert.match(script, /PXE-HttpRoot\\osdcloud\\boot\.ipxe/);
   assert.match(script, /Config\\Scripts\\SetupComplete\\SetupComplete\.ps1/);
   assert.match(script, /osdcloud-assets\\OSDCloud/);

@@ -91,14 +91,15 @@
       "id": "ipxe-snponly-efi",
       "kind": "ipxe",
       "name": "iPXE snponly.efi",
-      "sourceType": "download",
+      "sourceType": "repo-file",
       "required": true,
       "url": "https://boot.ipxe.org/x86_64-efi/snponly.efi",
-      "sourceNote": "boot.ipxe.org publishes current prebuilt binaries. Hash mismatch is a safety stop; review and update this catalog only after validating the new binary.",
-      "prepareGroup": "ipxe-downloads",
+      "sourcePath": "osdcloud-assets\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi",
+      "sourceNote": "Repo-managed validated snapshot mirrored from boot.ipxe.org to avoid rolling upstream hash drift during Prepare runtime.",
+      "prepareGroup": "repo-versioned-assets",
       "target": "PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi",
       "length": 288256,
-      "sha256": "A6EA6BD7580791EA3130F95247D560734A6FC8B9CF7C1D75EAAEBB688698D792"
+      "sha256": "A1B728ED4A8F60B34EFEF13457FE661AACD928A863376A77CB88C6A9AF89EC4A"
     }
   ]
 }

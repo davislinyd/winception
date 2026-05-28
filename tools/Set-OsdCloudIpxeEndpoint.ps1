@@ -429,7 +429,7 @@ function Copy-WinPePowerShellModule {
     Write-Host "Injected PowerShell module '$Name' into boot.wim from $($module.ModuleBase)"
 }
 
-function Restore-EndpointFileIfMissing {
+function Sync-EndpointFileFromTemplate {
     param(
         [Parameter(Mandatory)]
         [string] $Path,
@@ -439,20 +439,29 @@ function Restore-EndpointFileIfMissing {
         [string] $Label
     )
 
-    if (Test-Path -LiteralPath $Path -PathType Leaf) {
-        return $false
-    }
     if (-not (Test-Path -LiteralPath $TemplatePath -PathType Leaf)) {
         throw "Required endpoint file not found: $Path. Repo mirror template also missing: $TemplatePath"
     }
 
     New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
+    $templateHash = Get-Sha256Hash -LiteralPath $TemplatePath
+    $targetHash = if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        Get-Sha256Hash -LiteralPath $Path
+    }
+    else {
+        $null
+    }
+
+    if ($templateHash -eq $targetHash) {
+        return $false
+    }
+
     Copy-Item -LiteralPath $TemplatePath -Destination $Path -Force
-    Write-Host "Restored missing endpoint file from repo mirror: $Label -> $Path"
+    Write-Host "Synced endpoint file from repo mirror: $Label -> $Path"
     return $true
 }
 
-function Restore-RequiredEndpointFiles {
+function Sync-RequiredEndpointFilesFromRepo {
     param(
         [Parameter(Mandatory)]
         [string] $RepoRoot,
@@ -469,7 +478,7 @@ function Restore-RequiredEndpointFiles {
     )
 
     foreach ($relativePath in $required) {
-        Restore-EndpointFileIfMissing `
+        Sync-EndpointFileFromTemplate `
             -Path (Join-Path $IpxeLab $relativePath) `
             -TemplatePath (Join-Path $mirrorRoot $relativePath) `
             -Label $relativePath | Out-Null
@@ -627,7 +636,7 @@ if ($removedReservations.Count -gt 0) {
     Write-Host "Removed DHCP reservations outside ${ServerIp}/${PrefixLength}: $($removedDescriptions -join ', ')"
 }
 
-Restore-RequiredEndpointFiles -RepoRoot $repoRoot -IpxeLab $ipxeLab
+Sync-RequiredEndpointFilesFromRepo -RepoRoot $repoRoot -IpxeLab $ipxeLab
 
 Set-BootIpxeEndpoint -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe')
 Set-AutoexecEndpoint -Path (Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled')

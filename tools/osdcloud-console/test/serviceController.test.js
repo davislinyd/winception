@@ -286,6 +286,7 @@ test('deployment profile management actions create, update active software, and 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-profiles-'));
   try {
     let createdInput = null;
+    let updatedInput = null;
     let updatedSoftwareIds = [];
     let updatedName = null;
     let updatedDescription = null;
@@ -300,6 +301,7 @@ test('deployment profile management actions create, update active software, and 
           };
         },
         updateDeploymentProfile(_config, profileId, input) {
+          updatedInput = input;
           updatedName = input.name;
           updatedDescription = input.description;
           if (input.softwareIds !== undefined) {
@@ -342,10 +344,22 @@ test('deployment profile management actions create, update active software, and 
       name: 'Renamed',
       description: 'Updated active profile',
       softwareIds: ['chrome', '7zip'],
+      customScripts: [{ id: 'SC-TEST001', phase: 'after' }],
+      installSequence: [
+        { type: 'software', id: 'chrome' },
+        { type: 'script', id: 'SC-TEST001', phase: 'after' },
+        { type: 'software', id: '7zip' },
+      ],
     });
     assert.equal(updatedName, 'Renamed');
     assert.equal(updatedDescription, 'Updated active profile');
     assert.deepEqual(updatedSoftwareIds, ['chrome', '7zip']);
+    assert.deepEqual(updatedInput.customScripts, [{ id: 'SC-TEST001', phase: 'after' }]);
+    assert.deepEqual(updatedInput.installSequence, [
+      { type: 'software', id: 'chrome' },
+      { type: 'script', id: 'SC-TEST001', phase: 'after' },
+      { type: 'software', id: '7zip' },
+    ]);
     assert.equal(updated.profile.id, 'default');
     assert.equal(updated.profile.name, 'Renamed');
     assert.equal(updated.profile.description, 'Updated active profile');
@@ -421,11 +435,13 @@ test('editing an inactive deployment profile only rewrites JSON and leaves servi
       profileId: 'minimal',
       name: 'Minimal Renamed',
       softwareIds: ['chrome'],
+      installSequence: [{ type: 'software', id: 'chrome' }],
     });
 
     assert.equal(updatedProfileId, 'minimal');
     assert.equal(updatedInput.name, 'Minimal Renamed');
     assert.deepEqual(updatedInput.softwareIds, ['chrome']);
+    assert.deepEqual(updatedInput.installSequence, [{ type: 'software', id: 'chrome' }]);
     assert.equal(publishCalled, false);
     assert.equal(preflightCalled, false);
     assert.equal(services.http.running, true);
@@ -816,9 +832,10 @@ test('service actions start and stop through the controller', async () => {
   }
 });
 
-test('endpoint changes stop services, save config, sync assets, and run preflight', async () => {
+test('endpoint changes stop services, save config, sync repo-sourced endpoint files, and run preflight', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-endpoint-'));
   try {
+    let syncOptions = null;
     const { controller, config, services } = makeController(root, {
       dependencies: {
         applyServiceEndpoint(target, choice) {
@@ -829,6 +846,11 @@ test('endpoint changes stop services, save config, sync assets, and run prefligh
           target.dhcp.ipxeBootUrl = `http://${choice.ipAddress}/osdcloud/boot.ipxe`;
           target.tftp.listenIp = choice.ipAddress;
           target.http.host = choice.ipAddress;
+        },
+        syncIpxeEndpoint: async (_config, options) => {
+          syncOptions = options;
+          options.onOutput?.('sync ok\n', 'stdout');
+          return 'ok';
         },
       },
     });
@@ -845,6 +867,8 @@ test('endpoint changes stop services, save config, sync assets, and run prefligh
     assert.equal(services.tftp.running, false);
     assert.equal(services.dhcp.running, false);
     assert.equal(result.preflight[0].ok, true);
+    assert.equal(syncOptions.commitWinPe, true);
+    assert.equal(syncOptions.syncAssets, false);
     assert.match(controller.getLogs().join('\n'), /sync ok/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

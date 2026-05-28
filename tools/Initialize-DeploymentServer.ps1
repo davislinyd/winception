@@ -546,9 +546,7 @@ try {
             '-ServerIp', $ServerIp,
             '-PrefixLength', [string] $PrefixLength,
             '-DefaultGateway', $ClientGateway,
-            '-CommitWinPe',
-            '-SyncAssets',
-            '-HashLargeArtifacts'
+            '-CommitWinPe'
         )
     }
 

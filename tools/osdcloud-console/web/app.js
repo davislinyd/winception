@@ -104,6 +104,7 @@ const elements = {
   validationRunSummary: $('#validation-run-summary'),
   targetEvidence: $('#target-evidence'),
   runTiming: $('#run-timing'),
+  installerErrorEvidence: $('#installer-error-evidence'),
   screenshotEvidence: $('#screenshot-evidence'),
   ipxeEvidence: $('#ipxe-evidence'),
   httpEvidence: $('#http-evidence'),
@@ -192,7 +193,6 @@ const syncSteps = [
   ['Update SMB firewall for selected service subnet', ['endpoint files synced'], ['smb firewall']],
   ['Commit endpoint into boot.wim', ['endpoint files synced'], ['boot.wim']],
   ['Verify published boot.wim', ['published boot.wim verified'], ['boot.wim']],
-  ['Refresh osdcloud-assets', ['endpoint files synced'], ['osdcloud-assets']],
   ['Rerun preflight', ['preflight passed', 'preflight completed'], ['running preflight']],
 ];
 
@@ -2466,6 +2466,18 @@ function evidenceValue(appState, keys, options = {}) {
   return options.missingValue ?? 'Not reported';
 }
 
+function latestRunEvent(appState, predicate) {
+  return [...runEvents(appState)].reverse().find(predicate) ?? null;
+}
+
+function makePreformattedValue(value) {
+  const node = document.createElement('div');
+  node.className = 'font-log-entry text-log-entry';
+  node.style.whiteSpace = 'pre-wrap';
+  node.textContent = text(value);
+  return node;
+}
+
 function validationCheck(appState, matcher) {
   return (appState.validation ?? []).find((check) => matcher.test(check.name ?? ''));
 }
@@ -2477,6 +2489,7 @@ function renderValidation(appState) {
     setDefinitionList(elements.validationRunSummary, [['Status', 'No client run selected']]);
     setDefinitionList(elements.targetEvidence, [['Evidence', 'No selected run']]);
     setDefinitionList(elements.runTiming, [['Timing', 'No selected run']]);
+    setDefinitionList(elements.installerErrorEvidence, [['Error', 'No selected run']]);
     setDefinitionList(elements.screenshotEvidence, [['Screenshot', 'No selected run']]);
     setDefinitionList(elements.ipxeEvidence, [['iPXE', 'No selected run']]);
     renderChecks(elements.httpEvidence, [], 'No selected run.');
@@ -2512,6 +2525,24 @@ function renderValidation(appState) {
     ['Completed', localDateTime(run.completedAt)],
     ['Failed', localDateTime(run.failedAt)],
     ['Elapsed', elapsed(run.elapsedSeconds)],
+  ]);
+
+  const installerErrorEvent = latestRunEvent(appState, (event) => event.stage === 'windows-apps-error'
+    || event.exitCode !== undefined
+    || event.stdoutTailText
+    || event.stderrTailText
+    || event.transcriptTailText);
+  setDefinitionListNodes(elements.installerErrorEvidence, [
+    ['Stage', installerErrorEvent?.stage ?? 'Not reported'],
+    ['ExitCode', installerErrorEvent?.exitCode ?? 'Not reported'],
+    ['Script', installerErrorEvent?.script ?? 'Not reported'],
+    ['AppsRoot', installerErrorEvent?.root ?? 'Not reported'],
+    ['StdoutLog', installerErrorEvent?.stdoutLog ?? 'Not reported'],
+    ['StderrLog', installerErrorEvent?.stderrLog ?? 'Not reported'],
+    ['TranscriptLog', installerErrorEvent?.transcriptLog ?? 'Not reported'],
+    ['StdoutTail', makePreformattedValue(installerErrorEvent?.stdoutTailText ?? 'Not reported')],
+    ['StderrTail', makePreformattedValue(installerErrorEvent?.stderrTailText ?? 'Not reported')],
+    ['TranscriptTail', makePreformattedValue(installerErrorEvent?.transcriptTailText ?? 'Not reported')],
   ]);
 
   const screenshotPattern = `${appState.config.http.statusRoot}\\screenshots\\${run.runId}\\*.png`;
@@ -3601,7 +3632,7 @@ async function showPicker(title, rows, onPick, buttonLabel = 'Select') {
 async function confirmEndpointSync(choice) {
   const ok = await confirmAction({
     title: 'Sync endpoint',
-    message: 'This will stop services, persist config, update boot files, commit WinPE changes, refresh osdcloud-assets, and rerun preflight.',
+    message: 'This will stop services, persist config, sync repo-sourced endpoint files into the live runtime, commit WinPE changes, and rerun preflight.',
     details: [`Target: ${choice.interfaceAlias} ${choice.ipAddress}/${choice.prefixLength}`],
     confirmLabel: 'Sync endpoint',
     severity: 'warning',

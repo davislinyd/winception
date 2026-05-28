@@ -216,6 +216,16 @@ function Assert-DownloadUrl {
     }
 }
 
+function Resolve-RepoArtifactSource {
+    param([Parameter(Mandatory)] $Artifact)
+
+    $relative = [string] $Artifact.sourcePath
+    if ([string]::IsNullOrWhiteSpace($relative)) {
+        throw "Repo artifact $($Artifact.id) has no sourcePath"
+    }
+    Join-ChildPath -Root $RepoRoot -RelativePath ($relative.Replace('/', '\')) -Label 'repo artifact source'
+}
+
 function Invoke-DownloadFile {
     param(
         [Parameter(Mandatory)][string] $Url,
@@ -294,6 +304,39 @@ function Save-DownloadArtifact {
         Assert-ArtifactMatches -Path $target -Artifact $Artifact -Label "Restored artifact $($Artifact.id)"
     }
     Remove-Item -LiteralPath $stagingFile -Force -ErrorAction SilentlyContinue
+}
+
+function Restore-RepoFileArtifact {
+    param([Parameter(Mandatory)] $Artifact)
+
+    $source = Resolve-RepoArtifactSource -Artifact $Artifact
+    Assert-ArtifactMatches -Path $source -Artifact $Artifact -Label "Repo artifact source $($Artifact.id)"
+    $targets = @(Get-ArtifactTargets -Artifact $Artifact | ForEach-Object { Resolve-ArtifactTarget -RelativePath ([string] $_) })
+    $allTargetsMatch = $true
+    foreach ($target in $targets) {
+        if (-not (Test-ArtifactMatches -Path $target -Artifact $Artifact)) {
+            $allTargetsMatch = $false
+            break
+        }
+    }
+    if ($allTargetsMatch) {
+        Write-Host "Reusing verified repo artifact: $($Artifact.id)"
+        return
+    }
+
+    if ($DryRun) {
+        Write-Host "[dry-run] restore repo artifact $($Artifact.id) from $source"
+        foreach ($target in $targets) {
+            Write-Host "[dry-run]   -> $target"
+        }
+        return
+    }
+
+    foreach ($target in $targets) {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $target -Force
+        Assert-ArtifactMatches -Path $target -Artifact $Artifact -Label "Restored repo artifact $($Artifact.id)"
+    }
 }
 
 function Test-IsAdministrator {
@@ -997,6 +1040,11 @@ try {
         Write-Host "Generated WinPE and boot binaries already match catalog."
     }
     Restore-VersionedAssets
+
+    Write-Step "Restoring repo-managed artifacts"
+    foreach ($artifact in @($artifacts | Where-Object { $_.sourceType -eq 'repo-file' })) {
+        Restore-RepoFileArtifact -Artifact $artifact
+    }
 
     Write-Step "Restoring downloadable artifacts"
     foreach ($artifact in @($artifacts | Where-Object { $_.sourceType -eq 'download' })) {

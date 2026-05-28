@@ -180,6 +180,7 @@ try {
         @{ Source = Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\boot.ipxe'; Target = 'OSDCloud\PXE-HttpRoot\osdcloud\boot.ipxe' },
         @{ Source = Join-Path $ipxeLab 'PXE-TFTP\autoexec.ipxe.disabled'; Target = 'OSDCloud\PXE-TFTP\autoexec.ipxe.disabled' },
         @{ Source = Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled'; Target = 'OSDCloud\PXE-TFTP\ipxeboot\x86_64-sb\autoexec.ipxe.disabled' },
+        @{ Source = Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\snponly.efi'; Target = 'OSDCloud\PXE-TFTP\ipxeboot\x86_64-sb\snponly.efi' },
         @{ Source = Join-Path $ipxeLab 'Tools\Serve-OsdCloudMedia.mjs'; Target = 'OSDCloud\Tools\Serve-OsdCloudMedia.mjs' },
         @{ Source = Join-Path $ipxeLab 'Tools\Serve-OsdCloudMedia.ps1'; Target = 'OSDCloud\Tools\Serve-OsdCloudMedia.ps1' },
         @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeDhcp.ps1'; Target = 'OSDCloud\Tools\Start-PxeDhcp.ps1' },
@@ -217,7 +218,6 @@ try {
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\bootmgr') -Reason 'generated Windows boot binary'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\bootx64.efi') -Reason 'generated Windows boot binary'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\wimboot') -Reason 'upstream iPXE wimboot binary'
-        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\snponly.efi') -Reason 'upstream iPXE binary'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\snponly-shim.efi') -Reason 'upstream iPXE Secure Boot binary'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\ipxe-shim.efi') -Reason 'upstream iPXE Secure Boot binary'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\shimx64.efi') -Reason 'upstream shim binary'

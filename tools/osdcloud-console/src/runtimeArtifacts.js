@@ -13,6 +13,7 @@ const allowedSourceTypes = new Set([
   'generated',
   'generated-winpe',
   'osd-catalog',
+  'repo-file',
 ]);
 
 function readJson(filePath, label) {
@@ -119,6 +120,24 @@ function normalizeTargets(row, label) {
   return targets.map((target, index) => normalizeTarget(target, `${label} target ${index + 1}`));
 }
 
+function normalizeSourcePath(value, label, required) {
+  const sourcePath = String(value ?? '').replace(/\//gu, '\\').trim();
+  if (!sourcePath) {
+    if (required) {
+      throw new Error(`${label} sourcePath is required`);
+    }
+    return '';
+  }
+  if (path.win32.isAbsolute(sourcePath) || /^[A-Za-z]:/u.test(sourcePath)) {
+    throw new Error(`${label} sourcePath must be relative: ${sourcePath}`);
+  }
+  const normalized = path.win32.normalize(sourcePath);
+  if (normalized === '..' || normalized.startsWith(`..${path.win32.sep}`)) {
+    throw new Error(`${label} sourcePath escapes root: ${sourcePath}`);
+  }
+  return normalized;
+}
+
 function normalizeDependencyIds(value, label) {
   if (value === undefined || value === null) {
     return [];
@@ -135,7 +154,8 @@ function normalizeArtifact(row, section) {
   const sourceType = normalizeSourceType(row.sourceType, `artifact ${id}`);
   const required = normalizeRequired(row.required);
   const download = sourceType === 'download';
-  const requireHash = download;
+  const repoFile = sourceType === 'repo-file';
+  const requireHash = download || repoFile;
   return {
     id,
     kind: String(row.kind ?? section).trim() || section,
@@ -143,6 +163,7 @@ function normalizeArtifact(row, section) {
     sourceType,
     required,
     url: normalizeUrl(row.url, `artifact ${id}`, download),
+    sourcePath: normalizeSourcePath(row.sourcePath, `artifact ${id}`, repoFile),
     targets: normalizeTargets(row, `artifact ${id}`),
     dependencyIds: normalizeDependencyIds(row.dependsOn, `artifact ${id}`),
     prepareGroup: String(row.prepareGroup ?? '').trim(),
