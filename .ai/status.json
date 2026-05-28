@@ -132,7 +132,6 @@
       "summary": "Committed VM deployment completion fixes for WinPE OS selection and SetupComplete desktop-ready reporting.",
       "commit": "4614ef0bf539e72f690ab2f51169161282719a8a",
       "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 27/27; git diff --check reported only Windows LF/CRLF warnings; VM run 20260528-025515 reached windows-desktop-ready and PowerShell Direct verified the davis desktop and app installs."
-    },
     }
   ]
 }
