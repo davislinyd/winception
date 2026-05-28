@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-28T08:24:30.0050812+08:00",
+  "updated_at": "2026-05-28T13:13:42.8378247+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "deployment-success-committed",
+    "state": "deployment-success-zh-tw-local",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "VM vSwitch PXE deployment reached windows-desktop-ready after committed WinPE selected-OS helper and SetupComplete status-payload fixes; active cached OS deployed as en-US CoreSingleLanguage despite Pro metadata.",
+    "summary": "VM vSwitch PXE deployment reached windows-desktop-ready with Windows 11 Pro 25H2 zh-TW after publishing the zh-TW OS image and deployment profile through the normal runtime workflow.",
     "baseline": {
-      "commit": "4614ef0bf539e72f690ab2f51169161282719a8a",
-      "short": "4614ef0",
-      "subject": "Fix VM deployment desktop-ready completion"
+      "commit": "d12a78b46f7d0c8b57841ff10abd6f8a2a10d590",
+      "short": "d12a78b",
+      "subject": "Update project status after VM deployment success"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,10 +51,10 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "4614ef0bf539e72f690ab2f51169161282719a8a",
-    "last_checked_head_short": "4614ef0",
+    "last_checked_head": "d12a78b46f7d0c8b57841ff10abd6f8a2a10d590",
+    "last_checked_head_short": "d12a78b",
     "dirty": true,
-    "ahead": 1,
+    "ahead": 0,
     "behind": 0,
     "remotes": [
       {
@@ -93,6 +93,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260528102301-test-d12a78b",
+      "at": "2026-05-28T13:13:42.8378247+08:00",
+      "kind": "test",
+      "summary": "VM vSwitch PXE deployment reached windows-desktop-ready with Windows 11 Pro 25H2 zh-TW.",
+      "commit": "d12a78b46f7d0c8b57841ff10abd6f8a2a10d590",
+      "verification": "Official zh-TW 25H2 source exported to cached WIM B49EB013BD4440EA8C73288194EE41119ABA5853717906ADC7DA419252626F59; selected-os/profile published zh-TW Professional; Prepare runtime ready 7/7; endpoint preflight 19/19; status run 20260528-101554-0748-8480-9723-5694-2650-8796-64 completed windows-desktop-ready with guest-reported EditionID Professional, Culture zh-TW, davis desktop, OOBE skip indicators, and app install exitCode 0. PowerShell Direct secondary check timed out, so guest status payload is the evidence source."
+    },
+    {
       "id": "20260528030600-commit-4614ef0",
       "at": "2026-05-28T08:24:30.0050812+08:00",
       "kind": "commit",
@@ -123,14 +131,6 @@
       "summary": "VM vSwitch PXE deployment completed to windows-desktop-ready; apps installed and custom post script created auto.txt.",
       "commit": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
       "verification": "Elevated preflight passed; status run 20260527-155811 reached windows-apps-finished exitCode=0, windows-setupcomplete-finished, windows-desktop-ready; guest check found SC-J5GF07Y2 succeeded and C:\\Users\\davis\\Desktop\\auto.txt exists"
-    },
-    {
-      "id": "20260527151000-status-f4dd1ab",
-      "at": "2026-05-27T15:02:34.608+08:00",
-      "kind": "status",
-      "summary": "Started detached elevated launcher for PXE/VM rerun; Windows UAC consent prompt is active and waiting for approval.",
-      "commit": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
-      "verification": "Get-Process Consent showed active consent.exe; monitor helper log/done files were not created yet; PXE ports 67/69/80 are not listening"
     }
   ]
 }
