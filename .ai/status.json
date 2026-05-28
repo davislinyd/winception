@@ -132,7 +132,6 @@
       "summary": "Closed the remaining test gap, preserved installSequence through profile edits, showed installer error evidence in Web UI, and proved server-side failure tails in VM.",
       "commit": null,
       "verification": "npm test passed 202/202 after isolating activeOsImage fresh-clone reads from dirty local config/os-image-catalog.json. node --check web/app.js and src/webServer.js passed; PowerShell parser checks passed; focused webServer/serviceController/windows tests passed. VM run 20260528-205632-0748-8480-9723-5694-2650-8796-64 produced windows-apps-error with stdoutTailText, stderrTailText, transcriptTailText, log paths, and exitCode 1 in status JSONL and /api/state; Browser verified the Validation dialog now renders Installer Error Evidence. Services were then restored and the normal All in One profile republished."
-    },
     }
   ]
 }
