@@ -357,6 +357,10 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /OpenJS\.NodeJS\.LTS/);
   assert.match(script, /wingetExitCode/);
   assert.match(script, /node\/npm are available now\. Continuing setup/);
+  assert.match(script, /function Test-IsAdministrator/);
+  assert.match(script, /Start-Process -FilePath 'powershell\.exe'/);
+  assert.match(script, /'RunAs'/);
+  assert.match(script, /administrator rights\./i);
   assert.match(script, /\[string\] \$WebHost/);
   assert.match(script, /function Select-WebServiceHost/);
   assert.match(script, /config\\osdcloud-console\.local\.json/);

@@ -144,6 +144,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /id="init-davis-password"/);
   assert.doesNotMatch(html, /id="init-pxeinstall-password"/);
   assert.match(script, /function renderRuntimeReadiness\(appState\)/);
+  assert.match(script, /const requiresElevation = appState\?\.host\?\.elevated === false/);
+  assert.match(script, /Restart the Web console from an elevated PowerShell session before preparing runtime artifacts\./);
+  assert.match(script, /button\.disabled = state\.busy \|\| runtime\.ready \|\| requiresElevation/);
   assert.match(script, /function appendInitializationDetailItems\(body, stepId, detailItems = \[\]\)/);
   assert.match(script, /function initializationDetailStatusLabel\(statusClass\)/);
   assert.match(script, /statusClass === 'blocked'[\s\S]*return 'MISSING'/);

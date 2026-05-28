@@ -5,7 +5,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 ## Runtime Readiness
 
 - A Git clone alone is not a deployable PXE runtime. Live deployment runs from the Web-selected deployment project root, defaulting to `C:\OSDCloud`, prepared by Web Runtime Readiness / Prepare runtime and related Web actions.
-- New-host setup is lightweight: clone, run `Setup-DeploymentServer.cmd`, choose only the Web management listen IP, then continue in Web.
+- New-host setup is lightweight: clone, run `Setup-DeploymentServer.cmd`, choose only the Web management listen IP, then continue in Web. Setup launches the Web console in a new elevated PowerShell window because Runtime Readiness and service control need administrator rights.
 - Setup must not create deployment secrets, write PXE endpoint overlay state, create the runtime skeleton, download/rebuild ADK or WinPE, restore artifacts, run preflight, or start HTTP/TFTP/DHCP services.
 - Web first-run initialization owns project-root selection, secrets, Runtime Readiness / Prepare runtime, PXE/service endpoint sync, OS Image Cache, profile publish, preflight, and service controls. The selected project root must be an absolute path outside the Git clone; the clone is installation source only and must not receive live runtime outputs.
 - During testing, agents may use the Web/API initialization flow to save or refresh deployment secrets without extra confirmation when usable values are already available from ignored local files, approved environment variables, or prior user input. Never print, commit, or record plaintext secret values.
@@ -26,7 +26,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Use the Web console for the active physical-laptop path unless the user explicitly requests lower-level helper scripts.
 - Web owns DHCP, TFTP, HTTP media/status serving, live status display, log tailing, endpoint sync progress, fleet state, and validation summary.
 - The checked-in Web code and local operator usability are the source of truth. Historical design references may inform work, but they are not mandatory design authority.
-- Start the Web console from elevated PowerShell when it will control services.
+- Start the Web console from elevated PowerShell when it will control services. If it is not elevated, Web should block `Prepare runtime` early with a clear restart-in-elevated message instead of surfacing the downstream PowerShell stack trace first.
 - Starting `npm run web`, opening the UI, and reading state/status/logs/validation must not modify `C:\OSDCloud`.
 - Web mutating actions can modify live deployment state: endpoint sync, OS image cache, profile publish, clear status, and service start/stop.
 - Web `Project root` initialization is a mutating local configuration action. It stops running services, writes ignored local config, refreshes service paths, and clears preflight results.

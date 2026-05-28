@@ -635,6 +635,7 @@ function renderOperation(appState) {
 
 function renderRuntimeReadiness(appState) {
   const runtime = appState.runtime;
+  const requiresElevation = appState?.host?.elevated === false;
   elements.runtimeReadinessSummary.replaceChildren();
   if (!runtime || runtime.error) {
     elements.runtimeReadinessBadge.textContent = 'Blocked';
@@ -654,7 +655,9 @@ function renderRuntimeReadiness(appState) {
   summary.className = `check-row ${runtime.ready ? 'ok' : 'fail'}`;
   summary.textContent = runtime.ready
     ? `${runtime.readyCount}/${runtime.requiredCount} required runtime artifact(s) are present.`
-    : `${runtime.missingCount} runtime artifact group(s) need preparation.`;
+    : requiresElevation
+      ? 'Restart the Web console from an elevated PowerShell session before preparing runtime artifacts.'
+      : `${runtime.missingCount} runtime artifact group(s) need preparation.`;
   elements.runtimeReadinessSummary.append(summary);
 
   for (const artifact of (runtime.missing ?? []).slice(0, 4)) {
@@ -669,7 +672,7 @@ function renderRuntimeReadiness(appState) {
   setActionLabel('prepare-runtime', runtime.ready ? 'Runtime ready' : 'Prepare runtime');
   setActionIcon('prepare-runtime', runtime.ready ? 'check_circle' : 'deployed_code_update');
   actionButtons('prepare-runtime').forEach((button) => {
-    button.disabled = state.busy || runtime.ready;
+    button.disabled = state.busy || runtime.ready || requiresElevation;
   });
 }
 

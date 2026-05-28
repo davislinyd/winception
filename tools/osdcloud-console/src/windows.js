@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import dgram from 'node:dgram';
@@ -43,6 +43,28 @@ export async function isElevated() {
   const script = "([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)";
   const result = await runPowerShell(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
   return result.stdout.trim().toLowerCase() === 'true';
+}
+
+export function isElevatedSync() {
+  if (process.platform !== 'win32') {
+    return process.getuid?.() === 0;
+  }
+  const script = "([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)";
+  const result = spawnSync(powershellExe(), prepareProcessPowerShellArgs([
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command',
+    script,
+  ]), {
+    windowsHide: true,
+    encoding: 'utf8',
+  });
+  if (result.status === 0) {
+    return String(result.stdout ?? '').trim().toLowerCase() === 'true';
+  }
+  const message = String(result.stderr ?? '').trim() || String(result.stdout ?? '').trim() || `PowerShell exited with code ${result.status}`;
+  throw new Error(message);
 }
 
 export async function getAdapterState(config) {

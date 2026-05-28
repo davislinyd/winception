@@ -169,6 +169,12 @@ function Ensure-Command {
     }
 }
 
+function Test-IsAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+}
+
 function Ensure-NodeAndNpm {
     Refresh-ProcessPath
     if (-not (Test-NodeAndNpmAvailable)) {
@@ -307,7 +313,7 @@ function Start-WebConsole {
         '-NoExit',
         '-Command',
         $command
-    )
+    ) -Verb $(if (Test-IsAdministrator) { 'Open' } else { 'RunAs' })
     Start-Sleep -Seconds 2
     Start-Process "http://${HostIp}:$WebPort"
 }
@@ -334,6 +340,9 @@ try {
     Save-WebConsoleOverlay -HostIp $SelectedWebHost
 
     Write-Step 'Starting Web console'
+    if (-not (Test-IsAdministrator)) {
+        Write-Host 'Launching the Web console in an elevated PowerShell window because Runtime Readiness and service controls require administrator rights.'
+    }
     Start-WebConsole -HostIp $SelectedWebHost
 
     Write-Step 'Setup completed'

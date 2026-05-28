@@ -174,6 +174,7 @@ function makeController(root, overrides = {}) {
       bytes: 10,
     }),
     runPreflight: async () => [{ name: 'Smoke', ok: true, detail: 'test' }],
+    isElevated: () => true,
     saveConfig: () => path.join(root, 'config.json'),
     summarizeValidation: () => [{ name: 'Fleet runs', ok: false, detail: 'no deployment runs' }],
     syncIpxeEndpoint: async (_config, options) => {
@@ -931,6 +932,51 @@ test('runtime readiness is exposed and prepare runtime runs without starting ser
     assert.equal(services.tftp.running, false);
     assert.equal(services.dhcp.running, false);
     assert.match(controller.getLogs().join('\n'), /runtime ok/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('prepare runtime is blocked early when Web console is not elevated', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-runtime-admin-'));
+  try {
+    let prepareCalled = false;
+    const { controller } = makeController(root, {
+      dependencies: {
+        isElevated: () => false,
+        getRuntimeReadiness: () => ({
+          ready: false,
+          requiredCount: 1,
+          readyCount: 0,
+          missingCount: 1,
+          missing: [{
+            id: 'boot-wim',
+            name: 'WinPE boot image',
+            kind: 'winpe',
+            sourceType: 'generated-winpe',
+            status: 'blocked',
+            prepareGroup: 'winpe-workspace',
+            targets: [{ reason: 'missing', filePath: 'boot.wim' }],
+          }],
+          artifacts: [],
+        }),
+        prepareRuntimeArtifacts: async () => {
+          prepareCalled = true;
+          return 'unexpected';
+        },
+      },
+    });
+
+    const runtimeStep = controller.getState().initialization.steps.find((step) => step.id === 'runtime');
+    assert.match(runtimeStep.detail, /elevated PowerShell session/i);
+    assert.equal(runtimeStep.detailItems[0].title, 'Administrator');
+    assert.equal(runtimeStep.detailItems[0].status, 'blocked');
+
+    await assert.rejects(
+      controller.prepareRuntime(),
+      /Prepare runtime requires an elevated Web console session/i,
+    );
+    assert.equal(prepareCalled, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

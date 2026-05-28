@@ -43,6 +43,7 @@ import {
 } from './osImages.js';
 import { formatLogLine, RingBuffer, tailFile } from './logger.js';
 import {
+  isElevatedSync,
   listIpv4ServiceInterfaces,
   removeStatusFiles,
   runPreflight,
@@ -371,13 +372,27 @@ function projectRootStatus(config) {
   };
 }
 
-function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight }) {
+function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight, elevated }) {
   const web = webServerConfig(config);
   const webReady = Boolean(web.host) && Number.isInteger(web.port) && web.port >= 0;
   const rootStatus = projectRootStatus(config);
   const osImageStatus = osImageDeployableStatus(osImage);
   const profileStatus = profilePayloadStatus(profilePayload);
   const finalPreflight = preflightStatus(preflight);
+  const runtimeNeedsElevation = elevated === false && runtime?.ready !== true;
+  const runtimeDetail = runtime?.ready
+    ? `${runtime.readyCount}/${runtime.requiredCount} required artifact group(s) are ready.`
+    : runtimeNeedsElevation
+      ? 'Restart the Web console from an elevated PowerShell session before Prepare runtime.'
+      : runtime?.error ?? `${runtime?.missingCount ?? 'Unknown'} runtime artifact group(s) need preparation.`;
+  const runtimeDetailItems = runtimeNeedsElevation
+    ? [{
+      title: 'Administrator',
+      meta: 'host privilege',
+      detail: 'Prepare runtime creates the SMB share, local account, and deployment runtime folders. Restart the Web console from an elevated PowerShell session first.',
+      status: 'blocked',
+    }, ...(runtimeInitializationDetailItems(runtime) ?? [])]
+    : runtimeInitializationDetailItems(runtime);
   const steps = [
     {
       id: 'project-root',
@@ -423,10 +438,8 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       required: true,
       done: runtime?.ready === true,
       action: 'prepare-runtime',
-      detail: runtime?.ready
-        ? `${runtime.readyCount}/${runtime.requiredCount} required artifact group(s) are ready.`
-        : runtime?.error ?? `${runtime?.missingCount ?? 'Unknown'} runtime artifact group(s) need preparation.`,
-      detailItems: runtimeInitializationDetailItems(runtime),
+      detail: runtimeDetail,
+      detailItems: runtimeDetailItems,
     },
     {
       id: 'endpoint',
@@ -627,6 +640,7 @@ export class ServiceController extends EventEmitter {
       summarizeDriverPackCache,
       summarizeValidation,
       syncIpxeEndpoint,
+      isElevated: isElevatedSync,
       getRuntimeReadiness,
       getDeploymentSecretsStatus: deploymentSecretsStatus,
       tailFile,
@@ -869,11 +883,16 @@ export class ServiceController extends EventEmitter {
       () => this.dependencies.readRunLatestScreenshot(this.config, selectedRun?.runId),
       null,
     );
+    const elevatedResult = safeRead(() => this.dependencies.isElevated(), null);
 
     const state = {
       generatedAt: new Date().toISOString(),
       app: {
         version: appVersion,
+      },
+      host: {
+        elevated: elevatedResult.value,
+        elevationError: elevatedResult.error,
       },
       web: webServerConfig(this.config),
       config: {
@@ -936,6 +955,7 @@ export class ServiceController extends EventEmitter {
       osImage: osImageResult.error ? null : osImageResult.value,
       profilePayload: profilePayloadResult.value,
       preflight: this.preflightResults,
+      elevated: elevatedResult.value,
     });
     return state;
   }
@@ -953,6 +973,9 @@ export class ServiceController extends EventEmitter {
 
   async prepareRuntime() {
     return this.runOperation('Preparing runtime artifacts', async () => {
+      if (this.dependencies.isElevated() !== true) {
+        throw errorWithStatus('Prepare runtime requires an elevated Web console session. Restart the Web console from an elevated PowerShell window and try again.', 400);
+      }
       const stream = makeOutputLogger((line) => this.addLog(line), '[runtime]', {
         ignoreLine: isBenignObjectSecurityTypeDataLine,
       });
