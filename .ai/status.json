@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-27T16:20:00.000+08:00",
+  "updated_at": "2026-05-28T08:24:30.0050812+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "deployment-fix-committed",
+    "state": "deployment-success-committed",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "WinPE Startnet/module injection and custom post script encoding fixes were committed after VM vSwitch deployment reached windows-desktop-ready.",
+    "summary": "VM vSwitch PXE deployment reached windows-desktop-ready after committed WinPE selected-OS helper and SetupComplete status-payload fixes; active cached OS deployed as en-US CoreSingleLanguage despite Pro metadata.",
     "baseline": {
-      "commit": "4dd9908f6391e2abfadce2073f85731452951025",
-      "short": "4dd9908",
-      "subject": "Fix WinPE startup chain and post script deployment"
+      "commit": "4614ef0bf539e72f690ab2f51169161282719a8a",
+      "short": "4614ef0",
+      "subject": "Fix VM deployment desktop-ready completion"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "4dd9908f6391e2abfadce2073f85731452951025",
-    "last_checked_head_short": "4dd9908",
+    "last_checked_head": "4614ef0bf539e72f690ab2f51169161282719a8a",
+    "last_checked_head_short": "4614ef0",
     "dirty": true,
     "ahead": 1,
     "behind": 0,
@@ -69,7 +69,7 @@
     "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": true
+    "status_file_uncommitted": false
   },
   "required_workflow": {
     "before_development_work": [
@@ -93,8 +93,24 @@
   },
   "recent_changes": [
     {
+      "id": "20260528030600-commit-4614ef0",
+      "at": "2026-05-28T08:24:30.0050812+08:00",
+      "kind": "commit",
+      "summary": "Committed VM deployment completion fixes for WinPE OS selection and SetupComplete desktop-ready reporting.",
+      "commit": "4614ef0bf539e72f690ab2f51169161282719a8a",
+      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 27/27; git diff --check reported only Windows LF/CRLF warnings; VM run 20260528-025515 reached windows-desktop-ready and PowerShell Direct verified the davis desktop and app installs."
+    },
+    {
+      "id": "20260528030324-test-572cbaf",
+      "at": "2026-05-28T03:05:23.359838+08:00",
+      "kind": "test",
+      "summary": "VM vSwitch PXE deployment reached windows-desktop-ready after WinPE selected-OS and SetupComplete status-payload fixes.",
+      "commit": "572cbafaae55879a15b10c49946d1ba0c0cc0381",
+      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed; Prepare runtime ready 7/7; endpoint preflight 19/19; status run 20260528-025515-8626-0296-5656-9040-3285-0241-79 completed windows-desktop-ready; PowerShell Direct verified davis desktop, auto.txt, Chrome, 7-Zip, Notepad++, OOBE skip, and autologon. Guest reported EditionID CoreSingleLanguage and UI en-US."
+    },
+    {
       "id": "20260527162000-commit-4dd9908",
-      "at": "2026-05-27T16:20:00.000+08:00",
+      "at": "2026-05-27T16:20:00+08:00",
       "kind": "commit",
       "summary": "Committed WinPE startup-chain, OSD module injection, SetupComplete diagnostics, and post-script encoding fixes.",
       "commit": "4dd9908f6391e2abfadce2073f85731452951025",
@@ -115,22 +131,6 @@
       "summary": "Started detached elevated launcher for PXE/VM rerun; Windows UAC consent prompt is active and waiting for approval.",
       "commit": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
       "verification": "Get-Process Consent showed active consent.exe; monitor helper log/done files were not created yet; PXE ports 67/69/80 are not listening"
-    },
-    {
-      "id": "20260527145640-code-f4dd1ab",
-      "at": "2026-05-27T14:58:29.563+08:00",
-      "kind": "code",
-      "summary": "Injected WinPE Startnet boot chain and OSD/OSDCloud modules during endpoint sync; synced local overlay selected OS for preflight.",
-      "commit": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
-      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed; live boot.wim read-only mount verified OSD.psd1 and Startnet; npm test 192/195 with existing dirty active OS and non-elevated C:\\Windows\\Temp failures; non-elevated preflight now passes SMB/OS state but still requires admin/DISM; elevated PXE/VM rerun waiting on UAC approval"
-    },
-    {
-      "id": "20260527142928-code-f4dd1ab",
-      "at": "2026-05-27T14:29:28.088+08:00",
-      "kind": "code",
-      "summary": "Restored WinPE Startnet boot-chain injection during endpoint sync; live boot.wim commit is blocked until rerun elevated.",
-      "commit": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
-      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed; npm test failed on unrelated dirty OS image catalog and non-elevated C:\\Windows\\Temp access; Set-OsdCloudIpxeEndpoint -CommitWinPe failed with DISM Error 740; npm run server:preflight failed on non-elevated admin gate and missing active SMB/OS image state; git diff --check warnings only"
     }
   ]
 }
