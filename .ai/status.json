@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-28T06:10:34.934Z",
+  "updated_at": "2026-05-29T01:48:22.9972249+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "project-root-sequence-driver-cache-ready",
+    "state": "runtime-prep-stabilized",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Implemented Web-selectable deployment root, flexible Windows 11 Pro Retail catalog filters, unified software/script install sequence, driver cache visibility, and server-visible app/script failure tails.",
+    "summary": "Delivered runtime-prep hardening, repo-sourced endpoint sync, unified profile ordering persistence, and installer failure evidence that survives Windows PowerShell serialization limits.",
     "baseline": {
-      "commit": "8b9fef874ab5c4a5d8734fee7d8c3b6334e16772",
-      "short": "8b9fef8",
-      "subject": "Update status after zh-TW deployment validation"
+      "commit": "37e130813e7a2b8bacff5526a2c47d313c85dfc8",
+      "short": "37e1308",
+      "subject": "Harden runtime prep and deployment diagnostics"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "8b9fef874ab5c4a5d8734fee7d8c3b6334e16772",
-    "last_checked_head_short": "8b9fef8",
+    "last_checked_head": "37e130813e7a2b8bacff5526a2c47d313c85dfc8",
+    "last_checked_head_short": "37e1308",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -69,7 +69,7 @@
     "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": true
+    "status_file_uncommitted": false
   },
   "required_workflow": {
     "before_development_work": [
@@ -94,12 +94,28 @@
   },
   "recent_changes": [
     {
-      "id": "20260528-project-root-sequence-cache",
-      "at": "2026-05-28T06:10:34.934Z",
+      "id": "20260529-commit-37e1308",
+      "at": "2026-05-29T01:48:22.9972249+08:00",
+      "kind": "commit",
+      "summary": "Committed repo-managed snponly runtime restore, endpoint/profile diagnostics fixes, and the validated test coverage for those flows.",
+      "commit": "37e130813e7a2b8bacff5526a2c47d313c85dfc8",
+      "verification": "npm test passed 203/203. powershell -File tools/Restore-DeploymentArtifacts.ps1 -SkipPrerequisiteCheck completed successfully and reused the verified repo artifact ipxe-snponly-efi. node --check tools/osdcloud-console/src/runtimeArtifacts.js and PowerShell parser checks for Restore-DeploymentArtifacts.ps1 and Sync-OsdCloudAssets.ps1 passed."
+    },
+    {
+      "id": "20260529-runtime-snponly-fix",
+      "at": "2026-05-29T01:15:39.9639882+08:00",
       "kind": "implementation",
-      "summary": "Added selectable runtime root, flexible OS filters, unified install sequence, driver cache visibility, and server-side app/script error tails.",
+      "summary": "Replaced rolling iPXE snponly download with a repo-managed validated snapshot so Prepare runtime no longer fails on upstream hash drift.",
       "commit": null,
-      "verification": "node --check focused JS passed; PowerShell parser checks passed; deploymentProfiles 53/53, focused config/driverPackCache/webServer/webUi 33/33, npm run smoke passed; Browser verified Working Dir, Driver Cache, custom OS filters, project-root input, and unified install sequence. Full npm test: 199/200, only pre-existing dirty config/os-image-catalog.json violates fresh-clone empty catalog expectation."
+      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 28/28; node --check tools/osdcloud-console/src/runtimeArtifacts.js passed; PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Sync-OsdCloudAssets.ps1; powershell -File tools/Restore-DeploymentArtifacts.ps1 -SkipPrerequisiteCheck completed successfully and reused the verified repo artifact ipxe-snponly-efi."
+    },
+    {
+      "id": "20260528-validation-tail-evidence",
+      "at": "2026-05-28T21:08:59.9379456+08:00",
+      "kind": "implementation",
+      "summary": "Closed the remaining test gap, preserved installSequence through profile edits, showed installer error evidence in Web UI, and proved server-side failure tails in VM.",
+      "commit": null,
+      "verification": "npm test passed 202/202 after isolating activeOsImage fresh-clone reads from dirty local config/os-image-catalog.json. node --check web/app.js and src/webServer.js passed; PowerShell parser checks passed; focused webServer/serviceController/windows tests passed. VM run 20260528-205632-0748-8480-9723-5694-2650-8796-64 produced windows-apps-error with stdoutTailText, stderrTailText, transcriptTailText, log paths, and exitCode 1 in status JSONL and /api/state; Browser verified the Validation dialog now renders Installer Error Evidence. Services were then restored and the normal All in One profile republished."
     },
     {
       "id": "20260528102301-test-d12a78b",
@@ -117,21 +133,6 @@
       "commit": "4614ef0bf539e72f690ab2f51169161282719a8a",
       "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 27/27; git diff --check reported only Windows LF/CRLF warnings; VM run 20260528-025515 reached windows-desktop-ready and PowerShell Direct verified the davis desktop and app installs."
     },
-    {
-      "id": "20260528030324-test-572cbaf",
-      "at": "2026-05-28T03:05:23.359838+08:00",
-      "kind": "test",
-      "summary": "VM vSwitch PXE deployment reached windows-desktop-ready after WinPE selected-OS and SetupComplete status-payload fixes.",
-      "commit": "572cbafaae55879a15b10c49946d1ba0c0cc0381",
-      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed; Prepare runtime ready 7/7; endpoint preflight 19/19; status run 20260528-025515-8626-0296-5656-9040-3285-0241-79 completed windows-desktop-ready; PowerShell Direct verified davis desktop, auto.txt, Chrome, 7-Zip, Notepad++, OOBE skip, and autologon. Guest reported EditionID CoreSingleLanguage and UI en-US."
-    },
-    {
-      "id": "20260527162000-commit-4dd9908",
-      "at": "2026-05-27T16:20:00+08:00",
-      "kind": "commit",
-      "summary": "Committed WinPE startup-chain, OSD module injection, SetupComplete diagnostics, and post-script encoding fixes.",
-      "commit": "4dd9908f6391e2abfadce2073f85731452951025",
-      "verification": "git diff --cached --check; node --test tools/osdcloud-console/test/runtimeArtifacts.test.js; VM status run 20260527-155811 reached windows-desktop-ready; local OS image/profile selection remains uncommitted"
     }
   ]
 }
