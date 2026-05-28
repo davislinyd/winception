@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-29T01:48:22.9972249+08:00",
+  "updated_at": "2026-05-29T02:08:44.1017880+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -21,15 +21,15 @@
     }
   },
   "development": {
-    "state": "runtime-prep-stabilized",
+    "state": "elevated-web-runtime-ready",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Delivered runtime-prep hardening, repo-sourced endpoint sync, unified profile ordering persistence, and installer failure evidence that survives Windows PowerShell serialization limits.",
+    "summary": "Delivered an elevated-Web startup and guard path so clean-host Prepare runtime either runs under admin rights or fails early with explicit operator guidance.",
     "baseline": {
-      "commit": "37e130813e7a2b8bacff5526a2c47d313c85dfc8",
-      "short": "37e1308",
-      "subject": "Harden runtime prep and deployment diagnostics"
+      "commit": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
+      "short": "c48c4a8",
+      "subject": "Guard runtime prep behind elevated Web console"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "37e130813e7a2b8bacff5526a2c47d313c85dfc8",
-    "last_checked_head_short": "37e1308",
+    "last_checked_head": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
+    "last_checked_head_short": "c48c4a8",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -94,6 +94,22 @@
   },
   "recent_changes": [
     {
+      "id": "20260529-commit-c48c4a8",
+      "at": "2026-05-29T02:08:44.1017880+08:00",
+      "kind": "commit",
+      "summary": "Committed the elevated-Web startup path, early Prepare runtime admin guard, and matching UI guidance plus regression coverage.",
+      "commit": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
+      "verification": "npm test passed 204/204. Focused node tests passed for serviceController, runtimeArtifacts, and webUi. node --check passed for serviceController.js, windows.js, and web/app.js. PowerShell parser check passed for Setup-DeploymentServer.ps1."
+    },
+    {
+      "id": "20260529-elevated-prepare-runtime",
+      "at": "2026-05-29T02:05:37.1747312+08:00",
+      "kind": "implementation",
+      "summary": "Setup now launches the Web console in an elevated PowerShell window, and Web blocks Prepare runtime early when not elevated.",
+      "commit": null,
+      "verification": "npm test passed 204/204. Focused node tests passed for serviceController, runtimeArtifacts, and webUi. node --check passed for serviceController.js, windows.js, and web/app.js. PowerShell parser check passed for Setup-DeploymentServer.ps1."
+    },
+    {
       "id": "20260529-commit-37e1308",
       "at": "2026-05-29T01:48:22.9972249+08:00",
       "kind": "commit",
@@ -117,21 +133,6 @@
       "commit": null,
       "verification": "npm test passed 202/202 after isolating activeOsImage fresh-clone reads from dirty local config/os-image-catalog.json. node --check web/app.js and src/webServer.js passed; PowerShell parser checks passed; focused webServer/serviceController/windows tests passed. VM run 20260528-205632-0748-8480-9723-5694-2650-8796-64 produced windows-apps-error with stdoutTailText, stderrTailText, transcriptTailText, log paths, and exitCode 1 in status JSONL and /api/state; Browser verified the Validation dialog now renders Installer Error Evidence. Services were then restored and the normal All in One profile republished."
     },
-    {
-      "id": "20260528102301-test-d12a78b",
-      "at": "2026-05-28T13:13:42.8378247+08:00",
-      "kind": "test",
-      "summary": "VM vSwitch PXE deployment reached windows-desktop-ready with Windows 11 Pro 25H2 zh-TW.",
-      "commit": "d12a78b46f7d0c8b57841ff10abd6f8a2a10d590",
-      "verification": "Official zh-TW 25H2 source exported to cached WIM B49EB013BD4440EA8C73288194EE41119ABA5853717906ADC7DA419252626F59; selected-os/profile published zh-TW Professional; Prepare runtime ready 7/7; endpoint preflight 19/19; status run 20260528-101554-0748-8480-9723-5694-2650-8796-64 completed windows-desktop-ready with guest-reported EditionID Professional, Culture zh-TW, davis desktop, OOBE skip indicators, and app install exitCode 0. PowerShell Direct secondary check timed out, so guest status payload is the evidence source."
-    },
-    {
-      "id": "20260528030600-commit-4614ef0",
-      "at": "2026-05-28T08:24:30.0050812+08:00",
-      "kind": "commit",
-      "summary": "Committed VM deployment completion fixes for WinPE OS selection and SetupComplete desktop-ready reporting.",
-      "commit": "4614ef0bf539e72f690ab2f51169161282719a8a",
-      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 27/27; git diff --check reported only Windows LF/CRLF warnings; VM run 20260528-025515 reached windows-desktop-ready and PowerShell Direct verified the davis desktop and app installs."
     }
   ]
 }
