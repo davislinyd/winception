@@ -588,6 +588,18 @@ test('endpoint sync injects Startnet boot chain into rebuilt WinPE', () => {
   assert.match(startnet, /PowerShell -NoL -NoP -ExecutionPolicy Bypass -File X:\\OSDCloud\\Start-OSDCloud-iPXE\.ps1/);
 });
 
+test('WinPE deployment script uses a lab-scoped selected OS manifest helper', () => {
+  const script = fs.readFileSync(
+    path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1'),
+    'utf8',
+  );
+
+  assert.match(script, /function Get-LabSelectedOsManifest/);
+  assert.match(script, /\$SelectedOs = Get-LabSelectedOsManifest -OsRoot \$osRoot/);
+  assert.match(script, /selected-os\.json did not produce a usable OS selection/);
+  assert.doesNotMatch(script, /function Get-SelectedOsManifest/);
+});
+
 test('endpoint sync injects OSD modules into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
 

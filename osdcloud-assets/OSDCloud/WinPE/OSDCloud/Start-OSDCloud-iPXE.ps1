@@ -230,7 +230,7 @@ function Get-DeployedWindowsRoot {
     return $null
 }
 
-function Get-SelectedOsManifest {
+function Get-LabSelectedOsManifest {
     param(
         [string] $OsRoot
     )
@@ -401,7 +401,10 @@ $netUse = & net.exe use Z: $share "/user:$server\pxeinstall" $smbPassword /persi
 $netUse | ForEach-Object { Write-Host $_ }
 
 $osRoot = 'Z:\OSDCloud\OS'
-$SelectedOs = Get-SelectedOsManifest -OsRoot $osRoot
+$SelectedOs = Get-LabSelectedOsManifest -OsRoot $osRoot
+if (-not $SelectedOs -or [string]::IsNullOrWhiteSpace([string] $SelectedOs.fileName) -or -not $SelectedOs.imageIndex) {
+    throw "selected-os.json did not produce a usable OS selection from $osRoot"
+}
 $imagePath = Join-Path $osRoot ([string] $SelectedOs.fileName)
 Write-Host "Selected OS: $($SelectedOs.id) $($SelectedOs.language) $($SelectedOs.edition) index $($SelectedOs.imageIndex)"
 Write-Host "Image source: $share\OSDCloud\OS\$($SelectedOs.fileName)"

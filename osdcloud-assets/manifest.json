@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-05-27T06:52:07.0004284Z",
+    "generatedAt":  "2026-05-27T18:52:54.5825894Z",
     "sourceRoot":  "C:\\OSDCloud",
     "assetsRoot":  "C:\\osdcloud-win11-deployment-lab\\osdcloud-assets",
     "hashLargeArtifacts":  true,
@@ -24,9 +24,9 @@
                         "source":  "C:\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
                         "sourceKind":  "filesystem",
                         "repoPath":  "osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-                        "length":  24505,
-                        "lastWriteTimeUtc":  "2026-05-27T05:49:29.0754545Z",
-                        "sha256":  "3F03C6A38F8254AC0C6A4AE0E79142A6C709C74E45A9292D3CFF78003FDAB21B"
+                        "length":  25240,
+                        "lastWriteTimeUtc":  "2026-05-27T18:50:18.0146072Z",
+                        "sha256":  "6F5584A4AA081F4923AF0DA45D2F306090B10D9AB704E6B5950AE894BCCFF05D"
                     },
                     {
                         "source":  "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\7zip\\install.ps1",
@@ -65,7 +65,7 @@
                         "sourceKind":  "filesystem",
                         "repoPath":  "osdcloud-assets/OSDCloud/Media/OSDCloud/Scripts/SC-J5GF07Y2/run.ps1",
                         "length":  633,
-                        "lastWriteTimeUtc":  "2026-05-27T07:52:49.7062397Z",
+                        "lastWriteTimeUtc":  "2026-05-27T07:52:49.2409423Z",
                         "sha256":  "43FB7A6C049F010455006258ABD8C380080633836226AF046327AF0575DA3711"
                     },
                     {
@@ -152,9 +152,9 @@
                         "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
                         "sourceKind":  "boot.wim:index1",
                         "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-                        "length":  24505,
-                        "lastWriteTimeUtc":  "2026-05-27T05:49:29.0754545Z",
-                        "sha256":  "3F03C6A38F8254AC0C6A4AE0E79142A6C709C74E45A9292D3CFF78003FDAB21B"
+                        "length":  25240,
+                        "lastWriteTimeUtc":  "2026-05-27T18:50:18.0146072Z",
+                        "sha256":  "6F5584A4AA081F4923AF0DA45D2F306090B10D9AB704E6B5950AE894BCCFF05D"
                     },
                     {
                         "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Report-OSDCloudProgress.ps1",
@@ -168,9 +168,9 @@
                         "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Start-OSDCloud-iPXE.ps1",
                         "sourceKind":  "boot.wim:index1",
                         "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1",
-                        "length":  16984,
-                        "lastWriteTimeUtc":  "2026-05-27T05:49:46.2773443Z",
-                        "sha256":  "F4554096C0E4C53DFC7DF6A27FDED03ADA72E68A7BA58794AA9F65BC4788EE57"
+                        "length":  17188,
+                        "lastWriteTimeUtc":  "2026-05-27T17:49:33.1781817Z",
+                        "sha256":  "A91B94886C9E7F3788042302B0045C6950DE3299D04483C1548DBAFB191FFA68"
                     }
                 ],
     "excludedArtifacts":  [
@@ -179,8 +179,8 @@
                                   "exists":  true,
                                   "reason":  "cached Windows image, too large for Git",
                                   "length":  6199240405,
-                                  "lastWriteTimeUtc":  "2026-05-27T06:04:27.6952521Z",
-                                  "sha256":  "CC68D213DD9362019E5FCF78C081B6BF8931088206FC7FDD6119A733385A4701",
+                                  "lastWriteTimeUtc":  "2026-05-27T10:03:23.2853222Z",
+                                  "sha256":  "1A51059B8E8C1A0D168572A8FF88D8A29C05262245849F3A7F37F6A88B5A26D0",
                                   "hashStatus":  "sha256"
                               },
                               {
@@ -188,8 +188,8 @@
                                   "exists":  true,
                                   "reason":  "cached Windows image, too large for Git",
                                   "length":  259,
-                                  "lastWriteTimeUtc":  "2026-05-27T06:04:35.2371093Z",
-                                  "sha256":  "D4F03BA0B67BF73E75F0A13EDA912F0322ECEBADC32ABA1D98D9B0245461039F",
+                                  "lastWriteTimeUtc":  "2026-05-27T10:03:32.6503394Z",
+                                  "sha256":  "BFB06DC4D3941E8DE7E01ACC46D3F7D2ED203F366B2AECD6C0BC95DA5E8E1E99",
                                   "hashStatus":  "sha256"
                               },
                               {
@@ -197,26 +197,26 @@
                                   "exists":  true,
                                   "reason":  "cached Windows image, too large for Git",
                                   "length":  1164,
-                                  "lastWriteTimeUtc":  "2026-05-27T06:38:03.8793619Z",
-                                  "sha256":  "79529DAD8EDC7FF397044A2F68DBD0023CBF01845E8F8769CEC1FFF92C8B669C",
+                                  "lastWriteTimeUtc":  "2026-05-27T17:32:35.2350085Z",
+                                  "sha256":  "E513658E740EB0B313DD22968DAA72EF31A9DE433465348255D9FA68AE091EE5",
                                   "hashStatus":  "sha256"
                               },
                               {
                                   "source":  "C:\\OSDCloud\\Media\\sources\\boot.wim",
                                   "exists":  true,
                                   "reason":  "generated WinPE boot image, rebuilt from versioned scripts",
-                                  "length":  563956238,
-                                  "lastWriteTimeUtc":  "2026-05-27T06:51:33.3423445Z",
-                                  "sha256":  "76E06E48E08EA3094295946E4C4369F4F3C586821E9E9CF26FB1E4F692A0493A",
+                                  "length":  568469104,
+                                  "lastWriteTimeUtc":  "2026-05-27T18:52:01.1514782Z",
+                                  "sha256":  "882D928F091F76388FDE912CD6C1F10AA1B47C1D271156C98E4F7CFA378D717D",
                                   "hashStatus":  "sha256"
                               },
                               {
                                   "source":  "C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.wim",
                                   "exists":  true,
                                   "reason":  "published WinPE boot image hardlink/copy",
-                                  "length":  563956238,
-                                  "lastWriteTimeUtc":  "2026-05-27T06:51:33.3423445Z",
-                                  "sha256":  "76E06E48E08EA3094295946E4C4369F4F3C586821E9E9CF26FB1E4F692A0493A",
+                                  "length":  568469104,
+                                  "lastWriteTimeUtc":  "2026-05-27T18:52:01.1514782Z",
+                                  "sha256":  "882D928F091F76388FDE912CD6C1F10AA1B47C1D271156C98E4F7CFA378D717D",
                                   "hashStatus":  "sha256"
                               },
                               {
@@ -260,7 +260,7 @@
                                   "exists":  true,
                                   "reason":  "upstream iPXE wimboot binary",
                                   "length":  62440,
-                                  "lastWriteTimeUtc":  "2026-05-27T05:49:00.6294144Z",
+                                  "lastWriteTimeUtc":  "2026-05-27T09:45:46.0379595Z",
                                   "sha256":  "74D4BF3D09386CCBBE907D9DB59030F8CD8C88F7B4CCB799D386F31DEF11B3FE",
                                   "hashStatus":  "sha256"
                               },
@@ -269,7 +269,7 @@
                                   "exists":  true,
                                   "reason":  "upstream iPXE binary",
                                   "length":  288256,
-                                  "lastWriteTimeUtc":  "2026-05-27T05:49:01.5043664Z",
+                                  "lastWriteTimeUtc":  "2026-05-27T09:45:46.9371769Z",
                                   "sha256":  "A6EA6BD7580791EA3130F95247D560734A6FC8B9CF7C1D75EAAEBB688698D792",
                                   "hashStatus":  "sha256"
                               },
