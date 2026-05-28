@@ -82,6 +82,29 @@ function Get-CustomScripts {
     return @($Profile.customScripts | Where-Object { $_.phase -eq $Phase })
 }
 
+function Get-InstallSequence {
+    param(
+        [Parameter(Mandatory)][string] $AppsRoot,
+        $Profile
+    )
+
+    if ($Profile -and $Profile.installSequence) {
+        return @($Profile.installSequence)
+    }
+
+    $sequence = @()
+    foreach ($entry in @(Get-CustomScripts -Profile $Profile -Phase 'before')) {
+        $sequence += [pscustomobject]@{ type = 'script'; id = $entry.id; name = $entry.name; phase = $entry.phase }
+    }
+    foreach ($softwareId in @(Get-SelectedSoftwareIds -AppsRoot $AppsRoot -Profile $Profile)) {
+        $sequence += [pscustomobject]@{ type = 'software'; id = $softwareId }
+    }
+    foreach ($entry in @(Get-CustomScripts -Profile $Profile -Phase 'after')) {
+        $sequence += [pscustomobject]@{ type = 'script'; id = $entry.id; name = $entry.name; phase = $entry.phase }
+    }
+    return @($sequence)
+}
+
 function Resolve-TargetUserProfilePath {
     param([Parameter(Mandatory)][string] $TargetUser)
 
@@ -278,21 +301,23 @@ try {
     Initialize-TargetUserEnvironment
 
     $profile = Get-SelectedProfile -AppsRoot $appsRoot
-    $beforeScripts = @(Get-CustomScripts -Profile $profile -Phase 'before')
-    $afterScripts = @(Get-CustomScripts -Profile $profile -Phase 'after')
-    $selectedIds = @(Get-SelectedSoftwareIds -AppsRoot $appsRoot -Profile $profile)
+    $installSequence = @(Get-InstallSequence -AppsRoot $appsRoot -Profile $profile)
+    $softwareCount = 0
 
-    if ($beforeScripts.Count -gt 0) {
-        foreach ($entry in $beforeScripts) {
+    foreach ($entry in $installSequence) {
+        $entryType = [string] $entry.type
+        if ($entryType -eq 'script') {
             Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -Failures $failures -Results $customScriptResults
+            continue
         }
-    }
-
-    if ($selectedIds.Count -eq 0) {
-        Write-Host 'No client applications selected by deployment profile.'
-    }
-
-    foreach ($softwareId in $selectedIds) {
+        if ($entryType -ne 'software') {
+            $message = "Unsupported install sequence entry type: $entryType"
+            Write-Host $message
+            [void] $failures.Add($message)
+            continue
+        }
+        $softwareId = [string] $entry.id
+        $softwareCount += 1
         Write-Host "Installing app: $softwareId"
         try {
             $script = Resolve-PackageScript -Root $appsRoot -PackageId $softwareId -ScriptName 'install.ps1' -Label 'app'
@@ -306,10 +331,8 @@ try {
         }
     }
 
-    if ($afterScripts.Count -gt 0) {
-        foreach ($entry in $afterScripts) {
-            Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -Failures $failures -Results $customScriptResults
-        }
+    if ($softwareCount -eq 0) {
+        Write-Host 'No client applications selected by deployment profile.'
     }
 
     if ($customScriptResults.Count -gt 0) {

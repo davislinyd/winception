@@ -472,6 +472,7 @@ test('state initialization becomes true only when live prerequisites are present
     assert.deepEqual(
       payload.state.initialization.steps.filter((step) => step.required).map((step) => [step.id, step.done]),
       [
+        ['project-root', true],
         ['web', true],
         ['secrets', true],
         ['runtime', true],

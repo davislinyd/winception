@@ -294,6 +294,9 @@ function Invoke-ClientAppInstallers {
         stdoutLog = $stdoutPath
         stderrLog = $stderrPath
         transcriptLog = $transcriptPath
+        stdoutTail = @(Get-TextFileTail -Path $stdoutPath -Count 80)
+        stderrTail = @(Get-TextFileTail -Path $stderrPath -Count 80)
+        transcriptTail = @(Get-TextFileTail -Path $transcriptPath -Count 80)
     }
 
     if ($process.ExitCode -ne 0) {

@@ -1040,6 +1040,54 @@ function normalizeCustomScriptSelection(value, scriptCatalog, label) {
   });
 }
 
+function normalizeInstallSequence(value, catalog, scriptCatalog, label) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const rows = arrayFrom(value, label);
+  const seen = new Set();
+  return rows.map((entry, index) => {
+    const itemLabel = `${label}[${index}]`;
+    const type = String(entry?.type ?? '').trim().toLowerCase();
+    if (type !== 'software' && type !== 'script') {
+      throw new Error(`${itemLabel}.type must be software or script`);
+    }
+    const id = normalizeId(entry?.id, `${itemLabel}.id`);
+    const key = `${type}:${id}`;
+    if (seen.has(key)) {
+      throw new Error(`Duplicate install sequence entry ${key} in ${label}`);
+    }
+    seen.add(key);
+    if (type === 'software') {
+      if (!catalog.byId.has(id)) {
+        throw new Error(`${label} references unknown software: ${id}`);
+      }
+      return { type, id };
+    }
+    const catalogEntry = scriptCatalog?.byId?.get(id);
+    if (scriptCatalog && !catalogEntry) {
+      throw new Error(`${label} references unknown custom script: ${id}`);
+    }
+    return {
+      type,
+      id,
+      phase: entry?.phase
+        ? normalizeCustomScriptPhase(entry.phase, `${itemLabel}.phase`)
+        : (catalogEntry?.defaultPhase ?? defaultCustomScriptPhase),
+    };
+  });
+}
+
+function installSequenceFromSelections(softwareIds, customScripts) {
+  const beforeScripts = (customScripts ?? []).filter((entry) => entry.phase === 'before');
+  const afterScripts = (customScripts ?? []).filter((entry) => entry.phase !== 'before');
+  return [
+    ...beforeScripts.map((entry) => ({ type: 'script', id: entry.id, phase: entry.phase })),
+    ...softwareIds.map((id) => ({ type: 'software', id })),
+    ...afterScripts.map((entry) => ({ type: 'script', id: entry.id, phase: entry.phase })),
+  ];
+}
+
 export function loadDeploymentProfiles(config = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const catalog = options.catalog ?? loadSoftwareCatalog(config, options);
@@ -1084,6 +1132,13 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       scriptCatalog,
       `deployment profile ${id} customScripts`,
     );
+    const rawInstallSequence = normalizeInstallSequence(
+      raw.installSequence,
+      catalog,
+      scriptCatalog,
+      `deployment profile ${id} installSequence`,
+    );
+    const installSequence = rawInstallSequence ?? installSequenceFromSelections(selectedIds, customScripts);
 
     const rawOsImageId = String(raw.osImage ?? raw.osImageId ?? '').trim();
     let osImageId;
@@ -1104,6 +1159,8 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       description: String(raw.description ?? ''),
       softwareIds: selectedIds,
       customScripts,
+      installSequence,
+      hasInstallSequence: rawInstallSequence !== null,
       osImageId,
       filePath,
     };
@@ -1128,6 +1185,14 @@ export function resolveDeploymentProfileState(config = {}, profileId = null, opt
     const script = scriptCatalog.byId.get(entry.id);
     return script ? { ...script, phase: entry.phase } : null;
   }).filter(Boolean);
+  const installSequence = (activeProfile.installSequence ?? []).map((entry) => {
+    if (entry.type === 'software') {
+      const software = catalog.byId.get(entry.id);
+      return software ? { type: 'software', id: entry.id, software } : null;
+    }
+    const script = scriptCatalog.byId.get(entry.id);
+    return script ? { type: 'script', id: entry.id, phase: entry.phase, script } : null;
+  }).filter(Boolean);
   return {
     options: profileOptions,
     catalog,
@@ -1136,6 +1201,7 @@ export function resolveDeploymentProfileState(config = {}, profileId = null, opt
     activeProfile,
     selectedSoftware,
     selectedScripts,
+    installSequence,
     osImageId: activeProfile.osImageId,
   };
 }
@@ -1194,6 +1260,8 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
 
   const softwareIds = [...state.activeProfile.softwareIds];
   const customScripts = (state.activeProfile.customScripts ?? []).map((entry) => ({ ...entry }));
+  const installSequence = (state.activeProfile.installSequence ?? installSequenceFromSelections(softwareIds, customScripts))
+    .map((entry) => ({ ...entry }));
   const rawOsImageId = String(input.osImageId ?? state.activeProfile.osImageId ?? '').trim();
   const osImageId = rawOsImageId ? normalizeId(rawOsImageId, `deployment profile ${id} osImage`) : null;
   const raw = {
@@ -1207,6 +1275,9 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   if (customScripts.length > 0) {
     raw.customScripts = customScripts;
   }
+  if (state.activeProfile.hasInstallSequence && installSequence.length > 0) {
+    raw.installSequence = installSequence;
+  }
   if (input.description !== undefined) {
     raw.description = normalizeProfileDescription(input.description);
   }
@@ -1219,6 +1290,8 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
       description: raw.description ?? '',
       softwareIds,
       customScripts,
+      installSequence,
+      hasInstallSequence: state.activeProfile.hasInstallSequence,
       osImageId,
       filePath,
     },
@@ -1247,6 +1320,11 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const customScripts = input.customScripts === undefined
     ? (profile.customScripts ?? []).map((entry) => ({ ...entry }))
     : normalizeCustomScriptSelection(input.customScripts, scriptCatalog, `deployment profile ${id} customScripts`);
+  const installSequence = input.installSequence === undefined
+    ? (input.softwareIds === undefined && input.customScripts === undefined
+      ? (profile.installSequence ?? installSequenceFromSelections(selectedIds, customScripts)).map((entry) => ({ ...entry }))
+      : installSequenceFromSelections(selectedIds, customScripts))
+    : normalizeInstallSequence(input.installSequence, catalog, scriptCatalog, `deployment profile ${id} installSequence`);
   const name = input.name === undefined
     ? profile.name
     : normalizeProfileName(input.name);
@@ -1267,6 +1345,11 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   } else {
     delete raw.customScripts;
   }
+  if (input.installSequence !== undefined && installSequence.length > 0) {
+    raw.installSequence = installSequence;
+  } else if (input.installSequence !== undefined || input.softwareIds !== undefined || input.customScripts !== undefined) {
+    delete raw.installSequence;
+  }
   if (osImageId) {
     raw.osImage = osImageId;
   } else {
@@ -1284,6 +1367,10 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
       description: String(raw.description ?? ''),
       softwareIds: selectedIds,
       customScripts,
+      installSequence,
+      hasInstallSequence: input.installSequence !== undefined
+        ? installSequence.length > 0
+        : (input.softwareIds === undefined && input.customScripts === undefined && profile.hasInstallSequence),
       osImageId,
     },
     filePath,
@@ -1738,10 +1825,14 @@ function removeAppsRootContents(appsRoot) {
 
 function profileManifest(state, osImageResult = null) {
   const selectedScripts = state.selectedScripts ?? [];
-  const orderedScripts = [
-    ...selectedScripts.filter((script) => script.phase === 'before'),
-    ...selectedScripts.filter((script) => script.phase === 'after'),
-  ];
+  const scriptById = new Map(selectedScripts.map((script) => [script.id, script]));
+  const sequence = state.installSequence?.length
+    ? state.installSequence
+    : [
+      ...selectedScripts.filter((script) => script.phase === 'before').map((script) => ({ type: 'script', id: script.id, phase: script.phase })),
+      ...state.selectedSoftware.map((software) => ({ type: 'software', id: software.id })),
+      ...selectedScripts.filter((script) => script.phase === 'after').map((script) => ({ type: 'script', id: script.id, phase: script.phase })),
+    ];
   const manifest = {
     profileId: state.activeProfile.id,
     profileName: state.activeProfile.name,
@@ -1751,10 +1842,20 @@ function profileManifest(state, osImageResult = null) {
       id: software.id,
       name: software.name,
     })),
-    customScripts: orderedScripts.map((script) => ({
-      id: script.id,
-      name: script.name,
-      phase: script.phase,
+    customScripts: sequence
+      .filter((entry) => entry.type === 'script')
+      .map((entry) => {
+        const script = scriptById.get(entry.id);
+        return {
+          id: entry.id,
+          name: script?.name ?? entry.id,
+          phase: entry.phase,
+        };
+      }),
+    installSequence: sequence.map((entry) => ({
+      type: entry.type,
+      id: entry.id,
+      ...(entry.type === 'script' ? { phase: entry.phase } : {}),
     })),
     osImageId: state.activeProfile.osImageId,
   };

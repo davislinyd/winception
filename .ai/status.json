@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-28T13:13:42.8378247+08:00",
+  "updated_at": "2026-05-28T06:10:34.934Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
-    "current_goal": "Repeatable Web-console-first OSDCloud/iPXE deployment flow for Windows 11 Pro 25H2 zh-TW."
+    "current_goal": "Flexible Web-console-first OSDCloud deployment for arbitrary-language Windows 11 Pro Retail with selectable runtime root, ordered software/scripts, visible driver cache, and server-side failure evidence."
   },
   "paths": {
     "development": {
@@ -16,20 +16,20 @@
       "purpose": "Current production-like checkout; old C:\\Users\\Davis\\Documents\\New project path is retired for new work."
     },
     "runtime": {
-      "root": "C:\\OSDCloud",
-      "purpose": "Product-managed OSDCloud runtime/install root created or updated only by the normal deployment workflow."
+      "root": "<Web-selected project root, default C:\\OSDCloud>",
+      "purpose": "Product-managed OSDCloud runtime/install root selected in Web initialization; never located inside the Git clone."
     }
   },
   "development": {
-    "state": "deployment-success-zh-tw-local",
+    "state": "project-root-sequence-driver-cache-ready",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "VM vSwitch PXE deployment reached windows-desktop-ready with Windows 11 Pro 25H2 zh-TW after publishing the zh-TW OS image and deployment profile through the normal runtime workflow.",
+    "summary": "Implemented Web-selectable deployment root, flexible Windows 11 Pro Retail catalog filters, unified software/script install sequence, driver cache visibility, and server-visible app/script failure tails.",
     "baseline": {
-      "commit": "d12a78b46f7d0c8b57841ff10abd6f8a2a10d590",
-      "short": "d12a78b",
-      "subject": "Update project status after VM deployment success"
+      "commit": "8b9fef874ab5c4a5d8734fee7d8c3b6334e16772",
+      "short": "8b9fef8",
+      "subject": "Update status after zh-TW deployment validation"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -46,13 +46,13 @@
   },
   "runtime": {
     "manual_agent_edits_allowed": false,
-    "allowed_mutation_path": "Normal product workflow such as Web Runtime Readiness, Prepare runtime, endpoint sync, preflight, and deployment tests."
+    "allowed_mutation_path": "Normal product workflow such as Web project-root selection, Runtime Readiness, Prepare runtime, endpoint sync, preflight, and deployment tests."
   },
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "d12a78b46f7d0c8b57841ff10abd6f8a2a10d590",
-    "last_checked_head_short": "d12a78b",
+    "last_checked_head": "8b9fef874ab5c4a5d8734fee7d8c3b6334e16772",
+    "last_checked_head_short": "8b9fef8",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -69,7 +69,7 @@
     "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": false
+    "status_file_uncommitted": true
   },
   "required_workflow": {
     "before_development_work": [
@@ -87,11 +87,20 @@
     ],
     "forbidden": [
       "Do not use C:\\Users\\Davis\\Documents\\New project for new work.",
-      "Do not manually patch, copy into, or directly edit C:\\OSDCloud.",
-      "Do not commit generated deployment artifacts or local secrets."
+      "Do not manually patch, copy into, or directly edit the Web-selected deployment project root.",
+      "Do not commit generated deployment artifacts or local secrets.",
+      "Do not write deployment runtime files back into the Git clone."
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260528-project-root-sequence-cache",
+      "at": "2026-05-28T06:10:34.934Z",
+      "kind": "implementation",
+      "summary": "Added selectable runtime root, flexible OS filters, unified install sequence, driver cache visibility, and server-side app/script error tails.",
+      "commit": null,
+      "verification": "node --check focused JS passed; PowerShell parser checks passed; deploymentProfiles 53/53, focused config/driverPackCache/webServer/webUi 33/33, npm run smoke passed; Browser verified Working Dir, Driver Cache, custom OS filters, project-root input, and unified install sequence. Full npm test: 199/200, only pre-existing dirty config/os-image-catalog.json violates fresh-clone empty catalog expectation."
+    },
     {
       "id": "20260528102301-test-d12a78b",
       "at": "2026-05-28T13:13:42.8378247+08:00",
@@ -123,14 +132,6 @@
       "summary": "Committed WinPE startup-chain, OSD module injection, SetupComplete diagnostics, and post-script encoding fixes.",
       "commit": "4dd9908f6391e2abfadce2073f85731452951025",
       "verification": "git diff --cached --check; node --test tools/osdcloud-console/test/runtimeArtifacts.test.js; VM status run 20260527-155811 reached windows-desktop-ready; local OS image/profile selection remains uncommitted"
-    },
-    {
-      "id": "20260527160552-test-f4dd1ab",
-      "at": "2026-05-27T16:05:52.416+08:00",
-      "kind": "test",
-      "summary": "VM vSwitch PXE deployment completed to windows-desktop-ready; apps installed and custom post script created auto.txt.",
-      "commit": "f4dd1abe7d1a7f16e5eccf2f5f7dda3fb25aebee",
-      "verification": "Elevated preflight passed; status run 20260527-155811 reached windows-apps-finished exitCode=0, windows-setupcomplete-finished, windows-desktop-ready; guest check found SC-J5GF07Y2 succeeded and C:\\Users\\davis\\Desktop\\auto.txt exists"
     }
   ]
 }

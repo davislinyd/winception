@@ -25,6 +25,8 @@ For deployment flow, Web console behavior, service-interface selection, endpoint
 
 For portability/setup changes, update the README handoff/fresh-clone flow, `osdcloud-assets\README.md`, and the report's fresh-clone readiness note.
 
+Git clone directories are installation and configuration sources only. Deployment runtime files must be created under the Web-selected project root, never written back into the clone.
+
 ## Development And Handoff
 
 Use Git to track docs and process definitions in the development workspace.

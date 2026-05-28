@@ -173,6 +173,14 @@
               <section id="services-grid" class="status-services-grid col-span-5 lg:col-span-3 grid grid-cols-3 gap-sm" aria-label="Services"></section>
             </div>
 
+            <section class="driver-cache-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
+              <div class="panel-title-row">
+                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Driver Cache</h3>
+                <span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span>
+              </div>
+              <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
+            </section>
+
             <section class="preflight-summary-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
               <div class="panel-title-row">
                 <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3>
@@ -458,6 +466,7 @@
                 <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="id-id"> Indonesian</label>
                 <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-language" type="checkbox" value="es-es"> Spanish</label>
               </div>
+              <input id="os-catalog-language-custom" class="field-input" type="text" placeholder="Other language tags, e.g. de-de, fr-fr, it-it">
             </section>
             <section class="catalog-filter-group">
               <div class="field-label">Release <span class="subtle">required</span></div>
@@ -467,6 +476,7 @@
                 <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-release" type="checkbox" value="26H1"> 26H1</label>
                 <label class="catalog-choice"><input data-os-catalog-filter name="os-catalog-release" type="checkbox" value="26H2"> 26H2</label>
               </div>
+              <input id="os-catalog-release-custom" class="field-input" type="text" placeholder="Future release tags, e.g. 27H1">
               <div class="catalog-release-hint subtle">26H1/26H2 may not be available in the Microsoft download catalog yet.</div>
             </section>
           </div>

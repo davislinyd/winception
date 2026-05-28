@@ -4,12 +4,12 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 
 ## Runtime Readiness
 
-- A Git clone alone is not a deployable PXE runtime. Live deployment runs from `C:\OSDCloud`, prepared by Web Runtime Readiness / Prepare runtime and related Web actions.
+- A Git clone alone is not a deployable PXE runtime. Live deployment runs from the Web-selected deployment project root, defaulting to `C:\OSDCloud`, prepared by Web Runtime Readiness / Prepare runtime and related Web actions.
 - New-host setup is lightweight: clone, run `Setup-DeploymentServer.cmd`, choose only the Web management listen IP, then continue in Web.
-- Setup must not create deployment secrets, write PXE endpoint overlay state, create the `C:\OSDCloud` runtime skeleton, download/rebuild ADK or WinPE, restore artifacts, run preflight, or start HTTP/TFTP/DHCP services.
-- Web first-run initialization owns secrets, Runtime Readiness / Prepare runtime, PXE/service endpoint sync, OS Image Cache, profile publish, preflight, and service controls.
+- Setup must not create deployment secrets, write PXE endpoint overlay state, create the runtime skeleton, download/rebuild ADK or WinPE, restore artifacts, run preflight, or start HTTP/TFTP/DHCP services.
+- Web first-run initialization owns project-root selection, secrets, Runtime Readiness / Prepare runtime, PXE/service endpoint sync, OS Image Cache, profile publish, preflight, and service controls. The selected project root must be an absolute path outside the Git clone; the clone is installation source only and must not receive live runtime outputs.
 - During testing, agents may use the Web/API initialization flow to save or refresh deployment secrets without extra confirmation when usable values are already available from ignored local files, approved environment variables, or prior user input. Never print, commit, or record plaintext secret values.
-- Prepare runtime must treat both `C:\OSDCloud\Media\sources\boot.wim` and `C:\OSDCloud\PXE-HttpRoot\osdcloud\boot.wim` as required boot artifacts.
+- Prepare runtime must treat both `<project-root>\Media\sources\boot.wim` and `<project-root>\PXE-HttpRoot\osdcloud\boot.wim` as required boot artifacts.
 - Prepare runtime is only for boot/iPXE/WinPE runtime artifacts. It must not download client software merely because software exists in the catalog.
 - Do not pin exact size/hash for the generated WinPE `boot.wim` in the runtime catalog. It is host- and endpoint-specific after ADK/OSDCloud generation and endpoint sync; readiness should require the source and published paths to exist, while stable downloaded artifacts and boot binaries keep size/SHA validation.
 - A `size-mismatch` readiness result means the artifact is incomplete or out of sync, not that deployment services are running.
@@ -29,6 +29,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Start the Web console from elevated PowerShell when it will control services.
 - Starting `npm run web`, opening the UI, and reading state/status/logs/validation must not modify `C:\OSDCloud`.
 - Web mutating actions can modify live deployment state: endpoint sync, OS image cache, profile publish, clear status, and service start/stop.
+- Web `Project root` initialization is a mutating local configuration action. It stops running services, writes ignored local config, refreshes service paths, and clears preflight results.
 - Do not run Web console and headless services at the same time to control services. They can conflict on ports 67, 69, and 80.
 - Run preflight before starting services.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
@@ -42,10 +43,11 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Fresh clones may have no active OS image, profile OS image, or `selected-os.json`. Web must show a clear no-OS-image state.
 - Profile publish and preflight must fail clearly until a deployable WIM and `selected-os.json` exist.
 - OS image acquisition is host/Admin Console only.
-- Web OS Image Cache downloads or imports ISO/ESD/WIM sources, inspects DISM indexes, exports one selected index to a deployable WIM, and publishes `selected-os.json` with deploy index `1`.
-- Client app and custom script payloads are selected by deployment profiles and live Web/API/config state. Do not hard-code a current software list; read the active profile and catalog.
+- Web OS Image Cache downloads or imports Windows 11 Pro Retail ISO/ESD/WIM sources in any language, inspects DISM indexes, exports one selected index to a deployable WIM, and publishes `selected-os.json` with deploy index `1`. Official-catalog filters must allow future release tags such as 26H1/26H2 and later without code changes when upstream rows exist.
+- Client app and custom script payloads are selected and ordered by deployment profiles and live Web/API/config state. New profiles use `installSequence` as the single execution order across software and scripts; legacy `selectedSoftware` plus `customScripts` remain compatibility fields. Do not hard-code a current software list; read the active profile and catalog. Technicians own dependency risk from ordering choices, but server-side status must include enough app/script failure detail to diagnose a failed deployment.
 - Profile publish is responsible for selected client software payloads. Before clearing live `Apps`, it must verify each selected software installer from `config\software-catalog.json`; if the installer is missing and `downloadUrl` is configured, download to repo-local staging, verify size/SHA-256, then publish only selected folders. Missing or mismatched selected installers without a usable download must fail closed.
 - Minimal/no-software profiles should still publish `Install-Apps.ps1` and `selected-profile.json` without downloading any client software. Preflight validates published `Apps` plus `selected-profile.json`, not unselected catalog software.
+- Driver pack cache is host-first and model-aware. SetupComplete reports official OSDCloud driver-pack metadata; the host caches allowed official URLs under `<project-root>\Media\OSDCloud\DriverPacks` and Web state must expose cached manufacturer/model/product/package/fileName summaries.
 
 ## Deployment Behavior
 

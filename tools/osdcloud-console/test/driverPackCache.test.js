@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
   handleDriverPackCacheRequest,
   normalizeDriverPackCacheConfig,
+  summarizeDriverPackCache,
   validateDriverPackCacheEntry,
 } from '../src/driverPackCache.js';
 
@@ -122,6 +123,47 @@ test('downloads missing driver packs and writes manifest metadata', async () => 
     assert.equal(manifest.status, 'downloaded');
     assert.equal(manifest.packageId, 'YWNJX');
     assert.equal(manifest.bytes, 11);
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test('summarizes cached driver packs by manufacturer and model', async () => {
+  const cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'driverpack-cache-summary-'));
+  const fileName = 'PA14250-YWNJX_Win11_1.0_A06.exe';
+
+  try {
+    await handleDriverPackCacheRequest(eventWithDriverPack({
+      manufacturer: 'Dell',
+      model: 'Dell Pro 14 Premium',
+      product: '0CE4',
+      name: 'Dell Pro 14 Premium Windows 11 Driver Pack',
+      packageId: 'YWNJX',
+      fileName,
+      url: 'https://downloads.dell.com/FOLDER/PA14250-YWNJX_Win11_1.0_A06.exe',
+    }), {
+      driverPackCache: {
+        enabled: true,
+        root: cacheRoot,
+        allowedHosts: ['downloads.dell.com'],
+      },
+    }, {
+      fetchImpl: async () => new Response('driver-data'),
+    });
+
+    const summary = summarizeDriverPackCache({
+      driverPackCache: {
+        enabled: true,
+        root: cacheRoot,
+        allowedHosts: ['downloads.dell.com'],
+      },
+    });
+
+    assert.equal(summary.enabled, true);
+    assert.equal(summary.entries.length, 1);
+    assert.equal(summary.entries[0].manufacturer, 'Dell');
+    assert.equal(summary.entries[0].model, 'Dell Pro 14 Premium');
+    assert.equal(summary.entries[0].exists, true);
   } finally {
     fs.rmSync(cacheRoot, { recursive: true, force: true });
   }

@@ -1,10 +1,10 @@
 # Versioned OSDCloud Assets
 
-This folder is a Git-friendly mirror of the small deployment files that actually live under `C:\OSDCloud`.
+This folder is a Git-friendly mirror of the small deployment files that live under the Web-selected deployment project root. `C:\OSDCloud` is the proven default, not a hard requirement.
 
 It is not a complete runnable backup. A fresh clone first runs the lightweight setup wizard, then uses Web `Runtime Readiness` / `Prepare runtime` to rebuild the live boot/iPXE/WinPE runtime before PXE deployment can start. This mirror is one source used during that rebuild; it is not a replacement for the runtime artifact catalog, ADK/WinPE build output, downloaded OS image, or selected profile software payload cache.
 
-The live lab still runs from:
+The tested live lab still ran from:
 
 ```text
 C:\OSDCloud
@@ -44,11 +44,11 @@ After cloning the repo on another Windows host, run the lightweight setup wizard
 .\Setup-DeploymentServer.cmd
 ```
 
-Setup can ask to install Node.js LTS when `node`/`npm` are missing, installs Node dependencies, runs the lightweight smoke check, and starts the Web console. It does not capture deployment secrets, record endpoint overlay state, create the `C:\OSDCloud` runtime skeleton, create SMB accounts/shares, download cataloged installers, export OS image artifacts, build ADK/WinPE content, create `boot.wim`, or download `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
+Setup can ask to install Node.js LTS when `node`/`npm` are missing, installs Node dependencies, runs the lightweight smoke check, and starts the Web console. It does not capture deployment secrets, record endpoint overlay state, create the deployment project root runtime skeleton, create SMB accounts/shares, download cataloged installers, export OS image artifacts, build ADK/WinPE content, create `boot.wim`, or download `wimboot`; it also does not sync the endpoint, run server preflight, or start DHCP/TFTP/HTTP deployment services.
 
-In the Web console, use `Runtime Readiness` > `Prepare runtime` to create the flat `C:\OSDCloud` structure, prepare `pxeinstall` / `OSDCloudiPXE`, restore this mirror, download cataloged iPXE binaries through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. If this action starts from the Initialization Wizard, the wizard remains open and shows the operation status, a scrollable full operation log with a copy button, and completed/failed result; from the main Runtime Readiness card, use the operation badge and System Log for the same backend operation. `boot.wim` is required because iPXE loads it over HTTP to enter WinPE, and that WinPE contains the OSDCloud startup scripts, SMB mapping, status callback, SetupComplete handoff, and local secret injection used by the deployment. Client software installers are restored later when the selected deployment profile is published. Readiness requires both `boot.wim` paths to exist, while exact hash evidence for the mutable image belongs in `manifest.json` after asset sync.
+In the Web console, first confirm the deployment project root in Initialization. Then use `Runtime Readiness` > `Prepare runtime` to create the flat runtime structure, prepare `pxeinstall` / `OSDCloudiPXE`, restore this mirror, download cataloged iPXE binaries through `.downloads` staging, verify size and SHA-256, and rebuild or publish WinPE boot files. If this action starts from the Initialization Wizard, the wizard remains open and shows the operation status, a scrollable full operation log with a copy button, and completed/failed result; from the main Runtime Readiness card, use the operation badge and System Log for the same backend operation. `boot.wim` is required because iPXE loads it over HTTP to enter WinPE, and that WinPE contains the OSDCloud startup scripts, SMB mapping, status callback, SetupComplete handoff, and local secret injection used by the deployment. Client software installers are restored later when the selected deployment profile is published. Readiness requires both `boot.wim` paths to exist, while exact hash evidence for the mutable image belongs in `manifest.json` after asset sync.
 
-OS images are prepared separately in Web `OS Image Cache`: download or import ISO/ESD/WIM, inspect DISM indexes, choose one index, export it to one deployable WIM under `C:\OSDCloud\Media\OSDCloud\OS`, then publish `selected-os.json`. Fresh clone can have no active OS image and no selected manifest until the operator completes that flow.
+OS images are prepared separately in Web `OS Image Cache`: download or import ISO/ESD/WIM, inspect DISM indexes, choose one index, export it to one deployable WIM under `<project-root>\Media\OSDCloud\OS`, then publish `selected-os.json`. Fresh clone can have no active OS image and no selected manifest until the operator completes that flow.
 
 After runtime readiness is ready, select/sync the service endpoint and run preflight before manually starting services.
 
@@ -84,7 +84,7 @@ The two `boot.wim` paths are both required: `Media\sources\boot.wim` is the sour
 
 The `assetsRoot` value inside `manifest.json` is the source machine path used when the mirror was generated. It is evidence, not a required clone path.
 
-Refresh the mirror after changing anything under `C:\OSDCloud`:
+Refresh the mirror after changing versioned small files under the selected project root:
 
 ```powershell
 .\tools\Sync-OsdCloudAssets.ps1 -MountWinPe -HashLargeArtifacts

@@ -1105,6 +1105,51 @@ test('installer script installs selected apps in selected-profile order', () => 
   }
 });
 
+test('installer script follows unified software and script install sequence', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const root = makeRoot();
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const scriptsRoot = path.join(root, 'Scripts');
+    const marker = path.join(appsRoot, 'order.marker');
+    fs.mkdirSync(path.join(appsRoot, 'one'), { recursive: true });
+    fs.mkdirSync(path.join(appsRoot, 'two'), { recursive: true });
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-MIDDLE1'), { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(appsRoot, 'one', 'install.ps1'), "Add-Content -LiteralPath $env:ORDER_MARKER -Value 'one'\n", 'utf8');
+    fs.writeFileSync(path.join(appsRoot, 'two', 'install.ps1'), "Add-Content -LiteralPath $env:ORDER_MARKER -Value 'two'\n", 'utf8');
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-MIDDLE1', 'run.ps1'), "Add-Content -LiteralPath $env:ORDER_MARKER -Value 'script'\n", 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'default',
+      selectedSoftware: ['one', 'two'],
+      customScripts: [{ id: 'SC-MIDDLE1', name: 'Middle Script', phase: 'after' }],
+      installSequence: [
+        { type: 'software', id: 'one' },
+        { type: 'script', id: 'SC-MIDDLE1', phase: 'after' },
+        { type: 'software', id: 'two' },
+      ],
+    });
+
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: path.join(root, 'logs'), ORDER_MARKER: marker },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.deepEqual(fs.readFileSync(marker, 'utf8').trim().split(/\r?\n/u), ['one', 'script', 'two']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('installer script fails when selected app is missing', () => {
   if (process.platform !== 'win32') {
     return;
@@ -1419,6 +1464,11 @@ test('publishDeploymentProfile copies scripts and writes customScripts manifest'
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
     assert.deepEqual(manifest.customScripts.map((entry) => entry.id), [beforeScript.script.id, afterScript.script.id]);
     assert.deepEqual(manifest.customScripts.map((entry) => entry.phase), ['before', 'after']);
+    assert.deepEqual(manifest.installSequence, [
+      { type: 'script', id: beforeScript.script.id, phase: 'before' },
+      { type: 'software', id: 'one' },
+      { type: 'script', id: afterScript.script.id, phase: 'after' },
+    ]);
     assert.equal(evaluateDeploymentProfilePayload(config).ok, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

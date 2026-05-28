@@ -98,6 +98,69 @@ export function mediaHttpServerConfig(config) {
   };
 }
 
+function isPathInside(parent, candidate) {
+  const parentPath = path.resolve(parent);
+  const candidatePath = path.resolve(candidate);
+  const relative = path.relative(parentPath, candidatePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+export function runtimeRootForConfig(config = {}) {
+  return path.resolve(config.runtimeArtifacts?.liveRoot ?? config.paths?.osdCloudRoot ?? 'C:\\OSDCloud');
+}
+
+export function workspaceInfo(config = {}) {
+  const repoRootPath = path.resolve(config.paths?.repoRoot ?? defaultRepoRoot);
+  const runtimeRoot = runtimeRootForConfig(config);
+  return {
+    repoRoot: repoRootPath,
+    runtimeRoot,
+    configPath: config.__configPath,
+    localConfigPath: config.__localConfigPath,
+    runtimeInsideRepo: isPathInside(repoRootPath, runtimeRoot),
+  };
+}
+
+function assertRuntimeRootAllowed(config, runtimeRoot) {
+  const repoRootPath = path.resolve(config.paths?.repoRoot ?? defaultRepoRoot);
+  const resolved = path.resolve(String(runtimeRoot ?? '').trim());
+  if (!path.isAbsolute(resolved)) {
+    throw new Error(`Project root must be an absolute path: ${runtimeRoot}`);
+  }
+  if (isPathInside(repoRootPath, resolved)) {
+    throw new Error(`Project root must not be inside the Git clone: ${resolved}`);
+  }
+  return resolved;
+}
+
+export function applyProjectRoot(config, runtimeRoot) {
+  const root = assertRuntimeRootAllowed(config, runtimeRoot);
+  config.paths ??= {};
+  config.paths.osdCloudRoot = root;
+  config.paths.statusLatest = path.join(root, 'PXE-HttpRoot', 'status', 'latest.json');
+  config.paths.statusEvents = path.join(root, 'PXE-HttpRoot', 'status', 'progress.jsonl');
+  config.tftp ??= {};
+  config.tftp.root = path.join(root, 'PXE-TFTP');
+  config.tftp.logPath = path.join(root, 'PXE-TFTP', 'pxe-tftp.log');
+  config.http ??= {};
+  config.http.root = path.join(root, 'PXE-HttpRoot');
+  config.http.logPath = path.join(root, 'PXE-HttpRoot', 'host-http.log');
+  config.http.statusRoot = path.join(root, 'PXE-HttpRoot', 'status');
+  config.dhcp ??= {};
+  config.dhcp.logPath = path.join(root, 'PXE-TFTP', 'pxe-dhcp.log');
+  config.driverPackCache ??= {};
+  config.driverPackCache.root = path.join(root, 'Media', 'OSDCloud', 'DriverPacks');
+  config.osImage ??= {};
+  config.osImage.cacheRoot = path.join(root, 'Media', 'OSDCloud', 'OS');
+  config.osImage.downloadStagingRoot = path.join(root, 'Media', 'OSDCloud', 'OS', '.downloads');
+  config.deploymentProfiles ??= {};
+  config.deploymentProfiles.appsRoot = path.join(root, 'Media', 'OSDCloud', 'Apps');
+  config.deploymentProfiles.customScriptsAppsRoot = path.join(root, 'Media', 'OSDCloud', 'Scripts');
+  config.runtimeArtifacts ??= {};
+  config.runtimeArtifacts.liveRoot = root;
+  return config;
+}
+
 export function webServerConfig(config) {
   const section = config.web ?? {};
   const host = section.host ?? '127.0.0.1';

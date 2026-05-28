@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   applyServiceEndpoint,
+  applyProjectRoot,
   loadConfig,
   mediaHttpServerConfig,
   saveConfig,
   webServerConfig,
+  workspaceInfo,
 } from './config.js';
 import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
@@ -61,6 +63,7 @@ import {
 } from './status.js';
 import { formatDisplayLogLine } from './timeFormat.js';
 import { appVersion } from './version.js';
+import { summarizeDriverPackCache } from './driverPackCache.js';
 
 function errorWithStatus(message, statusCode = 500) {
   const error = new Error(message);
@@ -357,13 +360,47 @@ function runtimeReadinessFailureMessage(readiness) {
   return `Runtime prepare finished, but ${missing.length} artifact group(s) are still not ready: ${details.join('; ')}${remaining}`;
 }
 
+function projectRootStatus(config) {
+  const workspace = workspaceInfo(config);
+  return {
+    ready: Boolean(workspace.runtimeRoot) && workspace.runtimeInsideRepo !== true,
+    detail: workspace.runtimeInsideRepo
+      ? `Invalid: runtime root is inside the Git clone (${workspace.runtimeRoot}).`
+      : workspace.runtimeRoot,
+    workspace,
+  };
+}
+
 function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight }) {
   const web = webServerConfig(config);
   const webReady = Boolean(web.host) && Number.isInteger(web.port) && web.port >= 0;
+  const rootStatus = projectRootStatus(config);
   const osImageStatus = osImageDeployableStatus(osImage);
   const profileStatus = profilePayloadStatus(profilePayload);
   const finalPreflight = preflightStatus(preflight);
   const steps = [
+    {
+      id: 'project-root',
+      label: 'Project root',
+      required: true,
+      done: rootStatus.ready,
+      action: 'project-root',
+      detail: rootStatus.detail,
+      detailItems: [
+        {
+          title: 'Runtime working directory',
+          meta: 'deployment files are written here',
+          detail: rootStatus.workspace.runtimeRoot,
+          status: rootStatus.ready ? 'ready' : 'blocked',
+        },
+        {
+          title: 'Git clone',
+          meta: 'installation source only',
+          detail: rootStatus.workspace.repoRoot,
+          status: 'ready',
+        },
+      ],
+    },
     {
       id: 'web',
       label: 'Web service IP',
@@ -587,6 +624,7 @@ export class ServiceController extends EventEmitter {
       resolveOsImageState,
       runPreflight,
       saveConfig,
+      summarizeDriverPackCache,
       summarizeValidation,
       syncIpxeEndpoint,
       getRuntimeReadiness,
@@ -597,6 +635,7 @@ export class ServiceController extends EventEmitter {
       uploadSoftwareInstaller,
       uploadOsImageFile,
       writeDeploymentSecrets,
+      applyProjectRoot,
       ...options.dependencies,
     };
     this.config = options.config ?? loadConfig(options.configPath);
@@ -838,6 +877,7 @@ export class ServiceController extends EventEmitter {
       },
       web: webServerConfig(this.config),
       config: {
+        workspace: workspaceInfo(this.config),
         adapter: this.config.adapter,
         dhcp: {
           listenIp: this.config.dhcp.listenIp,
@@ -861,11 +901,13 @@ export class ServiceController extends EventEmitter {
           root: this.config.tftp.root,
         },
         smb: this.config.smb,
+        driverPackCache: this.config.driverPackCache,
       },
       services: this.servicesState(),
       profile: profileResult.error ? { error: profileResult.error } : profileResult.value,
       osImage: osImageResult.error ? { error: osImageResult.error } : osImageResult.value,
       runtime: runtimeResult.error ? { ready: false, error: runtimeResult.error } : runtimeResult.value,
+      driverPackCache: safeRead(() => this.dependencies.summarizeDriverPackCache(this.config), { enabled: false, entries: [] }).value,
       osDownloadStatus: this.osDownloadStatus,
       osImportStatus: this.osImportStatus,
       preflight: this.preflightResults,
@@ -934,6 +976,22 @@ export class ServiceController extends EventEmitter {
 
   async saveDeploymentSecrets(input) {
     return this.runOperation('Saving deployment secrets', async () => this.dependencies.writeDeploymentSecrets(this.config, input));
+  }
+
+  async updateProjectRoot(input = {}) {
+    return this.runOperation('Saving project root', async () => {
+      await this.stopAllServices();
+      const runtimeRoot = input.runtimeRoot ?? input.projectRoot ?? input.root;
+      this.dependencies.applyProjectRoot(this.config, runtimeRoot);
+      const savedPath = this.dependencies.saveConfig(this.config);
+      this.refreshServiceConfigs();
+      this.preflightResults = [];
+      this.addLog(`Saved project root ${workspaceInfo(this.config).runtimeRoot} to ${savedPath}`);
+      return {
+        savedPath,
+        workspace: workspaceInfo(this.config),
+      };
+    });
   }
 
   async startService(name) {

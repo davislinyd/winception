@@ -338,7 +338,7 @@ try {
 
     Write-Step 'Setup completed'
     Write-Host "Setup only prepares the Web console at http://${SelectedWebHost}:$WebPort."
-    Write-Host 'Use the first-run Web initialization wizard for deployment secrets, C:\OSDCloud runtime preparation, SMB, PXE endpoint sync, OS image selection, profile publish, preflight, and service start/stop.'
+    Write-Host 'Use the first-run Web initialization wizard for deployment secrets, deployment project root selection, runtime preparation, SMB, PXE endpoint sync, OS image selection, profile publish, preflight, and service start/stop.'
 }
 catch {
     Write-Error $_.Exception.Message

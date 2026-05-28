@@ -4,12 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  applyProjectRoot,
   applyServiceEndpoint,
   loadConfig,
   mediaHttpServerConfig,
   saveConfig,
   validateConfig,
   webServerConfig,
+  workspaceInfo,
 } from '../src/config.js';
 
 function writeJson(filePath, value) {
@@ -98,6 +100,47 @@ test('builds HTTP server config with root driver pack cache settings', () => {
   assert.equal(httpConfig.host, '192.168.100.1');
   assert.equal(httpConfig.statusRoot, 'C:\\PXE-HttpRoot\\status');
   assert.deepEqual(httpConfig.driverPackCache, config.driverPackCache);
+});
+
+test('applies selectable project root outside the Git clone', () => {
+  const config = {
+    paths: {
+      repoRoot: 'C:\\repo\\osdcloud-win11-deployment-lab',
+      expectedHttpFiles: ['osdcloud\\boot.ipxe'],
+    },
+    adapter: { interfaceAlias: 'Ethernet', serverIp: '10.0.0.1', prefixLength: 24 },
+    dhcp: {
+      listenIp: '10.0.0.1',
+      leaseStartIp: '10.0.0.20',
+      leaseEndIp: '10.0.0.30',
+      subnetMask: '255.255.255.0',
+      router: '10.0.0.1',
+      bootFile: 'snponly.efi',
+      ipxeBootUrl: 'http://10.0.0.1/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\OSDCloud\\PXE-TFTP', listenIp: '10.0.0.1' },
+    http: { root: 'C:\\OSDCloud\\PXE-HttpRoot', host: '10.0.0.1', statusRoot: 'C:\\OSDCloud\\PXE-HttpRoot\\status' },
+    smb: { share: '\\\\10.0.0.1\\OSDCloudiPXE' },
+  };
+
+  applyProjectRoot(config, 'D:\\DeployRoot');
+
+  assert.equal(config.paths.osdCloudRoot, 'D:\\DeployRoot');
+  assert.equal(config.tftp.root, 'D:\\DeployRoot\\PXE-TFTP');
+  assert.equal(config.http.statusRoot, 'D:\\DeployRoot\\PXE-HttpRoot\\status');
+  assert.equal(config.driverPackCache.root, 'D:\\DeployRoot\\Media\\OSDCloud\\DriverPacks');
+  assert.equal(config.osImage.cacheRoot, 'D:\\DeployRoot\\Media\\OSDCloud\\OS');
+  assert.equal(config.deploymentProfiles.appsRoot, 'D:\\DeployRoot\\Media\\OSDCloud\\Apps');
+  assert.equal(config.runtimeArtifacts.liveRoot, 'D:\\DeployRoot');
+  assert.equal(workspaceInfo(config).runtimeInsideRepo, false);
+});
+
+test('rejects project root inside the Git clone', () => {
+  const config = { paths: { repoRoot: 'C:\\repo\\osdcloud-win11-deployment-lab' } };
+  assert.throws(
+    () => applyProjectRoot(config, 'C:\\repo\\osdcloud-win11-deployment-lab\\runtime'),
+    /inside the Git clone/,
+  );
 });
 
 test('applies service endpoint to every network-facing config value', () => {

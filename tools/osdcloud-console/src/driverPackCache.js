@@ -29,6 +29,89 @@ export function normalizeDriverPackCacheConfig(config = {}) {
   };
 }
 
+function readJsonLines(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+  return fs.readFileSync(filePath, 'utf8')
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function driverPackCacheKey(entry) {
+  return [
+    entry.manufacturer,
+    entry.model,
+    entry.product,
+    entry.packageId,
+    entry.fileName,
+  ].map((value) => String(value ?? '').trim().toLowerCase()).join('|');
+}
+
+export function summarizeDriverPackCache(config = {}) {
+  const cacheConfig = normalizeDriverPackCacheConfig(config);
+  if (!cacheConfig.enabled) {
+    return {
+      enabled: false,
+      root: cacheConfig.root,
+      manifestPath: cacheConfig.manifestPath,
+      entries: [],
+    };
+  }
+
+  const rows = readJsonLines(cacheConfig.manifestPath);
+  const latestByKey = new Map();
+  for (const row of rows) {
+    const key = driverPackCacheKey(row);
+    if (!key.replace(/\|/gu, '')) {
+      continue;
+    }
+    const previous = latestByKey.get(key);
+    if (!previous || String(row.timestamp ?? '') >= String(previous.timestamp ?? '')) {
+      latestByKey.set(key, row);
+    }
+  }
+
+  const entries = [...latestByKey.values()]
+    .map((row) => {
+      const filePath = row.fileName && cacheConfig.root
+        ? path.join(cacheConfig.root, row.fileName)
+        : null;
+      const exists = Boolean(filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile());
+      const bytes = exists ? fs.statSync(filePath).size : row.bytes;
+      return {
+        timestamp: row.timestamp,
+        status: row.status,
+        manufacturer: row.manufacturer,
+        model: row.model,
+        product: row.product,
+        name: row.name,
+        packageId: row.packageId,
+        fileName: row.fileName,
+        bytes,
+        exists,
+        reason: row.reason,
+      };
+    })
+    .sort((left, right) => String(right.timestamp ?? '').localeCompare(String(left.timestamp ?? '')));
+
+  return {
+    enabled: true,
+    root: cacheConfig.root,
+    manifestPath: cacheConfig.manifestPath,
+    entries,
+  };
+}
+
 function isPathInside(parent, candidate) {
   const relative = path.relative(parent, candidate);
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));

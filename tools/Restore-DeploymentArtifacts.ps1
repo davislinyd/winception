@@ -877,7 +877,7 @@ function Ensure-RuntimeSkeletonAndShare {
         (Join-Path $LiveRoot 'TimingRuns')
     )
     if ($DryRun) {
-        Write-Host "[dry-run] create flat C:\OSDCloud runtime skeleton"
+        Write-Host "[dry-run] create flat runtime skeleton at $LiveRoot"
         Write-Host "[dry-run] create/update pxeinstall and SMB share $(Get-ConfiguredSmbShareName) at $mediaRoot"
         return
     }
@@ -958,8 +958,11 @@ function Restore-OsImageArtifact {
 
 try {
     $LiveRoot = Get-FullPath $LiveRoot
-    if ($LiveRoot -ne 'C:\OSDCloud') {
-        throw "Refusing unsupported LiveRoot. Repo-only bootstrap writes only to C:\OSDCloud. Actual: $LiveRoot"
+    $repoFullPath = (Get-FullPath $RepoRoot).TrimEnd('\')
+    $liveFullPath = $LiveRoot.TrimEnd('\')
+    $repoPrefix = "$repoFullPath\"
+    if ($liveFullPath -eq $repoFullPath -or $liveFullPath.StartsWith($repoPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing LiveRoot inside the Git clone. Repo clone is an installation source only. Repo=$repoFullPath LiveRoot=$LiveRoot"
     }
     if (-not $DryRun -and -not (Test-IsAdministrator)) {
         throw "Run this artifact restore from an elevated PowerShell session or use Deploy-DeploymentServer.cmd."

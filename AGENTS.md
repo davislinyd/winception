@@ -47,7 +47,7 @@ Do not treat committed endpoint settings, historical run evidence, or host snaps
 
 Before starting services, endpoint sync, preflight, runtime validation, or deployment validation:
 
-- Read the active service interface, service IP, DHCP lease range, router, HTTP base, SMB share, active OS image, and active deployment profile from live Web/API/config state.
+- Read the active deployment project root / working directory, service interface, service IP, DHCP lease range, router, HTTP base, SMB share, active OS image, driver cache summary, and active deployment profile from live Web/API/config state.
 - Inspect `config\osdcloud-console.json`, any ignored local overlay, live `boot.ipxe`, host adapter state, and relevant Web state immediately before acting.
 - Treat `config\osdcloud-console.json` as the last synced lab snapshot, not guaranteed production truth.
 - If the repo or runtime appears to be on a VM/vSwitch endpoint, switch deliberately before physical-laptop validation.
@@ -63,7 +63,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 
 - Development workspace: `C:\Users\davis\Documents\Codex\osdcloud-project`. Edit code, docs, tests, Git history, and `.ai/status.json` here.
 - Deployment clone: `C:\osdcloud-win11-deployment-lab`. Use only after a pushed development commit is pulled with `git pull --ff-only origin master`; do not edit or hotfix code there.
-- Runtime root: `C:\OSDCloud`. This is product-managed runtime state. Do not manually patch, copy into, or directly edit files there.
+- Runtime root: the Web-selected deployment project root, with `C:\OSDCloud` as the proven default. This is product-managed runtime state. Do not manually patch, copy into, or directly edit files there. Never place this root inside the Git clone.
 - If deployment testing fails, return to the development workspace, fix there, commit and push, update the deployment clone, then retest from the deployment clone.
 
 ## Secrets
@@ -78,8 +78,8 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 ## Runtime Guardrails
 
 - For Runtime Readiness, endpoint sync, Web console, OS image, profile publish, WinPE, SetupComplete, or desktop-ready tasks, read `docs/agent-reference/runtime-web-console.md`.
-- A Git clone alone is not a deployable PXE runtime.
-- Do not manually patch, copy into, or directly edit `C:\OSDCloud`.
+- A Git clone alone is not a deployable PXE runtime and must remain an installation/configuration source only.
+- Do not manually patch, copy into, or directly edit the Web-selected deployment project root.
 - Web read-only checks must not mutate live runtime state.
 - Web mutating actions can modify live deployment state.
 - Run preflight before starting services.

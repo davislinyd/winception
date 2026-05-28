@@ -464,6 +464,16 @@ body {
   overflow: hidden;
 }
 
+.driver-cache-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.driver-cache-row span {
+  overflow-wrap: anywhere;
+}
+
 .preflight-summary-list {
   border-top: 1px solid var(--outline-variant);
   max-height: min(18vh, 160px);
@@ -1843,7 +1853,7 @@ input[readonly] {
   color: var(--on-surface);
   display: grid;
   gap: 8px;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   min-width: 0;
   padding: 6px 8px;
 }
