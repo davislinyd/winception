@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-29T14:36:08.5055777+08:00",
+  "updated_at": "2026-05-29T16:34:25.6653704+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -33,7 +33,7 @@
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Installed host-management scripts now resolve config, secrets, and download staging from C:\\OSDCloud\\HostTools\\State, and setup seeds existing local deployment secrets into installed state.",
+    "summary": "Profile publish now supports mutable vendor latest software URLs by keeping pinned size/SHA only for fixed-version sources; Chrome no longer hard-fails when Google's latest MSI changes upstream.",
     "baseline": {
       "commit": "1f1d9cf363c72c960e9c03a66e0726543f25f83d",
       "short": "1f1d9cf",
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "be1b135dccf299fc4a8dafef948fb1ddf79b93dd",
-    "last_checked_head_short": "be1b135",
+    "last_checked_head": "b013a56cef72997a3367d7d6488e2433117a8a83",
+    "last_checked_head_short": "b013a56",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -102,6 +102,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260529-chrome-latest-url-metadata-fix",
+      "at": "2026-05-29T16:34:25.6653704+08:00",
+      "kind": "implementation",
+      "summary": "- Removed pinned size and SHA-256 from the Chrome catalog row because the configured Google MSI URL floats to the latest build.\n- Added a regression test for downloadUrl-only software payloads and updated docs to distinguish fixed-version sources from vendor latest URLs.",
+      "commit": null,
+      "verification": "node --test tools/osdcloud-console/test/deploymentProfiles.test.js passed 55/55. Active profile IZVZO7PU published successfully from C:\\OSDCloud\\HostTools\\State via publishDeploymentProfile(), downloading chrome, 7zip, and SW-4UT7PDID into host state and publishing them to C:\\OSDCloud\\Media\\OSDCloud\\Apps. The current Google Chrome MSI downloaded from https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi measured 152944640 bytes with SHA-256 92823BBB0A4341EDCF681DB06DA954A8A6A256EC02DC8E4B492ACB208915CAA2, which no longer matched the previously pinned catalog metadata."
+    },
+    {
       "id": "20260529-installed-state-secret-fix",
       "at": "2026-05-29T14:36:08.5055777+08:00",
       "kind": "implementation",
@@ -132,14 +140,6 @@
       "summary": "- Preserved Initialization Wizard body scroll and project-root focus across auto-refresh.\n- Verified with UI tests, full npm test, and 5.5s Edge live-refresh check.",
       "commit": null,
       "verification": "node --check tools/osdcloud-console/web/app.js passed. node --test tools/osdcloud-console/test/webUi.test.js passed 9/9. npm test passed 204/204. Edge verification on http://127.0.0.1:8081 kept Initialization Wizard scrollTop=40 and activeElement=init-project-root after 5.5 seconds with the edited value intact."
-    },
-    {
-      "id": "20260529-commit-c48c4a8",
-      "at": "2026-05-29T02:08:44.101788+08:00",
-      "kind": "commit",
-      "summary": "Committed the elevated-Web startup path, early Prepare runtime admin guard, and matching UI guidance plus regression coverage.",
-      "commit": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
-      "verification": "npm test passed 204/204. Focused node tests passed for serviceController, runtimeArtifacts, and webUi. node --check passed for serviceController.js, windows.js, and web/app.js. PowerShell parser check passed for Setup-DeploymentServer.ps1."
     }
   ]
 }

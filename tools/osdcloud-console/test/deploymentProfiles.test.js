@@ -980,6 +980,43 @@ test('profile publish downloads only missing selected software payloads', async 
   }
 });
 
+test('profile publish allows downloadUrl-only selected software payloads', async () => {
+  const root = makeRoot();
+  try {
+    const downloadedContent = 'latest payload without pinned metadata';
+    writeBaseFiles(root, {
+      catalog: [{
+        id: 'one',
+        name: 'One App',
+        source: 'one',
+        installerFileName: 'one.msi',
+        downloadUrl: 'https://example.test/one.msi',
+      }],
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        osImage: 'TEST-OS',
+      },
+    });
+    fs.rmSync(path.join(root, 'Softwares', 'one', 'one.msi'));
+
+    const result = await publishDeploymentProfile(configFor(root), null, {
+      downloadSoftwarePayload(_software, stagingPath) {
+        fs.mkdirSync(path.dirname(stagingPath), { recursive: true });
+        fs.writeFileSync(stagingPath, downloadedContent, 'utf8');
+        return { filePath: stagingPath };
+      },
+    });
+
+    assert.deepEqual(result.softwarePayloads.map((payload) => `${payload.id}:${payload.status}`), ['one:downloaded']);
+    assert.equal(fs.readFileSync(path.join(root, 'Softwares', 'one', 'one.msi'), 'utf8'), downloadedContent);
+    assert.equal(fs.readFileSync(path.join(root, 'Apps', 'one', 'one.msi'), 'utf8'), downloadedContent);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('All in One publish restores only selected software payloads in profile order', async () => {
   const root = makeRoot();
   try {

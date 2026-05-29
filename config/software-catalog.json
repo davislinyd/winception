@@ -14,8 +14,6 @@
       "name": "Google Chrome Enterprise 64-bit",
       "source": "chrome",
       "installerFileName": "googlechromestandaloneenterprise64.msi",
-      "installerBytes": 152973312,
-      "installerSha256": "F92C6C5A21CAC1073AC1380CBC36A0D13CE206DF6EFF5380EA1EAA433529B79A",
       "downloadUrl": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi"
     },
     {
