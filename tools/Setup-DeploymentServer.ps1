@@ -346,7 +346,7 @@ function Start-WebConsole {
     }
     $escapedAppRoot = $AppRoot.Replace("'", "''")
     $escapedConfig = $StateConfigPath.Replace("'", "''")
-    $command = "$env:OSDCLOUD_CONSOLE_CONFIG='$escapedConfig'; Set-Location -LiteralPath '$escapedAppRoot'; npm run web"
+    $command = "`$env:OSDCLOUD_CONSOLE_CONFIG='$escapedConfig'; Set-Location -LiteralPath '$escapedAppRoot'; npm run web"
     Start-Process -FilePath 'powershell.exe' -ArgumentList @(
         '-NoProfile',
         '-ExecutionPolicy',

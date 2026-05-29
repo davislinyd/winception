@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-29T12:09:03.3462743+08:00",
+  "updated_at": "2026-05-29T12:27:40.1272033+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -33,7 +33,7 @@
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Setup now installs a repo-free host-management bundle under C:\\OSDCloud\\HostTools, and Web/runtime/profile helpers resolve mutable state from installed host state instead of the source clone.",
+    "summary": "Installed launcher/setup now escape OSDCLOUD_CONSOLE_CONFIG correctly, and the installed Web launcher reads local overlay Web host settings before opening the browser.",
     "baseline": {
       "commit": "1f1d9cf363c72c960e9c03a66e0726543f25f83d",
       "short": "1f1d9cf",
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "1f1d9cf363c72c960e9c03a66e0726543f25f83d",
-    "last_checked_head_short": "1f1d9cf",
+    "last_checked_head": "44b5165bc1dbea22bd0a7c92b5d40e3c9cb7e3e7",
+    "last_checked_head_short": "44b5165",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -102,6 +102,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260529-installed-launcher-env-fix",
+      "at": "2026-05-29T12:27:40.1272033+08:00",
+      "kind": "implementation",
+      "summary": "- Fixed installed launcher/setup PowerShell quoting for OSDCLOUD_CONSOLE_CONFIG.\n- Installed launcher now reads local overlay Web host settings before opening the browser.",
+      "commit": null,
+      "verification": "npm test passed 209/209. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 29/29. PowerShell parser checks passed for Setup-DeploymentServer.ps1 and Start-InstalledWebConsole.ps1. Reinstalled C:\\OSDCloud\\HostTools\\App, ran npm install and npm run smoke there, then launched Start-InstalledWebConsole.ps1 -NoBrowser and verified the spawned PowerShell command line kept $env:OSDCLOUD_CONSOLE_CONFIG plus node listening on 127.0.0.1:8080. 172.17.148.140 is not assigned on this host; current local IPv4s are 192.168.88.1, 192.168.100.1, 172.17.144.1, and 192.168.100.1."
+    },
+    {
       "id": "20260529-installed-host-bundle",
       "at": "2026-05-29T12:09:03.3462743+08:00",
       "kind": "implementation",
@@ -132,14 +140,6 @@
       "summary": "Setup now launches the Web console in an elevated PowerShell window, and Web blocks Prepare runtime early when not elevated.",
       "commit": null,
       "verification": "npm test passed 204/204. Focused node tests passed for serviceController, runtimeArtifacts, and webUi. node --check passed for serviceController.js, windows.js, and web/app.js. PowerShell parser check passed for Setup-DeploymentServer.ps1."
-    },
-    {
-      "id": "20260529-commit-37e1308",
-      "at": "2026-05-29T01:48:22.9972249+08:00",
-      "kind": "commit",
-      "summary": "Committed repo-managed snponly runtime restore, endpoint/profile diagnostics fixes, and the validated test coverage for those flows.",
-      "commit": "37e130813e7a2b8bacff5526a2c47d313c85dfc8",
-      "verification": "npm test passed 203/203. powershell -File tools/Restore-DeploymentArtifacts.ps1 -SkipPrerequisiteCheck completed successfully and reused the verified repo artifact ipxe-snponly-efi. node --check tools/osdcloud-console/src/runtimeArtifacts.js and PowerShell parser checks for Restore-DeploymentArtifacts.ps1 and Sync-OsdCloudAssets.ps1 passed."
     }
   ]
 }

@@ -426,6 +426,7 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /\[string\] \$WebHost/);
   assert.match(script, /function Select-WebServiceHost/);
   assert.match(script, /OSDCLOUD_CONSOLE_CONFIG/);
+  assert.match(script, /`\$env:OSDCLOUD_CONSOLE_CONFIG/);
   assert.match(script, /HostTools\\State/);
   assert.match(script, /host = \$HostIp/);
   assert.match(script, /writing only the Web console local overlay/);
@@ -596,6 +597,13 @@ test('host PowerShell entrypoints initialize UTF-8 console output', () => {
     assert.match(script, /\[Console\]::InputEncoding = \$Utf8NoBom/, relativePath);
     assert.match(script, /\$OutputEncoding = \$Utf8NoBom/, relativePath);
   }
+});
+
+test('installed Web console launcher escapes environment assignment and reads local overlay host settings', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Start-InstalledWebConsole.ps1'), 'utf8');
+  assert.match(script, /`\$env:OSDCLOUD_CONSOLE_CONFIG/);
+  assert.match(script, /State\\config\\osdcloud-console\.local\.json/);
+  assert.match(script, /\$overlay\.web/);
 });
 
 test('checked-in runtime artifact catalog is valid', () => {
