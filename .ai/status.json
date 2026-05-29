@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-29T02:08:44.1017880+08:00",
+  "updated_at": "2026-05-29T02:21:43.5431903+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -25,7 +25,7 @@
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Delivered an elevated-Web startup and guard path so clean-host Prepare runtime either runs under admin rights or fails early with explicit operator guidance.",
+    "summary": "Initialization Wizard now preserves drawer scroll position and Deployment working directory input focus across the 2.5-second Web refresh loop.",
     "baseline": {
       "commit": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
       "short": "c48c4a8",
@@ -51,8 +51,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
-    "last_checked_head_short": "c48c4a8",
+    "last_checked_head": "d926f4253f9f144adef80847f1b2059a02225e30",
+    "last_checked_head_short": "d926f42",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -69,7 +69,7 @@
     "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": false
+    "status_file_uncommitted": true
   },
   "required_workflow": {
     "before_development_work": [
@@ -94,8 +94,16 @@
   },
   "recent_changes": [
     {
+      "id": "20260529-init-wizard-refresh-stability",
+      "at": "2026-05-29T02:21:43.5431903+08:00",
+      "kind": "implementation",
+      "summary": "- Preserved Initialization Wizard body scroll and project-root focus across auto-refresh.\n- Verified with UI tests, full npm test, and 5.5s Edge live-refresh check.",
+      "commit": null,
+      "verification": "node --check tools/osdcloud-console/web/app.js passed. node --test tools/osdcloud-console/test/webUi.test.js passed 9/9. npm test passed 204/204. Edge verification on http://127.0.0.1:8081 kept Initialization Wizard scrollTop=40 and activeElement=init-project-root after 5.5 seconds with the edited value intact."
+    },
+    {
       "id": "20260529-commit-c48c4a8",
-      "at": "2026-05-29T02:08:44.1017880+08:00",
+      "at": "2026-05-29T02:08:44.101788+08:00",
       "kind": "commit",
       "summary": "Committed the elevated-Web startup path, early Prepare runtime admin guard, and matching UI guidance plus regression coverage.",
       "commit": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
@@ -124,14 +132,6 @@
       "summary": "Replaced rolling iPXE snponly download with a repo-managed validated snapshot so Prepare runtime no longer fails on upstream hash drift.",
       "commit": null,
       "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 28/28; node --check tools/osdcloud-console/src/runtimeArtifacts.js passed; PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Sync-OsdCloudAssets.ps1; powershell -File tools/Restore-DeploymentArtifacts.ps1 -SkipPrerequisiteCheck completed successfully and reused the verified repo artifact ipxe-snponly-efi."
-    },
-    {
-      "id": "20260528-validation-tail-evidence",
-      "at": "2026-05-28T21:08:59.9379456+08:00",
-      "kind": "implementation",
-      "summary": "Closed the remaining test gap, preserved installSequence through profile edits, showed installer error evidence in Web UI, and proved server-side failure tails in VM.",
-      "commit": null,
-      "verification": "npm test passed 202/202 after isolating activeOsImage fresh-clone reads from dirty local config/os-image-catalog.json. node --check web/app.js and src/webServer.js passed; PowerShell parser checks passed; focused webServer/serviceController/windows tests passed. VM run 20260528-205632-0748-8480-9723-5694-2650-8796-64 produced windows-apps-error with stdoutTailText, stderrTailText, transcriptTailText, log paths, and exitCode 1 in status JSONL and /api/state; Browser verified the Validation dialog now renders Installer Error Evidence. Services were then restored and the normal All in One profile republished."
     }
   ]
 }

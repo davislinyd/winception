@@ -878,6 +878,33 @@ function restoreInitializationDetailScrollPosition(stepId, list) {
   list.scrollTop = position.atBottom ? list.scrollHeight : Math.min(position.scrollTop, maxScrollTop);
 }
 
+function initializationDialogBody() {
+  return elements.initializationDialog?.querySelector('.drawer-body') ?? null;
+}
+
+function captureInitializationDialogScrollPosition() {
+  const body = initializationDialogBody();
+  if (!body) {
+    return null;
+  }
+  return {
+    atBottom: isScrolledToBottom(body),
+    scrollTop: body.scrollTop,
+  };
+}
+
+function restoreInitializationDialogScrollPosition(position) {
+  if (!position) {
+    return;
+  }
+  const body = initializationDialogBody();
+  if (!body) {
+    return;
+  }
+  const maxScrollTop = Math.max(0, body.scrollHeight - body.clientHeight);
+  body.scrollTop = position.atBottom ? body.scrollHeight : Math.min(position.scrollTop, maxScrollTop);
+}
+
 function initializationSecretsControls() {
   return {
     status: elements.initializationDialog?.querySelector('.initialization-secrets-status') ?? null,
@@ -897,9 +924,9 @@ function clearInitializationSecretsDraft() {
   state.initializationSecretsDraft.pxeinstallPassword = '';
 }
 
-function focusedInitializationSecretControl() {
+function focusedInitializationTextControl() {
   const activeId = document.activeElement?.id;
-  if (activeId !== 'init-davis-password' && activeId !== 'init-pxeinstall-password') {
+  if (activeId !== 'init-davis-password' && activeId !== 'init-pxeinstall-password' && activeId !== 'init-project-root') {
     return null;
   }
   return {
@@ -909,7 +936,7 @@ function focusedInitializationSecretControl() {
   };
 }
 
-function restoreInitializationSecretFocus(focusedControl) {
+function restoreInitializationTextControlFocus(focusedControl) {
   if (!focusedControl?.id) {
     return;
   }
@@ -1168,7 +1195,7 @@ function renderInitialization(appState) {
     return;
   }
   captureInitializationSecretsDraft();
-  const focusedSecretControl = focusedInitializationSecretControl();
+  const focusedTextControl = focusedInitializationTextControl();
 
   const initialized = initialization.initialized === true;
   const activeOperation = activeInitializationOperation(appState);
@@ -1180,6 +1207,7 @@ function renderInitialization(appState) {
     ? 'Deployment prerequisites are complete. Run preflight before starting services.'
     : `Next: ${nextStep?.label ?? 'Run preflight'}`;
   renderInitializationOperation(appState);
+  const dialogScrollPosition = captureInitializationDialogScrollPosition();
   state.initializationDetailScrollPositions = captureInitializationDetailScrollPositions();
   elements.initializationSteps.replaceChildren();
 
@@ -1254,7 +1282,8 @@ function renderInitialization(appState) {
     state.initializationAutoOpened = true;
     openDialog(elements.initializationDialog);
   }
-  restoreInitializationSecretFocus(focusedSecretControl);
+  restoreInitializationDialogScrollPosition(dialogScrollPosition);
+  restoreInitializationTextControlFocus(focusedTextControl);
 }
 
 function renderProfileSummary(appState) {
