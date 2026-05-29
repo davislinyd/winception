@@ -7,6 +7,7 @@ import {
   loadConfig,
   mediaHttpServerConfig,
   saveConfig,
+  stateRootForConfig,
   webServerConfig,
   workspaceInfo,
 } from './config.js';
@@ -128,14 +129,8 @@ function readJsonFile(filePath) {
   return raw.trim() ? JSON.parse(raw) : {};
 }
 
-function repoRootForConfig(config) {
-  if (config.paths?.repoRoot) {
-    return path.resolve(config.paths.repoRoot);
-  }
-  if (config.__configPath) {
-    return path.resolve(path.dirname(config.__configPath), '..');
-  }
-  return process.cwd();
+function stateRootPathForConfig(config) {
+  return stateRootForConfig(config);
 }
 
 function deploymentSecretsPath(config) {
@@ -143,9 +138,9 @@ function deploymentSecretsPath(config) {
   if (configured) {
     return path.isAbsolute(configured)
       ? path.resolve(configured)
-      : path.resolve(repoRootForConfig(config), configured);
+      : path.resolve(stateRootPathForConfig(config), configured);
   }
-  return path.join(repoRootForConfig(config), 'config', 'osdcloud-secrets.json');
+  return path.join(stateRootPathForConfig(config), 'config', 'osdcloud-secrets.json');
 }
 
 function hasSecretValue(value) {
@@ -213,7 +208,7 @@ function writeDeploymentSecrets(config, input = {}) {
 function localEndpointOverlayStatus(config) {
   const filePath = config.__localConfigPath
     ? path.resolve(config.__localConfigPath)
-    : path.join(repoRootForConfig(config), 'config', 'osdcloud-console.local.json');
+    : path.join(stateRootPathForConfig(config), 'config', 'osdcloud-console.local.json');
   if (!fs.existsSync(filePath)) {
     return {
       ready: false,
@@ -409,9 +404,15 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
           status: rootStatus.ready ? 'ready' : 'blocked',
         },
         {
-          title: 'Git clone',
-          meta: 'installation source only',
-          detail: rootStatus.workspace.repoRoot,
+          title: 'Host management bundle',
+          meta: 'app files and scripts',
+          detail: rootStatus.workspace.appRoot,
+          status: 'ready',
+        },
+        {
+          title: 'Local management state',
+          meta: 'profiles, catalogs, uploads, local overlay',
+          detail: rootStatus.workspace.stateRoot,
           status: 'ready',
         },
       ],

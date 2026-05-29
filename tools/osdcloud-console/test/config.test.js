@@ -133,14 +133,32 @@ test('applies selectable project root outside the Git clone', () => {
   assert.equal(config.deploymentProfiles.appsRoot, 'D:\\DeployRoot\\Media\\OSDCloud\\Apps');
   assert.equal(config.runtimeArtifacts.liveRoot, 'D:\\DeployRoot');
   assert.equal(workspaceInfo(config).runtimeInsideRepo, false);
+  assert.equal(workspaceInfo(config).appRoot, 'C:\\repo\\osdcloud-win11-deployment-lab');
+  assert.equal(workspaceInfo(config).stateRoot, 'C:\\repo\\osdcloud-win11-deployment-lab');
 });
 
 test('rejects project root inside the Git clone', () => {
   const config = { paths: { repoRoot: 'C:\\repo\\osdcloud-win11-deployment-lab' } };
   assert.throws(
     () => applyProjectRoot(config, 'C:\\repo\\osdcloud-win11-deployment-lab\\runtime'),
-    /inside the Git clone/,
+    /inside the host management bundle/,
   );
+});
+
+test('workspace info tracks separate app and state roots when configured', () => {
+  const info = workspaceInfo({
+    paths: {
+      appRoot: 'C:\\OSDCloud\\HostTools\\App',
+      stateRoot: 'C:\\OSDCloud\\HostTools\\State',
+      osdCloudRoot: 'C:\\OSDCloud',
+    },
+  });
+
+  assert.equal(info.appRoot, 'C:\\OSDCloud\\HostTools\\App');
+  assert.equal(info.repoRoot, 'C:\\OSDCloud\\HostTools\\App');
+  assert.equal(info.stateRoot, 'C:\\OSDCloud\\HostTools\\State');
+  assert.equal(info.runtimeRoot, 'C:\\OSDCloud');
+  assert.equal(info.runtimeInsideRepo, false);
 });
 
 test('applies service endpoint to every network-facing config value', () => {

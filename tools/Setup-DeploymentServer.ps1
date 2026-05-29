@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [string] $WebHost,
+    [string] $AppRoot = 'C:\OSDCloud\HostTools\App',
+    [string] $StateRoot = 'C:\OSDCloud\HostTools\State',
     [switch] $SkipNpmInstall,
     [switch] $SkipSmoke,
     [switch] $NoNodeAutoInstall,
@@ -14,9 +16,13 @@ $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::InputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
 
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
-$LocalConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.local.json'
+$SourceRoot = Split-Path -Parent $PSScriptRoot
+$ConfigPath = Join-Path $SourceRoot 'config\osdcloud-console.json'
+$InstallScriptPath = Join-Path $SourceRoot 'tools\Install-HostManagementBundle.ps1'
+$AppRoot = [System.IO.Path]::GetFullPath($AppRoot)
+$StateRoot = [System.IO.Path]::GetFullPath($StateRoot)
+$StateConfigPath = Join-Path $StateRoot 'config\osdcloud-console.json'
+$LocalConfigPath = Join-Path $StateRoot 'config\osdcloud-console.local.json'
 $WebPort = 8080
 
 function Write-Step {
@@ -33,10 +39,11 @@ function Test-CommandAvailable {
 function Invoke-ExternalCommand {
     param(
         [Parameter(Mandatory)][string] $FilePath,
-        [string[]] $ArgumentList = @()
+        [string[]] $ArgumentList = @(),
+        [string] $WorkingDirectory = $SourceRoot
     )
 
-    Push-Location -LiteralPath $RepoRoot
+    Push-Location -LiteralPath $WorkingDirectory
     try {
         Write-Host "+ $FilePath $($ArgumentList -join ' ')"
         if (-not $DryRun) {
@@ -141,7 +148,7 @@ function Install-NodeJsLts {
         '--accept-package-agreements',
         '--accept-source-agreements'
     )
-    Push-Location -LiteralPath $RepoRoot
+    Push-Location -LiteralPath $SourceRoot
     try {
         Write-Host "+ winget $($wingetArgs -join ' ')"
         if (-not $DryRun) {
@@ -173,6 +180,32 @@ function Test-IsAdministrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
     $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+}
+
+function Install-HostManagementBundle {
+    if (-not (Test-Path -LiteralPath $InstallScriptPath -PathType Leaf)) {
+        throw "Missing install script: $InstallScriptPath"
+    }
+
+    Write-Step 'Installing host management bundle'
+    $arguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $InstallScriptPath,
+        '-SourceRoot',
+        $SourceRoot,
+        '-AppRoot',
+        $AppRoot,
+        '-StateRoot',
+        $StateRoot,
+        '-Force'
+    )
+    if ($DryRun) {
+        $arguments += '-DryRun'
+    }
+    Invoke-ExternalCommand -FilePath 'powershell.exe' -ArgumentList $arguments
 }
 
 function Ensure-NodeAndNpm {
@@ -277,6 +310,10 @@ function Save-WebConsoleOverlay {
     }
 
     $overlay = [pscustomobject]@{}
+    if (-not (Test-Path -LiteralPath $StateConfigPath -PathType Leaf)) {
+        throw "Installed Web console config not found: $StateConfigPath"
+    }
+
     if (Test-Path -LiteralPath $LocalConfigPath -PathType Leaf) {
         $raw = Get-Content -LiteralPath $LocalConfigPath -Raw
         if (-not [string]::IsNullOrWhiteSpace($raw)) {
@@ -304,8 +341,12 @@ function Start-WebConsole {
         Write-Host 'Web console launch skipped.'
         return
     }
-    $escapedRepo = $RepoRoot.Replace("'", "''")
-    $command = "Set-Location -LiteralPath '$escapedRepo'; npm run web"
+    if (-not (Test-Path -LiteralPath $StateConfigPath -PathType Leaf)) {
+        throw "Installed Web console config not found: $StateConfigPath"
+    }
+    $escapedAppRoot = $AppRoot.Replace("'", "''")
+    $escapedConfig = $StateConfigPath.Replace("'", "''")
+    $command = "$env:OSDCLOUD_CONSOLE_CONFIG='$escapedConfig'; Set-Location -LiteralPath '$escapedAppRoot'; npm run web"
     Start-Process -FilePath 'powershell.exe' -ArgumentList @(
         '-NoProfile',
         '-ExecutionPolicy',
@@ -327,13 +368,15 @@ try {
     Ensure-NodeAndNpm
     Invoke-ExternalCommand -FilePath 'git' -ArgumentList @('status', '--short', '--branch')
 
+    Install-HostManagementBundle
+
     if (-not $SkipNpmInstall) {
         Write-Step 'Installing Web console dependencies'
-        Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('install')
+        Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('install') -WorkingDirectory $AppRoot
     }
     if (-not $SkipSmoke) {
         Write-Step 'Running Web console smoke test'
-        Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('run', 'smoke')
+        Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('run', 'smoke') -WorkingDirectory $AppRoot
     }
 
     $SelectedWebHost = Select-WebServiceHost
@@ -346,7 +389,8 @@ try {
     Start-WebConsole -HostIp $SelectedWebHost
 
     Write-Step 'Setup completed'
-    Write-Host "Setup only prepares the Web console at http://${SelectedWebHost}:$WebPort."
+    Write-Host "Setup installed the host management bundle under $AppRoot."
+    Write-Host "The Web console will run at http://${SelectedWebHost}:$WebPort and can keep working after the original clone is deleted."
     Write-Host 'Use the first-run Web initialization wizard for deployment secrets, deployment project root selection, runtime preparation, SMB, PXE endpoint sync, OS image selection, profile publish, preflight, and service start/stop.'
 }
 catch {

@@ -11,6 +11,7 @@ import {
   importLocalOsImage,
   inspectLocalOsImage,
   loadOsImageCatalog,
+  osImageOptions,
   publishSelectedOsImage,
   resolveOsImageState,
   scanCachedOsImages,
@@ -67,6 +68,28 @@ function makeConfig(root) {
     },
   };
 }
+
+test('resolves mutable OS image metadata paths from state root', () => {
+  const appRoot = path.join(os.tmpdir(), 'osdcloud-images-app-root');
+  const stateRoot = path.join(os.tmpdir(), 'osdcloud-images-state-root');
+  const options = osImageOptions({
+    paths: {
+      appRoot,
+      stateRoot,
+    },
+    osImage: {
+      catalogPath: 'config\\os-image-catalog.json',
+      downloadSourcesPath: 'config\\os-download-sources.json',
+      downloadStagingRoot: '.downloads\\os-images',
+    },
+  });
+
+  assert.equal(options.catalogPath, path.resolve(stateRoot, 'config\\os-image-catalog.json'));
+  assert.equal(options.downloadSourcesPath, path.resolve(stateRoot, 'config\\os-download-sources.json'));
+  assert.equal(options.downloadStagingRoot, path.resolve(stateRoot, '.downloads\\os-images'));
+  assert.equal(options.appRoot, path.resolve(appRoot));
+  assert.equal(options.stateRoot, path.resolve(stateRoot));
+});
 
 test('OS image catalog loads and cached files are scanned', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-osimages-load-'));

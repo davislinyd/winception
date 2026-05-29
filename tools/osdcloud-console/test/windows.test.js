@@ -61,6 +61,15 @@ test('resolves endpoint sync paths with optional overrides', () => {
   );
 });
 
+test('resolves endpoint sync script from app root when provided', () => {
+  const appRoot = path.join(os.tmpdir(), 'portable-app-root');
+  assert.equal(resolveRepoRoot({ paths: { appRoot } }), path.resolve(appRoot));
+  assert.equal(
+    resolveEndpointSyncScript({ paths: { appRoot } }),
+    path.join(path.resolve(appRoot), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'),
+  );
+});
+
 test('clears status metadata and screenshot directory', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-clear-'));
   const statusRoot = path.join(root, 'status');

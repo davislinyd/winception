@@ -24,6 +24,65 @@ function makeCatalog(root, body) {
   return catalogPath;
 }
 
+function createSetupSourceFixture(root) {
+  fs.mkdirSync(path.join(root, 'tools', 'osdcloud-console', 'src'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'config', 'deployment-profiles'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'osdcloud-assets'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'Softwares'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
+    name: 'fixture',
+    version: '0.0.0',
+    private: true,
+    type: 'module',
+    scripts: { web: 'node tools/osdcloud-console/src/webServer.js' },
+  }, null, 2));
+  fs.writeFileSync(path.join(root, 'package-lock.json'), '{}\n', 'utf8');
+  fs.copyFileSync(
+    path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'),
+    path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
+  );
+  fs.copyFileSync(
+    path.join(process.cwd(), 'tools', 'Install-HostManagementBundle.ps1'),
+    path.join(root, 'tools', 'Install-HostManagementBundle.ps1'),
+  );
+  fs.copyFileSync(
+    path.join(process.cwd(), 'tools', 'Start-InstalledWebConsole.ps1'),
+    path.join(root, 'tools', 'Start-InstalledWebConsole.ps1'),
+  );
+  fs.writeFileSync(path.join(root, 'tools', 'osdcloud-console', 'src', 'webServer.js'), 'export {};\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'Softwares', 'Install-Apps.ps1'), "Write-Host 'fixture'\n", 'utf8');
+  fs.writeFileSync(path.join(root, 'Setup-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'Deploy-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
+  writeJson(path.join(root, 'config', 'osdcloud-console.json'), {
+    adapter: { interfaceAlias: 'LAN', serverIp: '10.10.10.1', prefixLength: 24 },
+    dhcp: {
+      listenIp: '10.10.10.1',
+      leaseStartIp: '10.10.10.200',
+      leaseEndIp: '10.10.10.250',
+      subnetMask: '255.255.255.0',
+      router: '10.10.10.1',
+      bootFile: 'ipxeboot/x86_64-sb/snponly.efi',
+      ipxeBootUrl: 'http://10.10.10.1/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\OSDCloud\\PXE-TFTP' },
+    http: { root: 'C:\\OSDCloud\\PXE-HttpRoot', host: '10.10.10.1', statusRoot: 'C:\\OSDCloud\\PXE-HttpRoot\\status' },
+    paths: { expectedHttpFiles: ['osdcloud\\boot.ipxe'] },
+    smb: { share: '\\\\10.10.10.1\\OSDCloudiPXE' },
+    deploymentProfiles: { activeProfile: 'default' },
+    web: { host: '127.0.0.1', port: 8080 },
+  });
+  writeJson(path.join(root, 'config', 'os-image-catalog.json'), { images: [] });
+  writeJson(path.join(root, 'config', 'os-download-sources.json'), { allowedHosts: [], images: [] });
+  writeJson(path.join(root, 'config', 'software-catalog.json'), { software: [] });
+  writeJson(path.join(root, 'config', 'scripts-catalog.json'), { scripts: [] });
+  writeJson(path.join(root, 'config', 'deployment-profiles', 'default.json'), {
+    id: 'default',
+    name: 'Default',
+    software: [],
+  });
+  spawnSync('git', ['init'], { cwd: root, encoding: 'utf8' });
+}
+
 test('runtime artifact catalog validates download recipes and ignores software rows', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-artifacts-'));
   try {
@@ -351,6 +410,9 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'), 'utf8');
   assert.match(script, /npm' -ArgumentList @\('install'\)/);
   assert.match(script, /npm' -ArgumentList @\('run', 'smoke'\)/);
+  assert.match(script, /Install-HostManagementBundle\.ps1/);
+  assert.match(script, /\[string\] \$AppRoot = 'C:\\OSDCloud\\HostTools\\App'/);
+  assert.match(script, /\[string\] \$StateRoot = 'C:\\OSDCloud\\HostTools\\State'/);
   assert.match(script, /function Ensure-NodeAndNpm/);
   assert.match(script, /function Add-NodeInstallPaths/);
   assert.match(script, /function Test-NodeAndNpmAvailable/);
@@ -363,7 +425,8 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /administrator rights\./i);
   assert.match(script, /\[string\] \$WebHost/);
   assert.match(script, /function Select-WebServiceHost/);
-  assert.match(script, /config\\osdcloud-console\.local\.json/);
+  assert.match(script, /OSDCLOUD_CONSOLE_CONFIG/);
+  assert.match(script, /HostTools\\State/);
   assert.match(script, /host = \$HostIp/);
   assert.match(script, /writing only the Web console local overlay/);
   assert.doesNotMatch(script, /OSDCLOUD_DAVIS_PASSWORD/);
@@ -377,43 +440,44 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.doesNotMatch(script, /Start-Pxe|Start-Dhcp|Start-Tftp|Start-Http/);
 });
 
-test('setup dry-run saves only the Web local overlay', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-dryrun-'));
+test('setup seeds installed host bundle state and writes the Web local overlay', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-install-'));
   try {
-    fs.mkdirSync(path.join(root, 'tools'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
-    fs.copyFileSync(
-      path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'),
-      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
-    );
-    fs.copyFileSync(
-      path.join(process.cwd(), 'config', 'osdcloud-console.json'),
-      path.join(root, 'config', 'osdcloud-console.json'),
-    );
-    const localConfig = path.join(root, 'config', 'osdcloud-console.local.json');
-    const setupState = path.join(root, 'config', 'deployment-server-setup.local.json');
+    createSetupSourceFixture(root);
+    const appRoot = path.join(root, 'HostTools', 'App');
+    const stateRoot = path.join(root, 'HostTools', 'State');
+    const localConfig = path.join(stateRoot, 'config', 'osdcloud-console.local.json');
+    const stateConfig = path.join(stateRoot, 'config', 'osdcloud-console.json');
     const result = spawnSync('powershell.exe', [
       '-NoProfile',
       '-ExecutionPolicy',
       'Bypass',
       '-File',
       path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
-      '-DryRun',
       '-NoLaunch',
       '-SkipNpmInstall',
       '-SkipSmoke',
+      '-WebHost',
+      '127.0.0.1',
+      '-AppRoot',
+      appRoot,
+      '-StateRoot',
+      stateRoot,
     ], {
       cwd: root,
       encoding: 'utf8',
       env: process.env,
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stdout, /Setup only prepares the Web console/);
-    assert.match(result.stdout, /writing only the Web console local overlay/);
+    assert.match(result.stdout, /Installed host management bundle/);
+    assert.match(result.stdout, /Setup installed the host management bundle under/);
+    assert.match(result.stdout, /Saved Web console settings:/);
     assert.deepEqual(JSON.parse(fs.readFileSync(localConfig, 'utf8')), { web: { host: '127.0.0.1', port: 8080 } });
-    assert.equal(fs.existsSync(setupState), false);
-    assert.equal(fs.existsSync(path.join(root, 'config', 'osdcloud-secrets.json')), false);
-    assert.equal(fs.existsSync(path.join(root, 'C:\\OSDCloud')), false);
+    const seededConfig = JSON.parse(fs.readFileSync(stateConfig, 'utf8'));
+    assert.equal(seededConfig.paths.appRoot, appRoot);
+    assert.equal(seededConfig.paths.stateRoot, stateRoot);
+    assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'Start-InstalledWebConsole.ps1')), true);
+    assert.equal(fs.existsSync(path.join(root, 'HostTools', 'Open-WebConsole.cmd')), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -422,17 +486,9 @@ test('setup dry-run saves only the Web local overlay', () => {
 test('setup WebHost writes only web host and port to local overlay', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-webhost-'));
   try {
-    fs.mkdirSync(path.join(root, 'tools'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
-    fs.copyFileSync(
-      path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'),
-      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
-    );
-    fs.copyFileSync(
-      path.join(process.cwd(), 'config', 'osdcloud-console.json'),
-      path.join(root, 'config', 'osdcloud-console.json'),
-    );
-    spawnSync('git', ['init'], { cwd: root, encoding: 'utf8' });
+    createSetupSourceFixture(root);
+    const appRoot = path.join(root, 'HostTools', 'App');
+    const stateRoot = path.join(root, 'HostTools', 'State');
     const result = spawnSync('powershell.exe', [
       '-NoProfile',
       '-ExecutionPolicy',
@@ -444,16 +500,19 @@ test('setup WebHost writes only web host and port to local overlay', () => {
       '-NoLaunch',
       '-SkipNpmInstall',
       '-SkipSmoke',
+      '-AppRoot',
+      appRoot,
+      '-StateRoot',
+      stateRoot,
     ], {
       cwd: root,
       encoding: 'utf8',
       env: process.env,
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    const localConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'osdcloud-console.local.json'), 'utf8'));
+    const localConfig = JSON.parse(fs.readFileSync(path.join(stateRoot, 'config', 'osdcloud-console.local.json'), 'utf8'));
     assert.deepEqual(localConfig, { web: { host: '127.0.0.1', port: 8080 } });
-    assert.equal(fs.existsSync(path.join(root, 'config', 'osdcloud-secrets.json')), false);
-    assert.equal(fs.existsSync(path.join(root, 'C:\\OSDCloud')), false);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'config', 'osdcloud-secrets.json')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -462,26 +521,22 @@ test('setup WebHost writes only web host and port to local overlay', () => {
 test('setup rejects a WebHost that is not a local enabled IPv4 address', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-webhost-invalid-'));
   try {
-    fs.mkdirSync(path.join(root, 'tools'), { recursive: true });
-    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
-    fs.copyFileSync(
-      path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'),
-      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
-    );
-    fs.copyFileSync(
-      path.join(process.cwd(), 'config', 'osdcloud-console.json'),
-      path.join(root, 'config', 'osdcloud-console.json'),
-    );
+    createSetupSourceFixture(root);
+    const appRoot = path.join(root, 'HostTools', 'App');
+    const stateRoot = path.join(root, 'HostTools', 'State');
     const result = spawnSync('powershell.exe', [
       '-NoProfile',
       '-ExecutionPolicy',
       'Bypass',
       '-File',
       path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
-      '-DryRun',
       '-NoLaunch',
       '-SkipNpmInstall',
       '-SkipSmoke',
+      '-AppRoot',
+      appRoot,
+      '-StateRoot',
+      stateRoot,
       '-WebHost',
       '203.0.113.10',
     ], {
@@ -491,7 +546,7 @@ test('setup rejects a WebHost that is not a local enabled IPv4 address', () => {
     });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr + result.stdout, /not assigned to an enabled local IPv4 adapter/);
-    assert.equal(fs.existsSync(path.join(root, 'config', 'osdcloud-console.local.json')), false);
+    assert.equal(fs.existsSync(path.join(stateRoot, 'config', 'osdcloud-console.local.json')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -530,8 +585,10 @@ test('host PowerShell entrypoints initialize UTF-8 console output', () => {
     'tools/Set-IpxePhysicalNic.ps1',
     'tools/Sync-OsdCloudAssets.ps1',
     'tools/Export-DeploymentServerBundle.ps1',
+    'tools/Install-HostManagementBundle.ps1',
     'tools/Invoke-IpxeTimingRun.ps1',
     'tools/Restore-DeploymentArtifacts.ps1',
+    'tools/Start-InstalledWebConsole.ps1',
   ]) {
     const script = fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
     assert.match(script, /\$Utf8NoBom = \[System\.Text\.UTF8Encoding\]::new\(\$false\)/, relativePath);

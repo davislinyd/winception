@@ -63,6 +63,8 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 
 - Development workspace: `C:\Users\davis\Documents\Codex\osdcloud-project`. Edit code, docs, tests, Git history, and `.ai/status.json` here.
 - Deployment clone: `C:\osdcloud-win11-deployment-lab`. Use only after a pushed development commit is pulled with `git pull --ff-only origin master`; do not edit or hotfix code there.
+- Installed host management bundle: `C:\OSDCloud\HostTools\App`. This is the post-setup execution root for the deployment host Web console and helper scripts.
+- Installed host state: `C:\OSDCloud\HostTools\State`. This holds mutable local config, local overlay, deployment secrets, upload staging, and other host-only state.
 - Runtime root: the Web-selected deployment project root, with `C:\OSDCloud` as the proven default. This is product-managed runtime state. Do not manually patch, copy into, or directly edit files there. Never place this root inside the Git clone.
 - If deployment testing fails, return to the development workspace, fix there, commit and push, update the deployment clone, then retest from the deployment clone.
 
@@ -78,7 +80,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 ## Runtime Guardrails
 
 - For Runtime Readiness, endpoint sync, Web console, OS image, profile publish, WinPE, SetupComplete, or desktop-ready tasks, read `docs/agent-reference/runtime-web-console.md`.
-- A Git clone alone is not a deployable PXE runtime and must remain an installation/configuration source only.
+- A Git clone alone is not a deployable PXE runtime and must remain an installation/configuration source only. After setup installs `C:\OSDCloud\HostTools`, the original clone may be deleted if no further source edits are needed on that host.
 - Do not manually patch, copy into, or directly edit the Web-selected deployment project root.
 - Web read-only checks must not mutate live runtime state.
 - Web mutating actions can modify live deployment state.

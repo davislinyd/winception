@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import dgram from 'node:dgram';
 import path from 'node:path';
-import { defaultRepoRoot, resolveHttpFile } from './config.js';
+import { appRootForConfig, resolveHttpFile } from './config.js';
 import { ipv4ToUInt32 } from './dhcp.js';
 import { evaluateDeploymentProfilePayload } from './deploymentProfiles.js';
 import { evaluateOsImageCache } from './osImages.js';
@@ -361,7 +361,7 @@ $access = @(Get-SmbShareAccess -Name '${safeShareName}' -ErrorAction Stop | ForE
 }
 
 export function resolveRepoRoot(config = {}) {
-  return path.resolve(config.paths?.repoRoot ?? defaultRepoRoot);
+  return appRootForConfig(config);
 }
 
 export function resolveEndpointSyncScript(config = {}) {

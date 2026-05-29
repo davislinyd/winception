@@ -25,6 +25,15 @@ setup 完成後 Web console 會啟動在：
 http://127.0.0.1:8080
 ```
 
+setup 也會把 host management bundle 安裝到：
+
+```text
+C:\OSDCloud\HostTools\App
+C:\OSDCloud\HostTools\State
+```
+
+若後續只需要操作部署主機、不需要在該主機上修改 repo source，setup 成功後可刪除原始 clone，改用 `C:\OSDCloud\HostTools\Open-WebConsole.cmd` 重新開啟 Web console。
+
 在 Web console 內依序操作：
 
 1. 在 `Initialization` 確認或修改 deployment project root / working directory。
@@ -39,7 +48,7 @@ http://127.0.0.1:8080
 
 | 階段 | 做什麼 | 不做什麼 |
 | --- | --- | --- |
-| `Setup-DeploymentServer.cmd` | 檢查 Git/Node/npm、必要時提示安裝 Node.js LTS、執行 `npm install`、`npm run smoke`，最後啟動 `npm run web` | 不建立 deployment runtime root、不要求 deployment secrets、不建立 SMB、不跑 endpoint sync/preflight、不啟 HTTP/TFTP/DHCP |
+| `Setup-DeploymentServer.cmd` | 檢查 Git/Node/npm、安裝 host management bundle 到 `C:\OSDCloud\HostTools`、必要時提示安裝 Node.js LTS、執行 `npm install`、`npm run smoke`，最後啟動 `npm run web` | 不建立 live deployment runtime root、不要求 deployment secrets、不建立 SMB、不跑 endpoint sync/preflight、不啟 HTTP/TFTP/DHCP |
 | `Prepare runtime` | 在 Web 選定的 project root 建立 runtime 結構、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建 iPXE/wimboot/boot binaries、WinPE `boot.wim` | 不自動啟動 deployment services，不替 operator 選 OS image，也不預先下載 client software |
 | OS Image Cache / profile publish | 下載或匯入 ISO/ESD/WIM、讀取 DISM indexes、匯出選定 index 成單一 WIM、發佈 `selected-os.json` | 不在 fresh clone 預設固定 Windows 版本 |
 | Endpoint sync / preflight | 把本次 NIC/IP 寫入 live `boot.ipxe`、WinPE `boot.wim`、SMB firewall 與 local overlay，並檢查 runtime / OS WIM 可部署 | 不替你確認外部 LAN DHCP 已關閉 |
@@ -64,16 +73,16 @@ http://127.0.0.1:8080
 
 ## 本機 Deployment Secrets
 
-Repo 不提交真實密碼。新 host 預設做法是在 Web 第一次進入時，由初始化精靈的 `Deployment Secrets` 步驟輸入 `davisPassword` 與 `pxeinstallPassword`；Web 會寫入 ignored 的 `config\osdcloud-secrets.json`，API 回應與 log 都不回傳密碼明文。
+Repo 不提交真實密碼。新 host 預設做法是在 Web 第一次進入時，由初始化精靈的 `Deployment Secrets` 步驟輸入 `davisPassword` 與 `pxeinstallPassword`；Web 會寫入 `C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json`，API 回應與 log 都不回傳密碼明文。
 
 若需要離線或手動建立，也可以先在 lab host 建立本機檔案：
 
 ```powershell
-Copy-Item .\config\osdcloud-secrets.example.json .\config\osdcloud-secrets.json
-notepad .\config\osdcloud-secrets.json
+Copy-Item 'C:\OSDCloud\HostTools\App\config\osdcloud-secrets.example.json' 'C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json'
+notepad 'C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json'
 ```
 
-`config\osdcloud-secrets.json` 已被 `.gitignore` 排除，必須包含：
+`C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json` 必須包含：
 
 ```json
 {
@@ -129,7 +138,7 @@ DNS     : 1.1.1.1 / 8.8.8.8
 
 ## 新主機 Clone 後啟動流程
 
-這一段是給另一台 Windows host 從 GitHub repo URL 接手部署用的正式 runbook。Repo 可以 clone 到任意資料夾；實際 PXE/OSDCloud runtime 使用 Web initialization 選定的 deployment project root，預設仍可用 `C:\OSDCloud`。Git clone 只作為安裝資料來源與可審查設定來源，部署系統需要的 live runtime 檔案不得寫回 repo clone。大型 runtime artifact 不放 Git、不要求 Git LFS、不要求 `deployment-server-bundle`。
+這一段是給另一台 Windows host 從 GitHub repo URL 接手部署用的正式 runbook。Repo 可以 clone 到任意資料夾；實際 PXE/OSDCloud runtime 使用 Web initialization 選定的 deployment project root，預設仍可用 `C:\OSDCloud`。Git clone 只作為安裝資料來源與可審查設定來源；setup 會把 host management bundle 安裝到 `C:\OSDCloud\HostTools\App`、把 mutable host state 建到 `C:\OSDCloud\HostTools\State`，之後部署主機可只靠 `C:\OSDCloud` 繼續運作。大型 runtime artifact 不放 Git、不要求 Git LFS、不要求 `deployment-server-bundle`。
 
 正式入口固定是輕量互動式 setup：
 
@@ -150,19 +159,22 @@ cd '<repo-root>'
 - Node.js / npm，可執行 ESM 與 `node --test`。若缺少，setup 會詢問是否安裝 Node.js LTS；npm 會隨 Node.js 一起安裝。
 - Windows ADK、Windows PE Add-on、PowerShell OSD / OSDCloud module 後續由 Web `Prepare runtime` 檢查或使用；setup 階段不下載或重建 WinPE。
 - 一張可上網的 host NIC，以及一張服務 PXE client 的隔離 LAN NIC；目前範例為 `WAN` 上網、`LAN` = `192.168.88.1/24`。
-- 本機 `config\osdcloud-secrets.json` 由 Web 初始化精靈建立；setup 不會要求或寫入 deployment secrets。
+- 本機 deployment secrets 預設由 Web 初始化精靈寫到 `C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json`；setup 不會要求或寫入 deployment secrets。
 
 ### 2. 執行輕量 setup
 
 `Setup-DeploymentServer.cmd` 直接執行 `tools\Setup-DeploymentServer.ps1`。除非需要安裝 Node.js LTS，setup 不因部署服務要求系統管理員權限；它只做主程式可啟動所需檢查：
 
 - 檢查 repo root、Git、Node/npm；若缺少 Node/npm，詢問是否安裝 Node.js LTS。
-- 執行 `npm install` 與輕量 `npm run smoke`，確認 Web 主程式可啟動。
+- 將 host management bundle 安裝到 `C:\OSDCloud\HostTools\App`，並把可變 host state seed 到 `C:\OSDCloud\HostTools\State`。
+- 在 installed `AppRoot` 執行 `npm install` 與輕量 `npm run smoke`，確認 Web 主程式可啟動。
 - 顯示可用的本機 IPv4 清單，只詢問 `Web service IP`，預設 `127.0.0.1`。
-- 將 `web.host` 與固定 `web.port=8080` 寫入 ignored `config\osdcloud-console.local.json`。
-- 啟動 Web console：在新的 elevated PowerShell 視窗執行 `npm run web`，因為後續 `Prepare runtime` 與 service control 需要管理員權限。
+- 將 `web.host` 與固定 `web.port=8080` 寫入 `C:\OSDCloud\HostTools\State\config\osdcloud-console.local.json`。
+- 啟動 Web console：在新的 elevated PowerShell 視窗以 installed bundle 執行 `npm run web`，因為後續 `Prepare runtime` 與 service control 需要管理員權限。
 
-setup 除了 operator 明確同意安裝 Node.js LTS 之外，不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會建立 `C:\OSDCloud`、不會建立 SMB share 或本機 `pxeinstall` 帳號、不會要求 deployment secrets、不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
+setup 除了 operator 明確同意安裝 Node.js LTS 之外，不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會建立 live `Media` / `PXE-HttpRoot` / `PXE-TFTP` runtime skeleton、不會建立 SMB share 或本機 `pxeinstall` 帳號、不會要求 deployment secrets、不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
+
+成功後若不再需要該主機上的 repo source，可刪除原始 clone；後續入口改用 `C:\OSDCloud\HostTools\Open-WebConsole.cmd` 或 `C:\OSDCloud\HostTools\App\tools\Start-InstalledWebConsole.ps1`。
 
 如果 setup 呼叫 `winget install OpenJS.NodeJS.LTS` 時顯示 Node.js 已安裝且沒有可更新版本，通常是目前 PowerShell session 還沒刷新 PATH。新版 setup 會重新讀取 machine/user PATH 並探測標準 `C:\Program Files\nodejs` 位置後續跑；如果仍失敗，關閉 PowerShell、重新開系統管理員 PowerShell，再執行 `node --version`、`npm --version` 與 `.\Setup-DeploymentServer.cmd`。
 
@@ -184,7 +196,7 @@ http://<setup-selected-web-ip>:8080
 Web console 每次載入 `/api/state` 都會從 live state 重新計算 `initialization.initialized`，不使用單一 marker。若尚未完成，會自動開啟 initialization wizard，但 dashboard 仍可讀。精靈依序引導：
 
 1. 確認 deployment project root / working directory；預設可用 `C:\OSDCloud`，但可改成其他絕對路徑，且不能位於 Git clone 內。
-2. 儲存 deployment secrets 到 ignored `config\osdcloud-secrets.json`。
+2. 儲存 deployment secrets 到 `C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json`。
 3. `Prepare runtime`，在選定 root 建立 runtime、準備 SMB account/share、boot artifacts 與 WinPE；不啟動 HTTP/TFTP/DHCP，也不下載 client software。
 4. 選 PXE/service endpoint 並在 Web 內 sync endpoint。
 5. 到 `OS Image Cache` 下載或匯入 ISO/ESD/WIM、選 DISM index、匯出單一 WIM。
@@ -213,7 +225,7 @@ C:\OSDCloud
 
 `Prepare runtime` 會檢查 `boot.wim` 兩個必要路徑都存在。iPXE 的 `boot.ipxe` 會透過 HTTP 載入 `wimboot`、Windows boot binaries 和 published `boot.wim`；`boot.wim` 裡面是 WinPE，以及 OSDCloud 啟動、SMB mapping、status callback、SetupComplete handoff、local secret injection 後的部署邏輯。沒有完整 `boot.wim`，client 連 WinPE 都進不去，後續 OS image 套用不會開始。因為 `boot.wim` 會受 ADK/OSDCloud build、endpoint sync、local secret injection 影響，runtime catalog 不固定它的 size/hash；需要 hash evidence 時由 `osdcloud-assets\manifest.json` 記錄當次同步快照。
 
-Prepare runtime 會使用 committed base `config\osdcloud-console.json` 加上 ignored `config\osdcloud-console.local.json` overlay。local overlay 只保存本機 endpoint/secrets 周邊狀態，不是完整 config；下游工具不應把 `.local.json` 當成完整設定檔。
+Prepare runtime 會使用 installed base `C:\OSDCloud\HostTools\State\config\osdcloud-console.json` 加上 ignored `C:\OSDCloud\HostTools\State\config\osdcloud-console.local.json` overlay。local overlay 只保存本機 endpoint/secrets 周邊狀態，不是完整 config；下游工具不應把 `.local.json` 當成完整設定檔。
 
 OS image 不屬於 `Prepare runtime` 的固定預設。fresh clone 可以沒有 `activeImage`、沒有 profile OS image、也沒有 `selected-os.json`；Web 應顯示「尚未選擇 OS image」。operator 需到 `OS Image Cache` 下載或匯入任意語言的 Windows 11 Pro Retail ISO/ESD/WIM，選擇 DISM image index，讓 Web 匯出成 `<project-root>\Media\OSDCloud\OS\<selected-image>.wim` 的單一 WIM，再透過 publish 寫出 `selected-os.json`。官方 catalog filter 可輸入非預設語言 tag 與未來 release tag；25H1/25H2 之外的 26H1/26H2 或後續版本只要上游 OSD catalog 提供就可載入。部署時使用匯出的 WIM index `1`，原始來源檔名與原始 index 保留在 metadata 供查核。
 
@@ -918,7 +930,7 @@ npm run smoke
 
 ## Git 管理
 
-這個 repo 可以 clone 到任意資料夾；Git 追蹤文件、流程設定、runtime artifact catalog，以及從 `C:\OSDCloud` 同步出來的可讀部署資產。實際部署仍以 `C:\OSDCloud` 為執行位置；repo 的作用是保存可審查、可比較、可重建的腳本與 manifest。新 host clone 後必須先完成上方「新主機 Clone 後啟動流程」的輕量 setup，讓 Web console 可啟動，再由 Web `Runtime Readiness` / `Prepare runtime` 線上下載或重建 `C:\OSDCloud` 的大型 runtime artifacts，才可開始實體部署。
+這個 repo 可以 clone 到任意資料夾；Git 追蹤文件、流程設定、runtime artifact catalog，以及從 `C:\OSDCloud` 同步出來的可讀部署資產。實際部署仍以 `C:\OSDCloud` 為執行位置；repo 的作用是保存可審查、可比較、可重建的 source 與 manifest。新 host clone 後先完成上方「新主機 Clone 後啟動流程」的輕量 setup，讓 `C:\OSDCloud\HostTools\App` / `State` 就位，再由 Web `Runtime Readiness` / `Prepare runtime` 線上下載或重建 `C:\OSDCloud` 的大型 runtime artifacts，才可開始實體部署。若只是操作已安裝的部署主機，setup 成功後可刪除原始 clone。
 
 應納入版本控制：
 

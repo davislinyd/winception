@@ -6,10 +6,10 @@ import { Readable } from 'node:stream';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { appRootForConfig, stateRootForConfig } from './config.js';
 import { collectProcessOutput, preparePowerShellArgs } from './processOutput.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(moduleDir, '..', '..', '..');
 
 export const selectedOsFileName = 'selected-os.json';
 export const osImageCacheLogFileName = 'os-image-cache.jsonl';
@@ -338,11 +338,12 @@ function matchesCatalogFilters(image, filters) {
 }
 
 export function osImageOptions(config = {}, overrides = {}) {
-  const root = path.resolve(config.paths?.repoRoot ?? repoRoot);
+  const appRoot = appRootForConfig(config);
+  const stateRoot = stateRootForConfig(config);
   const section = {
     activeImage: defaultActiveImage,
-    catalogPath: path.join(root, 'config', 'os-image-catalog.json'),
-    downloadSourcesPath: path.join(root, defaultDownloadSourcesPath),
+    catalogPath: path.join(stateRoot, 'config', 'os-image-catalog.json'),
+    downloadSourcesPath: path.join(stateRoot, defaultDownloadSourcesPath),
     cacheRoot: defaultCacheRoot,
     downloadStagingRoot: defaultDownloadStagingRoot,
     uploadMaxBytes: defaultUploadMaxBytes,
@@ -352,12 +353,12 @@ export function osImageOptions(config = {}, overrides = {}) {
     ...overrides,
   };
 
-  const cacheRoot = resolveConfiguredPath(root, section.cacheRoot);
-  const downloadStagingRoot = resolveConfiguredPath(root, section.downloadStagingRoot);
+  const cacheRoot = resolveConfiguredPath(stateRoot, section.cacheRoot);
+  const downloadStagingRoot = resolveConfiguredPath(stateRoot, section.downloadStagingRoot);
   return {
     activeImage: section.activeImage ?? defaultActiveImage,
-    catalogPath: resolveConfiguredPath(root, section.catalogPath),
-    downloadSourcesPath: resolveConfiguredPath(root, section.downloadSourcesPath),
+    catalogPath: resolveConfiguredPath(stateRoot, section.catalogPath),
+    downloadSourcesPath: resolveConfiguredPath(stateRoot, section.downloadSourcesPath),
     cacheRoot,
     downloadStagingRoot,
     selectedOsPath: path.join(cacheRoot, selectedOsFileName),
@@ -365,6 +366,8 @@ export function osImageOptions(config = {}, overrides = {}) {
     uploadMaxBytes: Number(section.uploadMaxBytes) > 0 ? Number(section.uploadMaxBytes) : defaultUploadMaxBytes,
     validateDismOnPreflight: section.validateDismOnPreflight !== false,
     validateDismOnPublish: section.validateDismOnPublish !== false,
+    appRoot,
+    stateRoot,
   };
 }
 
@@ -1263,7 +1266,7 @@ $rows = foreach ($os in $operatingSystems) {
 }
 @($rows | Where-Object { $_.url -and $_.fileName }) | ConvertTo-Json -Depth 6 -Compress
 `;
-    const rows = await runPowerShellJson(script, { cwd: config.paths?.repoRoot ?? repoRoot });
+    const rows = await runPowerShellJson(script, { cwd: appRootForConfig(config) });
     const values = Array.isArray(rows) ? rows : [rows];
     for (const row of values) {
       addOfficialImage(row);

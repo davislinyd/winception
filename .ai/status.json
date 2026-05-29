@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-29T02:21:43.5431903+08:00",
+  "updated_at": "2026-05-29T12:09:03.3462743+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
-    "current_goal": "Flexible Web-console-first OSDCloud deployment for arbitrary-language Windows 11 Pro Retail with selectable runtime root, ordered software/scripts, visible driver cache, and server-side failure evidence."
+    "current_goal": "Flexible Web-console-first OSDCloud deployment with an installed host-management bundle under C:\\OSDCloud so deployment hosts can delete the source clone after setup."
   },
   "paths": {
     "development": {
@@ -14,6 +14,14 @@
     "deployment_clone": {
       "root": "C:\\osdcloud-win11-deployment-lab",
       "purpose": "Current production-like checkout; old C:\\Users\\Davis\\Documents\\New project path is retired for new work."
+    },
+    "host_management": {
+      "root": "C:\\OSDCloud\\HostTools\\App",
+      "purpose": "Installed host-management bundle used by the deployment host after setup."
+    },
+    "host_state": {
+      "root": "C:\\OSDCloud\\HostTools\\State",
+      "purpose": "Mutable host-only state including local config, secrets, and staging after setup."
     },
     "runtime": {
       "root": "<Web-selected project root, default C:\\OSDCloud>",
@@ -25,11 +33,11 @@
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Initialization Wizard now preserves drawer scroll position and Deployment working directory input focus across the 2.5-second Web refresh loop.",
+    "summary": "Setup now installs a repo-free host-management bundle under C:\\OSDCloud\\HostTools, and Web/runtime/profile helpers resolve mutable state from installed host state instead of the source clone.",
     "baseline": {
-      "commit": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
-      "short": "c48c4a8",
-      "subject": "Guard runtime prep behind elevated Web console"
+      "commit": "1f1d9cf363c72c960e9c03a66e0726543f25f83d",
+      "short": "1f1d9cf",
+      "subject": "Fix initialization wizard refresh state"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -51,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "d926f4253f9f144adef80847f1b2059a02225e30",
-    "last_checked_head_short": "d926f42",
+    "last_checked_head": "1f1d9cf363c72c960e9c03a66e0726543f25f83d",
+    "last_checked_head_short": "1f1d9cf",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -94,6 +102,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260529-installed-host-bundle",
+      "at": "2026-05-29T12:09:03.3462743+08:00",
+      "kind": "implementation",
+      "summary": "- Installed host bundle/state under C:\\OSDCloud\\HostTools.\n- Setup and Web host workflows no longer require keeping the source clone after setup.",
+      "commit": null,
+      "verification": "node --check passed for config.js, deploymentProfiles.js, osImages.js, runtimeArtifacts.js, serviceController.js, and windows.js. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 28/28. npm test passed 208/208. PowerShell parser checks passed for Setup-DeploymentServer.ps1, Install-HostManagementBundle.ps1, and Start-InstalledWebConsole.ps1. powershell -File tools/Install-HostManagementBundle.ps1 installed C:\\OSDCloud\\HostTools\\App and State on this host. npm install and npm run smoke passed from C:\\OSDCloud\\HostTools\\App."
+    },
+    {
       "id": "20260529-init-wizard-refresh-stability",
       "at": "2026-05-29T02:21:43.5431903+08:00",
       "kind": "implementation",
@@ -124,14 +140,6 @@
       "summary": "Committed repo-managed snponly runtime restore, endpoint/profile diagnostics fixes, and the validated test coverage for those flows.",
       "commit": "37e130813e7a2b8bacff5526a2c47d313c85dfc8",
       "verification": "npm test passed 203/203. powershell -File tools/Restore-DeploymentArtifacts.ps1 -SkipPrerequisiteCheck completed successfully and reused the verified repo artifact ipxe-snponly-efi. node --check tools/osdcloud-console/src/runtimeArtifacts.js and PowerShell parser checks for Restore-DeploymentArtifacts.ps1 and Sync-OsdCloudAssets.ps1 passed."
-    },
-    {
-      "id": "20260529-runtime-snponly-fix",
-      "at": "2026-05-29T01:15:39.9639882+08:00",
-      "kind": "implementation",
-      "summary": "Replaced rolling iPXE snponly download with a repo-managed validated snapshot so Prepare runtime no longer fails on upstream hash drift.",
-      "commit": null,
-      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 28/28; node --check tools/osdcloud-console/src/runtimeArtifacts.js passed; PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Sync-OsdCloudAssets.ps1; powershell -File tools/Restore-DeploymentArtifacts.ps1 -SkipPrerequisiteCheck completed successfully and reused the verified repo artifact ipxe-snponly-efi."
     }
   ]
 }

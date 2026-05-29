@@ -5,10 +5,10 @@ import { spawn } from 'node:child_process';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { appRootForConfig, stateRootForConfig } from './config.js';
 import { collectProcessOutput, preparePowerShellArgs } from './processOutput.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(moduleDir, '..', '..', '..');
 const generatedProfileIdAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const generatedProfileIdLength = 8;
 const generatedProfileIdSpace = generatedProfileIdAlphabet.length ** generatedProfileIdLength;
@@ -31,21 +31,21 @@ function inputError(message, statusCode = 400) {
   return error;
 }
 
-function deploymentProfileDefaults(root) {
+function deploymentProfileDefaults(appRoot, stateRoot) {
   return {
     activeProfile: 'I20HRVF5',
-    profilesRoot: path.join(root, 'config', 'deployment-profiles'),
-    softwareCatalogPath: path.join(root, 'config', 'software-catalog.json'),
-    softwareSourceRoot: path.join(root, 'Softwares'),
+    profilesRoot: path.join(stateRoot, 'config', 'deployment-profiles'),
+    softwareCatalogPath: path.join(stateRoot, 'config', 'software-catalog.json'),
+    softwareSourceRoot: path.join(stateRoot, 'Softwares'),
     appsRoot: 'C:\\OSDCloud\\Media\\OSDCloud\\Apps',
-    installerScript: path.join(root, 'Softwares', 'Install-Apps.ps1'),
-    softwareUploadRoot: path.join(root, '.osdcloud-console', 'software-uploads'),
+    installerScript: path.join(appRoot, 'Softwares', 'Install-Apps.ps1'),
+    softwareUploadRoot: path.join(stateRoot, '.osdcloud-console', 'software-uploads'),
     softwareUploadMaxBytes: defaultSoftwareUploadMaxBytes,
-    softwarePayloadStagingRoot: path.join(root, '.downloads', 'software-payloads'),
-    customScriptsCatalogPath: path.join(root, 'config', 'scripts-catalog.json'),
-    customScriptsSourceRoot: path.join(root, 'Scripts'),
+    softwarePayloadStagingRoot: path.join(stateRoot, '.downloads', 'software-payloads'),
+    customScriptsCatalogPath: path.join(stateRoot, 'config', 'scripts-catalog.json'),
+    customScriptsSourceRoot: path.join(stateRoot, 'Scripts'),
     customScriptsAppsRoot: 'C:\\OSDCloud\\Media\\OSDCloud\\Scripts',
-    customScriptUploadRoot: path.join(root, '.osdcloud-console', 'script-uploads'),
+    customScriptUploadRoot: path.join(stateRoot, '.osdcloud-console', 'script-uploads'),
     customScriptUploadMaxBytes: defaultCustomScriptUploadMaxBytes,
   };
 }
@@ -443,8 +443,9 @@ export async function openSoftwareInstallScript(config = {}, softwareId, options
 }
 
 export function deploymentProfileOptions(config = {}, overrides = {}) {
-  const root = path.resolve(config.paths?.repoRoot ?? repoRoot);
-  const defaults = deploymentProfileDefaults(root);
+  const appRoot = appRootForConfig(config);
+  const stateRoot = stateRootForConfig(config);
+  const defaults = deploymentProfileDefaults(appRoot, stateRoot);
   const section = {
     ...defaults,
     ...(config.deploymentProfiles ?? {}),
@@ -453,20 +454,20 @@ export function deploymentProfileOptions(config = {}, overrides = {}) {
 
   return {
     activeProfile: section.activeProfile ?? defaults.activeProfile,
-    profilesRoot: resolveConfiguredPath(root, section.profilesRoot),
-    softwareCatalogPath: resolveConfiguredPath(root, section.softwareCatalogPath),
-    softwareSourceRoot: resolveConfiguredPath(root, section.softwareSourceRoot),
-    appsRoot: resolveConfiguredPath(root, section.appsRoot ?? section.liveAppsRoot),
-    installerScript: resolveConfiguredPath(root, section.installerScript),
-    softwareUploadRoot: resolveConfiguredPath(root, section.softwareUploadRoot),
+    profilesRoot: resolveConfiguredPath(stateRoot, section.profilesRoot),
+    softwareCatalogPath: resolveConfiguredPath(stateRoot, section.softwareCatalogPath),
+    softwareSourceRoot: resolveConfiguredPath(stateRoot, section.softwareSourceRoot),
+    appsRoot: resolveConfiguredPath(stateRoot, section.appsRoot ?? section.liveAppsRoot),
+    installerScript: resolveConfiguredPath(appRoot, section.installerScript),
+    softwareUploadRoot: resolveConfiguredPath(stateRoot, section.softwareUploadRoot),
     softwareUploadMaxBytes: Number(section.softwareUploadMaxBytes) > 0
       ? Number(section.softwareUploadMaxBytes)
       : defaultSoftwareUploadMaxBytes,
-    softwarePayloadStagingRoot: resolveConfiguredPath(root, section.softwarePayloadStagingRoot),
-    customScriptsCatalogPath: resolveConfiguredPath(root, section.customScriptsCatalogPath),
-    customScriptsSourceRoot: resolveConfiguredPath(root, section.customScriptsSourceRoot),
-    customScriptsAppsRoot: resolveConfiguredPath(root, section.customScriptsAppsRoot),
-    customScriptUploadRoot: resolveConfiguredPath(root, section.customScriptUploadRoot),
+    softwarePayloadStagingRoot: resolveConfiguredPath(stateRoot, section.softwarePayloadStagingRoot),
+    customScriptsCatalogPath: resolveConfiguredPath(stateRoot, section.customScriptsCatalogPath),
+    customScriptsSourceRoot: resolveConfiguredPath(stateRoot, section.customScriptsSourceRoot),
+    customScriptsAppsRoot: resolveConfiguredPath(stateRoot, section.customScriptsAppsRoot),
+    customScriptUploadRoot: resolveConfiguredPath(stateRoot, section.customScriptUploadRoot),
     customScriptUploadMaxBytes: Number(section.customScriptUploadMaxBytes) > 0
       ? Number(section.customScriptUploadMaxBytes)
       : defaultCustomScriptUploadMaxBytes,

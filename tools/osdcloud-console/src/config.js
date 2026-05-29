@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..', '..');
 
-export const defaultRepoRoot = repoRoot;
-export const defaultConfigPath = path.join(repoRoot, 'config', 'osdcloud-console.json');
-export const defaultLocalConfigPath = path.join(repoRoot, 'config', 'osdcloud-console.local.json');
+export const defaultAppRoot = repoRoot;
+export const defaultRepoRoot = defaultAppRoot;
+export const defaultConfigPath = path.join(defaultAppRoot, 'config', 'osdcloud-console.json');
+export const defaultLocalConfigPath = path.join(defaultAppRoot, 'config', 'osdcloud-console.local.json');
 
 function splitLocalConfigPath(configPath) {
   const parsed = path.parse(configPath);
@@ -48,6 +49,20 @@ export function localConfigPathFor(configPath) {
   const resolved = path.resolve(configPath);
   const parsed = path.parse(resolved);
   return path.join(parsed.dir, `${parsed.name}.local${parsed.ext || '.json'}`);
+}
+
+export function appRootForConfig(config = {}) {
+  return path.resolve(config.paths?.appRoot ?? config.paths?.repoRoot ?? defaultAppRoot);
+}
+
+export function stateRootForConfig(config = {}) {
+  if (config.paths?.stateRoot) {
+    return path.resolve(config.paths.stateRoot);
+  }
+  if (config.__configPath) {
+    return path.resolve(path.dirname(config.__configPath), '..');
+  }
+  return appRootForConfig(config);
 }
 
 export function loadConfig(configPath = process.env.OSDCLOUD_CONSOLE_CONFIG || defaultConfigPath, options = {}) {
@@ -110,25 +125,28 @@ export function runtimeRootForConfig(config = {}) {
 }
 
 export function workspaceInfo(config = {}) {
-  const repoRootPath = path.resolve(config.paths?.repoRoot ?? defaultRepoRoot);
+  const appRoot = appRootForConfig(config);
+  const stateRoot = stateRootForConfig(config);
   const runtimeRoot = runtimeRootForConfig(config);
   return {
-    repoRoot: repoRootPath,
+    appRoot,
+    repoRoot: appRoot,
+    stateRoot,
     runtimeRoot,
     configPath: config.__configPath,
     localConfigPath: config.__localConfigPath,
-    runtimeInsideRepo: isPathInside(repoRootPath, runtimeRoot),
+    runtimeInsideRepo: isPathInside(appRoot, runtimeRoot),
   };
 }
 
 function assertRuntimeRootAllowed(config, runtimeRoot) {
-  const repoRootPath = path.resolve(config.paths?.repoRoot ?? defaultRepoRoot);
+  const appRoot = appRootForConfig(config);
   const resolved = path.resolve(String(runtimeRoot ?? '').trim());
   if (!path.isAbsolute(resolved)) {
     throw new Error(`Project root must be an absolute path: ${runtimeRoot}`);
   }
-  if (isPathInside(repoRootPath, resolved)) {
-    throw new Error(`Project root must not be inside the Git clone: ${resolved}`);
+  if (isPathInside(appRoot, resolved)) {
+    throw new Error(`Project root must not be inside the host management bundle: ${resolved}`);
   }
   return resolved;
 }

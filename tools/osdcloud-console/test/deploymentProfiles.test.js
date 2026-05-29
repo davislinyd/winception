@@ -147,6 +147,33 @@ test('resolves relative deployment profile paths from derived repo root by defau
   assert.equal(options.appsRoot, path.resolve('C:\\OSDCloud\\Media\\OSDCloud\\Apps'));
 });
 
+test('resolves mutable deployment profile paths from state root and installer script from app root', () => {
+  const appRoot = path.join(os.tmpdir(), 'osdcloud-app-root');
+  const stateRoot = path.join(os.tmpdir(), 'osdcloud-state-root');
+  const options = deploymentProfileOptions({
+    paths: {
+      appRoot,
+      stateRoot,
+    },
+    deploymentProfiles: {
+      profilesRoot: 'config\\deployment-profiles',
+      softwareCatalogPath: 'config\\software-catalog.json',
+      softwareSourceRoot: 'Softwares',
+      appsRoot: 'C:\\OSDCloud\\Media\\OSDCloud\\Apps',
+      installerScript: 'Softwares\\Install-Apps.ps1',
+      customScriptsCatalogPath: 'config\\scripts-catalog.json',
+      customScriptsSourceRoot: 'Scripts',
+    },
+  });
+
+  assert.equal(options.profilesRoot, path.resolve(stateRoot, 'config\\deployment-profiles'));
+  assert.equal(options.softwareCatalogPath, path.resolve(stateRoot, 'config\\software-catalog.json'));
+  assert.equal(options.softwareSourceRoot, path.resolve(stateRoot, 'Softwares'));
+  assert.equal(options.installerScript, path.resolve(appRoot, 'Softwares\\Install-Apps.ps1'));
+  assert.equal(options.customScriptsCatalogPath, path.resolve(stateRoot, 'config\\scripts-catalog.json'));
+  assert.equal(options.customScriptsSourceRoot, path.resolve(stateRoot, 'Scripts'));
+});
+
 test('rejects duplicate software ids', () => {
   const root = makeRoot();
   try {

@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appRootForConfig, stateRootForConfig } from './config.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(moduleDir, '..', '..', '..');
 
 const hashPattern = /^[A-Fa-f0-9]{64}$/u;
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
@@ -215,20 +215,23 @@ export function validateRuntimeDependencyGraph(artifacts) {
 }
 
 export function runtimeArtifactOptions(config = {}, overrides = {}) {
-  const root = path.resolve(config.paths?.repoRoot ?? repoRoot);
+  const appRoot = appRootForConfig(config);
+  const stateRoot = stateRootForConfig(config);
   const catalogPath = overrides.catalogPath
     ?? config.runtimeArtifacts?.catalogPath
-    ?? path.join(root, 'config', 'runtime-artifacts.json');
+    ?? path.join(appRoot, 'config', 'runtime-artifacts.json');
   const downloadStagingRoot = overrides.downloadStagingRoot
     ?? config.runtimeArtifacts?.downloadStagingRoot
-    ?? path.join(root, '.downloads');
+    ?? path.join(stateRoot, '.downloads');
   return {
-    repoRoot: root,
-    catalogPath: path.isAbsolute(catalogPath) ? path.resolve(catalogPath) : path.resolve(root, catalogPath),
+    repoRoot: appRoot,
+    appRoot,
+    stateRoot,
+    catalogPath: path.isAbsolute(catalogPath) ? path.resolve(catalogPath) : path.resolve(appRoot, catalogPath),
     liveRoot: overrides.liveRoot ?? config.runtimeArtifacts?.liveRoot ?? 'C:\\OSDCloud',
     downloadStagingRoot: path.isAbsolute(downloadStagingRoot)
       ? path.resolve(downloadStagingRoot)
-      : path.resolve(root, downloadStagingRoot),
+      : path.resolve(stateRoot, downloadStagingRoot),
   };
 }
 
