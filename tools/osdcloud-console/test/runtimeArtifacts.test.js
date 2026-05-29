@@ -445,10 +445,12 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-install-'));
   try {
     createSetupSourceFixture(root);
+    writeJson(path.join(root, 'config', 'osdcloud-secrets.json'), { pxeinstallPassword: 'seeded-secret' });
     const appRoot = path.join(root, 'HostTools', 'App');
     const stateRoot = path.join(root, 'HostTools', 'State');
     const localConfig = path.join(stateRoot, 'config', 'osdcloud-console.local.json');
     const stateConfig = path.join(stateRoot, 'config', 'osdcloud-console.json');
+    const stateSecrets = path.join(stateRoot, 'config', 'osdcloud-secrets.json');
     const result = spawnSync('powershell.exe', [
       '-NoProfile',
       '-ExecutionPolicy',
@@ -477,6 +479,7 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     const seededConfig = JSON.parse(fs.readFileSync(stateConfig, 'utf8'));
     assert.equal(seededConfig.paths.appRoot, appRoot);
     assert.equal(seededConfig.paths.stateRoot, stateRoot);
+    assert.deepEqual(JSON.parse(fs.readFileSync(stateSecrets, 'utf8')), { pxeinstallPassword: 'seeded-secret' });
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'Start-InstalledWebConsole.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'HostTools', 'Open-WebConsole.cmd')), true);
   } finally {

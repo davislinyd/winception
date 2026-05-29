@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-29T14:32:21.8489772+08:00",
+  "updated_at": "2026-05-29T14:36:08.5055777+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -33,7 +33,7 @@
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Installed host-management scripts now resolve config, secrets, and download staging from C:\\OSDCloud\\HostTools\\State when running from the installed bundle.",
+    "summary": "Installed host-management scripts now resolve config, secrets, and download staging from C:\\OSDCloud\\HostTools\\State, and setup seeds existing local deployment secrets into installed state.",
     "baseline": {
       "commit": "1f1d9cf363c72c960e9c03a66e0726543f25f83d",
       "short": "1f1d9cf",
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "527be9389f334cf97d2ec7225d8e0555744ffd7f",
-    "last_checked_head_short": "527be93",
+    "last_checked_head": "be1b135dccf299fc4a8dafef948fb1ddf79b93dd",
+    "last_checked_head_short": "be1b135",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -103,11 +103,11 @@
   "recent_changes": [
     {
       "id": "20260529-installed-state-secret-fix",
-      "at": "2026-05-29T14:32:21.8489772+08:00",
+      "at": "2026-05-29T14:36:08.5055777+08:00",
       "kind": "implementation",
-      "summary": "- Installed runtime scripts now resolve console config and deployment secrets from C:\\OSDCloud\\HostTools\\State first.\n- Download staging for installed Prepare runtime now stays under host state instead of the source clone.",
+      "summary": "- Installed runtime scripts now resolve console config and deployment secrets from C:\\OSDCloud\\HostTools\\State first.\n- Setup now seeds an existing ignored config\\osdcloud-secrets.json into installed host state so repo-free runtime prepare keeps working after the clone is deleted.",
       "commit": null,
-      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 29/29. PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Set-OsdCloudIpxeEndpoint.ps1. Reinstalled C:\\OSDCloud\\HostTools\\App and State, ran npm install plus npm run smoke from the installed AppRoot, then ran Restore-DeploymentArtifacts.ps1 from C:\\OSDCloud\\HostTools\\App with -ConfigPath C:\\OSDCloud\\HostTools\\State\\config\\osdcloud-console.json -LiveRoot C:\\OSDCloud -DryRun -SkipPrerequisiteCheck and confirmed it completed without the missing pxeinstallPassword error."
+      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 29/29. PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Set-OsdCloudIpxeEndpoint.ps1. Reinstalled C:\\OSDCloud\\HostTools\\App and State, ran npm install plus npm run smoke from the installed AppRoot, then ran Restore-DeploymentArtifacts.ps1 from C:\\OSDCloud\\HostTools\\App with -ConfigPath C:\\OSDCloud\\HostTools\\State\\config\\osdcloud-console.json -LiveRoot C:\\OSDCloud -DryRun -SkipPrerequisiteCheck and confirmed it completed without the missing pxeinstallPassword error. Setup/install tests now verify that an existing ignored config\\osdcloud-secrets.json is seeded into C:\\OSDCloud\\HostTools\\State\\config\\osdcloud-secrets.json."
     },
     {
       "id": "20260529-installed-launcher-env-fix",

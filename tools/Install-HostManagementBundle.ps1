@@ -217,6 +217,12 @@ foreach ($seedFile in @(
         -Destination (Join-Path $stateRootFull $seedFile)
 }
 
+$sourceSecretsPath = Join-Path $sourceRootFull 'config\osdcloud-secrets.json'
+$stateSecretsPath = Join-Path $stateRootFull 'config\osdcloud-secrets.json'
+if (Test-Path -LiteralPath $sourceSecretsPath -PathType Leaf) {
+    Copy-SeedFileIfMissing -Source $sourceSecretsPath -Destination $stateSecretsPath
+}
+
 Copy-SeedFilesByPattern `
     -SourceRootPath (Join-Path $sourceRootFull 'config\deployment-profiles') `
     -DestinationRootPath (Join-Path $stateRootFull 'config\deployment-profiles') `
