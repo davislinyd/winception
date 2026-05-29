@@ -558,6 +558,9 @@ test('runtime restore uses the base Web config path while preserving local overl
   const windows = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
 
   assert.match(script, /\[string\] \$ConfigPath/);
+  assert.match(script, /InstalledStateConfigPath/);
+  assert.match(script, /State\\config\\osdcloud-console\.json/);
+  assert.match(script, /State\\config\\osdcloud-secrets\.json/);
   assert.match(script, /--config[\s\S]*\$ConfigPath/);
   assert.doesNotMatch(script, /\$catalog\.software/);
   assert.match(windows, /function resolveBaseConfigPath/);
@@ -669,6 +672,8 @@ test('endpoint sync restores missing live endpoint templates from repo mirror', 
   assert.match(script, /PXE-HttpRoot\\osdcloud\\boot\.ipxe/);
   assert.match(script, /Config\\Scripts\\SetupComplete\\SetupComplete\.ps1/);
   assert.match(script, /osdcloud-assets\\OSDCloud/);
+  assert.match(script, /State\\config\\osdcloud-console\.json/);
+  assert.match(script, /State\\config\\osdcloud-secrets\.json/);
 });
 
 test('endpoint sync restores missing source boot.wim from published HTTP copy', () => {

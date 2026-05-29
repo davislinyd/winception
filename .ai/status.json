@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-29T12:27:40.1272033+08:00",
+  "updated_at": "2026-05-29T14:32:21.8489772+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -33,7 +33,7 @@
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin",
-    "summary": "Installed launcher/setup now escape OSDCLOUD_CONSOLE_CONFIG correctly, and the installed Web launcher reads local overlay Web host settings before opening the browser.",
+    "summary": "Installed host-management scripts now resolve config, secrets, and download staging from C:\\OSDCloud\\HostTools\\State when running from the installed bundle.",
     "baseline": {
       "commit": "1f1d9cf363c72c960e9c03a66e0726543f25f83d",
       "short": "1f1d9cf",
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "44b5165bc1dbea22bd0a7c92b5d40e3c9cb7e3e7",
-    "last_checked_head_short": "44b5165",
+    "last_checked_head": "527be9389f334cf97d2ec7225d8e0555744ffd7f",
+    "last_checked_head_short": "527be93",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -102,6 +102,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260529-installed-state-secret-fix",
+      "at": "2026-05-29T14:32:21.8489772+08:00",
+      "kind": "implementation",
+      "summary": "- Installed runtime scripts now resolve console config and deployment secrets from C:\\OSDCloud\\HostTools\\State first.\n- Download staging for installed Prepare runtime now stays under host state instead of the source clone.",
+      "commit": null,
+      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 29/29. PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Set-OsdCloudIpxeEndpoint.ps1. Reinstalled C:\\OSDCloud\\HostTools\\App and State, ran npm install plus npm run smoke from the installed AppRoot, then ran Restore-DeploymentArtifacts.ps1 from C:\\OSDCloud\\HostTools\\App with -ConfigPath C:\\OSDCloud\\HostTools\\State\\config\\osdcloud-console.json -LiveRoot C:\\OSDCloud -DryRun -SkipPrerequisiteCheck and confirmed it completed without the missing pxeinstallPassword error."
+    },
+    {
       "id": "20260529-installed-launcher-env-fix",
       "at": "2026-05-29T12:27:40.1272033+08:00",
       "kind": "implementation",
@@ -131,14 +139,6 @@
       "kind": "commit",
       "summary": "Committed the elevated-Web startup path, early Prepare runtime admin guard, and matching UI guidance plus regression coverage.",
       "commit": "c48c4a81f3e8fc864b5c396dd96a3a24f535f908",
-      "verification": "npm test passed 204/204. Focused node tests passed for serviceController, runtimeArtifacts, and webUi. node --check passed for serviceController.js, windows.js, and web/app.js. PowerShell parser check passed for Setup-DeploymentServer.ps1."
-    },
-    {
-      "id": "20260529-elevated-prepare-runtime",
-      "at": "2026-05-29T02:05:37.1747312+08:00",
-      "kind": "implementation",
-      "summary": "Setup now launches the Web console in an elevated PowerShell window, and Web blocks Prepare runtime early when not elevated.",
-      "commit": null,
       "verification": "npm test passed 204/204. Focused node tests passed for serviceController, runtimeArtifacts, and webUi. node --check passed for serviceController.js, windows.js, and web/app.js. PowerShell parser check passed for Setup-DeploymentServer.ps1."
     }
   ]

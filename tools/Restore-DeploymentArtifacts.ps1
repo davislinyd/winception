@@ -19,11 +19,18 @@ $OutputEncoding = $Utf8NoBom
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+$HostToolsRoot = Split-Path -Parent $RepoRoot
+$InstalledStateConfigPath = Join-Path $HostToolsRoot 'State\config\osdcloud-console.json'
 if ([string]::IsNullOrWhiteSpace($CatalogPath)) {
     $CatalogPath = Join-Path $RepoRoot 'config\runtime-artifacts.json'
 }
 if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
-    $ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
+    if (Test-Path -LiteralPath $InstalledStateConfigPath -PathType Leaf) {
+        $ConfigPath = $InstalledStateConfigPath
+    }
+    else {
+        $ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
+    }
 }
 
 $AdkVersion = '10.1.26100.2454'
@@ -39,6 +46,27 @@ function Write-Step {
 function Get-FullPath {
     param([Parameter(Mandatory)][string] $Path)
     [System.IO.Path]::GetFullPath($Path)
+}
+
+function Resolve-BaseConfigPath {
+    param([Parameter(Mandatory)][string] $Path)
+
+    $resolved = Get-FullPath $Path
+    $parsed = [System.IO.Path]::GetFileNameWithoutExtension($resolved)
+    if ($parsed.EndsWith('.local', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $directory = Split-Path -Parent $resolved
+        $extension = [System.IO.Path]::GetExtension($resolved)
+        $baseName = $parsed.Substring(0, $parsed.Length - '.local'.Length)
+        return Join-Path $directory ($baseName + $extension)
+    }
+    $resolved
+}
+
+function Get-StateRootFromConfigPath {
+    param([Parameter(Mandatory)][string] $Path)
+
+    $baseConfigPath = Resolve-BaseConfigPath -Path $Path
+    Split-Path -Parent (Split-Path -Parent $baseConfigPath)
 }
 
 function Assert-ChildPath {
@@ -290,7 +318,7 @@ function Save-DownloadArtifact {
         return
     }
 
-    $stagingRoot = Join-ChildPath -Root $RepoRoot -RelativePath '.downloads\deployment-artifacts' -Label 'download staging path'
+    $stagingRoot = Join-ChildPath -Root $StateRoot -RelativePath '.downloads\deployment-artifacts' -Label 'download staging path'
     New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
     $stagingFile = Join-ChildPath -Root $stagingRoot -RelativePath "$($Artifact.id).download" -Label 'download staging file'
     Remove-Item -LiteralPath $stagingFile -Force -ErrorAction SilentlyContinue
@@ -570,7 +598,7 @@ function Install-AdkPrerequisites {
     }
     Write-Host "Downloading Microsoft Windows ADK $AdkVersion installers."
 
-    $stagingRoot = Join-ChildPath -Root $RepoRoot -RelativePath '.downloads\prerequisites\windows-adk' -Label 'ADK prerequisite staging path'
+    $stagingRoot = Join-ChildPath -Root $StateRoot -RelativePath '.downloads\prerequisites\windows-adk' -Label 'ADK prerequisite staging path'
     New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
     if (-not $InitialState.HasDeploymentTools) {
@@ -868,6 +896,7 @@ function Get-ConfiguredSmbShareName {
 
 function Get-DeploymentSecrets {
     $candidates = @(
+        (Join-Path $StateRoot 'config\osdcloud-secrets.json'),
         (Join-Path $RepoRoot 'config\osdcloud-secrets.json'),
         (Join-Path $LiveRoot 'secrets.json'),
         (Join-Path $LiveRoot 'Config\secrets.json')
@@ -932,7 +961,7 @@ function Ensure-RuntimeSkeletonAndShare {
     $secrets = Get-DeploymentSecrets
     $password = [string] $secrets.pxeinstallPassword
     if ([string]::IsNullOrWhiteSpace($password)) {
-        throw "Missing pxeinstallPassword. Create ignored config\osdcloud-secrets.json or set OSDCLOUD_PXEINSTALL_PASSWORD before Web Prepare runtime can create the SMB share."
+        throw "Missing pxeinstallPassword. Create C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json or set OSDCLOUD_PXEINSTALL_PASSWORD before Web Prepare runtime can create the SMB share."
     }
 
     $securePassword = New-PlainTextSecureString -PlainText $password
@@ -1001,6 +1030,8 @@ function Restore-OsImageArtifact {
 
 try {
     $LiveRoot = Get-FullPath $LiveRoot
+    $ConfigPath = Resolve-BaseConfigPath -Path $ConfigPath
+    $StateRoot = Get-StateRootFromConfigPath -Path $ConfigPath
     $repoFullPath = (Get-FullPath $RepoRoot).TrimEnd('\')
     $liveFullPath = $LiveRoot.TrimEnd('\')
     $repoPrefix = "$repoFullPath\"

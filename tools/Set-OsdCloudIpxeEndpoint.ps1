@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string] $ConfigPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\osdcloud-console.json'),
+    [string] $ConfigPath,
     [string] $InterfaceAlias,
     [string] $ServerIp,
     [int] $PrefixLength = 24,
@@ -511,10 +511,13 @@ function Get-DeploymentSecretSource {
         [Parameter(Mandatory)]
         [string] $RepoRoot,
         [Parameter(Mandatory)]
+        [string] $StateRoot,
+        [Parameter(Mandatory)]
         [string] $IpxeLab
     )
 
     $candidates = @(
+        (Join-Path $StateRoot 'config\osdcloud-secrets.json'),
         (Join-Path $RepoRoot 'config\osdcloud-secrets.json'),
         (Join-Path $IpxeLab 'secrets.json'),
         (Join-Path $IpxeLab 'Config\secrets.json')
@@ -559,8 +562,18 @@ function Set-SmbFirewallEndpoint {
     return 'created'
 }
 
-$ConfigPath = (Resolve-Path -LiteralPath $ConfigPath).Path
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$installedStateConfigPath = Join-Path (Split-Path -Parent $repoRoot) 'State\config\osdcloud-console.json'
+if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+    if (Test-Path -LiteralPath $installedStateConfigPath -PathType Leaf) {
+        $ConfigPath = $installedStateConfigPath
+    }
+    else {
+        $ConfigPath = Join-Path $repoRoot 'config\osdcloud-console.json'
+    }
+}
+$ConfigPath = (Resolve-Path -LiteralPath $ConfigPath).Path
+$stateRoot = Split-Path -Parent (Split-Path -Parent $ConfigPath)
 $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 if ([string]::IsNullOrWhiteSpace($InterfaceAlias)) {
@@ -700,13 +713,13 @@ if ($CommitWinPe) {
         Copy-WinPePowerShellModule -Name 'OSD' -MountDir $mountDir
         Copy-WinPePowerShellModule -Name 'OSDCloud' -MountDir $mountDir
 
-        $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $repoRoot -IpxeLab $ipxeLab
+        $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $repoRoot -StateRoot $stateRoot -IpxeLab $ipxeLab
         if ($deploymentSecretSource) {
             Copy-Item -LiteralPath $deploymentSecretSource -Destination (Join-Path $mountDir 'OSDCloud\secrets.json') -Force
             Write-Host "Injected local deployment secrets into boot.wim from $deploymentSecretSource"
         }
         else {
-            Write-Warning "No local deployment secrets found. Create config\osdcloud-secrets.json before deployment so WinPE can map SMB and configure autologon."
+            Write-Warning "No local deployment secrets found. Create C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json before deployment so WinPE can map SMB and configure autologon."
         }
 
         Set-StartOsdCloudEndpoint -Path (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1')
