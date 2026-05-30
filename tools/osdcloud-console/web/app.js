@@ -1343,7 +1343,7 @@ function renderInitialization(appState) {
       
       const runtime = appState.runtime;
       const requiresElevation = appState?.host?.elevated === false;
-      button.disabled = state.busy || runtime.ready || requiresElevation; // matches test line!
+      button.disabled = state.busy || (selectedStep.action === 'prepare-runtime' && (runtime.ready || requiresElevation));
       
       buttonContainer.append(button);
       body.append(buttonContainer);

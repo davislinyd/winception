@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T14:52:00.000Z",
+  "updated_at": "2026-05-30T15:03:00.000Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "e6db34a6724fe5eaf75385c8391e7fd21c5286f0",
-    "last_checked_head_short": "e6db34a",
+    "last_checked_head": "a6cb4daccb94346887013e4bdc87197c56ddf9f6",
+    "last_checked_head_short": "a6cb4da",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -101,6 +101,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260530-guided-setup-button-disabled-fix",
+      "at": "2026-05-30T23:03:00.000+08:00",
+      "kind": "bugfix",
+      "summary": "- Fixed right-side action buttons being disabled in guided setup steps when the runtime was already prepared. The runtime.ready check is now scoped specifically to the 'prepare-runtime' step.",
+      "commit": "a6cb4daccb94346887013e4bdc87197c56ddf9f6",
+      "verification": "All 219 unit tests passed successfully."
+    },
+    {
       "id": "20260530-endpoint-sync-regex-fix",
       "at": "2026-05-30T22:52:00.000+08:00",
       "kind": "bugfix",
@@ -130,14 +138,6 @@
       "kind": "implementation",
       "summary": "- Redesigned the Web console to a clean Google-style light minimalist design.\n- Removed dark theme class and imported Google Font Roboto in index.html.\n- Modified Tailwind config to use 8px (0.5rem) border-radius defaults and Roboto font mappings.\n- Configured CSS colors to Google light palette (Google Blue accent, white cards, light gray background, light gray logs, charcoal primary text).\n- Restyled buttons (warning as Google Blue primary, danger as Google Red primary, base/secondary as white with gray border).\n- Custom styled header view tabs and operations buttons to resemble sidebar menu navigation items.\n- Cleaned up and removed the obsolete macOS dark theme overrides block.\n- Bumped package.json and package-lock.json version to 0.5.2.\n- Verified all 214 unit tests pass successfully.",
       "commit": "0ae75927fc85583162f59f8907d9934ea1bebd35",
-      "verification": "npm test passed 214/214."
-    },
-    {
-      "id": "20260530-lock-project-root",
-      "at": "2026-05-30T18:02:00.0000000+08:00",
-      "kind": "implementation",
-      "summary": "- Locked the OSDCloud runtime project root directory to C:\\OSDCloud across the app.\n- Removed selectable project root options from Web UI, setting the input element to readOnly/disabled.\n- Updated updateProjectRoot API in serviceController.js to always force runtimeRoot to C:\\OSDCloud.\n- Bumped package.json and package-lock.json version to 0.5.1.\n- Verified all unit and smoke tests pass (214/214).",
-      "commit": "199dbd3f3b5becb6db20a1d6cb7569ff23fe3d80",
       "verification": "npm test passed 214/214."
     }
   ]
