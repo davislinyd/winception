@@ -6,6 +6,7 @@ param(
     [switch] $SkipNpmInstall,
     [switch] $SkipSmoke,
     [switch] $NoNodeAutoInstall,
+    [switch] $NoPowerShellModuleAutoInstall,
     [switch] $NoLaunch,
     [switch] $DryRun
 )
@@ -67,25 +68,6 @@ function Test-IPv4Address {
     $parsed.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork
 }
 
-function Read-YesNo {
-    param(
-        [Parameter(Mandatory)][string] $Prompt,
-        [bool] $DefaultYes = $true
-    )
-
-    if ($DryRun) {
-        Write-Host "[dry-run] prompt: $Prompt"
-        return $DefaultYes
-    }
-
-    $suffix = if ($DefaultYes) { '[Y/n]' } else { '[y/N]' }
-    $answer = Read-Host -Prompt "$Prompt $suffix"
-    if ([string]::IsNullOrWhiteSpace($answer)) {
-        return $DefaultYes
-    }
-    $answer.Trim().ToLowerInvariant().StartsWith('y')
-}
-
 function Refresh-ProcessPath {
     $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -132,9 +114,6 @@ function Test-NodeAndNpmAvailable {
 function Install-NodeJsLts {
     if ($NoNodeAutoInstall) {
         throw 'Node.js LTS/npm are missing. Install Node.js LTS, then rerun Setup-DeploymentServer.cmd.'
-    }
-    if (-not (Read-YesNo -Prompt 'Node.js LTS/npm are missing. Install Node.js LTS with winget now?' -DefaultYes $true)) {
-        throw 'Node.js LTS/npm are required before the Web console can run.'
     }
     if (-not (Test-CommandAvailable -Name 'winget')) {
         throw 'winget is not available. Install Node.js LTS manually from https://nodejs.org/, then rerun setup.'
@@ -220,6 +199,73 @@ function Ensure-NodeAndNpm {
     Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('--version')
 }
 
+function Test-PowerShellModuleAvailable {
+    param([Parameter(Mandatory)][string] $Name)
+    $null -ne (Get-Module -ListAvailable -Name $Name | Select-Object -First 1)
+}
+
+function Enable-PowerShellGalleryBootstrap {
+    Ensure-Command -Name 'Install-PackageProvider'
+    Ensure-Command -Name 'Get-PSRepository'
+    Ensure-Command -Name 'Set-PSRepository'
+    Ensure-Command -Name 'Install-Module'
+
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
+    if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue)) {
+        Write-Host 'Installing NuGet package provider for PowerShell Gallery module bootstrap.'
+        if (-not $DryRun) {
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -ErrorAction Stop | Out-Null
+        }
+    }
+
+    $gallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+    if (-not $gallery) {
+        Write-Host 'Registering default PowerShell Gallery repository.'
+        if (-not $DryRun) {
+            Register-PSRepository -Default -ErrorAction Stop
+        }
+    }
+
+    Write-Host 'Trusting PowerShell Gallery for unattended setup module install.'
+    if (-not $DryRun) {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction Stop
+    }
+}
+
+function Ensure-HostPowerShellModules {
+    $requiredModules = @('OSD', 'OSDCloud')
+    $missing = @($requiredModules | Where-Object { -not (Test-PowerShellModuleAvailable -Name $_) })
+    if ($missing.Count -eq 0) {
+        Write-Host "Host PowerShell modules already available: $($requiredModules -join ', ')"
+        return
+    }
+
+    if ($NoPowerShellModuleAutoInstall) {
+        throw "Missing host PowerShell module(s): $($missing -join ', '). Install them or rerun setup without -NoPowerShellModuleAutoInstall."
+    }
+    if (-not $DryRun -and -not (Test-IsAdministrator)) {
+        throw "Missing host PowerShell module(s): $($missing -join ', '). Rerun Setup-DeploymentServer.cmd from an elevated PowerShell session so setup can install them for all users."
+    }
+
+    Enable-PowerShellGalleryBootstrap
+    foreach ($moduleName in $missing) {
+        Write-Host "Installing PowerShell module $moduleName for all users."
+        if (-not $DryRun) {
+            Install-Module $moduleName -Scope AllUsers -Force -AllowClobber -ErrorAction Stop
+        }
+    }
+
+    if ($DryRun) {
+        return
+    }
+
+    $stillMissing = @($requiredModules | Where-Object { -not (Test-PowerShellModuleAvailable -Name $_) })
+    if ($stillMissing.Count -gt 0) {
+        throw "PowerShell module bootstrap did not install required module(s): $($stillMissing -join ', ')."
+    }
+}
+
 function Get-AvailableWebHosts {
     $hosts = New-Object System.Collections.Generic.List[object]
     $hosts.Add([pscustomobject]@{
@@ -271,15 +317,8 @@ function Select-WebServiceHost {
 
     $selected = $WebHost
     if ([string]::IsNullOrWhiteSpace($selected)) {
-        if ($DryRun) {
-            Write-Host '[dry-run] prompt: Web service IP [127.0.0.1]'
-            $selected = '127.0.0.1'
-        } else {
-            $selected = Read-Host -Prompt 'Web service IP [127.0.0.1]'
-            if ([string]::IsNullOrWhiteSpace($selected)) {
-                $selected = '127.0.0.1'
-            }
-        }
+        $selected = '127.0.0.1'
+        Write-Host 'Using default Web service IP 127.0.0.1. Pass -WebHost <ip> to expose the Web console on another local interface.'
     }
     $selected = $selected.Trim()
 
@@ -366,6 +405,7 @@ try {
     }
     Ensure-Command -Name 'git'
     Ensure-NodeAndNpm
+    Ensure-HostPowerShellModules
     Invoke-ExternalCommand -FilePath 'git' -ArgumentList @('status', '--short', '--branch')
 
     Install-HostManagementBundle

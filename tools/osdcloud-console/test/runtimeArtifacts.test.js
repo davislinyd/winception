@@ -83,6 +83,24 @@ function createSetupSourceFixture(root) {
   spawnSync('git', ['init'], { cwd: root, encoding: 'utf8' });
 }
 
+function createPowerShellModuleFixture(root) {
+  const moduleRoot = path.join(root, 'powershell-modules');
+  for (const moduleName of ['OSD', 'OSDCloud']) {
+    const modulePath = path.join(moduleRoot, moduleName);
+    fs.mkdirSync(modulePath, { recursive: true });
+    fs.writeFileSync(path.join(modulePath, `${moduleName}.psm1`), "Write-Output 'fixture module'\n", 'utf8');
+  }
+  return moduleRoot;
+}
+
+function setupFixtureEnv(root) {
+  const moduleRoot = createPowerShellModuleFixture(root);
+  return {
+    ...process.env,
+    PSModulePath: [moduleRoot, process.env.PSModulePath].filter(Boolean).join(path.delimiter),
+  };
+}
+
 test('runtime artifact catalog validates download recipes and ignores software rows', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-artifacts-'));
   try {
@@ -419,17 +437,24 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /OpenJS\.NodeJS\.LTS/);
   assert.match(script, /wingetExitCode/);
   assert.match(script, /node\/npm are available now\. Continuing setup/);
+  assert.match(script, /\[switch\] \$NoPowerShellModuleAutoInstall/);
+  assert.match(script, /function Ensure-HostPowerShellModules/);
+  assert.match(script, /Install-PackageProvider -Name NuGet/);
+  assert.match(script, /Set-PSRepository -Name PSGallery -InstallationPolicy Trusted/);
+  assert.match(script, /Install-Module \$moduleName -Scope AllUsers -Force -AllowClobber/);
   assert.match(script, /function Test-IsAdministrator/);
   assert.match(script, /Start-Process -FilePath 'powershell\.exe'/);
   assert.match(script, /'RunAs'/);
   assert.match(script, /administrator rights\./i);
   assert.match(script, /\[string\] \$WebHost/);
   assert.match(script, /function Select-WebServiceHost/);
+  assert.match(script, /Using default Web service IP 127\.0\.0\.1/);
   assert.match(script, /OSDCLOUD_CONSOLE_CONFIG/);
   assert.match(script, /`\$env:OSDCLOUD_CONSOLE_CONFIG/);
   assert.match(script, /HostTools\\State/);
   assert.match(script, /host = \$HostIp/);
   assert.match(script, /writing only the Web console local overlay/);
+  assert.doesNotMatch(script, /Read-Host/);
   assert.doesNotMatch(script, /OSDCLOUD_DAVIS_PASSWORD/);
   assert.doesNotMatch(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
   assert.doesNotMatch(script, /New-SmbShare/);
@@ -439,6 +464,11 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.doesNotMatch(script, /Set-OsdCloudIpxeEndpoint\.ps1/);
   assert.doesNotMatch(script, /server:preflight/);
   assert.doesNotMatch(script, /Start-Pxe|Start-Dhcp|Start-Tftp|Start-Http/);
+});
+
+test('setup cmd passes arguments through to PowerShell script', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'Setup-DeploymentServer.cmd'), 'utf8');
+  assert.match(script, /-File "%SCRIPT%" %\*/);
 });
 
 test('setup seeds installed host bundle state and writes the Web local overlay', () => {
@@ -469,7 +499,7 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     ], {
       cwd: root,
       encoding: 'utf8',
-      env: process.env,
+      env: setupFixtureEnv(root),
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /Installed host management bundle/);
@@ -511,7 +541,7 @@ test('setup WebHost writes only web host and port to local overlay', () => {
     ], {
       cwd: root,
       encoding: 'utf8',
-      env: process.env,
+      env: setupFixtureEnv(root),
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const localConfig = JSON.parse(fs.readFileSync(path.join(stateRoot, 'config', 'osdcloud-console.local.json'), 'utf8'));
@@ -546,7 +576,7 @@ test('setup rejects a WebHost that is not a local enabled IPv4 address', () => {
     ], {
       cwd: root,
       encoding: 'utf8',
-      env: process.env,
+      env: setupFixtureEnv(root),
     });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr + result.stdout, /not assigned to an enabled local IPv4 adapter/);
@@ -663,7 +693,7 @@ test('runtime restore requires both OSD modules before WinPE preparation', () =>
 
   assert.match(script, /foreach \(\$moduleName in @\('OSD', 'OSDCloud'\)\)/);
   assert.match(script, /Get-Module -ListAvailable -Name \$moduleName/);
-  assert.match(script, /Install-Module \$moduleName -Scope CurrentUser -Force/);
+  assert.match(script, /Install-Module \$moduleName -Scope AllUsers -Force -AllowClobber/);
 });
 
 test('restore bootstrap creates missing OSDCloud template before workspace build', () => {

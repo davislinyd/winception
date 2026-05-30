@@ -654,7 +654,7 @@ function Assert-Prerequisites {
     }
     foreach ($moduleName in @('OSD', 'OSDCloud')) {
         if (-not (Get-Module -ListAvailable -Name $moduleName)) {
-            $missing.Add("Install the $moduleName PowerShell module: Install-Module $moduleName -Scope CurrentUser -Force")
+            $missing.Add("Install the $moduleName PowerShell module by rerunning Setup-DeploymentServer.cmd, or run: Install-Module $moduleName -Scope AllUsers -Force -AllowClobber")
         }
     }
 

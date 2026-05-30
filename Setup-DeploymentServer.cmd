@@ -8,4 +8,4 @@ if not exist "%SCRIPT%" (
   exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -NoExit -File "%SCRIPT%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -NoExit -File "%SCRIPT%" %*

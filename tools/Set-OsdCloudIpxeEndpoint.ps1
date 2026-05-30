@@ -411,7 +411,7 @@ function Get-WinPePowerShellModule {
         Sort-Object -Property Version -Descending |
         Select-Object -First 1
     if (-not $module) {
-        throw "PowerShell module '$Name' is not installed on the host. Install it before committing WinPE."
+        throw "PowerShell module '$Name' is not installed on the host. Rerun Setup-DeploymentServer.cmd, or run: Install-Module $Name -Scope AllUsers -Force -AllowClobber"
     }
     $module
 }

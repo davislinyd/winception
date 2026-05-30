@@ -48,7 +48,7 @@ C:\OSDCloud\HostTools\State
 
 | 階段 | 做什麼 | 不做什麼 |
 | --- | --- | --- |
-| `Setup-DeploymentServer.cmd` | 檢查 Git/Node/npm、安裝 host management bundle 到 `C:\OSDCloud\HostTools`、必要時提示安裝 Node.js LTS、執行 `npm install`、`npm run smoke`，最後啟動 `npm run web` | 不建立 live deployment runtime root、不要求 deployment secrets、不建立 SMB、不跑 endpoint sync/preflight、不啟 HTTP/TFTP/DHCP |
+| `Setup-DeploymentServer.cmd` | 檢查 Git、必要時自動安裝 Node.js LTS/npm、準備 NuGet/PSGallery、安裝 `OSD` / `OSDCloud` PowerShell modules、安裝 host management bundle 到 `C:\OSDCloud\HostTools`、執行 `npm install`、`npm run smoke`，最後啟動 `npm run web` | 不建立 live deployment runtime root、不要求 deployment secrets、不建立 SMB、不跑 endpoint sync/preflight、不啟 HTTP/TFTP/DHCP |
 | `Prepare runtime` | 在 Web 選定的 project root 建立 runtime 結構、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建 iPXE/wimboot/boot binaries、WinPE `boot.wim` | 不自動啟動 deployment services，不替 operator 選 OS image，也不預先下載 client software |
 | OS Image Cache / profile publish | 下載或匯入 ISO/ESD/WIM、讀取 DISM indexes、匯出選定 index 成單一 WIM、發佈 `selected-os.json` | 不在 fresh clone 預設固定 Windows 版本 |
 | Endpoint sync / preflight | 把本次 NIC/IP 寫入 live `boot.ipxe`、WinPE `boot.wim`、SMB firewall 與 local overlay，並檢查 runtime / OS WIM 可部署 | 不替你確認外部 LAN DHCP 已關閉 |
@@ -140,7 +140,7 @@ DNS     : 1.1.1.1 / 8.8.8.8
 
 這一段是給另一台 Windows host 從 GitHub repo URL 接手部署用的正式 runbook。Repo 可以 clone 到任意資料夾；實際 PXE/OSDCloud runtime 使用 Web initialization 選定的 deployment project root，預設仍可用 `C:\OSDCloud`。Git clone 只作為安裝資料來源與可審查設定來源；setup 會把 host management bundle 安裝到 `C:\OSDCloud\HostTools\App`、把 mutable host state 建到 `C:\OSDCloud\HostTools\State`，之後部署主機可只靠 `C:\OSDCloud` 繼續運作。大型 runtime artifact 不放 Git、不要求 Git LFS、不要求 `deployment-server-bundle`。
 
-正式入口固定是輕量互動式 setup：
+正式入口固定是零互動主程式 setup：
 
 ```powershell
 git clone <repo-url> <repo-root>
@@ -156,29 +156,31 @@ cd '<repo-root>'
 
 - Windows 11，使用系統管理員 PowerShell 操作。
 - Git；不需要 `git lfs pull`。
-- Node.js / npm，可執行 ESM 與 `node --test`。若缺少，setup 會詢問是否安裝 Node.js LTS；npm 會隨 Node.js 一起安裝。
-- Windows ADK、Windows PE Add-on、PowerShell OSD / OSDCloud module 後續由 Web `Prepare runtime` 檢查或使用；setup 階段不下載或重建 WinPE。
+- Node.js / npm，可執行 ESM 與 `node --test`。若缺少，setup 會透過 `winget` 自動安裝 Node.js LTS；npm 會隨 Node.js 一起安裝。
+- PowerShell Gallery / NuGet provider，以及 `OSD`、`OSDCloud` PowerShell modules；setup 會自動準備並以 `AllUsers` scope 安裝。
+- Windows ADK、Windows PE Add-on 後續由 Web `Prepare runtime` 檢查或自動安裝；setup 階段不下載或重建 WinPE。
 - 一張可上網的 host NIC，以及一張服務 PXE client 的隔離 LAN NIC；目前範例為 `WAN` 上網、`LAN` = `192.168.88.1/24`。
 - 本機 deployment secrets 預設由 Web 初始化精靈寫到 `C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json`；setup 不會要求或寫入 deployment secrets。
 
 ### 2. 執行輕量 setup
 
-`Setup-DeploymentServer.cmd` 直接執行 `tools\Setup-DeploymentServer.ps1`。除非需要安裝 Node.js LTS，setup 不因部署服務要求系統管理員權限；它只做主程式可啟動所需檢查：
+`Setup-DeploymentServer.cmd` 直接執行 `tools\Setup-DeploymentServer.ps1`，全新主機應從系統管理員 PowerShell 執行。setup 不詢問 console prompt；它只做主程式可啟動所需檢查與安裝：
 
-- 檢查 repo root、Git、Node/npm；若缺少 Node/npm，詢問是否安裝 Node.js LTS。
+- 檢查 repo root、Git、Node/npm；若缺少 Node/npm，直接以 `winget` 安裝 Node.js LTS。
+- 啟用 TLS 1.2、確保 NuGet package provider 可用、信任 PSGallery，並安裝 `OSD` / `OSDCloud` PowerShell modules。
 - 將 host management bundle 安裝到 `C:\OSDCloud\HostTools\App`，並把可變 host state seed 到 `C:\OSDCloud\HostTools\State`。
 - 在 installed `AppRoot` 執行 `npm install` 與輕量 `npm run smoke`，確認 Web 主程式可啟動。
-- 顯示可用的本機 IPv4 清單，只詢問 `Web service IP`，預設 `127.0.0.1`。
+- 預設 Web management 只綁定 `127.0.0.1:8080`；若要改綁本機其他 IPv4，可用 `Setup-DeploymentServer.cmd -WebHost <ip>`。
 - 將 `web.host` 與固定 `web.port=8080` 寫入 `C:\OSDCloud\HostTools\State\config\osdcloud-console.local.json`。
 - 啟動 Web console：在新的 elevated PowerShell 視窗以 installed bundle 執行 `npm run web`，因為後續 `Prepare runtime` 與 service control 需要管理員權限。
 
-setup 除了 operator 明確同意安裝 Node.js LTS 之外，不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會建立 live `Media` / `PXE-HttpRoot` / `PXE-TFTP` runtime skeleton、不會建立 SMB share 或本機 `pxeinstall` 帳號、不會要求 deployment secrets、不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
+setup 只會下載/安裝主程式 host prerequisites，例如 Node.js LTS 與 `OSD` / `OSDCloud` PowerShell modules；不會下載或重建 ADK、WinPE、ESD/WIM、MSI/EXE payload、iPXE 或 `wimboot` artifact；不會建立 live `Media` / `PXE-HttpRoot` / `PXE-TFTP` runtime skeleton、不會建立 SMB share 或本機 `pxeinstall` 帳號、不會要求 deployment secrets、不會呼叫 runtime restore、endpoint sync、server preflight；也不會啟動 HTTP/TFTP/DHCP deployment services。
 
 成功後若不再需要該主機上的 repo source，可刪除原始 clone；後續入口改用 `C:\OSDCloud\HostTools\Open-WebConsole.cmd` 或 `C:\OSDCloud\HostTools\App\tools\Start-InstalledWebConsole.ps1`。
 
 如果 setup 呼叫 `winget install OpenJS.NodeJS.LTS` 時顯示 Node.js 已安裝且沒有可更新版本，通常是目前 PowerShell session 還沒刷新 PATH。新版 setup 會重新讀取 machine/user PATH 並探測標準 `C:\Program Files\nodejs` 位置後續跑；如果仍失敗，關閉 PowerShell、重新開系統管理員 PowerShell，再執行 `node --version`、`npm --version` 與 `.\Setup-DeploymentServer.cmd`。
 
-若要非互動測試 setup 行為，可用；`-DryRun` 仍會保存唯一允許的 Web local overlay，但不執行 npm install/smoke、launch、secrets、runtime、SMB、PXE 或服務動作：
+若要離線或手動控管 prerequisite，可用 `-NoNodeAutoInstall` 或 `-NoPowerShellModuleAutoInstall` 讓 setup 在缺少對應項目時明確失敗。若要測試 setup 行為，可用；`-DryRun` 仍會保存唯一允許的 Web local overlay，但不執行 npm install/smoke、launch、secrets、runtime、SMB、PXE 或服務動作：
 
 ```powershell
 .\tools\Setup-DeploymentServer.ps1 -DryRun -NoLaunch -SkipNpmInstall -SkipSmoke
@@ -205,7 +207,7 @@ Web console 每次載入 `/api/state` 都會從 live state 重新計算 `initial
 
 `Deployment secrets` 的 password 欄位只會在 Required Steps 的同一列缺失時顯示，儲存後該列變成 `Done` 並只保留已設定摘要；Web 不回填、不顯示 plaintext secret，也不在完成狀態顯示重新輸入欄位。
 
-Runtime Readiness 面板仍會顯示 `C:\OSDCloud` 是否缺少必要 boot/iPXE/WinPE artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot artifact。這一步沿用 `config\runtime-artifacts.json`；穩定下載項目先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。`Prepare runtime` 也會先檢查 host 已安裝 `OSD` 與 `OSDCloud` PowerShell modules，因為後續 endpoint sync 需要把兩個 module 注入 `boot.wim`；缺少時先執行 `Install-Module OSD -Scope CurrentUser -Force` 與 `Install-Module OSDCloud -Scope CurrentUser -Force`，再重跑 `Prepare runtime` / endpoint sync。Client software installer 不屬於 Runtime Readiness；等 profile publish / Set active 時，Web 才依 active profile 的 `selectedSoftware` 從 `config\software-catalog.json` 補齊被選中的 payload。由 ADK/OSDCloud 生成、且會被 endpoint sync 注入本機 endpoint/secrets 的 `boot.wim` 只用必要路徑存在性判定 readiness，不在 runtime catalog 固定 size/hash。
+Runtime Readiness 面板仍會顯示 `C:\OSDCloud` 是否缺少必要 boot/iPXE/WinPE artifact。缺檔時 Web 仍可啟動，operator 要明確點 `Prepare runtime` 才會建立 runtime 目錄、準備 `pxeinstall` / `OSDCloudiPXE`、下載或重建大型 boot artifact。這一步沿用 `config\runtime-artifacts.json`；穩定下載項目先進 `.downloads` staging，size 與 SHA-256 驗證成功後才移入 live path。正常新 host setup 會先安裝 `OSD` 與 `OSDCloud` PowerShell modules，因為後續 endpoint sync 需要把兩個 module 注入 `boot.wim`；若離線或使用 `-NoPowerShellModuleAutoInstall` 導致缺少 module，請補齊後再重跑 setup / `Prepare runtime` / endpoint sync。Client software installer 不屬於 Runtime Readiness；等 profile publish / Set active 時，Web 才依 active profile 的 `selectedSoftware` 從 `config\software-catalog.json` 補齊被選中的 payload。由 ADK/OSDCloud 生成、且會被 endpoint sync 注入本機 endpoint/secrets 的 `boot.wim` 只用必要路徑存在性判定 readiness，不在 runtime catalog 固定 size/hash。
 
 從 Initialization Wizard 按 `Prepare runtime` 時，確認後 wizard 會保持開啟並顯示 `Preparing runtime artifacts` 的 running/completed/failed 狀態、錯誤訊息與可捲動的完整 operation log；標題列 copy 按鈕會複製本次 operation 全部 log。若 Web console 不是從 elevated PowerShell 啟動，Wizard 與 Runtime Readiness 卡片都會先顯示必須重新以 elevated Web console 執行，而不是等到 `Restore-DeploymentArtifacts.ps1` 半路失敗才回傳 PowerShell stack。Web 會隱藏 ADK/WinPE installer 可能輸出的無害 `System.Security.AccessControl.ObjectSecurity` duplicate TypeData 訊息；下載使用 `curl.exe` 時會隱藏正常進度條但保留錯誤輸出。ADK installer 若無法透過 `Get-AuthenticodeSignature` 完成驗證，會改用 WinVerifyTrust fallback；fallback 通過、DaRT optional 檔案不存在、或 WinPE PowerShell Gallery optional module injection 被略過，都不等於 `Prepare runtime` 失敗。`/api/runtime/prepare` 會在 restore 子程序結束後重新檢查 Runtime Readiness；如果仍有 artifact blocked，operation 必須顯示 failed 並列出未完成項目，不可只因子程序 exit code 成功就標示 completed。這只是 UI 進度呈現；實際仍沿用同一個 `/api/runtime/prepare` 長任務，不新增取消功能，也不啟動 HTTP/TFTP/DHCP。若從主畫面 Runtime Readiness 卡片按 `Prepare runtime`，仍維持主畫面流程並可從 operation badge / System Log 監看。
 
