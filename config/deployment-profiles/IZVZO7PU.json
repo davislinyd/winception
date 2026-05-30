@@ -2,13 +2,33 @@
   "id": "IZVZO7PU",
   "name": "All in One",
   "software": [
-    "7zip",
     "chrome",
+    "7zip",
     "SW-4UT7PDID"
   ],
   "description": "",
   "customScripts": [
     {
+      "id": "SC-J5GF07Y2",
+      "phase": "after"
+    }
+  ],
+  "osImage": "WINDOWS-11-25H2-X64-ZH-TW-RETAIL-26200-6584-ZH-TW-PRO-RETAIL-6-2",
+  "installSequence": [
+    {
+      "type": "software",
+      "id": "chrome"
+    },
+    {
+      "type": "software",
+      "id": "7zip"
+    },
+    {
+      "type": "software",
+      "id": "SW-4UT7PDID"
+    },
+    {
+      "type": "script",
       "id": "SC-J5GF07Y2",
       "phase": "after"
     }
