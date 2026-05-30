@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-29T16:34:25.6653704+08:00",
+  "updated_at": "2026-05-30T10:23:20.8598997+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\osdcloud-win11-deployment-lab",
@@ -29,15 +29,15 @@
     }
   },
   "development": {
-    "state": "elevated-web-runtime-ready",
+    "state": "endpoint-sync-prerequisite-fixed",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
-    "remote": "origin",
-    "summary": "Profile publish now supports mutable vendor latest software URLs by keeping pinned size/SHA only for fixed-version sources; Chrome no longer hard-fails when Google's latest MSI changes upstream.",
+    "remote": "origin-github",
+    "summary": "Endpoint sync now fails early when host OSD or OSDCloud PowerShell modules are missing; Prepare runtime checks both prerequisites before WinPE work.",
     "baseline": {
-      "commit": "1f1d9cf363c72c960e9c03a66e0726543f25f83d",
-      "short": "1f1d9cf",
-      "subject": "Fix initialization wizard refresh state"
+      "commit": "b363697a4acdc640905b67ad44fb767d500d5e59",
+      "short": "b363697",
+      "subject": "Check OSDCloud module before endpoint sync"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -58,15 +58,15 @@
   },
   "git": {
     "branch": "master",
-    "upstream": "origin/master",
-    "last_checked_head": "b013a56cef72997a3367d7d6488e2433117a8a83",
-    "last_checked_head_short": "b013a56",
-    "dirty": true,
+    "upstream": "origin-github/master",
+    "last_checked_head": "b363697a4acdc640905b67ad44fb767d500d5e59",
+    "last_checked_head_short": "b363697",
+    "dirty": false,
     "ahead": 0,
     "behind": 0,
     "remotes": [
       {
-        "name": "origin",
+        "name": "origin-github",
         "fetch": "https://github.com/your-username/osdcloud-win11-deployment-lab.git",
         "push": "https://github.com/your-username/osdcloud-win11-deployment-lab.git"
       }
@@ -74,10 +74,10 @@
     "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
   },
   "workspace": {
-    "dirty_excludes_status_file": true,
+    "dirty_excludes_status_file": false,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": true
+    "status_file_uncommitted": false
   },
   "required_workflow": {
     "before_development_work": [
@@ -101,6 +101,14 @@
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260530-endpoint-sync-osdcloud-module-prereq",
+      "at": "2026-05-30T10:22:12.1733735+08:00",
+      "kind": "implementation",
+      "summary": "- Fixed endpoint sync to check OSD and OSDCloud before mounting boot.wim.\n- Prepare runtime now reports missing module prerequisites before WinPE work starts.",
+      "commit": "b363697a4acdc640905b67ad44fb767d500d5e59",
+      "verification": "PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Set-OsdCloudIpxeEndpoint.ps1. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/windows.test.js passed 49/49. npm test passed 211/211. npm run smoke passed. git diff --check passed with CRLF warnings only."
+    },
     {
       "id": "20260529-chrome-latest-url-metadata-fix",
       "at": "2026-05-29T16:34:25.6653704+08:00",
@@ -132,14 +140,6 @@
       "summary": "- Installed host bundle/state under C:\\OSDCloud\\HostTools.\n- Setup and Web host workflows no longer require keeping the source clone after setup.",
       "commit": null,
       "verification": "node --check passed for config.js, deploymentProfiles.js, osImages.js, runtimeArtifacts.js, serviceController.js, and windows.js. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 28/28. npm test passed 208/208. PowerShell parser checks passed for Setup-DeploymentServer.ps1, Install-HostManagementBundle.ps1, and Start-InstalledWebConsole.ps1. powershell -File tools/Install-HostManagementBundle.ps1 installed C:\\OSDCloud\\HostTools\\App and State on this host. npm install and npm run smoke passed from C:\\OSDCloud\\HostTools\\App."
-    },
-    {
-      "id": "20260529-init-wizard-refresh-stability",
-      "at": "2026-05-29T02:21:43.5431903+08:00",
-      "kind": "implementation",
-      "summary": "- Preserved Initialization Wizard body scroll and project-root focus across auto-refresh.\n- Verified with UI tests, full npm test, and 5.5s Edge live-refresh check.",
-      "commit": null,
-      "verification": "node --check tools/osdcloud-console/web/app.js passed. node --test tools/osdcloud-console/test/webUi.test.js passed 9/9. npm test passed 204/204. Edge verification on http://127.0.0.1:8081 kept Initialization Wizard scrollTop=40 and activeElement=init-project-root after 5.5 seconds with the edited value intact."
     }
   ]
 }
