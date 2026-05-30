@@ -1067,3 +1067,102 @@ test('prepare runtime fails when post-prepare readiness is still blocked', async
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('addOperationVerboseLog writes syslog and updates runtimeLog', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-verbose-log-'));
+  try {
+    const { controller } = makeController(root);
+    const testLogPath = path.join(root, 'logs', 'test-verbose.log');
+    
+    // Call addOperationVerboseLog
+    const line = controller.addOperationVerboseLog('verbose output line', testLogPath, 'TEST-APP');
+    
+    // Verify it returned a syslog formatted line
+    assert.match(line, /<14>1 \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+.* localhost TEST-APP \d+ - - verbose output line/);
+    
+    // Verify file content
+    assert.ok(fs.existsSync(testLogPath));
+    const fileContent = fs.readFileSync(testLogPath, 'utf8');
+    assert.match(fileContent, /TEST-APP/);
+    assert.match(fileContent, /verbose output line/);
+
+    // Verify it streamed to runtimeLog in formatted/clean display form
+    const logs = controller.getLogs();
+    assert.ok(logs.some(l => l.includes('verbose output line') && l.includes('[TEST-APP]')));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('prepareRuntime and changeEndpoint write stdout to dedicated logs', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-dedicated-paths-'));
+  try {
+    let prepared = false;
+    const { controller, config } = makeController(root, {
+      dependencies: {
+        getRuntimeReadiness: () => ({
+          ready: prepared,
+          requiredCount: 1,
+          readyCount: prepared ? 1 : 0,
+          missingCount: prepared ? 0 : 1,
+          missing: prepared ? [] : [{
+            id: 'boot-wim',
+            name: 'WinPE boot image',
+            kind: 'winpe',
+            sourceType: 'generated-winpe',
+            status: 'blocked-by-dependency',
+            prepareGroup: 'winpe-workspace',
+            prepareReason: 'Build from ADK WinPE template',
+            blockedBy: [{ id: 'adk-winpe', name: 'Windows ADK WinPE files', status: 'blocked' }],
+            targets: [
+              { reason: 'missing', filePath: 'boot.wim' },
+            ],
+          }],
+          artifacts: [],
+        }),
+        prepareRuntimeArtifacts: async (_config, options = {}) => {
+          options.onOutput?.('WIM building stdout output\n', 'stdout');
+          options.onOutput?.('WIM building stderr output\n', 'stderr');
+          prepared = true;
+          return 'ok';
+        },
+        syncIpxeEndpoint: async (_config, options = {}) => {
+          options.onOutput?.('syncing custom file details\n', 'stdout');
+          return 'ok';
+        },
+      },
+    });
+
+    // Override path logsDir to target our root temp folder
+    config.paths = config.paths || {};
+    config.paths.logsDir = path.join(root, 'logs');
+
+    // Call prepareRuntime
+    await controller.prepareRuntime();
+
+    // Verify runtime-prepare.log got stdout & stderr details
+    const prepareLogPath = path.join(config.paths.logsDir, 'runtime-prepare.log');
+    assert.ok(fs.existsSync(prepareLogPath), 'runtime-prepare.log should exist');
+    const prepareContent = fs.readFileSync(prepareLogPath, 'utf8');
+    assert.match(prepareContent, /WEB-OP-PREPARE/);
+    assert.match(prepareContent, /WIM building stdout output/);
+    assert.match(prepareContent, /WIM building stderr output/);
+
+    // Call changeEndpoint
+    await controller.changeEndpoint({
+      interfaceAlias: 'Lab',
+      ipAddress: '10.20.30.1',
+      prefixLength: 24,
+    });
+
+    // Verify endpoint-sync.log got stdout details
+    const syncLogPath = path.join(config.paths.logsDir, 'endpoint-sync.log');
+    assert.ok(fs.existsSync(syncLogPath), 'endpoint-sync.log should exist');
+    const syncContent = fs.readFileSync(syncLogPath, 'utf8');
+    assert.match(syncContent, /WEB-OP-SYNC/);
+    assert.match(syncContent, /syncing custom file details/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+

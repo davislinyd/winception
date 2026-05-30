@@ -704,11 +704,23 @@ export class ServiceController extends EventEmitter {
   addLog(message) {
     const logPath = this.hostLogPath();
     const line = this.dependencies.appendLog(logPath, message, { appName: 'WEB-OP' });
-    this.runtimeLog.push(line);
+    const display = formatDisplayLogLine(line);
+    this.runtimeLog.push(display);
     if (this.operation?.running) {
-      this.operation.lines.push(line);
+      this.operation.lines.push(display);
     }
-    this.emit('log', line);
+    this.emit('log', display);
+    return line;
+  }
+
+  addOperationVerboseLog(message, logPath, appName = 'WEB-OP') {
+    const line = this.dependencies.appendLog(logPath, message, { appName });
+    const display = formatDisplayLogLine(line);
+    this.runtimeLog.push(display);
+    if (this.operation?.running) {
+      this.operation.lines.push(display);
+    }
+    this.emit('log', display);
     return line;
   }
 
@@ -980,7 +992,9 @@ export class ServiceController extends EventEmitter {
       if (this.dependencies.isElevated() !== true) {
         throw errorWithStatus('Prepare runtime requires an elevated Web console session. Restart the Web console from an elevated PowerShell window and try again.', 400);
       }
-      const stream = makeOutputLogger((line) => this.addLog(line), '[runtime]', {
+      const logsDir = this.config.paths?.logsDir || path.join(this.config.paths?.osdCloudRoot || 'C:\\OSDCloud', 'logs');
+      const prepareLogPath = path.join(logsDir, 'runtime-prepare.log');
+      const stream = makeOutputLogger((line) => this.addOperationVerboseLog(line, prepareLogPath, 'WEB-OP-PREPARE'), '[runtime]', {
         ignoreLine: isBenignObjectSecurityTypeDataLine,
       });
       try {
@@ -1077,7 +1091,9 @@ export class ServiceController extends EventEmitter {
       this.addEndpointStatus(`iPXE boot URL ${previousBootUrl} -> ${this.config.dhcp.ipxeBootUrl}`, 'ok');
 
       this.addEndpointStatus('Syncing boot.ipxe, repo-sourced endpoint files, SMB firewall, and boot.wim', 'run');
-      const stream = makeOutputLogger((line) => this.addLog(line), '[endpoint-sync]');
+      const logsDir = this.config.paths?.logsDir || path.join(this.config.paths?.osdCloudRoot || 'C:\\OSDCloud', 'logs');
+      const syncLogPath = path.join(logsDir, 'endpoint-sync.log');
+      const stream = makeOutputLogger((line) => this.addOperationVerboseLog(line, syncLogPath, 'WEB-OP-SYNC'), '[endpoint-sync]');
       try {
         await this.dependencies.syncIpxeEndpoint(this.config, {
           commitWinPe: true,

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T12:13:25.587Z",
+  "updated_at": "2026-05-30T12:41:08.736Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -35,9 +35,9 @@
     "remote": "origin-github",
     "summary": "Setup now runs unattended after clone, defaults Web to 127.0.0.1:8080, auto-installs Node/npm plus OSD and OSDCloud host modules, and leaves ADK/WinPE/runtime work to Web Prepare runtime.",
     "baseline": {
-      "commit": "3af2fdba2869813e4b574d621774ed29a54df274",
-      "short": "3af2fdb",
-      "subject": "feat: consolidate logs in RFC 5424 Syslog and bump version to 0.5.3"
+      "commit": "5d7aae00a00d48a6408f765b7bdb22e82d61ea14",
+      "short": "5d7aae0",
+      "subject": "chore: update status.json for 0.5.3 syslog feature"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -59,9 +59,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "3af2fdba2869813e4b574d621774ed29a54df274",
-    "last_checked_head_short": "3af2fdb",
-    "dirty": false,
+    "last_checked_head": "5d7aae00a00d48a6408f765b7bdb22e82d61ea14",
+    "last_checked_head_short": "5d7aae0",
+    "dirty": true,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -101,6 +101,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260530-verbose-operation-logs-redirection",
+      "at": "2026-05-30T12:41:08.737Z",
+      "kind": "implementation",
+      "summary": "- Redirected verbose stdout/stderr outputs from Prepare Runtime and Endpoint Sync processes to dedicated log files: C:\\OSDCloud\\logs\\runtime-prepare.log and endpoint-sync.log.\n- Wrote helper addOperationVerboseLog in serviceController.js to log raw syslog format to files and formatted output to Web UI.\n- Bumped package.json and package-lock.json version to 0.5.4.\n- Added unit tests to verify dedicated logging files and syslog formatting.",
+      "commit": null,
+      "verification": "node --test passed 219/219."
+    },
+    {
       "id": "20260530-rfc5424-syslog-consolidation",
       "at": "2026-05-30T12:06:56.148Z",
       "kind": "implementation",
@@ -131,14 +139,6 @@
       "summary": "- Implemented dynamic boot-config HTTP API endpoint in httpServer.js to serve server IP, SMB, and Davis OOBE credentials.\n- Updated client-side WinPE Startup script (Start-OSDCloud-iPXE.ps1) with dynamic server IP probing (DHCP, Gateway, DNS) and boot-config fetching over HTTP, seeding secrets.json to RAM disk dynamically.\n- Modified Set-OsdCloudIpxeEndpoint.ps1 to cleanly delete and recreate SMB firewall rules and skip redundant DISM WIM mount/commit cycles when the published boot.wim is already customized.\n- Supported custom subnet overrides via new SmbRemoteSubnet parameter.\n- Bumped package.json and package-lock.json version to 0.5.0.\n- Verified all unit and smoke tests passed successfully.",
       "commit": "ef372c96b5788b006f627e8f1d894c46f303307b",
       "verification": "npm test and npm run smoke passed 213/213 successfully."
-    },
-    {
-      "id": "20260530-web-console-redesign",
-      "at": "2026-05-30T16:18:00.0000000+08:00",
-      "kind": "implementation",
-      "summary": "- Overhauled the Web console layout to feature a horizontal view toggle: Guided Setup and Dashboard.\n- Implemented macOS Modern Dark Installer Style (Space Gray) theme with high-contrast text readability.\n- Mapped all Tailwind color parameters to CSS custom variables for seamless theme transition support.\n- Prioritized native Apple system fonts stack over Google fonts on macOS hosts.\n- Custom-designed macOS native styled buttons, active steps selection, tables, status pills, and console log panes.\n- Fixed 4 mock and permission testing failures to ensure 100% test compliance (212/212 passed).\n- Bumped package.json and package-lock.json version to 0.4.1.",
-      "commit": "a0154076700f14a9b75743256e37225185f00981",
-      "verification": "npm test passed 212/212. Served static web UI and verified styling variables and tab switching."
     }
   ]
 }
