@@ -325,8 +325,8 @@ function Set-StartOsdCloudEndpoint {
 
     Set-RegexInFile `
         -Path $Path `
-        -Pattern "(?m)^\`$server\s*=\s*'[^']*'\s*$" `
-        -Replacement "`$server = '$ServerIp'" | Out-Null
+        -Pattern "(?m)^\`$server\s*=\s*'[^']*'(\s*#.*)?$" `
+        -Replacement "`$server = '$ServerIp'`$1" | Out-Null
 }
 
 function Set-ProgressReporterEndpoint {
