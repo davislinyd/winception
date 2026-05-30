@@ -959,7 +959,15 @@ function Ensure-RuntimeSkeletonAndShare {
     New-Item -ItemType Directory -Path $folders -Force | Out-Null
 
     $shareName = Get-ConfiguredSmbShareName
-    $smbUserName = 'pxeinstall'
+    $config = $null
+    try {
+        $config = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
+    } catch {}
+
+    $smbUserName = if ($config -and $config.smb -and $config.smb.username) { [string] $config.smb.username } else { 'pxeinstall' }
+    $smbDomain = if ($config -and $config.smb -and $config.smb.domain) { [string] $config.smb.domain } else { '' }
+    $skipUserCreation = if ($config -and $config.smb -and $config.smb.skipUserCreation) { [bool] $config.smb.skipUserCreation } else { [bool] ($smbDomain -ne '') }
+
     $secrets = Get-DeploymentSecrets
     $password = [string] $secrets.pxeinstallPassword
     if ([string]::IsNullOrWhiteSpace($password)) {
@@ -967,14 +975,19 @@ function Ensure-RuntimeSkeletonAndShare {
     }
 
     $securePassword = New-PlainTextSecureString -PlainText $password
-    $localAccount = "$env:COMPUTERNAME\$smbUserName"
-    $user = Get-LocalUser -Name $smbUserName -ErrorAction SilentlyContinue
-    if ($user) {
-        Set-LocalUser -Name $smbUserName -Password $securePassword -PasswordNeverExpires $true
-        Enable-LocalUser -Name $smbUserName
-    }
-    else {
-        New-LocalUser -Name $smbUserName -Password $securePassword -Description 'OSDCloud WinPE SMB read-only account' -PasswordNeverExpires | Out-Null
+    $localAccount = if (-not [string]::IsNullOrWhiteSpace($smbDomain)) { "$smbDomain\$smbUserName" } else { "$env:COMPUTERNAME\$smbUserName" }
+
+    if (-not $skipUserCreation) {
+        $user = Get-LocalUser -Name $smbUserName -ErrorAction SilentlyContinue
+        if ($user) {
+            Set-LocalUser -Name $smbUserName -Password $securePassword -PasswordNeverExpires $true
+            Enable-LocalUser -Name $smbUserName
+        }
+        else {
+            New-LocalUser -Name $smbUserName -Password $securePassword -Description 'OSDCloud WinPE SMB read-only account' -PasswordNeverExpires | Out-Null
+        }
+    } else {
+        Write-Host "Skipping local SMB account creation (domain or skip user creation is configured)."
     }
 
     Set-FolderReadAccess -Path $mediaRoot -AccountName $localAccount

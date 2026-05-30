@@ -12,10 +12,73 @@ catch {
 }
 
 Write-Host "[$(Get-Date -Format G)] Start-OSDCloud iPXE custom image deployment"
-$server = '192.168.100.1'
-$share = "\\$server\OSDCloudiPXE"
+
+# Dynamic deployment server detection
+$candidates = [System.Collections.Generic.List[string]]::new()
+try {
+    # Check active interfaces DHCP/Gateway/DNS
+    $adapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled }
+    foreach ($adapter in $adapters) {
+        if ($adapter.DHCPServer) { $candidates.Add($adapter.DHCPServer) }
+        if ($adapter.DefaultIPGateway) { $candidates.AddRange($adapter.DefaultIPGateway) }
+        if ($adapter.DNSServerSearchOrder) { $candidates.AddRange($adapter.DNSServerSearchOrder) }
+    }
+} catch {
+    Write-Warning "Unable to query network adapter configuration: $($_.Exception.Message)"
+}
+# Fallback to standard defaults
+$candidates.Add('192.168.100.1')
+$candidates.Add('192.168.88.1')
+
+$server = '192.168.100.1' # Default fallback
+foreach ($ip in ($candidates | Select-Object -Unique)) {
+    if ([string]::IsNullOrWhiteSpace($ip) -or $ip -eq '0.0.0.0') { continue }
+    try {
+        $testUrl = "http://$ip/osdcloud/status"
+        # Test connection quickly
+        $resp = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        $server = $ip
+        Write-Host "Detected active deployment server at $server"
+        break
+    } catch {}
+}
+
+# Fetch dynamic boot configuration from the detected server
+$bootConfigUrl = "http://$server/osdcloud/boot-config"
+Write-Host "Fetching dynamic boot configuration from $bootConfigUrl..."
+$bootConfig = $null
+try {
+    $bootConfig = Invoke-RestMethod -Uri $bootConfigUrl -Method Get -TimeoutSec 5 -ErrorAction Stop
+    Write-Host "Successfully loaded boot configuration from server."
+} catch {
+    Write-Warning "Failed to load dynamic boot configuration from HTTP server: $($_.Exception.Message)"
+}
+
+# Map variables based on boot config, falling back to local/default settings
+if ($bootConfig -and $bootConfig.ok) {
+    $server = $bootConfig.server
+    $share = $bootConfig.share
+    $smbUser = $bootConfig.smbUser
+    $smbPassword = $bootConfig.smbPassword
+    $davisPassword = $bootConfig.davisPassword
+
+    # Dynamically write secrets.json to RAM disk so other scripts can read them
+    $ramSecretsPath = Join-Path $PSScriptRoot 'secrets.json'
+    [ordered]@{
+        pxeinstallPassword = $smbPassword
+        davisPassword = $davisPassword
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ramSecretsPath -Encoding UTF8 -Force
+} else {
+    Write-Warning "Using static/fallback variables for deployment."
+    $share = "\\$server\OSDCloudiPXE"
+    $smbUser = "pxeinstall"
+    $smbPassword = ""
+    $davisPassword = ""
+}
+
 $statusUrl = "http://$server/osdcloud/status"
 $screenshotUrl = "http://$server/osdcloud/screenshot"
+
 
 function Get-DeploymentSecretPathCandidates {
     $candidates = @()
@@ -396,9 +459,15 @@ else {
 Import-Module OSD -Force
 
 cmd.exe /c 'net use Z: /delete /y' | Out-Null
-$smbPassword = Get-DeploymentSecret -JsonName 'pxeinstallPassword' -EnvironmentName 'OSDCLOUD_PXEINSTALL_PASSWORD'
-$netUse = & net.exe use Z: $share "/user:$server\pxeinstall" $smbPassword /persistent:no 2>&1
+if ([string]::IsNullOrWhiteSpace($smbPassword)) {
+    $smbPassword = Get-DeploymentSecret -JsonName 'pxeinstallPassword' -EnvironmentName 'OSDCLOUD_PXEINSTALL_PASSWORD'
+}
+if ([string]::IsNullOrWhiteSpace($smbUser)) {
+    $smbUser = 'pxeinstall'
+}
+$netUse = & net.exe use Z: $share "/user:$server\$smbUser" $smbPassword /persistent:no 2>&1
 $netUse | ForEach-Object { Write-Host $_ }
+
 
 $osRoot = 'Z:\OSDCloud\OS'
 $SelectedOs = Get-LabSelectedOsManifest -OsRoot $osRoot

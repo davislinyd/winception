@@ -8,13 +8,18 @@ param(
     [string] $SmbShareName = 'OSDCloudiPXE',
     [string] $SmbFirewallRuleName = 'PXE-Lab SMB Inbound',
     [string] $ImageNamePattern,
+    [string] $SmbRemoteSubnet,
     [switch] $SkipSmbFirewall,
     [switch] $CommitWinPe,
+    [switch] $ForceCommitWinPe,
     [switch] $SyncAssets,
     [switch] $HashLargeArtifacts
 )
 
 $ErrorActionPreference = 'Stop'
+if ($ForceCommitWinPe) {
+    $CommitWinPe = $true
+}
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
 [Console]::InputEncoding = $Utf8NoBom
@@ -557,16 +562,14 @@ function Set-SmbFirewallEndpoint {
         [string] $RemoteSubnet
     )
 
-    $rule = Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue
-    if ($rule) {
-        $rule |
-            Get-NetFirewallAddressFilter |
-            Set-NetFirewallAddressFilter -LocalAddress $LocalAddress -RemoteAddress $RemoteSubnet
-        $rule |
-            Get-NetFirewallPortFilter |
-            Set-NetFirewallPortFilter -Protocol TCP -LocalPort 445
-        $rule | Enable-NetFirewallRule | Out-Null
-        return 'updated'
+    try {
+        $existingRules = Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue
+        if ($existingRules) {
+            $existingRules | Remove-NetFirewallRule -ErrorAction Stop
+        }
+    }
+    catch {
+        Write-Warning "Unable to remove existing firewall rule '$RuleName': $($_.Exception.Message)"
     }
 
     New-NetFirewallRule `
@@ -624,7 +627,7 @@ if ([string]::IsNullOrWhiteSpace($DefaultGateway)) {
 $dhcpRouter = if (Test-IPv4InPrefix -Address $DefaultGateway -NetworkAddress $ServerIp -PrefixLength $PrefixLength) { $DefaultGateway } else { $ServerIp }
 $dhcpRange = Get-DhcpLeaseRange -ServerIp $ServerIp -PrefixLength $PrefixLength
 $subnetMask = ConvertFrom-IPv4UInt32 (ConvertTo-PrefixMask -PrefixLength $PrefixLength)
-$remoteSubnet = Get-SubnetCidr -ServerIp $ServerIp -PrefixLength $PrefixLength
+$remoteSubnet = if (-not [string]::IsNullOrWhiteSpace($SmbRemoteSubnet)) { $SmbRemoteSubnet } else { Get-SubnetCidr -ServerIp $ServerIp -PrefixLength $PrefixLength }
 
 Set-Property -Object $config.adapter -Name interfaceAlias -Value $InterfaceAlias
 Set-Property -Object $config.adapter -Name serverIp -Value $ServerIp
@@ -696,84 +699,99 @@ if ($CommitWinPe) {
     if (-not (Test-Path -LiteralPath $bootWim -PathType Leaf)) {
         Restore-BootWimSourceIfMissing -BootWim $bootWim -PublishedBootWim $publishedBootWim | Out-Null
     }
-    if (Test-Path -LiteralPath $mountDir) {
-        $children = @(Get-ChildItem -LiteralPath $mountDir -Force -ErrorAction SilentlyContinue)
-        if ($children.Count -gt 0) {
-            throw "Mount directory is not empty: $mountDir"
-        }
-    }
-    else {
-        New-Item -ItemType Directory -Path $mountDir -Force | Out-Null
-    }
 
-    try {
-        & dism /English /Mount-Wim /WimFile:$bootWim /Index:1 /MountDir:$mountDir
-        if ($LASTEXITCODE -ne 0) {
-            throw "DISM failed to mount $bootWim"
-        }
-        $mounted = $true
-
-        Copy-IfPresent `
-            -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\Windows\System32\Startnet.cmd') `
-            -Destination (Join-Path $mountDir 'Windows\System32\Startnet.cmd') | Out-Null
-        Copy-IfPresent `
-            -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') `
-            -Destination (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1') | Out-Null
-        Copy-IfPresent `
-            -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') `
-            -Destination (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1') | Out-Null
-        Copy-IfPresent `
-            -Source (Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') `
-            -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') | Out-Null
-        Copy-IfPresent `
-            -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd') `
-            -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd') | Out-Null
-        Copy-IfPresent `
-            -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1') `
-            -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') | Out-Null
-
-        Copy-WinPePowerShellModule -Name 'OSD' -MountDir $mountDir
-        Copy-WinPePowerShellModule -Name 'OSDCloud' -MountDir $mountDir
-
-        $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $repoRoot -StateRoot $stateRoot -IpxeLab $ipxeLab
-        if ($deploymentSecretSource) {
-            Copy-Item -LiteralPath $deploymentSecretSource -Destination (Join-Path $mountDir 'OSDCloud\secrets.json') -Force
-            Write-Host "Injected local deployment secrets into boot.wim from $deploymentSecretSource"
-        }
-        else {
-            Write-Warning "No local deployment secrets found. Create C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json before deployment so WinPE can map SMB and configure autologon."
-        }
-
-        Set-StartOsdCloudEndpoint -Path (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1')
-        Set-ProgressReporterEndpoint -Path (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1')
-        Set-SetupCompleteEndpoint -Path (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1')
-        $commit = $true
-    }
-    finally {
-        if ($mounted) {
-            $mode = if ($commit) { '/Commit' } else { '/Discard' }
-            & dism /English /Unmount-Wim /MountDir:$mountDir $mode
-            if ($LASTEXITCODE -ne 0) {
-                throw "DISM failed to unmount $mountDir with $mode"
-            }
-        }
-    }
-
+    $isAlreadyCustomized = $false
     if (Test-Path -LiteralPath $publishedBootWim -PathType Leaf) {
         $sourceHash = Get-Sha256Hash -LiteralPath $bootWim
         $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
         if ($sourceHash -ne $publishedHash) {
-            Copy-Item -LiteralPath $bootWim -Destination $publishedBootWim -Force
-            $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
+            $isAlreadyCustomized = $true
         }
-        if ($sourceHash -ne $publishedHash) {
-            throw "Published boot.wim hash still differs after copy"
-        }
+    }
+
+    if ($isAlreadyCustomized -and -not $ForceCommitWinPe) {
+        Write-Host "Skipped redundant boot.wim mount/commit as it is already customized."
     }
     else {
-        Copy-Item -LiteralPath $bootWim -Destination $publishedBootWim -Force
+        if (Test-Path -LiteralPath $mountDir) {
+            $children = @(Get-ChildItem -LiteralPath $mountDir -Force -ErrorAction SilentlyContinue)
+            if ($children.Count -gt 0) {
+                throw "Mount directory is not empty: $mountDir"
+            }
+        }
+        else {
+            New-Item -ItemType Directory -Path $mountDir -Force | Out-Null
+        }
+
+        try {
+            & dism /English /Mount-Wim /WimFile:$bootWim /Index:1 /MountDir:$mountDir
+            if ($LASTEXITCODE -ne 0) {
+                throw "DISM failed to mount $bootWim"
+            }
+            $mounted = $true
+
+            Copy-IfPresent `
+                -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\Windows\System32\Startnet.cmd') `
+                -Destination (Join-Path $mountDir 'Windows\System32\Startnet.cmd') | Out-Null
+            Copy-IfPresent `
+                -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') `
+                -Destination (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1') | Out-Null
+            Copy-IfPresent `
+                -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') `
+                -Destination (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1') | Out-Null
+            Copy-IfPresent `
+                -Source (Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') `
+                -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1') | Out-Null
+            Copy-IfPresent `
+                -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd') `
+                -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd') | Out-Null
+            Copy-IfPresent `
+                -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1') `
+                -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') | Out-Null
+
+            Copy-WinPePowerShellModule -Name 'OSD' -MountDir $mountDir
+            Copy-WinPePowerShellModule -Name 'OSDCloud' -MountDir $mountDir
+
+            $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $repoRoot -StateRoot $stateRoot -IpxeLab $ipxeLab
+            if ($deploymentSecretSource) {
+                Copy-Item -LiteralPath $deploymentSecretSource -Destination (Join-Path $mountDir 'OSDCloud\secrets.json') -Force
+                Write-Host "Injected local deployment secrets into boot.wim from $deploymentSecretSource"
+            }
+            else {
+                Write-Warning "No local deployment secrets found. Create C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json before deployment so WinPE can map SMB and configure autologon."
+            }
+
+            Set-StartOsdCloudEndpoint -Path (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1')
+            Set-ProgressReporterEndpoint -Path (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1')
+            Set-SetupCompleteEndpoint -Path (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1')
+            $commit = $true
+        }
+        finally {
+            if ($mounted) {
+                $mode = if ($commit) { '/Commit' } else { '/Discard' }
+                & dism /English /Unmount-Wim /MountDir:$mountDir $mode
+                if ($LASTEXITCODE -ne 0) {
+                    throw "DISM failed to unmount $mountDir with $mode"
+                }
+            }
+        }
+
+        if (Test-Path -LiteralPath $publishedBootWim -PathType Leaf) {
+            $sourceHash = Get-Sha256Hash -LiteralPath $bootWim
+            $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
+            if ($sourceHash -ne $publishedHash) {
+                Copy-Item -LiteralPath $bootWim -Destination $publishedBootWim -Force
+                $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
+            }
+            if ($sourceHash -ne $publishedHash) {
+                throw "Published boot.wim hash still differs after copy"
+            }
+        }
+        else {
+            Copy-Item -LiteralPath $bootWim -Destination $publishedBootWim -Force
+        }
+        Write-Host "Updated boot.wim embedded endpoint files and verified published boot.wim"
     }
-    Write-Host "Updated boot.wim embedded endpoint files and verified published boot.wim"
 }
 else {
     Write-Host "Skipped boot.wim mount/commit; run with -CommitWinPe before deployment"

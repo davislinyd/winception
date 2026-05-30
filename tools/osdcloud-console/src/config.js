@@ -110,6 +110,7 @@ export function mediaHttpServerConfig(config) {
   return {
     ...config.http,
     driverPackCache: config.driverPackCache,
+    smb: config.smb,
   };
 }
 

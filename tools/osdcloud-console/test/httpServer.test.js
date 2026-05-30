@@ -281,3 +281,42 @@ test('rejects non-PNG screenshot content types and oversized bodies', async () =
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('serves boot configuration with secrets', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-bootconfig-test-'));
+  const statusRoot = path.join(root, 'status');
+  const secretsDir = path.join(root, 'config');
+  fs.mkdirSync(secretsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(secretsDir, 'osdcloud-secrets.json'),
+    JSON.stringify({ davisPassword: 'davis-pass', pxeinstallPassword: 'pxe-pass' }),
+    'utf8',
+  );
+
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+    paths: { stateRoot: root },
+    smb: { share: '\\\\127.0.0.1\\OSDCloudiPXE' },
+  });
+
+  try {
+    await server.start();
+    const port = server.address.port;
+    const response = await fetch(`http://127.0.0.1:${port}/osdcloud/boot-config`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.server, '127.0.0.1');
+    assert.equal(body.share, '\\\\127.0.0.1\\OSDCloudiPXE');
+    assert.equal(body.smbUser, 'pxeinstall');
+    assert.equal(body.smbPassword, 'pxe-pass');
+    assert.equal(body.davisPassword, 'davis-pass');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -537,7 +537,7 @@ export async function evaluateSmbImage(config, options = {}) {
     return fail('SMB image', `image missing: ${backingPath} from ${imagePath}`);
   }
 
-  const accessUser = options.accessUser ?? 'pxeinstall';
+  const accessUser = options.accessUser ?? config.smb?.username ?? 'pxeinstall';
   if (!smbAccessAllowsRead(shareInfo.Access ?? shareInfo.access, accessUser)) {
     return fail('SMB image', `SMB share ${expectedShareName} does not grant read access to ${accessUser}`);
   }

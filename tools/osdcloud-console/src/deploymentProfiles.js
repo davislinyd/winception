@@ -453,6 +453,7 @@ export function deploymentProfileOptions(config = {}, overrides = {}) {
   };
 
   return {
+    offlineMode: Boolean(config.offlineMode ?? section.offlineMode),
     activeProfile: section.activeProfile ?? defaults.activeProfile,
     profilesRoot: resolveConfiguredPath(stateRoot, section.profilesRoot),
     softwareCatalogPath: resolveConfiguredPath(stateRoot, section.softwareCatalogPath),
@@ -665,6 +666,12 @@ async function ensureSoftwarePayload(software, profileOptions, options = {}) {
   const existing = await inspectSoftwarePayload(software, installerPath);
   if (existing.ok) {
     return { id: software.id, status: 'reused', filePath: installerPath, bytes: existing.length };
+  }
+
+  if (profileOptions.offlineMode || options.offlineMode) {
+    throw new Error(
+      `Offline Mode is active. Stored software payload for ${software.id} (${software.source}\\${installerFileName}) is invalid or missing: ${formatSoftwarePayloadIssue(existing)}`,
+    );
   }
 
   const downloadUrl = softwareDownloadUrl(software);

@@ -1593,3 +1593,33 @@ test('loadCustomScriptCatalog returns empty when no catalog file exists', () => 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('publishDeploymentProfile fails in offline mode when software payload is missing', async () => {
+  const root = makeRoot();
+  try {
+    writeInstallerScript(root);
+    const softwareRoot = path.join(root, 'Softwares', 'one');
+    fs.mkdirSync(softwareRoot, { recursive: true });
+    fs.writeFileSync(path.join(softwareRoot, 'install.ps1'), "Write-Host 'installed'\n", 'utf8');
+
+    writeJson(path.join(root, 'software-catalog.json'), {
+      software: [catalogSoftware('one', 'One App')],
+    });
+    writeJson(path.join(root, 'profiles', 'default.json'), {
+      id: 'default',
+      name: 'Default',
+      software: ['one'],
+      osImage: 'TEST-OS',
+    });
+
+    const config = configFor(root);
+    config.offlineMode = true;
+
+    await assert.rejects(
+      () => publishDeploymentProfile(config),
+      /Offline Mode is active/
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

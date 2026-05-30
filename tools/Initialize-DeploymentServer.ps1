@@ -21,7 +21,9 @@ param(
     [switch] $SkipWinPeBuild,
     [switch] $NoAdkAutoInstall,
     [string] $SmbShareName = 'OSDCloudiPXE',
-    [string] $SmbUserName = 'pxeinstall'
+    [string] $SmbUserName = 'pxeinstall',
+    [string] $SmbDomain = '',
+    [switch] $SkipUserCreation
 )
 
 $ErrorActionPreference = 'Stop'
@@ -412,15 +414,20 @@ function Ensure-DeploymentSmbShare {
 
     $password = Get-DeploymentSecretValue -JsonName 'pxeinstallPassword' -EnvironmentName 'OSDCLOUD_PXEINSTALL_PASSWORD'
     $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
-    $localAccount = "$env:COMPUTERNAME\$SmbUserName"
+    $localAccount = if (-not [string]::IsNullOrWhiteSpace($SmbDomain)) { "$SmbDomain\$SmbUserName" } else { "$env:COMPUTERNAME\$SmbUserName" }
 
-    $user = Get-LocalUser -Name $SmbUserName -ErrorAction SilentlyContinue
-    if ($user) {
-        Set-LocalUser -Name $SmbUserName -Password $securePassword -PasswordNeverExpires $true
-        Enable-LocalUser -Name $SmbUserName
-    }
-    else {
-        New-LocalUser -Name $SmbUserName -Password $securePassword -Description 'OSDCloud WinPE SMB read-only account' -PasswordNeverExpires | Out-Null
+    $skipUser = $SkipUserCreation -or (-not [string]::IsNullOrWhiteSpace($SmbDomain))
+    if (-not $skipUser) {
+        $user = Get-LocalUser -Name $SmbUserName -ErrorAction SilentlyContinue
+        if ($user) {
+            Set-LocalUser -Name $SmbUserName -Password $securePassword -PasswordNeverExpires $true
+            Enable-LocalUser -Name $SmbUserName
+        }
+        else {
+            New-LocalUser -Name $SmbUserName -Password $securePassword -Description 'OSDCloud WinPE SMB read-only account' -PasswordNeverExpires | Out-Null
+        }
+    } else {
+        Write-Host "Skipping local SMB account creation (domain or skip user creation is configured)."
     }
 
     Set-FolderReadAccess -Path $sharePath -AccountName $localAccount

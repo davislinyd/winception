@@ -2,9 +2,26 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { stateRootForConfig } from './config.js';
 import { driverPackCacheStage, handleDriverPackCacheRequest } from './driverPackCache.js';
 import { appendLog } from './logger.js';
 import { buildRunsIndex, updateRunSummary } from './runSummary.js';
+
+function loadSecrets(config) {
+  const stateRoot = stateRootForConfig(config);
+  const secretsPath = path.join(stateRoot, 'config', 'osdcloud-secrets.json');
+  let fileSecrets = {};
+  if (fs.existsSync(secretsPath)) {
+    try {
+      const raw = fs.readFileSync(secretsPath, 'utf8').replace(/^\uFEFF/u, '');
+      fileSecrets = raw.trim() ? JSON.parse(raw) : {};
+    } catch {}
+  }
+  return {
+    davisPassword: process.env.OSDCLOUD_DAVIS_PASSWORD || fileSecrets.davisPassword || '',
+    pxeinstallPassword: process.env.OSDCLOUD_PXEINSTALL_PASSWORD || fileSecrets.pxeinstallPassword || '',
+  };
+}
 
 export function sanitizeName(value) {
   return String(value ?? 'unknown').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 120) || 'unknown';
@@ -387,6 +404,29 @@ export class MediaHttpServer extends EventEmitter {
     this.emit('screenshot', metadata);
   }
 
+  async handleBootConfig(req, res, remote, requestUrl) {
+    if (req.method !== 'GET') {
+      res.writeHead(405, { Allow: 'GET' });
+      res.end();
+      return;
+    }
+
+    const secrets = loadSecrets(this.config);
+    const serverIp = this.config.host || '127.0.0.1';
+    const share = this.config.smb?.share || '';
+    const shareName = share.split('\\').filter(Boolean).at(-1) || 'OSDCloudiPXE';
+
+    sendJson(res, 200, {
+      ok: true,
+      server: serverIp,
+      share: `\\\\${serverIp}\\${shareName}`,
+      smbUser: 'pxeinstall',
+      smbPassword: secrets.pxeinstallPassword,
+      davisPassword: secrets.davisPassword,
+    });
+    this.log(`${remote} GET ${requestUrl.pathname} 200`);
+  }
+
   async handleRequest(req, res) {
     const address = this.server.address();
     const port = typeof address === 'object' && address ? address.port : this.config.port;
@@ -400,6 +440,11 @@ export class MediaHttpServer extends EventEmitter {
 
     if (requestUrl.pathname === '/osdcloud/screenshot') {
       await this.handleScreenshot(req, res, remote, requestUrl);
+      return;
+    }
+
+    if (requestUrl.pathname === '/osdcloud/boot-config') {
+      await this.handleBootConfig(req, res, remote, requestUrl);
       return;
     }
 
