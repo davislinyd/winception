@@ -17,6 +17,19 @@ $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::InputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
 
+# Filter out PowerShell Core / PowerShell 7 paths from PSModulePath when running in Windows PowerShell
+# to prevent incompatible .NET Core binary modules from being loaded.
+if ($PSVersionTable.PSVersion.Major -le 5) {
+    $Paths = $env:PSModulePath -split ';'
+    $FilteredPaths = $Paths | Where-Object {
+        $_ -and
+        $_ -notlike '*microsoft.powershell*' -and
+        $_ -notlike '*PowerShell\7*' -and
+        $_ -notlike '*pwsh*'
+    }
+    $env:PSModulePath = $FilteredPaths -join ';'
+}
+
 # Ensure standard PowerShell module paths are present in PSModulePath
 $DefaultModulePaths = @(
     (Join-Path $Home 'Documents\WindowsPowerShell\Modules'),
