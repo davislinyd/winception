@@ -27,20 +27,13 @@ For portability/setup changes, update the README handoff/fresh-clone flow, `osdc
 
 Git clone directories are installation and configuration sources only. Deployment runtime files must be created under the fixed project root (`C:\OSDCloud`), never written back into the clone. After `Setup-DeploymentServer.cmd` installs `C:\OSDCloud\HostTools\App` and `C:\OSDCloud\HostTools\State`, the deployment host may delete the original clone and keep operating from the installed bundle.
 
-## Development And Handoff
+## Development And Workspace Flow
 
-Use Git to track docs and process definitions in the development workspace.
+Use Git to track docs and process definitions in the active repository clone.
 
 After code changes, finish by updating related documentation and Git state in the same workflow unless the user explicitly scoped the task differently. For documentation-only or process-only updates, push only when the user requests it, the task is a handoff/release, or another repo rule requires it.
 
-After pushing from the development workspace:
-
-1. Switch to `C:\osdcloud-win11-deployment-lab`.
-2. Verify it is clean.
-3. Run `git pull --ff-only origin master`.
-4. Confirm its HEAD matches the pushed development commit before any Web/runtime/PXE/deployment test.
-
-Deployment-facing tests must start from the deployment clone, not from `C:\Users\davis\Documents\Codex\osdcloud-project`.
+All development, documentation, and deployment-facing testing must start directly from the active Git repository clone workspace.
 
 ## Files To Track When Relevant
 

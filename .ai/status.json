@@ -1,19 +1,15 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T15:03:00.000Z",
+  "updated_at": "2026-05-30T15:13:00.000Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
-    "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
-    "current_goal": "Fresh Windows hosts can git clone this repository, run elevated Setup-DeploymentServer.cmd unattended, open the local Web console, and continue runtime preparation from Web."
+    "root": ".",
+    "current_goal": "The working target is a repeatable Web-console-first OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE."
   },
   "paths": {
     "development": {
-      "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
-      "purpose": "Active checkout for code, docs, tests, commits, pushes, and setup validation."
-    },
-    "deployment_clone": {
-      "root": "C:\\osdcloud-win11-deployment-lab",
-      "purpose": "Separate deployment-facing clone for runtime or PXE tests after pulling the pushed master commit."
+      "root": ".",
+      "purpose": "Active repository workspace for code, docs, tests, local commits, and setup validation."
     },
     "host_management": {
       "root": "C:\\OSDCloud\\HostTools\\App",
@@ -46,12 +42,6 @@
       "policy": "Do not use repo-only as the primary remote or a new development starting point."
     }
   },
-  "deployment_clone": {
-    "remote": "origin",
-    "branch": "master",
-    "required_update_before_tests": "Before deployment or PXE tests from C:\\osdcloud-win11-deployment-lab, run git pull --ff-only origin master and confirm that clone matches the pushed master commit.",
-    "head_must_match_development_push": true
-  },
   "runtime": {
     "manual_agent_edits_allowed": false,
     "allowed_mutation_path": "Normal product workflow such as Web project-root selection, Runtime Readiness, Prepare runtime, endpoint sync, preflight, and deployment tests."
@@ -61,7 +51,7 @@
     "upstream": "origin/master",
     "last_checked_head": "a6cb4daccb94346887013e4bdc87197c56ddf9f6",
     "last_checked_head_short": "a6cb4da",
-    "dirty": false,
+    "dirty": true,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -87,12 +77,6 @@
       "git log --all --notes --decorate --date=iso --max-count=10 --format=fuller",
       "Only run git pull --ff-only origin master when the worktree is clean and current remote state is required or explicitly requested."
     ],
-    "after_development_push_before_tests": [
-      "cd C:\\osdcloud-win11-deployment-lab",
-      "git status --short --branch",
-      "git rev-parse HEAD origin/master",
-      "confirm this active checkout HEAD equals the pushed origin/master commit"
-    ],
     "forbidden": [
       "Do not manually patch, copy into, or directly edit the Web-selected deployment project root.",
       "Do not commit generated deployment artifacts or local secrets.",
@@ -100,6 +84,14 @@
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260530-workspace-consolidation",
+      "at": "2026-05-30T23:13:00.000+08:00",
+      "kind": "chore",
+      "summary": "- Consolidated separate development workspace and deployment clone definitions into a single, path-independent workspace representing the active Git clone root.\n- Removed all references to the obsolete C:\\Users\\davis\\Documents\\Codex\\osdcloud-project directory.\n- Updated AGENTS.md, GEMINI.md, TEST-LOOP.md, docs/agent-reference/repo-workflow.md, and .ai/status.json.",
+      "commit": "uncommitted",
+      "verification": "Grep search confirmed no references to obsolete paths; JSON schema validated."
+    },
     {
       "id": "20260530-guided-setup-button-disabled-fix",
       "at": "2026-05-30T23:03:00.000+08:00",
@@ -131,14 +123,6 @@
       "summary": "- Consolidated host-side service logs (DHCP, TFTP, HTTP, WEB-OP) into a single RFC 5424 Syslog file: logs/host-services.log.\n- Wrote client-side progress status logs to per-run syslog files: logs/runs/<runId>/deployment.log.\n- Duplicated client-side screenshots under logs/runs/<runId>/screenshots/.\n- Implemented local offset timezone formatters and integrated Syslog header parsing to ensure Web UI console log display remains backward-compatible and clean.\n- Added new test cases verifying Syslog formatting, file writes, and screenshot duplication.\n- Bumped package.json and package-lock.json version to 0.5.3.",
       "commit": "3af2fdba2869813e4b574d621774ed29a54df274",
       "verification": "node --test passed 217/217."
-    },
-    {
-      "id": "20260530-web-console-light-theme",
-      "at": "2026-05-30T18:15:30.0000000+08:00",
-      "kind": "implementation",
-      "summary": "- Redesigned the Web console to a clean Google-style light minimalist design.\n- Removed dark theme class and imported Google Font Roboto in index.html.\n- Modified Tailwind config to use 8px (0.5rem) border-radius defaults and Roboto font mappings.\n- Configured CSS colors to Google light palette (Google Blue accent, white cards, light gray background, light gray logs, charcoal primary text).\n- Restyled buttons (warning as Google Blue primary, danger as Google Red primary, base/secondary as white with gray border).\n- Custom styled header view tabs and operations buttons to resemble sidebar menu navigation items.\n- Cleaned up and removed the obsolete macOS dark theme overrides block.\n- Bumped package.json and package-lock.json version to 0.5.2.\n- Verified all 214 unit tests pass successfully.",
-      "commit": "0ae75927fc85583162f59f8907d9934ea1bebd35",
-      "verification": "npm test passed 214/214."
     }
   ]
 }

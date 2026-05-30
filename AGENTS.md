@@ -61,12 +61,11 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 
 ## Workspace Isolation
 
-- Development workspace: `C:\Users\davis\Documents\Codex\osdcloud-project`. Edit code, docs, tests, Git history, and `.ai/status.json` here.
-- Deployment clone: `C:\osdcloud-win11-deployment-lab`. Use only after a pushed development commit is pulled with `git pull --ff-only origin master`; do not edit or hotfix code there.
+- Workspace: The active Git repository clone directory. Edit code, docs, tests, Git history, `.ai/status.json`, and run tests directly in this directory.
 - Installed host management bundle: `C:\OSDCloud\HostTools\App`. This is the post-setup execution root for the deployment host Web console and helper scripts.
 - Installed host state: `C:\OSDCloud\HostTools\State`. This holds mutable local config, local overlay, deployment secrets, upload staging, and other host-only state.
 - Runtime root: the Web-selected deployment project root, with `C:\OSDCloud` as the proven default. This is product-managed runtime state. Do not manually patch, copy into, or directly edit files there. Never place this root inside the Git clone.
-- If deployment testing fails, return to the development workspace, fix there, commit and push, update the deployment clone, then retest from the deployment clone.
+- If deployment testing fails, debug and fix the code directly in the active Git repository workspace.
 
 ## Secrets
 
@@ -123,7 +122,7 @@ After modifying code, docs, config, tests, tracked project behavior, verificatio
 
 After code changes, finish by updating related documentation and Git state in the same workflow unless the user explicitly scoped the task differently. For documentation-only or process-only updates, push only when the user requests it, the task is a handoff/release, or another repo rule requires it.
 
-After pushing from the development workspace, update the deployment clone before any Web/runtime/PXE/deployment test. See `docs/agent-reference/repo-workflow.md` for the detailed handoff workflow.
+Verify and commit changes in the active Git repository clone directory before any Web/runtime/PXE/deployment test.
 
 Do not commit generated deployment artifacts unless the user explicitly asks:
 
