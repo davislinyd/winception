@@ -69,13 +69,50 @@ export function formatLocalClock(value) {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
 }
 
+export function formatLocalIsoTime(value = new Date()) {
+  const timestamp = parseTimestamp(value);
+  if (timestamp === null) {
+    return '';
+  }
+
+  const date = new Date(timestamp);
+  const pad = (n, m = 2) => String(n).padStart(m, '0');
+  const offset = formatLocalOffset(date);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T` +
+         `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}` +
+         `${offset}`;
+}
+
 export function formatLocalLogLine(message, date = new Date()) {
   return `${formatLocalTimestamp(date)} ${message}`;
 }
 
+const rfc5424Pattern = /^<(\d+)>1 (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)(?: (.*))?$/u;
+
 export function formatDisplayLogLine(line) {
-  return String(line ?? '').replace(displayLogTimestampPattern, (match, prefix = '', timestamp, separator) => {
+  const str = String(line ?? '');
+  const rfcMatch = rfc5424Pattern.exec(str);
+  if (rfcMatch) {
+    const pri = Number(rfcMatch[1]);
+    const severity = pri % 8;
+    const timestamp = rfcMatch[2];
+    const appName = rfcMatch[4];
+    const message = rfcMatch[8] || '';
+    const localTimestamp = formatLocalTimestamp(timestamp);
+    
+    let severityTag = '';
+    if (severity <= 3) {
+      severityTag = ' ERROR:';
+    } else if (severity === 4) {
+      severityTag = ' WARN:';
+    }
+    
+    return localTimestamp ? `${localTimestamp} [${appName}]${severityTag} ${message}` : str;
+  }
+
+  return str.replace(displayLogTimestampPattern, (match, prefix = '', timestamp, separator) => {
     const localTimestamp = formatLocalTimestamp(timestamp);
     return localTimestamp ? `${prefix}${localTimestamp}${separator}` : match;
   });
 }
+

@@ -5,6 +5,7 @@ import {
   formatLocalClock,
   formatLocalLogLine,
   formatLocalTimestamp,
+  formatLocalIsoTime,
   parseTimestamp,
 } from '../src/timeFormat.js';
 
@@ -55,3 +56,27 @@ test('formats live and prefixed log lines for display in local time', () => {
   assert.equal(formatLocalLogLine('message', new Date(source)), `${expected} message`);
   assert.equal(formatDisplayLogLine(`[HTTP] ${source} GET /osdcloud/status 200`), `[HTTP] ${expected} GET /osdcloud/status 200`);
 });
+
+test('formats timestamps as local ISO string with milliseconds and offset', () => {
+  const source = '2026-05-09T01:00:00.123Z';
+  const date = new Date(source);
+  const pad = (n, m = 2) => String(n).padStart(m, '0');
+  const offset = expectedLocalOffset(date);
+  const expectedIso = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T` +
+                      `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.123` +
+                      `${offset}`;
+
+  assert.equal(formatLocalIsoTime(source), expectedIso);
+});
+
+test('formats rfc5424 display log lines properly', () => {
+  const source = '2026-05-09T01:00:00.123Z';
+  const localTime = expectedLocalTimestamp(source);
+  const rfcLine = `<14>1 2026-05-09T01:00:00.123Z myhost DHCP 1234 - - Message here`;
+
+  assert.equal(formatDisplayLogLine(rfcLine), `${localTime} [DHCP] Message here`);
+
+  const rfcErrorLine = `<11>1 2026-05-09T01:00:00.123Z myhost TFTP 1234 - - Error message`;
+  assert.equal(formatDisplayLogLine(rfcErrorLine), `${localTime} [TFTP] ERROR: Error message`);
+});
+

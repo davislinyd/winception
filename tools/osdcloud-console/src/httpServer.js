@@ -4,7 +4,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { stateRootForConfig } from './config.js';
 import { driverPackCacheStage, handleDriverPackCacheRequest } from './driverPackCache.js';
-import { appendLog } from './logger.js';
+import { appendLog, formatSyslog } from './logger.js';
 import { buildRunsIndex, updateRunSummary } from './runSummary.js';
 
 function loadSecrets(config) {
@@ -315,6 +315,42 @@ export class MediaHttpServer extends EventEmitter {
     fs.writeFileSync(path.join(statusRoot, `${runId}.latest.json`), `${JSON.stringify(event, null, 2)}\n`, 'utf8');
     const runSummary = updateRunSummary(statusRoot, event);
 
+    const logsDir = this.config.paths?.logsDir || path.join(path.dirname(statusRoot), 'logs');
+    const runLogDir = path.join(logsDir, 'runs', runId);
+    fs.mkdirSync(runLogDir, { recursive: true });
+    const runLogPath = path.join(runLogDir, 'deployment.log');
+
+    let clientAppName = 'Client-Deployment';
+    const stage = String(event.stage ?? '').toLowerCase();
+    if (stage.startsWith('winpe') || stage.includes('osdcloud') || stage.startsWith('reporter')) {
+      clientAppName = 'Client-WinPE';
+    } else if (stage.startsWith('windows-apps') || stage.startsWith('windows-setupcomplete')) {
+      clientAppName = 'Client-SetupComplete';
+    } else if (stage.startsWith('windows-logon') || stage.startsWith('windows-desktop')) {
+      clientAppName = 'Client-DesktopReady';
+    }
+
+    let clientSeverity = 6;
+    if (stage.includes('error') || String(event.message).toUpperCase().includes('ERROR') || String(event.message).toUpperCase().includes('FAILED')) {
+      clientSeverity = 3;
+    } else if (stage.includes('warn') || String(event.message).toUpperCase().includes('WARN')) {
+      clientSeverity = 4;
+    }
+
+    const clientSyslogLine = formatSyslog({
+      severity: clientSeverity,
+      facility: 1,
+      timestamp: event.timestamp ? new Date(event.timestamp) : new Date(),
+      hostname: event.computerName || event.clientId || 'client',
+      appName: clientAppName,
+      procId: runId,
+      msgId: event.stage || '-',
+      structuredData: `[deployment percent="${event.percent ?? '-'}" stage="${event.stage ?? '-'}"]`,
+      message: event.message || '',
+    });
+    fs.appendFileSync(runLogPath, `${clientSyslogLine}\n`, 'utf8');
+
+
     const details = [
       `run=${runId}`,
       event.clientId ? `client=${sanitizeName(event.clientId)}` : null,
@@ -384,6 +420,14 @@ export class MediaHttpServer extends EventEmitter {
     const filenameBase = `${sanitizeName(timestamp)}-${stage}`.slice(0, 180);
     const filePath = nextAvailablePath(screenshotDir, filenameBase, '.png');
     fs.writeFileSync(filePath, body);
+
+    // Duplicate screenshot under logs/runs/<runId>/screenshots/
+    const logsDir = this.config.paths?.logsDir || path.join(path.dirname(statusRoot), 'logs');
+    const runScreenshotDir = path.join(logsDir, 'runs', runId, 'screenshots');
+    fs.mkdirSync(runScreenshotDir, { recursive: true });
+    const runScreenshotPath = nextAvailablePath(runScreenshotDir, filenameBase, '.png');
+    fs.writeFileSync(runScreenshotPath, body);
+
 
     const metadata = {
       receivedAt: now,

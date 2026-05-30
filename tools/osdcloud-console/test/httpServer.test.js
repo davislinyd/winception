@@ -320,3 +320,62 @@ test('serves boot configuration with secrets', async () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('writes RFC 5424 syslog and duplicates screenshots under logs directory', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-logs-test-'));
+  const statusRoot = path.join(root, 'status');
+  const logsDir = path.join(root, 'logs');
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+    paths: { logsDir },
+  });
+
+  try {
+    await server.start();
+    const port = server.address.port;
+    const base = `http://127.0.0.1:${port}`;
+
+    const statusResponse = await fetch(`${base}/osdcloud/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        runId: 'syslog-run',
+        clientId: 'syslog-client',
+        stage: 'winpe-start',
+        message: 'Started WinPE run test',
+        percent: 10,
+        timestamp: '2026-05-30T12:00:00.000Z',
+      }),
+    });
+    assert.equal(statusResponse.status, 204);
+
+    const deploymentLogPath = path.join(logsDir, 'runs', 'syslog-run', 'deployment.log');
+    assert.ok(fs.existsSync(deploymentLogPath), 'deployment.log should exist');
+    const logContent = fs.readFileSync(deploymentLogPath, 'utf8').trim();
+
+    assert.match(logContent, /^<\d+>1 \S+ syslog-client Client-WinPE syslog-run winpe-start \[deployment percent="10" stage="winpe-start"\] Started WinPE run test$/);
+
+    const screenshotResponse = await fetch(`${base}/osdcloud/screenshot?runId=syslog-run&clientId=syslog-client&stage=winpe-start&source=winpe&timestamp=2026-05-30T12:00:00.000Z`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png' },
+      body: onePixelPng,
+    });
+    assert.equal(screenshotResponse.status, 201);
+
+    const runScreenshotDir = path.join(logsDir, 'runs', 'syslog-run', 'screenshots');
+    assert.ok(fs.existsSync(runScreenshotDir), 'runs/syslog-run/screenshots directory should exist');
+    const screenshots = fs.readdirSync(runScreenshotDir);
+    assert.equal(screenshots.length, 1);
+    assert.match(screenshots[0], /winpe-start\.png$/);
+    const screenshotBytes = fs.readFileSync(path.join(runScreenshotDir, screenshots[0]));
+    assert.deepEqual(screenshotBytes, onePixelPng);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+

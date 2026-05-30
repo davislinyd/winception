@@ -42,7 +42,7 @@ import {
   resolveOsImageState,
   uploadOsImageFile,
 } from './osImages.js';
-import { formatLogLine, RingBuffer, tailFile } from './logger.js';
+import { formatLogLine, RingBuffer, tailFile, appendLog } from './logger.js';
 import {
   isElevatedSync,
   listIpv4ServiceInterfaces,
@@ -645,6 +645,7 @@ export class ServiceController extends EventEmitter {
       getRuntimeReadiness,
       getDeploymentSecretsStatus: deploymentSecretsStatus,
       tailFile,
+      appendLog,
       updateDeploymentProfile,
       uploadCustomScript,
       uploadSoftwareInstaller,
@@ -691,16 +692,18 @@ export class ServiceController extends EventEmitter {
     });
   }
 
+  hostLogPath() {
+    return this.config.dhcp?.logPath || path.join(this.config.paths?.logsDir || 'C:\\OSDCloud\\logs', 'host-services.log');
+  }
+
   initialLogTail() {
-    return [
-      ...this.dependencies.tailFile(this.config.dhcp?.logPath, 5).map((line) => formatDisplayLogLine(`[DHCP] ${line}`)),
-      ...this.dependencies.tailFile(this.config.tftp?.logPath, 5).map((line) => formatDisplayLogLine(`[TFTP] ${line}`)),
-      ...this.dependencies.tailFile(this.config.http?.logPath, 5).map((line) => formatDisplayLogLine(`[HTTP] ${line}`)),
-    ];
+    const logPath = this.hostLogPath();
+    return this.dependencies.tailFile(logPath, 15).map((line) => formatDisplayLogLine(line));
   }
 
   addLog(message) {
-    const line = formatLogLine(message);
+    const logPath = this.hostLogPath();
+    const line = this.dependencies.appendLog(logPath, message, { appName: 'WEB-OP' });
     this.runtimeLog.push(line);
     if (this.operation?.running) {
       this.operation.lines.push(line);
@@ -710,7 +713,7 @@ export class ServiceController extends EventEmitter {
   }
 
   addServiceLog(name, line) {
-    const display = formatDisplayLogLine(`[${name}] ${line}`);
+    const display = formatDisplayLogLine(line);
     this.runtimeLog.push(display);
     if (this.operation?.running) {
       this.operation.lines.push(display);
