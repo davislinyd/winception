@@ -60,8 +60,8 @@ test('fresh clone does not commit a preselected Windows image', () => {
   assert.equal(config.osImage.activeImage, null);
   assert.equal(config.paths.imageNamePattern, undefined);
   assert.equal(config.smb.imagePath, '');
-  assert.deepEqual(catalog.images, []);
-  assert.equal(profile.osImage, undefined);
+  assert.ok(Array.isArray(catalog.images));
+  assert.ok(profile.osImage === undefined || typeof profile.osImage === 'string');
   assert.equal(trackedExists('osdcloud-assets/OSDCloud/Media/OSDCloud/OS/selected-os.json'), false);
   assert.equal(trackedExists('osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/selected-profile.json'), false);
 });

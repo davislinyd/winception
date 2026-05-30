@@ -1,5 +1,5 @@
 <!doctype html>
-<html class="light" lang="en">
+<html class="dark" lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,33 +13,33 @@
       theme: {
         extend: {
           colors: {
-            "surface": "#f8f9fb",
-            "surface-dim": "#d9dadc",
-            "surface-bright": "#f8f9fb",
-            "surface-container-lowest": "#ffffff",
-            "surface-container-low": "#f3f4f6",
-            "surface-container": "#edeef0",
-            "surface-container-high": "#e7e8ea",
-            "surface-container-highest": "#e1e2e4",
-            "on-surface": "#191c1e",
-            "on-surface-variant": "#444651",
-            "inverse-surface": "#2e3132",
-            "inverse-on-surface": "#f0f1f3",
-            "outline": "#757682",
-            "outline-variant": "#c5c5d3",
-            "surface-tint": "#4059aa",
-            "primary": "#00236f",
-            "on-primary": "#ffffff",
-            "primary-container": "#1e3a8a",
-            "on-primary-container": "#90a8ff",
-            "primary-fixed": "#dce1ff",
-            "primary-fixed-dim": "#b6c4ff",
-            "secondary": "#585f6c",
-            "secondary-container": "#dce2f3",
-            "error": "#ba1a1a",
-            "error-container": "#ffdad6",
-            "background": "#f8f9fb",
-            "surface-variant": "#e1e2e4"
+            "surface": "var(--surface)",
+            "surface-dim": "var(--surface-dim)",
+            "surface-bright": "var(--surface-bright)",
+            "surface-container-lowest": "var(--surface-container-lowest)",
+            "surface-container-low": "var(--surface-container-low)",
+            "surface-container": "var(--surface-container)",
+            "surface-container-high": "var(--surface-container-high)",
+            "surface-container-highest": "var(--surface-container-highest)",
+            "on-surface": "var(--on-surface)",
+            "on-surface-variant": "var(--on-surface-variant)",
+            "inverse-surface": "var(--inverse-surface)",
+            "inverse-on-surface": "var(--inverse-on-surface)",
+            "outline": "var(--outline)",
+            "outline-variant": "var(--outline-variant)",
+            "surface-tint": "var(--surface-tint)",
+            "primary": "var(--primary)",
+            "on-primary": "var(--on-primary)",
+            "primary-container": "var(--primary-container)",
+            "on-primary-container": "var(--on-primary-container)",
+            "primary-fixed": "var(--primary-fixed)",
+            "primary-fixed-dim": "var(--primary-fixed-dim)",
+            "secondary": "var(--secondary)",
+            "secondary-container": "var(--secondary-container)",
+            "error": "var(--error)",
+            "error-container": "var(--error-container)",
+            "background": "var(--background)",
+            "surface-variant": "var(--surface-variant)"
           },
           borderRadius: {
             "DEFAULT": "0.125rem",
@@ -84,10 +84,18 @@
 <body class="bg-surface text-on-surface min-h-screen flex flex-col font-body-sm">
   <header class="bg-surface dark:bg-surface-dim font-h2 text-h2 border-b border-outline-variant dark:border-outline flex justify-between items-center w-full px-lg h-14 shrink-0">
     <div class="flex items-center gap-xl h-full">
-      <div class="font-h1 text-h1 font-bold text-primary dark:text-primary-fixed">
+      <div class="font-h1 text-h1 font-bold text-primary dark:text-primary-fixed flex items-center gap-sm">
         <span id="product-title">OSDCloud Host Console</span>
-        <span id="app-version"></span>
+        <span id="app-version" class="text-xs font-normal opacity-75"></span>
       </div>
+      <nav class="flex items-center gap-xs border-l border-outline-variant dark:border-outline pl-lg h-8">
+        <button id="tab-guided" class="view-tab" type="button">
+          <span class="material-symbols-outlined text-[16px] mr-xs">menu_book</span>引導設定 (Guided Setup)
+        </button>
+        <button id="tab-dashboard" class="view-tab active" type="button">
+          <span class="material-symbols-outlined text-[16px] mr-xs">dashboard</span>儀表板 (Dashboard)
+        </button>
+      </nav>
     </div>
     <div class="flex items-center gap-md">
       <span id="endpoint-line" class="font-technical-string text-technical-string text-on-surface-variant">Loading endpoint...</span>
@@ -226,38 +234,44 @@
           </aside>
         </div>
       </section>
+      <!-- Guided Setup View Container -->
+      <section id="initialization-dialog" class="view flex-col gap-sm" aria-labelledby="guided-setup-title">
+        <div class="guided-layout grid grid-cols-12 gap-sm flex-1 min-h-0">
+          <!-- Left Stepper Column -->
+          <aside class="col-span-12 lg:col-span-4 flex flex-col gap-sm">
+            <div class="operations-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm h-full">
+              <div class="flex items-center justify-between border-b border-outline-variant pb-sm">
+                <h3 id="guided-setup-title" class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant flex items-center gap-xs">
+                  <span class="material-symbols-outlined text-[18px]">checklist</span>設定步驟 (Setup Steps)
+                </h3>
+                <span id="initialization-badge" class="status-pill neutral" aria-live="polite">Checking</span>
+              </div>
+              <div class="flex flex-col gap-xs mt-xs">
+                <span id="initialization-summary" class="font-technical-string text-technical-string text-on-surface-variant">Checking initialization state...</span>
+              </div>
+              <div id="initialization-steps" class="initialization-step-list mt-sm overflow-y-auto flex-1 pr-xs"></div>
+              <div class="flex justify-end pt-sm border-t border-outline-variant mt-auto">
+                <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="warning w-full justify-center" type="button">Next step</button>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Right Detail Column -->
+          <div class="col-span-12 lg:col-span-8 flex flex-col gap-sm min-h-0">
+            <section id="guided-step-detail" class="bg-surface-container-lowest border border-outline-variant rounded p-lg flex flex-col gap-md flex-1 overflow-y-auto">
+              <!-- Dynamically filled by app.js -->
+            </section>
+            
+            <!-- Live Operation Log Panel -->
+            <div id="initialization-operation" class="initialization-operation-panel" aria-live="polite" hidden></div>
+          </div>
+        </div>
+      </section>
 
     </main>
   </div>
 
   <div id="fleet-backdrop" class="fleet-backdrop" hidden></div>
-
-  <dialog id="initialization-dialog" class="drawer-dialog initialization-dialog">
-    <form method="dialog" class="dialog-card drawer-card">
-      <div class="dialog-header">
-        <div>
-          <h3>Initialization Wizard</h3>
-          <div class="drawer-subtitle">
-            <span id="initialization-summary">Checking initialization state...</span>
-          </div>
-        </div>
-        <div class="drawer-actions">
-          <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="warning" type="button">Next step</button>
-          <button value="cancel" type="submit">Close</button>
-        </div>
-      </div>
-      <div class="drawer-body">
-        <section class="drawer-section">
-          <div class="drawer-section-header">
-            <h4>Required Steps</h4>
-            <span id="initialization-badge" class="status-pill neutral" aria-live="polite">Checking</span>
-          </div>
-          <div id="initialization-operation" class="initialization-operation-panel" aria-live="polite" hidden></div>
-          <div id="initialization-steps" class="initialization-step-list"></div>
-        </section>
-      </div>
-    </form>
-  </dialog>
 
   <dialog id="endpoint-settings-dialog" class="drawer-dialog">
     <form method="dialog" class="dialog-card drawer-card">

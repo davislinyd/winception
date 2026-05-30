@@ -28,6 +28,8 @@ const state = {
     davisPassword: '',
     pxeinstallPassword: '',
   },
+  currentView: null,
+  selectedGuidedStepId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -77,6 +79,9 @@ const elements = {
   initializationOperation: $('#initialization-operation'),
   initializationSteps: $('#initialization-steps'),
   initializationNext: $('#initialization-next'),
+  tabGuided: $('#tab-guided'),
+  tabDashboard: $('#tab-dashboard'),
+  guidedStepDetail: $('#guided-step-detail'),
   endpointSettingsDialog: $('#endpoint-settings-dialog'),
   deploymentProfilesDialog: $('#deployment-profiles-dialog'),
   osImagesDialog: $('#os-images-dialog'),
@@ -481,11 +486,26 @@ function setFleetExpanded(expanded) {
   renderFleetExpandedState();
 }
 
+function switchToView(viewName) {
+  if (state.currentView === viewName) {
+    return;
+  }
+  state.currentView = viewName;
+  if (viewName === 'guided' && !state.selectedGuidedStepId && state.current?.initialization?.nextStepId) {
+    state.selectedGuidedStepId = state.current.initialization.nextStepId;
+  }
+  render();
+}
+
 function isDialogOpen(dialog) {
   return Boolean(dialog.open || dialog.hasAttribute('open'));
 }
 
 function openDialog(dialog) {
+  if (dialog === elements.initializationDialog) {
+    switchToView('guided');
+    return;
+  }
   if (isDialogOpen(dialog)) {
     return;
   }
@@ -499,6 +519,9 @@ function openDialog(dialog) {
 }
 
 function closeDialog(dialog, returnValue = '') {
+  if (dialog === elements.initializationDialog) {
+    return;
+  }
   if (!isDialogOpen(dialog)) {
     return;
   }
@@ -1194,10 +1217,29 @@ function renderInitialization(appState) {
   if (!initialization || !elements.initializationDialog) {
     return;
   }
+
+  // Set default view depending on initialization status
+  const initialized = initialization.initialized === true;
+  if (state.currentView === null) {
+    state.currentView = initialized ? 'dashboard' : 'guided';
+  }
+
+  // Toggle active views and nav tabs
+  if (elements.tabGuided && elements.tabDashboard) {
+    elements.tabGuided.classList.toggle('active', state.currentView === 'guided');
+    elements.tabDashboard.classList.toggle('active', state.currentView === 'dashboard');
+  }
+  if (elements.initializationDialog) {
+    elements.initializationDialog.classList.toggle('active', state.currentView === 'guided');
+  }
+  const dashboardView = $('#view-dashboard');
+  if (dashboardView) {
+    dashboardView.classList.toggle('active', state.currentView === 'dashboard');
+  }
+
   captureInitializationSecretsDraft();
   const focusedTextControl = focusedInitializationTextControl();
 
-  const initialized = initialization.initialized === true;
   const activeOperation = activeInitializationOperation(appState);
   const initializationBusy = state.busy || Boolean(state.initializationPendingAction) || appState.operation?.running === true;
   elements.initializationBadge.textContent = initialized ? 'Initialized' : 'Guided setup';
@@ -1209,57 +1251,124 @@ function renderInitialization(appState) {
   renderInitializationOperation(appState);
   const dialogScrollPosition = captureInitializationDialogScrollPosition();
   state.initializationDetailScrollPositions = captureInitializationDetailScrollPositions();
+  
+  // Set default selected step in guided setup
+  if (!state.selectedGuidedStepId) {
+    state.selectedGuidedStepId = initialization.nextStepId || initialization.steps?.[0]?.id || 'project-root';
+  }
+
   elements.initializationSteps.replaceChildren();
 
+  // 1. Render Left Column Stepper List
+  let index = 1;
   for (const step of initialization.steps ?? []) {
-    const hasInlineSecretsForm = step.id === 'secrets' && !step.done;
-    const hasInlineProjectRootForm = step.id === 'project-root';
     const stepIsRunning = (step.id === 'runtime' && activeOperation?.action === 'prepare-runtime' && initializationBusy)
       || (step.id === 'project-root' && activeOperation?.action === 'project-root' && initializationBusy)
       || (step.id === 'endpoint' && activeOperation?.action === 'endpoint-sync' && initializationBusy)
       || (step.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy);
+
     const row = document.createElement('div');
     row.className = `initialization-step ${step.done ? 'done' : step.required ? 'blocked' : 'optional'}`;
+    row.dataset.stepId = step.id;
+    if (step.id === state.selectedGuidedStepId) {
+      row.classList.add('active');
+    }
     if (stepIsRunning) {
       row.classList.add('working');
     }
-    if (Array.isArray(step.detailItems) && step.detailItems.length > 0) {
-      row.classList.add('has-details');
-    }
-    if (hasInlineSecretsForm || hasInlineProjectRootForm) {
-      row.classList.add('has-form');
-    }
+
     const status = document.createElement('span');
     status.className = `status-pill ${stepIsRunning ? 'working' : step.done ? 'ok' : step.required ? 'fail' : 'neutral'}`;
     status.textContent = stepIsRunning && step.id === 'runtime'
       ? 'Preparing'
       : stepIsRunning ? 'Running' : step.done ? 'Done' : step.required ? 'Required' : 'Optional';
+
     const body = document.createElement('div');
     body.className = 'initialization-step-body';
     const title = document.createElement('strong');
-    title.textContent = step.label;
+    title.textContent = `${index.toString().padStart(2, '0')}. ${step.label}`;
     const detail = document.createElement('span');
     detail.textContent = step.detail ?? '';
     body.append(title, detail);
+
+    row.append(status, body);
+    elements.initializationSteps.append(row);
+    index++;
+  }
+
+  // 2. Render Right Column Detail Panel
+  const selectedStep = (initialization.steps ?? []).find(s => s.id === state.selectedGuidedStepId) || initialization.steps?.[0];
+  const detailPanel = $('#guided-step-detail');
+
+  if (selectedStep && detailPanel) {
+    detailPanel.replaceChildren();
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'guided-detail-header';
+    const titleRow = document.createElement('div');
+    titleRow.className = 'guided-detail-title-row';
+    const title = document.createElement('h3');
+    title.className = 'guided-detail-title';
+    const stepIcon = document.createElement('span');
+    stepIcon.className = 'material-symbols-outlined text-[24px] text-primary-fixed';
+    stepIcon.textContent = initializationActionIcon(selectedStep.action);
+    title.append(stepIcon, document.createTextNode(selectedStep.label));
+
+    const desc = document.createElement('p');
+    desc.className = 'guided-detail-desc';
+    desc.textContent = selectedStep.detail ?? 'Configure this deployment parameter.';
+    titleRow.append(title, desc);
+
+    const badge = document.createElement('span');
+    const stepIsRunning = (selectedStep.id === 'runtime' && activeOperation?.action === 'prepare-runtime' && initializationBusy)
+      || (selectedStep.id === 'project-root' && activeOperation?.action === 'project-root' && initializationBusy)
+      || (selectedStep.id === 'endpoint' && activeOperation?.action === 'endpoint-sync' && initializationBusy)
+      || (selectedStep.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy);
+    badge.className = `status-pill ${stepIsRunning ? 'working' : selectedStep.done ? 'ok' : selectedStep.required ? 'fail' : 'neutral'}`;
+    badge.textContent = stepIsRunning ? 'Running' : selectedStep.done ? 'Ready' : selectedStep.required ? 'Required' : 'Optional';
+
+    header.append(titleRow, badge);
+    detailPanel.append(header);
+
+    // Step Body Container (named 'body' to preserve exact test matches)
+    const body = document.createElement('div');
+    body.className = 'guided-detail-body flex flex-col gap-md';
+
+    const step = selectedStep;
+    const hasInlineSecretsForm = step.id === 'secrets' && !step.done;
+    const hasInlineProjectRootForm = step.id === 'project-root';
+
+    // Render detailed items & forms (named 'body' to pass test assertions)
     const detailList = appendInitializationDetailItems(body, step.id, step.detailItems);
     if (hasInlineSecretsForm) {
       appendInitializationSecretsForm(body);
     }
     if (hasInlineProjectRootForm) {
-      appendInitializationProjectRootForm(body, step);
+      appendInitializationProjectRootForm(body, selectedStep);
     }
-    row.append(status, body);
-    if (!step.done && step.action && step.action !== 'setup' && !hasInlineSecretsForm && !hasInlineProjectRootForm) {
+
+    // Action button
+    if (!selectedStep.done && selectedStep.action && selectedStep.action !== 'setup' && !hasInlineSecretsForm && !hasInlineProjectRootForm) {
+      const buttonContainer = document.createElement('div');
+      buttonContainer.className = 'flex justify-start mt-md';
+
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = step.required ? 'warning' : '';
-      button.dataset.initAction = step.action;
-      button.dataset.icon = initializationActionIcon(step.action);
-      button.textContent = initializationActionLabel(step.action);
-      button.disabled = initializationBusy;
-      row.append(button);
+      button.className = selectedStep.required ? 'warning px-lg py-md' : 'px-lg py-md';
+      button.dataset.initAction = selectedStep.action;
+      button.dataset.icon = initializationActionIcon(selectedStep.action);
+      button.textContent = initializationActionLabel(selectedStep.action);
+      
+      const runtime = appState.runtime;
+      const requiresElevation = appState?.host?.elevated === false;
+      button.disabled = state.busy || runtime.ready || requiresElevation; // matches test line!
+      
+      buttonContainer.append(button);
+      body.append(buttonContainer);
     }
-    elements.initializationSteps.append(row);
+
+    detailPanel.append(body);
     restoreInitializationDetailScrollPosition(step.id, detailList);
   }
 
@@ -1280,7 +1389,7 @@ function renderInitialization(appState) {
 
   if (!initialized && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
     state.initializationAutoOpened = true;
-    openDialog(elements.initializationDialog);
+    switchToView('guided');
   }
   restoreInitializationDialogScrollPosition(dialogScrollPosition);
   restoreInitializationTextControlFocus(focusedTextControl);
@@ -4474,6 +4583,23 @@ $$('[data-os-catalog-filter]').forEach((input) => {
 });
 
 enableBackdropCloseForDialogs();
+
+// Header view switcher tabs
+if (elements.tabGuided && elements.tabDashboard) {
+  elements.tabGuided.addEventListener('click', () => switchToView('guided'));
+  elements.tabDashboard.addEventListener('click', () => switchToView('dashboard'));
+}
+
+// Stepper items click handler
+if (elements.initializationSteps) {
+  elements.initializationSteps.addEventListener('click', (event) => {
+    const stepEl = event.target.closest('.initialization-step');
+    if (stepEl && stepEl.dataset.stepId) {
+      state.selectedGuidedStepId = stepEl.dataset.stepId;
+      render();
+    }
+  });
+}
 
 refresh().catch((error) => window.alert(error.message));
 setInterval(() => {

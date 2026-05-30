@@ -1157,7 +1157,10 @@ test('installer script installs selected apps in selected-profile order', () => 
       'Bypass',
       '-File',
       path.join(appsRoot, 'Install-Apps.ps1'),
-    ], { encoding: 'utf8' });
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: path.join(root, 'logs') },
+    });
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(fs.existsSync(path.join(appsRoot, 'one.marker')), true);
@@ -1236,7 +1239,10 @@ test('installer script fails when selected app is missing', () => {
       'Bypass',
       '-File',
       path.join(appsRoot, 'Install-Apps.ps1'),
-    ], { encoding: 'utf8' });
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: path.join(root, 'logs') },
+    });
 
     assert.notEqual(result.status, 0);
     assert.match(`${result.stdout}\n${result.stderr}`, /Selected app script not found/);

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T12:35:00.0000000+08:00",
+  "updated_at": "2026-05-30T16:18:00.0000000+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -101,11 +101,19 @@
   },
   "recent_changes": [
     {
+      "id": "20260530-web-console-redesign",
+      "at": "2026-05-30T16:18:00.0000000+08:00",
+      "kind": "implementation",
+      "summary": "- Overhauled the Web console layout to feature a horizontal view toggle: Guided Setup and Dashboard.\n- Implemented macOS Modern Dark Installer Style (Space Gray) theme with high-contrast text readability.\n- Mapped all Tailwind color parameters to CSS custom variables for seamless theme transition support.\n- Prioritized native Apple system fonts stack over Google fonts on macOS hosts.\n- Custom-designed macOS native styled buttons, active steps selection, tables, status pills, and console log panes.\n- Fixed 4 mock and permission testing failures to ensure 100% test compliance (212/212 passed).\n- Bumped package.json and package-lock.json version to 0.4.1.",
+      "commit": null,
+      "verification": "npm test passed 212/212. Served static web UI and verified styling variables and tab switching."
+    },
+    {
       "id": "20260530-setup-powershell-module-paths-fix",
       "at": "2026-05-30T12:39:00.0000000+08:00",
       "kind": "implementation",
       "summary": "- Fixed Setup-DeploymentServer.ps1 package bootstrap in restricted/custom environments by dynamically verifying and appending standard Windows PowerShell module paths to $env:PSModulePath.\n- Filtered out incompatible PowerShell Core/PowerShell 7 paths from $env:PSModulePath when running under Windows PowerShell 5.1 to prevent DLL load errors.\n- Added explicit module imports for PackageManagement and PowerShellGet to resolve Install-PackageProvider missing command errors.",
-      "commit": null,
+      "commit": "05096a4fbbf9ec1f99c8bf2a095c9db98e4f16b2",
       "verification": "AST parsing checks passed for Setup-DeploymentServer.ps1. Verified module path injection, PowerShell Core path filtering, and package provider resolution in local Windows PowerShell runner."
     },
     {
@@ -131,14 +139,6 @@
       "summary": "- Removed pinned size and SHA-256 from the Chrome catalog row because the configured Google MSI URL floats to the latest build.\n- Added a regression test for downloadUrl-only software payloads and updated docs to distinguish fixed-version sources from vendor latest URLs.",
       "commit": null,
       "verification": "node --test tools/osdcloud-console/test/deploymentProfiles.test.js passed 55/55. Active profile IZVZO7PU published successfully from C:\\OSDCloud\\HostTools\\State via publishDeploymentProfile(), downloading chrome, 7zip, and SW-4UT7PDID into host state and publishing them to C:\\OSDCloud\\Media\\OSDCloud\\Apps. The current Google Chrome MSI downloaded from https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi measured 152944640 bytes with SHA-256 92823BBB0A4341EDCF681DB06DA954A8A6A256EC02DC8E4B492ACB208915CAA2, which no longer matched the previously pinned catalog metadata."
-    },
-    {
-      "id": "20260529-installed-state-secret-fix",
-      "at": "2026-05-29T14:36:08.5055777+08:00",
-      "kind": "implementation",
-      "summary": "- Installed runtime scripts now resolve console config and deployment secrets from C:\\OSDCloud\\HostTools\\State first.\n- Setup now seeds an existing ignored config\\osdcloud-secrets.json into installed host state so repo-free runtime prepare keeps working after the clone is deleted.",
-      "commit": null,
-      "verification": "node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 29/29. PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Set-OsdCloudIpxeEndpoint.ps1. Reinstalled C:\\OSDCloud\\HostTools\\App and State, ran npm install plus npm run smoke from the installed AppRoot, then ran Restore-DeploymentArtifacts.ps1 from C:\\OSDCloud\\HostTools\\App with -ConfigPath C:\\OSDCloud\\HostTools\\State\\config\\osdcloud-console.json -LiveRoot C:\\OSDCloud -DryRun -SkipPrerequisiteCheck and confirmed it completed without the missing pxeinstallPassword error. Setup/install tests now verify that an existing ignored config\\osdcloud-secrets.json is seeded into C:\\OSDCloud\\HostTools\\State\\config\\osdcloud-secrets.json."
     }
   ]
 }

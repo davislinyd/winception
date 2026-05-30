@@ -321,6 +321,7 @@ async function makeServer(root, overrides = {}) {
       saveConfig: () => path.join(root, 'config.json'),
       summarizeValidation: () => [],
       tailFile: () => [],
+      isElevated: () => true,
       ...(overrides.dependencies ?? {}),
     },
   });
