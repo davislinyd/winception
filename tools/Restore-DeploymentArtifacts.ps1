@@ -652,8 +652,10 @@ function Assert-Prerequisites {
     if (-not (Get-Command -Name npm -ErrorAction SilentlyContinue)) {
         $missing.Add('Install npm with Node.js LTS and make npm available in PATH.')
     }
-    if (-not (Get-Module -ListAvailable -Name OSD)) {
-        $missing.Add("Install the OSD PowerShell module: Install-Module OSD -Scope CurrentUser -Force")
+    foreach ($moduleName in @('OSD', 'OSDCloud')) {
+        if (-not (Get-Module -ListAvailable -Name $moduleName)) {
+            $missing.Add("Install the $moduleName PowerShell module: Install-Module $moduleName -Scope CurrentUser -Force")
+        }
     }
 
     $adkState = Get-AdkPrerequisiteState

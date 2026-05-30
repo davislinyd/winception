@@ -401,12 +401,10 @@ function Copy-IfPresent {
     return $false
 }
 
-function Copy-WinPePowerShellModule {
+function Get-WinPePowerShellModule {
     param(
         [Parameter(Mandatory)]
-        [string] $Name,
-        [Parameter(Mandatory)]
-        [string] $MountDir
+        [string] $Name
     )
 
     $module = Get-Module -ListAvailable -Name $Name |
@@ -415,6 +413,27 @@ function Copy-WinPePowerShellModule {
     if (-not $module) {
         throw "PowerShell module '$Name' is not installed on the host. Install it before committing WinPE."
     }
+    $module
+}
+
+function Assert-WinPePowerShellModuleAvailable {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Name
+    )
+
+    Get-WinPePowerShellModule -Name $Name | Out-Null
+}
+
+function Copy-WinPePowerShellModule {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Name,
+        [Parameter(Mandatory)]
+        [string] $MountDir
+    )
+
+    $module = Get-WinPePowerShellModule -Name $Name
 
     $destination = Join-Path $MountDir "Program Files\WindowsPowerShell\Modules\$Name"
     if ((Split-Path -Leaf $module.ModuleBase) -eq ([string] $module.Version)) {
@@ -670,6 +689,9 @@ if ($CommitWinPe) {
     $mountDir = Join-Path $ipxeLab 'MountEndpointUpdate'
     $mounted = $false
     $commit = $false
+
+    Assert-WinPePowerShellModuleAvailable -Name 'OSD'
+    Assert-WinPePowerShellModuleAvailable -Name 'OSDCloud'
 
     if (-not (Test-Path -LiteralPath $bootWim -PathType Leaf)) {
         Restore-BootWimSourceIfMissing -BootWim $bootWim -PublishedBootWim $publishedBootWim | Out-Null

@@ -658,6 +658,14 @@ test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft in
   assert.match(script, /NoAdkAutoInstall/);
 });
 
+test('runtime restore requires both OSD modules before WinPE preparation', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+
+  assert.match(script, /foreach \(\$moduleName in @\('OSD', 'OSDCloud'\)\)/);
+  assert.match(script, /Get-Module -ListAvailable -Name \$moduleName/);
+  assert.match(script, /Install-Module \$moduleName -Scope CurrentUser -Force/);
+});
+
 test('restore bootstrap creates missing OSDCloud template before workspace build', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
   assert.match(script, /Ensure-OsdCloudTemplate/);
@@ -719,9 +727,16 @@ test('WinPE deployment script uses a lab-scoped selected OS manifest helper', ()
 
 test('endpoint sync injects OSD modules into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  const moduleCheckIndex = script.indexOf("Assert-WinPePowerShellModuleAvailable -Name 'OSDCloud'");
+  const mountIndex = script.indexOf('& dism /English /Mount-Wim');
 
+  assert.match(script, /function Get-WinPePowerShellModule/);
+  assert.match(script, /function Assert-WinPePowerShellModuleAvailable/);
   assert.match(script, /function Copy-WinPePowerShellModule/);
   assert.match(script, /Program Files\\WindowsPowerShell\\Modules\\\$Name/);
+  assert.match(script, /Assert-WinPePowerShellModuleAvailable -Name 'OSD'/);
+  assert.match(script, /Assert-WinPePowerShellModuleAvailable -Name 'OSDCloud'/);
+  assert.ok(moduleCheckIndex > -1 && moduleCheckIndex < mountIndex);
   assert.match(script, /Copy-WinPePowerShellModule -Name 'OSD' -MountDir \$mountDir/);
   assert.match(script, /Copy-WinPePowerShellModule -Name 'OSDCloud' -MountDir \$mountDir/);
 });
