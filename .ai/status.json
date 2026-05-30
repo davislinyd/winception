@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T12:41:08.736Z",
+  "updated_at": "2026-05-30T12:41:31.084Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -35,9 +35,9 @@
     "remote": "origin-github",
     "summary": "Setup now runs unattended after clone, defaults Web to 127.0.0.1:8080, auto-installs Node/npm plus OSD and OSDCloud host modules, and leaves ADK/WinPE/runtime work to Web Prepare runtime.",
     "baseline": {
-      "commit": "5d7aae00a00d48a6408f765b7bdb22e82d61ea14",
-      "short": "5d7aae0",
-      "subject": "chore: update status.json for 0.5.3 syslog feature"
+      "commit": "a21303cf9590db3d3143232cc5b92957ac16c216",
+      "short": "a21303c",
+      "subject": "feat: redirect prepare runtime and endpoint sync verbose outputs to dedicated logs and bump version to 0.5.4"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -59,9 +59,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "5d7aae00a00d48a6408f765b7bdb22e82d61ea14",
-    "last_checked_head_short": "5d7aae0",
-    "dirty": true,
+    "last_checked_head": "a21303cf9590db3d3143232cc5b92957ac16c216",
+    "last_checked_head_short": "a21303c",
+    "dirty": false,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -105,7 +105,7 @@
       "at": "2026-05-30T12:41:08.737Z",
       "kind": "implementation",
       "summary": "- Redirected verbose stdout/stderr outputs from Prepare Runtime and Endpoint Sync processes to dedicated log files: C:\\OSDCloud\\logs\\runtime-prepare.log and endpoint-sync.log.\n- Wrote helper addOperationVerboseLog in serviceController.js to log raw syslog format to files and formatted output to Web UI.\n- Bumped package.json and package-lock.json version to 0.5.4.\n- Added unit tests to verify dedicated logging files and syslog formatting.",
-      "commit": null,
+      "commit": "a21303cf9590db3d3143232cc5b92957ac16c216",
       "verification": "node --test passed 219/219."
     },
     {
