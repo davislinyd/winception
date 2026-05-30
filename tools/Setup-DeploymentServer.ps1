@@ -17,6 +17,26 @@ $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::InputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
 
+# Ensure standard PowerShell module paths are present in PSModulePath
+$DefaultModulePaths = @(
+    (Join-Path $Home 'Documents\WindowsPowerShell\Modules'),
+    'C:\Program Files\WindowsPowerShell\Modules',
+    'C:\Windows\system32\WindowsPowerShell\v1.0\Modules'
+)
+foreach ($Path in $DefaultModulePaths) {
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        $NormalizedPath = [System.IO.Path]::GetFullPath($Path)
+        $CurrentPaths = ($env:PSModulePath -split ';') | Where-Object { $_ } | ForEach-Object { [System.IO.Path]::GetFullPath($_) }
+        if ($CurrentPaths -notcontains $NormalizedPath) {
+            $env:PSModulePath = "$NormalizedPath;$env:PSModulePath"
+        }
+    }
+}
+
+# Explicitly import PackageManagement and PowerShellGet to ensure cmdlets are loaded
+Import-Module PackageManagement -ErrorAction SilentlyContinue
+Import-Module PowerShellGet -ErrorAction SilentlyContinue
+
 $SourceRoot = Split-Path -Parent $PSScriptRoot
 $ConfigPath = Join-Path $SourceRoot 'config\osdcloud-console.json'
 $InstallScriptPath = Join-Path $SourceRoot 'tools\Install-HostManagementBundle.ps1'
