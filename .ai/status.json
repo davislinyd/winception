@@ -35,9 +35,9 @@
     "remote": "origin-github",
     "summary": "Setup now runs unattended after clone, defaults Web to 127.0.0.1:8080, auto-installs Node/npm plus OSD and OSDCloud host modules, and leaves ADK/WinPE/runtime work to Web Prepare runtime.",
     "baseline": {
-      "commit": "d8d3170fd75ad68c5ec9e6093e41c81747daae80",
-      "short": "d8d3170",
-      "subject": "Update deployment profile, OS image catalog, assets manifest, and GEMINI rules"
+      "commit": "ef372c96b5788b006f627e8f1d894c46f303307b",
+      "short": "ef372c9",
+      "subject": "feat: optimize OSDCloud deployment service flow"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "a0154076700f14a9b75743256e37225185f00981",
-    "last_checked_head_short": "a015407",
+    "last_checked_head": "ef372c96b5788b006f627e8f1d894c46f303307b",
+    "last_checked_head_short": "ef372c9",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -77,7 +77,7 @@
     "dirty_excludes_status_file": false,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": false
+    "status_file_uncommitted": true
   },
   "required_workflow": {
     "before_development_work": [
@@ -104,8 +104,8 @@
       "id": "20260530-deployment-service-optimization",
       "at": "2026-05-30T16:34:00.0000000+08:00",
       "kind": "implementation",
-      "summary": "- Implemented dynamic boot-config HTTP API endpoint in httpServer.js to serve server IP, SMB, and Davis OOBE credentials.\n- Updated client-side WinPE Startup script (Start-OSDCloud-iPXE.ps1) with dynamic server IP probing (DHCP, Gateway, DNS) and boot-config fetching over HTTP, seeding secrets.json to RAM disk dynamically.\n- Modified Set-OsdCloudIpxeEndpoint.ps1 to cleanly delete and recreate SMB firewall rules and skip redundant DISM WIM mount/commit cycles when the published boot.wim is already customized.\n- Supported custom subnet overrides via new SmbRemoteSubnet parameter.\n- Verified all unit and smoke tests passed successfully.",
-      "commit": null,
+      "summary": "- Implemented dynamic boot-config HTTP API endpoint in httpServer.js to serve server IP, SMB, and Davis OOBE credentials.\n- Updated client-side WinPE Startup script (Start-OSDCloud-iPXE.ps1) with dynamic server IP probing (DHCP, Gateway, DNS) and boot-config fetching over HTTP, seeding secrets.json to RAM disk dynamically.\n- Modified Set-OsdCloudIpxeEndpoint.ps1 to cleanly delete and recreate SMB firewall rules and skip redundant DISM WIM mount/commit cycles when the published boot.wim is already customized.\n- Supported custom subnet overrides via new SmbRemoteSubnet parameter.\n- Bumped package.json and package-lock.json version to 0.5.0.\n- Verified all unit and smoke tests passed successfully.",
+      "commit": "ef372c96b5788b006f627e8f1d894c46f303307b",
       "verification": "npm test and npm run smoke passed 213/213 successfully."
     },
     {
