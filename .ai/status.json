@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T18:15:30.0000000+08:00",
+  "updated_at": "2026-05-30T12:13:25.587Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -35,9 +35,9 @@
     "remote": "origin-github",
     "summary": "Setup now runs unattended after clone, defaults Web to 127.0.0.1:8080, auto-installs Node/npm plus OSD and OSDCloud host modules, and leaves ADK/WinPE/runtime work to Web Prepare runtime.",
     "baseline": {
-      "commit": "dfbd80282eb2080b942d32eb97e0709c0b1ef210",
-      "short": "dfbd802",
-      "subject": "chore: bump version to 0.5.2 and redesign Web console to Google light theme"
+      "commit": "3af2fdba2869813e4b574d621774ed29a54df274",
+      "short": "3af2fdb",
+      "subject": "feat: consolidate logs in RFC 5424 Syslog and bump version to 0.5.3"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "dfbd80282eb2080b942d32eb97e0709c0b1ef210",
-    "last_checked_head_short": "dfbd802",
+    "last_checked_head": "3af2fdba2869813e4b574d621774ed29a54df274",
+    "last_checked_head_short": "3af2fdb",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -101,11 +101,19 @@
   },
   "recent_changes": [
     {
+      "id": "20260530-rfc5424-syslog-consolidation",
+      "at": "2026-05-30T12:06:56.148Z",
+      "kind": "implementation",
+      "summary": "- Consolidated host-side service logs (DHCP, TFTP, HTTP, WEB-OP) into a single RFC 5424 Syslog file: logs/host-services.log.\n- Wrote client-side progress status logs to per-run syslog files: logs/runs/<runId>/deployment.log.\n- Duplicated client-side screenshots under logs/runs/<runId>/screenshots/.\n- Implemented local offset timezone formatters and integrated Syslog header parsing to ensure Web UI console log display remains backward-compatible and clean.\n- Added new test cases verifying Syslog formatting, file writes, and screenshot duplication.\n- Bumped package.json and package-lock.json version to 0.5.3.",
+      "commit": "3af2fdba2869813e4b574d621774ed29a54df274",
+      "verification": "node --test passed 217/217."
+    },
+    {
       "id": "20260530-web-console-light-theme",
       "at": "2026-05-30T18:15:30.0000000+08:00",
       "kind": "implementation",
       "summary": "- Redesigned the Web console to a clean Google-style light minimalist design.\n- Removed dark theme class and imported Google Font Roboto in index.html.\n- Modified Tailwind config to use 8px (0.5rem) border-radius defaults and Roboto font mappings.\n- Configured CSS colors to Google light palette (Google Blue accent, white cards, light gray background, light gray logs, charcoal primary text).\n- Restyled buttons (warning as Google Blue primary, danger as Google Red primary, base/secondary as white with gray border).\n- Custom styled header view tabs and operations buttons to resemble sidebar menu navigation items.\n- Cleaned up and removed the obsolete macOS dark theme overrides block.\n- Bumped package.json and package-lock.json version to 0.5.2.\n- Verified all 214 unit tests pass successfully.",
-      "commit": "dfbd80282eb2080b942d32eb97e0709c0b1ef210",
+      "commit": "0ae75927fc85583162f59f8907d9934ea1bebd35",
       "verification": "npm test passed 214/214."
     },
     {
@@ -131,22 +139,6 @@
       "summary": "- Overhauled the Web console layout to feature a horizontal view toggle: Guided Setup and Dashboard.\n- Implemented macOS Modern Dark Installer Style (Space Gray) theme with high-contrast text readability.\n- Mapped all Tailwind color parameters to CSS custom variables for seamless theme transition support.\n- Prioritized native Apple system fonts stack over Google fonts on macOS hosts.\n- Custom-designed macOS native styled buttons, active steps selection, tables, status pills, and console log panes.\n- Fixed 4 mock and permission testing failures to ensure 100% test compliance (212/212 passed).\n- Bumped package.json and package-lock.json version to 0.4.1.",
       "commit": "a0154076700f14a9b75743256e37225185f00981",
       "verification": "npm test passed 212/212. Served static web UI and verified styling variables and tab switching."
-    },
-    {
-      "id": "20260530-setup-powershell-module-paths-fix",
-      "at": "2026-05-30T12:39:00.0000000+08:00",
-      "kind": "implementation",
-      "summary": "- Fixed Setup-DeploymentServer.ps1 package bootstrap in restricted/custom environments by dynamically verifying and appending standard Windows PowerShell module paths to $env:PSModulePath.\n- Filtered out incompatible PowerShell Core/PowerShell 7 paths from $env:PSModulePath when running under Windows PowerShell 5.1 to prevent DLL load errors.\n- Added explicit module imports for PackageManagement and PowerShellGet to resolve Install-PackageProvider missing command errors.",
-      "commit": "05096a4fbbf9ec1f99c8bf2a095c9db98e4f16b2",
-      "verification": "AST parsing checks passed for Setup-DeploymentServer.ps1. Verified module path injection, PowerShell Core path filtering, and package provider resolution in local Windows PowerShell runner."
-    },
-    {
-      "id": "20260530-unattended-host-setup-prereqs",
-      "at": "2026-05-30T11:19:05.0624282+08:00",
-      "kind": "implementation",
-      "summary": "- Setup now runs unattended after clone and defaults Web to 127.0.0.1:8080.\n- Setup auto-installs Node/npm, NuGet/PSGallery, OSD, and OSDCloud while leaving runtime/ADK/WinPE to Web Prepare runtime.",
-      "commit": "3fe3cf7d28532c855247d15b918fbf0fa38eb830",
-      "verification": "PowerShell parser checks passed for Setup-DeploymentServer.ps1, Restore-DeploymentArtifacts.ps1, Set-OsdCloudIpxeEndpoint.ps1, and Install-HostManagementBundle.ps1. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/windows.test.js passed 50/50. npm test passed 212/212. npm run smoke passed. Temporary setup acceptance run with no -WebHost wrote 127.0.0.1:8080 and confirmed OSD/OSDCloud modules. git diff --check passed with CRLF warnings only."
     }
   ]
 }
