@@ -1,19 +1,19 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T10:23:20.8598997+08:00",
+  "updated_at": "2026-05-30T11:19:05.0497510+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
-    "root": "C:\\osdcloud-win11-deployment-lab",
-    "current_goal": "Flexible Web-console-first OSDCloud deployment with an installed host-management bundle under C:\\OSDCloud so deployment hosts can delete the source clone after setup."
+    "root": "C:\\Users\\Davis\\Documents\\New project",
+    "current_goal": "Fresh Windows hosts can git clone this repository, run elevated Setup-DeploymentServer.cmd unattended, open the local Web console, and continue runtime preparation from Web."
   },
   "paths": {
     "development": {
-      "root": "C:\\osdcloud-win11-deployment-lab",
-      "purpose": "Active checkout for code, docs, tests, commits, pushes, and deployment-facing validation."
+      "root": "C:\\Users\\Davis\\Documents\\New project",
+      "purpose": "Active checkout for code, docs, tests, commits, pushes, and setup validation."
     },
     "deployment_clone": {
       "root": "C:\\osdcloud-win11-deployment-lab",
-      "purpose": "Current production-like checkout; old C:\\Users\\Davis\\Documents\\New project path is retired for new work."
+      "purpose": "Separate deployment-facing clone for runtime or PXE tests after pulling the pushed master commit."
     },
     "host_management": {
       "root": "C:\\OSDCloud\\HostTools\\App",
@@ -29,15 +29,15 @@
     }
   },
   "development": {
-    "state": "endpoint-sync-prerequisite-fixed",
+    "state": "unattended-host-setup-prereqs",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin-github",
-    "summary": "Endpoint sync now fails early when host OSD or OSDCloud PowerShell modules are missing; Prepare runtime checks both prerequisites before WinPE work.",
+    "summary": "Setup now runs unattended after clone, defaults Web to 127.0.0.1:8080, auto-installs Node/npm plus OSD and OSDCloud host modules, and leaves ADK/WinPE/runtime work to Web Prepare runtime.",
     "baseline": {
-      "commit": "b363697a4acdc640905b67ad44fb767d500d5e59",
-      "short": "b363697",
-      "subject": "Check OSDCloud module before endpoint sync"
+      "commit": "3fe3cf7d28532c855247d15b918fbf0fa38eb830",
+      "short": "3fe3cf7",
+      "subject": "Make host setup install prerequisites unattended"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -49,7 +49,7 @@
   "deployment_clone": {
     "remote": "origin",
     "branch": "master",
-    "required_update_before_tests": "This active checkout is already the deployment-facing path; from any other clone, run git pull --ff-only origin master before tests.",
+    "required_update_before_tests": "Before deployment or PXE tests from C:\\osdcloud-win11-deployment-lab, run git pull --ff-only origin master and confirm that clone matches the pushed master commit.",
     "head_must_match_development_push": true
   },
   "runtime": {
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin-github/master",
-    "last_checked_head": "b363697a4acdc640905b67ad44fb767d500d5e59",
-    "last_checked_head_short": "b363697",
+    "last_checked_head": "3fe3cf7d28532c855247d15b918fbf0fa38eb830",
+    "last_checked_head_short": "3fe3cf7",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -94,13 +94,20 @@
       "confirm this active checkout HEAD equals the pushed origin/master commit"
     ],
     "forbidden": [
-      "Do not use C:\\Users\\Davis\\Documents\\New project for new work.",
       "Do not manually patch, copy into, or directly edit the Web-selected deployment project root.",
       "Do not commit generated deployment artifacts or local secrets.",
       "Do not write deployment runtime files back into the Git clone."
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260530-unattended-host-setup-prereqs",
+      "at": "2026-05-30T11:19:05.0624282+08:00",
+      "kind": "implementation",
+      "summary": "- Setup now runs unattended after clone and defaults Web to 127.0.0.1:8080.\n- Setup auto-installs Node/npm, NuGet/PSGallery, OSD, and OSDCloud while leaving runtime/ADK/WinPE to Web Prepare runtime.",
+      "commit": "3fe3cf7d28532c855247d15b918fbf0fa38eb830",
+      "verification": "PowerShell parser checks passed for Setup-DeploymentServer.ps1, Restore-DeploymentArtifacts.ps1, Set-OsdCloudIpxeEndpoint.ps1, and Install-HostManagementBundle.ps1. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/windows.test.js passed 50/50. npm test passed 212/212. npm run smoke passed. Temporary setup acceptance run with no -WebHost wrote 127.0.0.1:8080 and confirmed OSD/OSDCloud modules. git diff --check passed with CRLF warnings only."
+    },
     {
       "id": "20260530-endpoint-sync-osdcloud-module-prereq",
       "at": "2026-05-30T10:22:12.1733735+08:00",
@@ -132,14 +139,6 @@
       "summary": "- Fixed installed launcher/setup PowerShell quoting for OSDCLOUD_CONSOLE_CONFIG.\n- Installed launcher now reads local overlay Web host settings before opening the browser.",
       "commit": null,
       "verification": "npm test passed 209/209. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 29/29. PowerShell parser checks passed for Setup-DeploymentServer.ps1 and Start-InstalledWebConsole.ps1. Reinstalled C:\\OSDCloud\\HostTools\\App, ran npm install and npm run smoke there, then launched Start-InstalledWebConsole.ps1 -NoBrowser and verified the spawned PowerShell command line kept $env:OSDCLOUD_CONSOLE_CONFIG plus node listening on 127.0.0.1:8080. 172.17.148.140 is not assigned on this host; current local IPv4s are 192.168.88.1, 192.168.100.1, 172.17.144.1, and 192.168.100.1."
-    },
-    {
-      "id": "20260529-installed-host-bundle",
-      "at": "2026-05-29T12:09:03.3462743+08:00",
-      "kind": "implementation",
-      "summary": "- Installed host bundle/state under C:\\OSDCloud\\HostTools.\n- Setup and Web host workflows no longer require keeping the source clone after setup.",
-      "commit": null,
-      "verification": "node --check passed for config.js, deploymentProfiles.js, osImages.js, runtimeArtifacts.js, serviceController.js, and windows.js. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js passed 28/28. npm test passed 208/208. PowerShell parser checks passed for Setup-DeploymentServer.ps1, Install-HostManagementBundle.ps1, and Start-InstalledWebConsole.ps1. powershell -File tools/Install-HostManagementBundle.ps1 installed C:\\OSDCloud\\HostTools\\App and State on this host. npm install and npm run smoke passed from C:\\OSDCloud\\HostTools\\App."
     }
   ]
 }
