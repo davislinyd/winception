@@ -1005,7 +1005,7 @@ export class ServiceController extends EventEmitter {
   async updateProjectRoot(input = {}) {
     return this.runOperation('Saving project root', async () => {
       await this.stopAllServices();
-      const runtimeRoot = input.runtimeRoot ?? input.projectRoot ?? input.root;
+      const runtimeRoot = 'C:\\OSDCloud';
       this.dependencies.applyProjectRoot(this.config, runtimeRoot);
       const savedPath = this.dependencies.saveConfig(this.config);
       this.refreshServiceConfigs();

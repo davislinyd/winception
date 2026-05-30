@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T16:34:00.0000000+08:00",
+  "updated_at": "2026-05-30T18:02:00.0000000+08:00",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -35,9 +35,9 @@
     "remote": "origin-github",
     "summary": "Setup now runs unattended after clone, defaults Web to 127.0.0.1:8080, auto-installs Node/npm plus OSD and OSDCloud host modules, and leaves ADK/WinPE/runtime work to Web Prepare runtime.",
     "baseline": {
-      "commit": "ef372c96b5788b006f627e8f1d894c46f303307b",
-      "short": "ef372c9",
-      "subject": "feat: optimize OSDCloud deployment service flow"
+      "commit": "b9faaee311ce6f3c1d9b32943e0d869275a59339",
+      "short": "b9faaee",
+      "subject": "chore: bump version to 0.5.0"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -59,9 +59,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "ef372c96b5788b006f627e8f1d894c46f303307b",
-    "last_checked_head_short": "ef372c9",
-    "dirty": false,
+    "last_checked_head": "b9faaee311ce6f3c1d9b32943e0d869275a59339",
+    "last_checked_head_short": "b9faaee",
+    "dirty": true,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -101,6 +101,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260530-lock-project-root",
+      "at": "2026-05-30T18:02:00.0000000+08:00",
+      "kind": "implementation",
+      "summary": "- Locked the OSDCloud runtime project root directory to C:\\OSDCloud across the app.\n- Removed selectable project root options from Web UI, setting the input element to readOnly/disabled.\n- Updated updateProjectRoot API in serviceController.js to always force runtimeRoot to C:\\OSDCloud.\n- Bumped package.json and package-lock.json version to 0.5.1.\n- Verified all unit and smoke tests pass (214/214).",
+      "commit": "uncommitted",
+      "verification": "npm test passed 214/214."
+    },
+    {
       "id": "20260530-deployment-service-optimization",
       "at": "2026-05-30T16:34:00.0000000+08:00",
       "kind": "implementation",
@@ -131,14 +139,6 @@
       "summary": "- Setup now runs unattended after clone and defaults Web to 127.0.0.1:8080.\n- Setup auto-installs Node/npm, NuGet/PSGallery, OSD, and OSDCloud while leaving runtime/ADK/WinPE to Web Prepare runtime.",
       "commit": "3fe3cf7d28532c855247d15b918fbf0fa38eb830",
       "verification": "PowerShell parser checks passed for Setup-DeploymentServer.ps1, Restore-DeploymentArtifacts.ps1, Set-OsdCloudIpxeEndpoint.ps1, and Install-HostManagementBundle.ps1. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/windows.test.js passed 50/50. npm test passed 212/212. npm run smoke passed. Temporary setup acceptance run with no -WebHost wrote 127.0.0.1:8080 and confirmed OSD/OSDCloud modules. git diff --check passed with CRLF warnings only."
-    },
-    {
-      "id": "20260530-endpoint-sync-osdcloud-module-prereq",
-      "at": "2026-05-30T10:22:12.1733735+08:00",
-      "kind": "implementation",
-      "summary": "- Fixed endpoint sync to check OSD and OSDCloud before mounting boot.wim.\n- Prepare runtime now reports missing module prerequisites before WinPE work starts.",
-      "commit": "b363697a4acdc640905b67ad44fb767d500d5e59",
-      "verification": "PowerShell parser checks passed for Restore-DeploymentArtifacts.ps1 and Set-OsdCloudIpxeEndpoint.ps1. node --test tools/osdcloud-console/test/runtimeArtifacts.test.js tools/osdcloud-console/test/windows.test.js passed 49/49. npm test passed 211/211. npm run smoke passed. git diff --check passed with CRLF warnings only."
     }
   ]
 }

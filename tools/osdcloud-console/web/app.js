@@ -1069,9 +1069,7 @@ function appendInitializationSecretsForm(body) {
 }
 
 function appendInitializationProjectRootForm(body, step) {
-  if (!state.initializationRootDraft) {
-    state.initializationRootDraft = step.detail ?? state.current?.config?.workspace?.runtimeRoot ?? '';
-  }
+  state.initializationRootDraft = 'C:\\OSDCloud';
   const form = document.createElement('div');
   form.className = 'initialization-secrets-form';
   const label = document.createElement('label');
@@ -1079,32 +1077,15 @@ function appendInitializationProjectRootForm(body, step) {
   const input = document.createElement('input');
   input.id = 'init-project-root';
   input.type = 'text';
-  input.value = state.initializationRootDraft;
+  input.value = 'C:\\OSDCloud';
   input.placeholder = 'C:\\OSDCloud';
-  input.addEventListener('input', () => {
-    state.initializationRootDraft = input.value;
-  });
-  input.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') {
-      return;
-    }
-    event.preventDefault();
-    saveInitializationProjectRoot().catch((error) => window.alert(error.message));
-  });
+  input.readOnly = true;
+  input.disabled = true;
   label.append(input);
   const status = document.createElement('span');
   status.className = 'initialization-secrets-status';
-  status.textContent = 'This path receives runtime files. The Git clone remains installation source only.';
-  const actions = document.createElement('div');
-  actions.className = 'initialization-secrets-actions';
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'warning';
-  button.dataset.initAction = 'save-project-root';
-  button.dataset.icon = 'folder_managed';
-  button.textContent = 'Save project root';
-  actions.append(button);
-  form.append(label, status, actions);
+  status.textContent = 'Project root is locked to C:\\OSDCloud for deployment stability.';
+  form.append(label, status);
   body.append(form);
 }
 

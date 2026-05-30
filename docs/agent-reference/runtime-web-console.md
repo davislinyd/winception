@@ -4,10 +4,10 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 
 ## Runtime Readiness
 
-- A Git clone alone is not a deployable PXE runtime. Live deployment runs from the Web-selected deployment project root, defaulting to `C:\OSDCloud`, prepared by Web Runtime Readiness / Prepare runtime and related Web actions.
+- A Git clone alone is not a deployable PXE runtime. Live deployment runs from the deployment project root, locked to `C:\OSDCloud`, prepared by Web Runtime Readiness / Prepare runtime and related Web actions.
 - New-host setup is lightweight and unattended after clone: run `Setup-DeploymentServer.cmd` from an elevated shell, then continue in Web. Setup may install host prerequisites for the management app (`Node.js LTS`, NuGet/PSGallery bootstrap, `OSD`, and `OSDCloud` PowerShell modules), installs the host management bundle under `C:\OSDCloud\HostTools\App`, seeds mutable host state under `C:\OSDCloud\HostTools\State`, writes only the Web management overlay, and launches the Web console in a new elevated PowerShell window because Runtime Readiness and service control need administrator rights.
 - Setup must not create deployment secrets, write PXE endpoint overlay state, create the runtime skeleton, download/rebuild ADK or WinPE, restore artifacts, run preflight, or start HTTP/TFTP/DHCP services.
-- Web first-run initialization owns project-root selection, secrets, Runtime Readiness / Prepare runtime, PXE/service endpoint sync, OS Image Cache, profile publish, preflight, and service controls. The selected project root must be an absolute path outside the Git clone; the clone is installation source only and must not receive live runtime outputs. After setup succeeds, hosts may delete the original clone and keep operating from `C:\OSDCloud\HostTools`.
+- Web first-run initialization owns secrets, Runtime Readiness / Prepare runtime, PXE/service endpoint sync, OS Image Cache, profile publish, preflight, and service controls. The project root is locked to `C:\OSDCloud` (which is outside the Git clone; the clone is installation source only and must not receive live runtime outputs). After setup succeeds, hosts may delete the original clone and keep operating from `C:\OSDCloud\HostTools`.
 - During testing, agents may use the Web/API initialization flow to save or refresh deployment secrets without extra confirmation when usable values are already available from ignored local files, approved environment variables, or prior user input. Never print, commit, or record plaintext secret values.
 - Prepare runtime must treat both `<project-root>\Media\sources\boot.wim` and `<project-root>\PXE-HttpRoot\osdcloud\boot.wim` as required boot artifacts.
 - Prepare runtime must require both host PowerShell modules that endpoint sync injects into WinPE: `OSD` and `OSDCloud`. If either is missing, fail before workspace/WinPE work with explicit `Install-Module <name> -Scope CurrentUser -Force` guidance. Endpoint sync should also check these modules before mounting `boot.wim`.
@@ -30,7 +30,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Start the Web console from elevated PowerShell when it will control services. If it is not elevated, Web should block `Prepare runtime` early with a clear restart-in-elevated message instead of surfacing the downstream PowerShell stack trace first.
 - Starting `npm run web`, opening the UI, and reading state/status/logs/validation must not modify `C:\OSDCloud`.
 - Web mutating actions can modify live deployment state: endpoint sync, OS image cache, profile publish, clear status, and service start/stop.
-- Web `Project root` initialization is a mutating local configuration action. It stops running services, writes ignored local config, refreshes service paths, and clears preflight results.
+- The project root is fixed to `C:\OSDCloud`. Project root initialization applies `C:\OSDCloud`, stops running services, writes ignored local config, refreshes service paths, and clears preflight results.
 - Do not run Web console and headless services at the same time to control services. They can conflict on ports 67, 69, and 80.
 - Run preflight before starting services.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.

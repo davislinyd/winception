@@ -25,7 +25,7 @@ For deployment flow, Web console behavior, service-interface selection, endpoint
 
 For portability/setup changes, update the README handoff/fresh-clone flow, `osdcloud-assets\README.md`, and the report's fresh-clone readiness note, especially when the installed host-management bundle or repo-deletion boundary changes.
 
-Git clone directories are installation and configuration sources only. Deployment runtime files must be created under the Web-selected project root, never written back into the clone. After `Setup-DeploymentServer.cmd` installs `C:\OSDCloud\HostTools\App` and `C:\OSDCloud\HostTools\State`, the deployment host may delete the original clone and keep operating from the installed bundle.
+Git clone directories are installation and configuration sources only. Deployment runtime files must be created under the fixed project root (`C:\OSDCloud`), never written back into the clone. After `Setup-DeploymentServer.cmd` installs `C:\OSDCloud\HostTools\App` and `C:\OSDCloud\HostTools\State`, the deployment host may delete the original clone and keep operating from the installed bundle.
 
 ## Development And Handoff
 
