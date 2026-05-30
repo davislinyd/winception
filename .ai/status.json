@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T12:41:31.084Z",
+  "updated_at": "2026-05-30T14:52:00.000Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": "C:\\Users\\davis\\Documents\\Codex\\osdcloud-project",
@@ -35,9 +35,9 @@
     "remote": "origin-github",
     "summary": "Setup now runs unattended after clone, defaults Web to 127.0.0.1:8080, auto-installs Node/npm plus OSD and OSDCloud host modules, and leaves ADK/WinPE/runtime work to Web Prepare runtime.",
     "baseline": {
-      "commit": "a21303cf9590db3d3143232cc5b92957ac16c216",
-      "short": "a21303c",
-      "subject": "feat: redirect prepare runtime and endpoint sync verbose outputs to dedicated logs and bump version to 0.5.4"
+      "commit": "e6db34a6724fe5eaf75385c8391e7fd21c5286f0",
+      "short": "e6db34a",
+      "subject": "fix: support optional trailing comments on server IP assignment in Start-OSDCloud-iPXE.ps1"
     },
     "repo_only": {
       "repo": "https://github.com/your-username/osdcloud-win11-deployment-lab-repo-only",
@@ -59,8 +59,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "a21303cf9590db3d3143232cc5b92957ac16c216",
-    "last_checked_head_short": "a21303c",
+    "last_checked_head": "e6db34a6724fe5eaf75385c8391e7fd21c5286f0",
+    "last_checked_head_short": "e6db34a",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -101,6 +101,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260530-endpoint-sync-regex-fix",
+      "at": "2026-05-30T22:52:00.000+08:00",
+      "kind": "bugfix",
+      "summary": "- Fixed regex pattern mismatch error during endpoint sync in Set-OsdCloudIpxeEndpoint.ps1.\n- Updated Set-StartOsdCloudEndpoint to support optional trailing comments on the '$server =' line in Start-OSDCloud-iPXE.ps1.",
+      "commit": "e6db34a6724fe5eaf75385c8391e7fd21c5286f0",
+      "verification": "Powershell regex validation was successful and all 219 JavaScript tests pass."
+    },
+    {
       "id": "20260530-verbose-operation-logs-redirection",
       "at": "2026-05-30T12:41:08.737Z",
       "kind": "implementation",
@@ -131,14 +139,6 @@
       "summary": "- Locked the OSDCloud runtime project root directory to C:\\OSDCloud across the app.\n- Removed selectable project root options from Web UI, setting the input element to readOnly/disabled.\n- Updated updateProjectRoot API in serviceController.js to always force runtimeRoot to C:\\OSDCloud.\n- Bumped package.json and package-lock.json version to 0.5.1.\n- Verified all unit and smoke tests pass (214/214).",
       "commit": "199dbd3f3b5becb6db20a1d6cb7569ff23fe3d80",
       "verification": "npm test passed 214/214."
-    },
-    {
-      "id": "20260530-deployment-service-optimization",
-      "at": "2026-05-30T16:34:00.0000000+08:00",
-      "kind": "implementation",
-      "summary": "- Implemented dynamic boot-config HTTP API endpoint in httpServer.js to serve server IP, SMB, and Davis OOBE credentials.\n- Updated client-side WinPE Startup script (Start-OSDCloud-iPXE.ps1) with dynamic server IP probing (DHCP, Gateway, DNS) and boot-config fetching over HTTP, seeding secrets.json to RAM disk dynamically.\n- Modified Set-OsdCloudIpxeEndpoint.ps1 to cleanly delete and recreate SMB firewall rules and skip redundant DISM WIM mount/commit cycles when the published boot.wim is already customized.\n- Supported custom subnet overrides via new SmbRemoteSubnet parameter.\n- Bumped package.json and package-lock.json version to 0.5.0.\n- Verified all unit and smoke tests passed successfully.",
-      "commit": "ef372c96b5788b006f627e8f1d894c46f303307b",
-      "verification": "npm test and npm run smoke passed 213/213 successfully."
     }
   ]
 }
