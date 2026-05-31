@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   applyServiceEndpoint,
   applyProjectRoot,
@@ -162,7 +163,8 @@ function deploymentSecretsStatus(config, env = process.env) {
   }
 
   const fields = [
-    ['davisPassword', 'OSDCLOUD_DAVIS_PASSWORD'],
+    ['windowsUsername', 'OSDCLOUD_WINDOWS_USERNAME'],
+    ['windowsPassword', 'OSDCLOUD_WINDOWS_PASSWORD'],
     ['pxeinstallPassword', 'OSDCLOUD_PXEINSTALL_PASSWORD'],
   ];
   const status = {};
@@ -190,18 +192,25 @@ function deploymentSecretsStatus(config, env = process.env) {
 }
 
 function writeDeploymentSecrets(config, input = {}) {
-  const davisPassword = String(input.davisPassword ?? '').trim();
-  const pxeinstallPassword = String(input.pxeinstallPassword ?? '').trim();
-  if (!hasSecretValue(davisPassword)) {
-    throw errorWithStatus('davisPassword is required.', 400);
+  const windowsUsername = String(input.windowsUsername ?? '').trim();
+  const windowsPassword = String(input.windowsPassword ?? '').trim();
+  if (!hasSecretValue(windowsUsername)) {
+    throw errorWithStatus('windowsUsername is required.', 400);
   }
-  if (!hasSecretValue(pxeinstallPassword)) {
-    throw errorWithStatus('pxeinstallPassword is required.', 400);
+  if (!hasSecretValue(windowsPassword)) {
+    throw errorWithStatus('windowsPassword is required.', 400);
+  }
+
+  // Generate a 24-character alphanumeric random password (no special characters)
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let pxeinstallPassword = '';
+  for (let i = 0; i < 24; i++) {
+    pxeinstallPassword += chars[crypto.randomInt(chars.length)];
   }
 
   const filePath = deploymentSecretsPath(config);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify({ davisPassword, pxeinstallPassword }, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(filePath, `${JSON.stringify({ windowsUsername, windowsPassword, pxeinstallPassword }, null, 2)}\n`, 'utf8');
   return deploymentSecretsStatus(config);
 }
 
@@ -435,7 +444,7 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       required: true,
       done: secrets.ready,
       action: 'secrets',
-      detail: secrets.ready ? 'davisPassword and pxeinstallPassword are present.' : `Missing: ${secrets.missing.join(', ')}`,
+      detail: secrets.ready ? 'windowsUsername, windowsPassword and pxeinstallPassword are present.' : `Missing: ${secrets.missing.join(', ')}`,
     },
     {
       id: 'runtime',
@@ -880,7 +889,7 @@ export class ServiceController extends EventEmitter {
     const runtimeResult = safeRead(() => this.dependencies.getRuntimeReadiness(this.config), null);
     const secretsResult = safeRead(() => this.dependencies.getDeploymentSecretsStatus(this.config), {
       ready: false,
-      missing: ['davisPassword', 'pxeinstallPassword'],
+      missing: ['windowsUsername', 'windowsPassword', 'pxeinstallPassword'],
       status: {},
     });
     const endpointResult = safeRead(() => localEndpointOverlayStatus(this.config), {

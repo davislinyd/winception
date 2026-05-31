@@ -77,9 +77,10 @@ async function makeServer(root, overrides = {}) {
       readStatusEvents: () => [],
       getDeploymentSecretsStatus: () => ({
         ready: false,
-        missing: ['davisPassword', 'pxeinstallPassword'],
+        missing: ['windowsUsername', 'windowsPassword', 'pxeinstallPassword'],
         status: {
-          davisPassword: { present: false, source: 'missing' },
+          windowsUsername: { present: false, source: 'missing' },
+          windowsPassword: { present: false, source: 'missing' },
           pxeinstallPassword: { present: false, source: 'missing' },
         },
       }),
@@ -355,7 +356,7 @@ test('serves static UI and read-only state', async () => {
     const secretsStep = payload.state.initialization.steps.find((step) => step.id === 'secrets');
     assert.equal(secretsStep.done, false);
     assert.equal(secretsStep.action, 'secrets');
-    assert.equal(secretsStep.detail, 'Missing: davisPassword, pxeinstallPassword');
+    assert.equal(secretsStep.detail, 'Missing: windowsUsername, windowsPassword, pxeinstallPassword');
     assert.equal(fs.existsSync(path.join(root, 'status')), false);
   } finally {
     await server.stop();
@@ -372,8 +373,8 @@ test('secrets API writes local secrets and never returns plaintext passwords', a
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        davisPassword: 'local-davis-secret',
-        pxeinstallPassword: 'local-pxe-secret',
+        windowsUsername: 'custom-admin',
+        windowsPassword: 'local-windows-secret',
       }),
     });
     assert.equal(response.status, 200);
@@ -381,17 +382,19 @@ test('secrets API writes local secrets and never returns plaintext passwords', a
     const serialized = JSON.stringify(payload);
     assert.equal(payload.ok, true);
     assert.equal(payload.result.ready, true);
-    assert.equal(payload.result.status.davisPassword.present, true);
+    assert.equal(payload.result.status.windowsUsername.present, true);
+    assert.equal(payload.result.status.windowsPassword.present, true);
     assert.equal(payload.result.status.pxeinstallPassword.present, true);
-    assert.doesNotMatch(serialized, /local-davis-secret/);
-    assert.doesNotMatch(serialized, /local-pxe-secret/);
+    assert.doesNotMatch(serialized, /custom-admin/);
+    assert.doesNotMatch(serialized, /local-windows-secret/);
 
     const secretPath = path.join(root, 'config', 'osdcloud-secrets.json');
     const bytes = fs.readFileSync(secretPath);
     assert.notEqual(bytes[0], 0xef);
     const saved = JSON.parse(bytes.toString('utf8'));
-    assert.equal(saved.davisPassword, 'local-davis-secret');
-    assert.equal(saved.pxeinstallPassword, 'local-pxe-secret');
+    assert.equal(saved.windowsUsername, 'custom-admin');
+    assert.equal(saved.windowsPassword, 'local-windows-secret');
+    assert.match(saved.pxeinstallPassword, /^[a-zA-Z0-9]{24}$/);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });
@@ -423,7 +426,8 @@ test('state initialization becomes true only when live prerequisites are present
         ready: true,
         missing: [],
         status: {
-          davisPassword: { present: true, source: 'file' },
+          windowsUsername: { present: true, source: 'file' },
+          windowsPassword: { present: true, source: 'file' },
           pxeinstallPassword: { present: true, source: 'file' },
         },
       }),
@@ -472,7 +476,7 @@ test('state initialization becomes true only when live prerequisites are present
     assert.equal(payload.state.initialization.nextStepId, 'preflight');
     const secretsStep = payload.state.initialization.steps.find((step) => step.id === 'secrets');
     assert.equal(secretsStep.done, true);
-    assert.equal(secretsStep.detail, 'davisPassword and pxeinstallPassword are present.');
+    assert.equal(secretsStep.detail, 'windowsUsername, windowsPassword and pxeinstallPassword are present.');
     assert.deepEqual(
       payload.state.initialization.steps.filter((step) => step.required).map((step) => [step.id, step.done]),
       [

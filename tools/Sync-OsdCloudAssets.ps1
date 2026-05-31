@@ -173,7 +173,7 @@ if ($MountWinPe -and -not (Test-Path -LiteralPath (Join-Path $winPeMount 'OSDClo
 
 try {
     $exports = @(
-        @{ Source = Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1' },
+        @{ Source = Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1'; Target = 'OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd' },
         @{ Source = Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1' }
     ) + $appExports + $scriptExports + @(
@@ -186,7 +186,7 @@ try {
         @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeDhcp.ps1'; Target = 'OSDCloud\Tools\Start-PxeDhcp.ps1' },
         @{ Source = Join-Path $ipxeLab 'Tools\Start-PxeTftp.ps1'; Target = 'OSDCloud\Tools\Start-PxeTftp.ps1' },
         @{ Source = Join-Path $winPeMount 'Windows\System32\Startnet.cmd'; Target = 'OSDCloud\WinPE\Windows\System32\Startnet.cmd'; SourceKind = 'boot.wim:index1' },
-        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1'; SourceKind = 'boot.wim:index1' },
         @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; SourceKind = 'boot.wim:index1' },
         @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; SourceKind = 'boot.wim:index1' },
         @{ Source = Join-Path $winPeMount 'OSDCloud\Report-OSDCloudProgress.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1'; SourceKind = 'boot.wim:index1' },

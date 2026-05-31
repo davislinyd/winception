@@ -124,7 +124,7 @@ function Resolve-TargetUserProfilePath {
 }
 
 function Initialize-TargetUserEnvironment {
-    $targetUser = if ($env:OSDCloudTargetUser) { $env:OSDCloudTargetUser } else { 'davis' }
+    $targetUser = if ($env:OSDCloudTargetUser) { $env:OSDCloudTargetUser } else { 'Administrator' }
     $profilePath = if ($env:OSDCloudTargetProfilePath) { $env:OSDCloudTargetProfilePath } else { Resolve-TargetUserProfilePath -TargetUser $targetUser }
     $desktopPath = if ($env:OSDCloudTargetDesktopPath) {
         $env:OSDCloudTargetDesktopPath

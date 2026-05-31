@@ -1,9 +1,9 @@
 $ErrorActionPreference = 'Continue'
 $LogDir = 'C:\Windows\Temp\osdcloud-logs'
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-Start-Transcript -Path (Join-Path $LogDir 'davis-oobe-transcript.log') -Append -ErrorAction SilentlyContinue
+Start-Transcript -Path (Join-Path $LogDir 'oobe-customization-transcript.log') -Append -ErrorAction SilentlyContinue
 
-$UserName = 'davis'
+$UserName = $null
 
 function Get-DeploymentSecret {
     param(
@@ -35,7 +35,8 @@ function Get-DeploymentSecret {
     throw "Missing required deployment secret '$JsonName'. Provide $secretPath or set $EnvironmentName before SetupComplete runs."
 }
 
-$PlainPassword = Get-DeploymentSecret -JsonName 'davisPassword' -EnvironmentName 'OSDCLOUD_DAVIS_PASSWORD'
+$UserName = Get-DeploymentSecret -JsonName 'windowsUsername' -EnvironmentName 'OSDCLOUD_WINDOWS_USERNAME'
+$PlainPassword = Get-DeploymentSecret -JsonName 'windowsPassword' -EnvironmentName 'OSDCLOUD_WINDOWS_PASSWORD'
 $SecurePassword = ConvertTo-SecureString $PlainPassword -AsPlainText -Force
 $DeploymentMetadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
 $DefaultStatusUrl = 'http://192.168.100.1/osdcloud/status'
@@ -327,7 +328,7 @@ $ErrorActionPreference = 'Continue'
 $metadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
 $defaultStatusUrl = 'http://192.168.100.1/osdcloud/status'
 $taskName = 'OSDCloudDesktopReadyReport'
-$targetUser = 'davis'
+$targetUser = 'TARGET_USER_PLACEHOLDER'
 $logDir = 'C:\Windows\Temp\osdcloud-logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 Start-Transcript -Path (Join-Path $logDir 'desktop-ready-reporter.log') -Append -ErrorAction SilentlyContinue | Out-Null
@@ -531,13 +532,13 @@ function Get-DesktopReadyFacts {
 }
 
 try {
-    [void] (Send-Status -Stage 'windows-logon-start' -Message 'Desktop ready reporter started after davis logon.' -Percent 98)
+    [void] (Send-Status -Stage 'windows-logon-start' -Message 'Desktop ready reporter started after TARGET_USER_PLACEHOLDER logon.' -Percent 98)
     $deadline = (Get-Date).AddMinutes(30)
     $desktopReadyReported = $false
     do {
         $facts = Get-DesktopReadyFacts
         if ($facts.explorerRunning -and $facts.interactiveUserIsTarget -and $facts.desktopReadyFile -and @($facts.oobeProcesses).Count -eq 0) {
-            if (Send-Status -Stage 'windows-desktop-ready' -Message 'Windows desktop is ready for davis.' -Percent 100 -Extra $facts) {
+            if (Send-Status -Stage 'windows-desktop-ready' -Message 'Windows desktop is ready for TARGET_USER_PLACEHOLDER.' -Percent 100 -Extra $facts) {
                 $desktopReadyReported = $true
                 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
                 break
@@ -556,7 +557,8 @@ finally {
 }
 '@
 
-    Set-Content -LiteralPath $reporterPath -Value $reporter -Encoding UTF8 -Force
+    $reporterContent = $reporter.Replace('TARGET_USER_PLACEHOLDER', $UserName)
+    Set-Content -LiteralPath $reporterPath -Value $reporterContent -Encoding UTF8 -Force
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$reporterPath`""
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
@@ -580,6 +582,12 @@ try {
 
     if (Get-LocalUser -Name 'defaultuser0' -ErrorAction SilentlyContinue) {
         Remove-LocalUser -Name 'defaultuser0' -ErrorAction SilentlyContinue
+    }
+
+    # Disable the built-in Administrator account (SID ending in -500)
+    $adminUser = Get-LocalUser | Where-Object { $_.SID.Value -like '*-500' }
+    if ($adminUser) {
+        Disable-LocalUser -Name $adminUser.Name -ErrorAction SilentlyContinue
     }
 
     Set-WinSystemLocale -SystemLocale $TargetLocale
@@ -639,4 +647,4 @@ finally {
     Stop-Transcript -ErrorAction SilentlyContinue
 }
 
-shutdown.exe /r /t 10 /c "OSDCloud davis desktop autologon"
+shutdown.exe /r /t 10 /c "OSDCloud $UserName desktop autologon"

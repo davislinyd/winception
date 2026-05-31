@@ -25,8 +25,8 @@ const state = {
   endpointSyncReturnToInitialization: false,
   initializationRootDraft: '',
   initializationSecretsDraft: {
-    davisPassword: '',
-    pxeinstallPassword: '',
+    windowsUsername: 'Administrator',
+    windowsPassword: '',
   },
   currentView: null,
   selectedGuidedStepId: null,
@@ -931,25 +931,25 @@ function restoreInitializationDialogScrollPosition(position) {
 function initializationSecretsControls() {
   return {
     status: elements.initializationDialog?.querySelector('.initialization-secrets-status') ?? null,
-    davisPassword: elements.initializationDialog?.querySelector('#init-davis-password') ?? null,
-    pxeinstallPassword: elements.initializationDialog?.querySelector('#init-pxeinstall-password') ?? null,
+    windowsUsername: elements.initializationDialog?.querySelector('#init-windows-username') ?? null,
+    windowsPassword: elements.initializationDialog?.querySelector('#init-windows-password') ?? null,
   };
 }
 
 function captureInitializationSecretsDraft() {
   const controls = initializationSecretsControls();
-  state.initializationSecretsDraft.davisPassword = controls.davisPassword?.value ?? state.initializationSecretsDraft.davisPassword;
-  state.initializationSecretsDraft.pxeinstallPassword = controls.pxeinstallPassword?.value ?? state.initializationSecretsDraft.pxeinstallPassword;
+  state.initializationSecretsDraft.windowsUsername = controls.windowsUsername?.value ?? state.initializationSecretsDraft.windowsUsername;
+  state.initializationSecretsDraft.windowsPassword = controls.windowsPassword?.value ?? state.initializationSecretsDraft.windowsPassword;
 }
 
 function clearInitializationSecretsDraft() {
-  state.initializationSecretsDraft.davisPassword = '';
-  state.initializationSecretsDraft.pxeinstallPassword = '';
+  state.initializationSecretsDraft.windowsUsername = 'Administrator';
+  state.initializationSecretsDraft.windowsPassword = '';
 }
 
 function focusedInitializationTextControl() {
   const activeId = document.activeElement?.id;
-  if (activeId !== 'init-davis-password' && activeId !== 'init-pxeinstall-password' && activeId !== 'init-project-root') {
+  if (activeId !== 'init-windows-username' && activeId !== 'init-windows-password' && activeId !== 'init-project-root') {
     return null;
   }
   return {
@@ -1020,14 +1020,14 @@ async function copyInitializationOperationLog(button) {
   }, 1200);
 }
 
-function createInitializationSecretField(id, name, labelText) {
+function createInitializationSecretField(id, name, labelText, type = 'password') {
   const label = document.createElement('label');
   label.textContent = labelText;
   const input = document.createElement('input');
   input.id = id;
   input.name = name;
-  input.type = 'password';
-  input.autocomplete = 'new-password';
+  input.type = type;
+  input.autocomplete = type === 'password' ? 'new-password' : 'on';
   input.required = true;
   input.value = state.initializationSecretsDraft[name] ?? '';
   input.addEventListener('input', () => {
@@ -1060,8 +1060,8 @@ function appendInitializationSecretsForm(body) {
   button.textContent = 'Save deployment secrets';
   actions.append(button);
   form.append(
-    createInitializationSecretField('init-davis-password', 'davisPassword', 'davis password'),
-    createInitializationSecretField('init-pxeinstall-password', 'pxeinstallPassword', 'pxeinstall SMB password'),
+    createInitializationSecretField('init-windows-username', 'windowsUsername', 'Windows 帳號', 'text'),
+    createInitializationSecretField('init-windows-password', 'windowsPassword', 'Windows 密碼', 'password'),
     status,
     actions,
   );
@@ -4028,11 +4028,11 @@ async function handleStatusRunDelete(runId) {
 
 async function saveInitializationSecrets() {
   const controls = initializationSecretsControls();
-  const davisPassword = controls.davisPassword?.value ?? '';
-  const pxeinstallPassword = controls.pxeinstallPassword?.value ?? '';
-  if (!davisPassword.trim() || !pxeinstallPassword.trim()) {
+  const windowsUsername = controls.windowsUsername?.value ?? '';
+  const windowsPassword = controls.windowsPassword?.value ?? '';
+  if (!windowsUsername.trim() || !windowsPassword.trim()) {
     if (controls.status) {
-      controls.status.textContent = 'Enter both deployment passwords before saving.';
+      controls.status.textContent = 'Enter both Windows credentials before saving.';
     }
     return;
   }
@@ -4044,13 +4044,13 @@ async function saveInitializationSecrets() {
   try {
     const payload = await api('/api/secrets', {
       method: 'POST',
-      body: JSON.stringify({ davisPassword, pxeinstallPassword }),
+      body: JSON.stringify({ windowsUsername, windowsPassword }),
     });
     state.current = payload.state;
     state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
     clearInitializationSecretsDraft();
-    controls.davisPassword.value = '';
-    controls.pxeinstallPassword.value = '';
+    if (controls.windowsUsername) controls.windowsUsername.value = 'Administrator';
+    if (controls.windowsPassword) controls.windowsPassword.value = '';
     render();
   } catch (error) {
     if (controls.status) {
@@ -4157,7 +4157,7 @@ async function handleInitializationAction(action, source = null) {
       return;
     }
     openDialog(elements.initializationDialog);
-    initializationSecretsControls().davisPassword?.focus();
+    initializationSecretsControls().windowsPassword?.focus();
     return;
   }
   if (!resolvedAction || resolvedAction === 'setup') {

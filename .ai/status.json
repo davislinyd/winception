@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-31T17:01:00.000Z",
+  "updated_at": "2026-05-31T20:56:00.000Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
-    "current_goal": "The working target is a repeatable Web-console-first OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE."
+    "current_goal": "The working target is a repeatable Web-console-first OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the custom Windows account desktop (configured in the Web UI during initialization) with no human interaction inside OOBE."
   },
   "paths": {
     "development": {
@@ -25,11 +25,11 @@
     }
   },
   "development": {
-    "state": "unattended-host-setup-prereqs",
+    "state": "custom-account-refactoring",
     "canonical_repo": "https://github.com/your-username/osdcloud-win11-deployment-lab",
     "primary_branch": "master",
     "remote": "origin-github",
-    "summary": "Setup now runs unattended after clone, defaults Web to 127.0.0.1:8080, auto-installs Node/npm plus OSD and OSDCloud host modules, and leaves ADK/WinPE/runtime work to Web Prepare runtime.",
+    "summary": "Refactored from hardcoded davis account to dynamic windowsUsername/windowsPassword configured in Web UI initialization. pxeinstallPassword auto-generated as 24-char alphanumeric. Built-in Administrator disabled by SID -500. Renamed Invoke-DavisOobe.ps1 to Invoke-OobeCustomization.ps1.",
     "baseline": {
       "commit": "e6db34a6724fe5eaf75385c8391e7fd21c5286f0",
       "short": "e6db34a",
@@ -49,8 +49,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "bb676d83035f571d3bcf2a3beff4de9768583179",
-    "last_checked_head_short": "bb676d8",
+    "last_checked_head": "ef9b38abc459784534c0dacdf7be7d2df7f9b3c0",
+    "last_checked_head_short": "ef9b38a",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -67,7 +67,7 @@
     "dirty_excludes_status_file": false,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": true
+    "status_file_uncommitted": false
   },
   "required_workflow": {
     "before_development_work": [
@@ -85,11 +85,27 @@
   },
   "recent_changes": [
     {
+      "id": "20260531-version-bump-0.5.8",
+      "at": "2026-05-31T20:56:00.000+08:00",
+      "kind": "chore",
+      "summary": "- Bumped package.json and package-lock.json version to 0.5.8.\n- Committed dynamic account refactoring, pxeinstallPassword random auto-generation, custom OOBE script renaming, and built-in Administrator disablement.",
+      "commit": "pending",
+      "verification": "All 219 JavaScript tests pass successfully."
+    },
+    {
+      "id": "20260531-custom-account-refactor",
+      "at": "2026-05-31T20:05:00.000+08:00",
+      "kind": "implementation",
+      "summary": "- Refactored from hardcoded davis account to dynamic windowsUsername/windowsPassword set in Web UI.\n- pxeinstallPassword auto-generated as 24-char alphanumeric random string.\n- Renamed Invoke-DavisOobe.ps1 to Invoke-OobeCustomization.ps1.\n- Built-in Administrator disabled by SID -500.\n- Purged davis references from all prescriptive docs; historical test evidence preserved.",
+      "commit": "pending",
+      "verification": "All 219 JavaScript tests pass successfully."
+    },
+    {
       "id": "20260531-version-bump-0.5.7",
       "at": "2026-05-31T19:02:00.000+08:00",
       "kind": "chore",
       "summary": "- Bumped package.json and package-lock.json version to 0.5.7.",
-      "commit": "bb676d83035f571d3bcf2a3beff4de9768583179",
+      "commit": "ef9b38abc459784534c0dacdf7be7d2df7f9b3c0",
       "verification": "All 219 JavaScript tests pass successfully."
     },
     {
@@ -106,46 +122,6 @@
       "kind": "implementation",
       "summary": "- Replaced visible PowerShell console launch with a hidden Node server process managed by a native Windows System Tray app (Start-WebConsoleTray.ps1).\n- Updated Setup-DeploymentServer.ps1 and Start-InstalledWebConsole.ps1 to support process-locking and duplicate running instance detection.",
       "commit": "014fa64d895abbe8e596d8402b97e42942038fe7",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-version-bump-0.5.6",
-      "at": "2026-05-31T17:01:00.000+08:00",
-      "kind": "chore",
-      "summary": "- Bumped package.json and package-lock.json version to 0.5.6.",
-      "commit": "d61bf047df7628a301362508d82392ae359e73d9",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-decouple-secrets-from-workspace",
-      "at": "2026-05-31T16:56:00.000+08:00",
-      "kind": "implementation",
-      "summary": "- Removed automatic copying of workspace secrets to the host state root in `Install-HostManagementBundle.ps1` to prevent workspace secret dependency.\n- Updated unit tests to assert that secrets are not copied during setup.",
-      "commit": "30ea447571b9458a69255cca26034085083f14b7",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-version-bump-0.5.5",
-      "at": "2026-05-31T10:10:00.000+08:00",
-      "kind": "chore",
-      "summary": "- Bumped package.json and package-lock.json version to 0.5.5.",
-      "commit": "d942f6c4785fc32b57bf52c94a56f03f4e51f400",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-keep-downloaded-source-image",
-      "at": "2026-05-31T09:53:00.000+08:00",
-      "kind": "implementation",
-      "summary": "- Modified OS image download logic to keep the downloaded source files (typically ESD/ISO) in a dedicated sources/ subfolder under the cache root instead of deleting them.\n- Updated unit tests to assert correct retention and location of downloaded source files.",
-      "commit": "65eb57fbf7b20e04ca828be41cb6e4e3f50a79c0",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-decouple-os-image-cache-step",
-      "at": "2026-05-31T09:40:00.000+08:00",
-      "kind": "implementation",
-      "summary": "- Decoupled OS Image Cache initialization step (Step 6) from selected-os.json publishing criteria. It now passes as long as there is at least one deployable OS WIM image in the host cache folder.\n- Left profile publishing (Step 7) responsible for setting the active OS image and publishing selected-os.json.",
-      "commit": "65eb57fbf7b20e04ca828be41cb6e4e3f50a79c0",
       "verification": "All 219 JavaScript tests pass successfully."
     }
   ]

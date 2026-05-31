@@ -4,7 +4,7 @@ This repository documents and validates a Windows 11 zero-touch deployment lab u
 
 ## Current Goal
 
-The working target is a repeatable Web-console-first OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the `davis` desktop with no human interaction inside OOBE.
+The working target is a repeatable Web-console-first OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the custom Windows account desktop (configured in the Web UI during initialization) with no human interaction inside OOBE.
 
 ## 0-to-1 Test Evidence
 
@@ -71,10 +71,10 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 
 - Do not commit real account, SMB, token, cookie, OTP, or deployment secret values.
 - Keep `config\osdcloud-secrets.json` local and ignored by Git; use `config\osdcloud-secrets.example.json` only as the committed schema.
-- Expected local secret keys are `davisPassword` and `pxeinstallPassword`.
+- Expected local secret keys are `windowsUsername`, `windowsPassword`, and `pxeinstallPassword`.
 - During testing and validation, if deployment secret values are already present in an ignored local file, approved environment variables, or have been provided by the user, agents may save or update the ignored local deployment secrets directly without asking for another confirmation. If usable values are missing, ask the user for them.
 - API responses, logs, docs, tests, commits, PR text, `.ai/status.json`, and final reports must never include plaintext secret values.
-- Environment fallbacks are `OSDCLOUD_DAVIS_PASSWORD` and `OSDCLOUD_PXEINSTALL_PASSWORD`.
+- Environment fallbacks are `OSDCLOUD_WINDOWS_USERNAME`, `OSDCLOUD_WINDOWS_PASSWORD`, and `OSDCLOUD_PXEINSTALL_PASSWORD`.
 
 ## Runtime Guardrails
 

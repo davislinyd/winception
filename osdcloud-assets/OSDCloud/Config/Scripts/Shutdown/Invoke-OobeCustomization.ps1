@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $logRoot = 'C:\OSDCloud\Logs'
 New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
-$logPath = Join-Path $logRoot 'Invoke-DavisOobe-Shutdown.log'
+$logPath = Join-Path $logRoot 'Invoke-OobeCustomization-Shutdown.log'
 Start-Transcript -Path $logPath -Append -ErrorAction SilentlyContinue | Out-Null
 
 function Get-TargetWindowsRoot {
@@ -121,8 +121,10 @@ try {
     $timeZone = if ($selectedOs.timeZone) { [string] $selectedOs.timeZone } else { 'Taipei Standard Time' }
     $localeXml = ConvertTo-XmlText -Value $locale
     $timeZoneXml = ConvertTo-XmlText -Value $timeZone
-    $accountPassword = Get-DeploymentSecret -JsonName 'davisPassword' -EnvironmentName 'OSDCLOUD_DAVIS_PASSWORD'
-    $accountPasswordXml = ConvertTo-XmlText -Value $accountPassword
+    $windowsUsername = Get-DeploymentSecret -JsonName 'windowsUsername' -EnvironmentName 'OSDCLOUD_WINDOWS_USERNAME'
+    $windowsPassword = Get-DeploymentSecret -JsonName 'windowsPassword' -EnvironmentName 'OSDCLOUD_WINDOWS_PASSWORD'
+    $windowsUsernameXml = ConvertTo-XmlText -Value $windowsUsername
+    $windowsPasswordXml = ConvertTo-XmlText -Value $windowsPassword
     Write-Host "OOBE locale: $locale"
     Write-Host "OOBE time zone: $timeZone"
 
@@ -143,7 +145,7 @@ try {
     </component>
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
       <TimeZone>$timeZoneXml</TimeZone>
-      <RegisteredOwner>davis</RegisteredOwner>
+      <RegisteredOwner>$windowsUsernameXml</RegisteredOwner>
       <OOBE>
         <HideEULAPage>true</HideEULAPage>
         <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
@@ -158,24 +160,24 @@ try {
         <LocalAccounts>
           <LocalAccount wcm:action="add">
             <Password>
-              <Value>$accountPasswordXml</Value>
+              <Value>$windowsPasswordXml</Value>
               <PlainText>true</PlainText>
             </Password>
             <Description>Local administrator account</Description>
-            <DisplayName>davis</DisplayName>
+            <DisplayName>$windowsUsernameXml</DisplayName>
             <Group>Administrators</Group>
-            <Name>davis</Name>
+            <Name>$windowsUsernameXml</Name>
           </LocalAccount>
         </LocalAccounts>
       </UserAccounts>
       <AutoLogon>
         <Password>
-          <Value>$accountPasswordXml</Value>
+          <Value>$windowsPasswordXml</Value>
           <PlainText>true</PlainText>
         </Password>
         <Enabled>true</Enabled>
         <LogonCount>5</LogonCount>
-        <Username>davis</Username>
+        <Username>$windowsUsernameXml</Username>
       </AutoLogon>
     </component>
   </settings>
@@ -188,7 +190,10 @@ try {
 
     $secretTargetRoot = Join-Path $windowsRoot 'ProgramData\OSDCloud'
     New-Item -ItemType Directory -Path $secretTargetRoot -Force | Out-Null
-    ([ordered]@{ davisPassword = $accountPassword } | ConvertTo-Json -Depth 4) |
+    ([ordered]@{
+        windowsUsername = $windowsUsername
+        windowsPassword = $windowsPassword
+    } | ConvertTo-Json -Depth 4) |
         Set-Content -LiteralPath (Join-Path $secretTargetRoot 'secrets.json') -Encoding UTF8 -Force
 
     $setupCandidates = @()
@@ -244,7 +249,7 @@ try {
     if (-not (Test-Path $cmdPath)) {
         $cmd = @'
 @echo off
-set LOG=C:\Windows\Setup\Scripts\DavisOobe.log
+set LOG=C:\Windows\Setup\Scripts\OobeCustomization.log
 echo [%date% %time%] SetupComplete.cmd starting>>%LOG%
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Setup\Scripts\SetupComplete.ps1 >>%LOG% 2>&1
 exit /b 0
@@ -267,14 +272,14 @@ exit /b 0
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' /v HideWirelessSetupInOOBE /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoAdminLogon /t REG_SZ /d '1' /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v ForceAutoLogon /t REG_SZ /d '1' /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultUserName /t REG_SZ /d 'davis' /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultPassword /t REG_SZ /d $accountPassword /f | Out-Null
+    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultUserName /t REG_SZ /d $windowsUsername /f | Out-Null
+    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultPassword /t REG_SZ /d $windowsPassword /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoLogonCount /t REG_DWORD /d 5 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v NoAutoUpdate /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v AUOptions /t REG_DWORD /d 2 /f | Out-Null
     reg.exe unload HKLM\OSD_OFF_SOFTWARE | Out-Null
 
-    $marker = Join-Path $windowsRoot 'OSDCloud\Logs\DavisOobeInjected.txt'
+    $marker = Join-Path $windowsRoot 'OSDCloud\Logs\OobeCustomizationInjected.txt'
     "Injected $(Get-Date -Format o) to $windowsRoot" | Set-Content -LiteralPath $marker -Encoding ASCII -Force
 }
 finally {

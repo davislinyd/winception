@@ -64,8 +64,7 @@ C:\OSDCloud\HostTools\State
 - 使用 ISO 內建 Windows 11 ESD 快取，不重複從外網下載 OS
 - 從 iPXE 網路開機下載 WinPE，WinPE 再從 host SMB share 直接套用 Windows 11 ESD
 - 第一次從硬碟開機後自動略過 OOBE
-- 建立本地帳號 `davis`
-- 密碼由本機未提交的 deployment secret 提供
+- 建立自訂的本機管理員帳號與密碼
 - 自動登入桌面
 - 語系為 `zh-TW`
 - 時區為 `Taipei Standard Time`
@@ -73,7 +72,7 @@ C:\OSDCloud\HostTools\State
 
 ## 本機 Deployment Secrets
 
-Repo 不提交真實密碼。新 host 預設做法是在 Web 第一次進入時，由初始化精靈的 `Deployment Secrets` 步驟輸入 `davisPassword` 與 `pxeinstallPassword`；Web 會寫入 `C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json`，API 回應與 log 都不回傳密碼明文。
+Repo 不提交真實密碼。新 host 預設做法是在 Web 第一次進入時，由初始化精靈的 `Deployment Secrets` 步驟輸入自訂的 Windows 本機管理員帳號 `windowsUsername` 與 `windowsPassword`；Web 後端會自動產生僅含英數字的 24 碼隨機密碼作為 `pxeinstallPassword`，並寫入 `C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json`，API 回應與 log 都不回傳密碼明文。
 
 若需要離線或手動建立，也可以先在 lab host 建立本機檔案：
 
@@ -86,12 +85,13 @@ notepad 'C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json'
 
 ```json
 {
-  "davisPassword": "<local-account-password>",
+  "windowsUsername": "<local-account-username>",
+  "windowsPassword": "<local-account-password>",
   "pxeinstallPassword": "<smb-account-password>"
 }
 ```
 
-可改用 PowerShell session 環境變數 `OSDCLOUD_DAVIS_PASSWORD` 與 `OSDCLOUD_PXEINSTALL_PASSWORD`，但不要把真實值寫進文件、報告、commit message 或測試輸出。Web initialization / endpoint sync 會檢查本機 secret 狀態；執行 endpoint sync 時，工具會把本機 secret 注入 live `boot.wim`，讓 WinPE 可以掛載 SMB 並把 SetupComplete 需要的本地帳號密碼交給已部署的 Windows。
+可改用 PowerShell session 環境變數 `OSDCLOUD_WINDOWS_USERNAME`、`OSDCLOUD_WINDOWS_PASSWORD` 與 `OSDCLOUD_PXEINSTALL_PASSWORD`，但不要把真實值寫進文件、報告、commit message 或測試輸出。Web initialization / endpoint sync 會檢查本機 secret 狀態；執行 endpoint sync 時，工具會把本機 secret 注入 live `boot.wim`，讓 WinPE 可以掛載 SMB 並把 SetupComplete 需要的本地帳號密碼交給已部署的 Windows。
 
 測試期間若本機 ignored secrets 已存在、環境變數已設定，或 operator 已經提供可用值，agent 可以直接透過 Web/API 初始化流程設定或更新 deployment secrets，不需要再次要求人工確認。若缺少可用值或需要輪替密碼，才停止請 operator 介入；任何文件、log、commit、status 或回報都不能包含明文 secret。
 
@@ -360,7 +360,7 @@ Web Dashboard 主要區塊：
 10. 實體筆電從 UEFI IPv4 PXE 開機。
 11. 在 Web console 的 `Client Fleet` / `Validation` / `System Log` 觀察流程。
 12. WinPE 完成後會自動 `wpeutil reboot`；此時 client 應從內部硬碟開機，不要再反覆 PXE 開機。
-13. Windows 第一次開機後應自動登入 `davis` 桌面，Web console 最終應收到 `windows-desktop-ready`。
+13. Windows 第一次開機後應自動登入自訂管理員帳號桌面，Web console 最終應收到 `windows-desktop-ready`。
 14. 完成後在 Web console 停止 DHCP/TFTP/HTTP services，避免 host DHCP 留在網段上。
 
 選 `Select service interface` 時，Web console 會同步：
@@ -416,13 +416,13 @@ Web console 最終應看到：
 ```text
 Final stage : windows-desktop-ready
 Percent     : 100
-Message     : Windows desktop is ready for davis.
+Message     : Windows desktop is ready for <windowsUsername>.
 ```
 
 Windows 端應符合：
 
 ```text
-User             : <computer>\davis
+User             : <computer>\<windowsUsername>
 ExplorerRunning  : True
 DesktopReadyFile : True
 OobeProcesses    :
@@ -455,7 +455,7 @@ iPXE no-redownload 還要確認：
 | 有 `boot.ipxe` / `boot.wim` 但不套用 Windows | WinPE 是否掛到 `\\<service-ip>\OSDCloudiPXE`，deployable WIM 與 `selected-os.json` 是否存在，SMB firewall 是否允許 |
 | HTTP log 出現 OS WIM `HEAD` / `GET` | 可能誤用 `-ImageFileUrl` 或沒有走 SMB direct image |
 | WinPE 完成後又進 PXE | Client boot order 或一次性 boot menu 沒有回到內部硬碟 |
-| 第一次 Windows boot 停在 OOBE | 檢查 `Invoke-DavisOobe.ps1`、SetupComplete 注入、OOBE registry |
+| 第一次 Windows boot 停在 OOBE | 檢查 `Invoke-OobeCustomization.ps1`、SetupComplete 注入、OOBE registry |
 | Web console 停在 `awaiting-windows` | 檢查 SetupComplete status URL、desktop-ready scheduled task、Windows 網路是否能連回 service IP |
 | `windows-desktop-ready` 重複出現 | 舊版 reporter 可能未 unregister，可在 client 執行 `Unregister-ScheduledTask -TaskName OSDCloudDesktopReadyReport -Confirm:$false` |
 
@@ -489,7 +489,7 @@ OSDCloud-Win11-vSwitch-04
 最終測試結果：
 
 ```text
-User             : desktop-cfs7s79\davis
+User             : desktop-cfs7s79\<windowsUsername>
 ExplorerRunning  : True
 DesktopReadyFile : True
 OobeProcesses    :
@@ -507,7 +507,7 @@ TimeZone         : Taipei Standard Time
 iPXE 網路安裝驗證結果：
 
 ```text
-User             : DESKTOP-LTK4NLM\davis
+User             : DESKTOP-LTK4NLM\<windowsUsername>
 ExplorerRunning  : True
 DesktopReadyFile : True
 OobeProcesses    :
@@ -589,7 +589,7 @@ C:\OSDCloud\PXE-HttpRoot\osdcloud
 11. `Start-OSDCloud-iPXE.ps1` 用 `net use Z: \\<service-ip>\OSDCloudiPXE` 掛載 read-only SMB share。
 12. 腳本讀取 `Z:\OSDCloud\OS\selected-os.json`，把 `$Global:StartOSDCloud.ImageFileDestination` 指向 exported WIM，並使用 manifest 內的 image index `1` / language / edition 後呼叫 `Invoke-OSDCloud`。
 13. OSDCloud 直接用 SMB 上的 WIM 執行 DISM 套用 Windows，不再執行 `Download Operating System` 的 HTTP OS image 下載。
-14. WinPE Shutdown script `Invoke-DavisOobe.ps1` 對新 Windows 離線注入：
+14. WinPE Shutdown script `Invoke-OobeCustomization.ps1` 對新 Windows 離線注入：
     - `Unattend.xml`
     - OOBE skip registry
     - Winlogon 自動登入
@@ -597,7 +597,7 @@ C:\OSDCloud\PXE-HttpRoot\osdcloud
     - `SetupComplete.cmd/.ps1`
     - client app payload `C:\ProgramData\OSDCloud\Apps`
 15. `Start-OSDCloud-iPXE.ps1` 在 `Invoke-OSDCloud` 返回後送出完成狀態，等待 10 秒並執行 `wpeutil reboot`。
-16. Windows 第一次開機執行 SetupComplete，建立/修正 `davis` 並使用本機 deployment secret 設定密碼，依 selected OS metadata 設定 locale/timezone、OOBE registry，靜默安裝 client apps，並寫入桌面 marker。
+16. Windows 第一次開機執行 SetupComplete，建立自訂管理員帳號並使用本機 deployment secret 設定密碼，停用內建 Administrator 帳號（以 SID `-500` 定位），依 selected OS metadata 設定 locale/timezone、OOBE registry，靜默安裝 client apps，並寫入桌面 marker。
 17. 在實體筆電本機或遠端管理通道驗證桌面、版本、語系、時區、OOBE registry、OSDCloud log、HTTP access log。
 
 目前實作中特別重要的限制：
@@ -695,7 +695,7 @@ custom script 是「在部署流程中要跑、但又不是傳統 MSI/EXE 安裝
 3. 到 `Edit active` 或 inactive profile 的 `Edit`，在 `Selected install sequence` 將 software 與 custom script 加入同一個序列，必要時用上移/下移或拖拉調整順序。Script 仍可保留 `Before Apps` / `After Apps` phase 作為 log/舊 profile 相容 metadata，但新 profile 的實際執行順序以 `installSequence` 為準。存檔規則和 software 完全相同：editing active profile 會停服務、重建 `Apps` + `Scripts` payload、跑 preflight；editing inactive profile 只改 JSON。
 4. 發佈後 `selected-profile.json` 會新增 `installSequence: [{type, id, phase?}]`，並保留 `selectedSoftware` / `customScripts` 作為相容欄位。WinPE shutdown 會把 `Scripts` 子樹一併複製到 client 端 `C:\ProgramData\OSDCloud\Scripts`，SetupComplete 透過 `Install-Apps.ps1` 照 `installSequence` 執行 `Apps\<softwareId>\install.ps1` 或 `Scripts\<scriptId>\run.ps1`。
 5. Custom Script Catalog row 的 `View` 會打開唯讀檢視器顯示 `run.ps1` 內容與磁碟位置；`Delete` 只允許刪除未被任何 profile 引用的 script，被引用時必須先到 profile editor 解除勾選並存檔才能刪。
-6. Custom scripts 在 Windows `SetupComplete` 階段由 SYSTEM 執行；`[Environment]::GetFolderPath('Desktop')` 會解析到 `C:\Users\Public\Desktop`。若腳本要寫入目標使用者桌面，請使用部署流程提供的 `$env:OSDCloudTargetDesktopPath`；當 `davis` profile 已存在時它會指向 `C:\Users\davis\Desktop`，若尚未第一次登入則會指向 `C:\Users\Default\Desktop`，讓 Windows 建立新 profile 時帶入。相關欄位還包括 `$env:OSDCloudTargetUser` 與 `$env:OSDCloudTargetProfilePath`。
+6. Custom scripts 在 Windows `SetupComplete` 階段由 SYSTEM 執行；`[Environment]::GetFolderPath('Desktop')` 會解析到 `C:\Users\Public\Desktop`。若腳本要寫入目標使用者桌面，請使用部署流程提供的 `$env:OSDCloudTargetDesktopPath`；當自訂帳號的 profile 已存在時它會指向 `C:\Users\<windowsUsername>\Desktop`，若尚未第一次登入則會指向 `C:\Users\Default\Desktop`，讓 Windows 建立新 profile 時帶入。相關欄位還包括 `$env:OSDCloudTargetUser` 與 `$env:OSDCloudTargetProfilePath`。
 7. 手動 fallback（不建議）：在 repo 直接建立 `Scripts\<SC-XXX>\run.ps1` 並把該 id 加進 `config\scripts-catalog.json` 的 `scripts` 陣列（欄位：`id`、`name`、`source`、`fileName`、`defaultPhase`、`bytes`、`sha256`），同樣可以被 profile 引用。
 8. `Install-Apps.ps1` 會為每支 `run.ps1` 在 client 端建立獨立執行 log 與 summary：`C:\Windows\Temp\osdcloud-logs\custom-scripts\<scriptId>-<phase>-<timestamp>.log`、`C:\Windows\Temp\osdcloud-logs\custom-scripts-summary.json`，並保留整體 transcript `C:\Windows\Temp\osdcloud-logs\apps-install.log`。若 app/script install 失敗，`windows-apps-error` 會把 stdout/stderr/transcript tail 回傳到 host status JSON/JSONL，讓技術人員可在 server 端 Web/System Log/status evidence 看到錯誤摘要；完整 log 仍保留在 client。Summary 記錄 start/end、phase、script path、exit code 或 exception、duration。`run.ps1` 仍應設定 `$ErrorActionPreference = 'Stop'`，並在需要時寫自己的細節 log；throw 或非 0 exit code 會被 runner 標記為 failed，缺少 `run.ps1` 會被標記為 missing。若中文 `Write-Host` 在 redirected log 內顯示亂碼，通常是 Windows PowerShell stdout/stderr redirect encoding 問題；要保留可讀中文內容時，腳本應自行用 `[System.IO.File]::WriteAllText(..., [System.Text.Encoding]::UTF8)` 或明確 `-Encoding UTF8` 寫入自己的 log/輸出檔。範例（建立暫存防火牆規則）：
 
@@ -762,7 +762,7 @@ node .\tools\osdcloud-console\src\headless.js
 VM 回歸注意事項：
 
 - VM 使用 `vSwitch` / `192.168.100.1` / `\\192.168.100.1\OSDCloudiPXE`
-- 成功條件仍是 `windows-desktop-ready`、`davis` 桌面、OOBE registry 正確、HTTP log 沒有 zh-TW ESD `HEAD` / `GET`
+- 成功條件仍是 `windows-desktop-ready`、自訂帳號桌面、OOBE registry 正確、HTTP log 沒有 zh-TW ESD `HEAD` / `GET`
 - `osdcloud-finished` 後不要強制關機，讓 WinPE 自然 `wpeutil reboot`
 - 測試結束後停止 headless services，避免 DHCP responder 留著
 - 回到實體筆電前必須切回 Web console 選定的實體 service interface / service IP
@@ -830,7 +830,7 @@ Started     : 2026-05-08T19:16:49.151Z
 WinPE End   : 2026-05-08T19:23:39.219Z
 Finished    : 2026-05-08T19:28:19.736Z
 Computer    : DESKTOP-8AMUG6V
-Message     : Windows desktop is ready for davis.
+Message     : Windows desktop is ready for <windowsUsername>.
 ```
 
 最新 VM vSwitch 回歸驗證結果：
@@ -840,7 +840,7 @@ RunId       : 20260509-180631-3516-7778-8933-1804-0874-8294-77
 VM          : OSDCloud-Win11-vSwitch-04
 Switch      : vSwitch
 Status      : windows-desktop-ready
-User        : DESKTOP-BM8R03K\davis
+User        : DESKTOP-BM8R03K\<windowsUsername>
 IPv4        : 192.168.100.200/24
 Gateway     : 192.168.100.1
 DNS         : 1.1.1.1,8.8.8.8
@@ -976,7 +976,7 @@ npm run smoke
 
 iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Config\Scripts\SetupComplete`，也必須確認 `boot.wim` 內的 `X:\OSDCloud\Config\Scripts\SetupComplete` 已同步；否則 client 仍會注入舊版 SetupComplete，Web console 會停在 `awaiting-windows` / `rebooting`，收不到 `windows-setupcomplete-*` 或 `windows-desktop-ready`。
 
-`OSDCloudDesktopReadyReport` 使用 any-user logon trigger 並以 SYSTEM 執行。不要把 scheduled task trigger 綁到 `$env:COMPUTERNAME\davis`；SetupComplete 階段可能尚無法穩定解析本機帳號 SID，會造成 `HRESULT 0x80070534`，導致 Web console 停在 `windows-setupcomplete-finished`。
+`OSDCloudDesktopReadyReport` 使用 any-user logon trigger 並以 SYSTEM 執行。不要把 scheduled task trigger 綁到特定帳號名稱；SetupComplete 階段可能尚無法穩定解析本機帳號 SID，會造成 `HRESULT 0x80070534`，導致 Web console 停在 `windows-setupcomplete-finished`。
 
 不應納入版本控制：
 
@@ -994,13 +994,13 @@ iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Config\Scripts\SetupComplete`
 
 部署完成後，應確認：
 
-- `C:\OSDCloud\Logs\DavisOobeInjected.txt` 存在
-- `C:\Users\davis\Desktop\OSDCloud-Desktop-Ready.txt`（或 resolved `davis` profile Desktop）存在
+- `C:\OSDCloud\Logs\OobeCustomizationInjected.txt` 存在
+- `C:\Users\<windowsUsername>\Desktop\OSDCloud-Desktop-Ready.txt`（或 resolved 自訂帳號 profile Desktop）存在
 - `C:\Program Files\7-Zip\7z.exe` 存在
 - 若選 Chrome-enabled profile，`C:\Program Files\Google\Chrome\Application\chrome.exe` 存在
 - 若選 All in One profile，`C:\Program Files\Notepad++\notepad++.exe` 存在
 - `ExplorerRunning=True`
-- `loggedOnUser` 或 `explorerOwner` 為 `<computer>\davis`
+- `loggedOnUser` 或 `explorerOwner` 為 `<computer>\<windowsUsername>`
 - `OobeProcesses` 為空
 - `LaunchUserOOBE=0`
 - `SkipUserOOBE=1`
@@ -1021,7 +1021,7 @@ ISO VM 還要確認：
 - `ImageFileDestination` / `ExpandWindowsImage.ImagePath` 指向 `selected-os.json` 內的 exported WIM，例如 `Z:\OSDCloud\OS\<selected-image>.wim`
 - `ImageFileDestination.PSDrive.DisplayRoot` 為目前實體 endpoint 的 SMB share，例如 `\\<service-ip>\OSDCloudiPXE`
 - `OSImageIndex` 為 exported WIM index `1`，並符合 `selected-os.json`
-- 硬碟第一次開機直接進入 `davis` 桌面，不停在 OOBE
+- 硬碟第一次開機直接進入自訂帳號桌面，不停在 OOBE
 
 ## VM VM 驗證重點
 
@@ -1034,7 +1034,7 @@ VM 回歸完成後，應確認：
 - `DeploymentStatus.share` 為 `\\192.168.100.1\OSDCloudiPXE`
 - `DeploymentStatus.imagePath` 指向 `Z:\OSDCloud\OS\<selected-image>.wim`
 - `windows-desktop-ready` 回報成功
-- PowerShell Direct 驗證 `DESKTOP-...\davis`、Explorer、OOBE registry、版本、語系、時區、網路
+- PowerShell Direct 驗證 `DESKTOP-...\<windowsUsername>`、Explorer、OOBE registry、版本、語系、時區、網路
 
 VM 結果只能作為 regression evidence。要宣告實體筆電 path 可用，仍必須跑實體筆電 iPXE 流程。
 

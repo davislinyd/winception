@@ -321,7 +321,7 @@ test('desktop-ready reporter returns success only after status upload', () => {
   assert.match(sendStatus, /return \$false/);
 });
 
-test('desktop-ready reporter targets davis profile desktop instead of Public Desktop', () => {
+test('desktop-ready reporter targets dynamic profile desktop instead of Public Desktop', () => {
   const setupCompletePath = path.resolve(
     'osdcloud-assets',
     'OSDCloud',
@@ -333,7 +333,7 @@ test('desktop-ready reporter targets davis profile desktop instead of Public Des
   const setupComplete = fs.readFileSync(setupCompletePath, 'utf8');
 
   assert.doesNotMatch(setupComplete, /C:\\Users\\Public\\Desktop\\OSDCloud-Desktop-Ready\.txt/);
-  assert.match(setupComplete, /\$targetUser = 'davis'/);
+  assert.match(setupComplete, /\$targetUser = 'TARGET_USER_PLACEHOLDER'/);
   assert.match(setupComplete, /function Test-TargetUserIdentity/);
   assert.match(setupComplete, /function Get-ExplorerOwner/);
   assert.match(setupComplete, /function Get-TargetUserProfilePath/);
@@ -359,7 +359,7 @@ test('windows apps error payload uses joined tail text for Windows PowerShell co
   assert.doesNotMatch(setupComplete, /stdoutTail = @\(Get-TextFileTail/);
 });
 
-test('desktop-ready status includes resolved davis desktop evidence fields', () => {
+test('desktop-ready status includes resolved dynamic desktop evidence fields', () => {
   const setupCompletePath = path.resolve(
     'osdcloud-assets',
     'OSDCloud',

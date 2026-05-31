@@ -71,8 +71,8 @@ test('active custom script is mirrored and handed off to deployed Windows', () =
   const scriptEntry = profile.customScripts?.find((entry) => entry.id === 'SC-J5GF07Y2');
   const sourceScript = 'Scripts/SC-J5GF07Y2/run.ps1';
   const mirroredScript = 'osdcloud-assets/OSDCloud/Media/OSDCloud/Scripts/SC-J5GF07Y2/run.ps1';
-  const shutdownScript = readTrackedText('osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1');
-  const embeddedShutdownScript = readTrackedText('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1');
+  const shutdownScript = readText('osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1');
+  const embeddedShutdownScript = readText('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1');
 
   assert.equal(scriptEntry?.phase, 'after');
   assert.equal(trackedExists(mirroredScript), true);

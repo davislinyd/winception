@@ -159,7 +159,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /function appendInitializationProjectRootForm\(body, step\)/);
   assert.match(script, /\/api\/project-root/);
   assert.match(script, /state\.initializationRootDraft/);
-  assert.match(script, /initializationSecretsDraft: \{[\s\S]*davisPassword: ''[\s\S]*pxeinstallPassword: ''/);
+  assert.match(script, /initializationSecretsDraft: \{[\s\S]*windowsUsername: 'Administrator'[\s\S]*windowsPassword: ''/);
   assert.match(script, /function captureInitializationSecretsDraft\(\)/);
   assert.match(script, /function clearInitializationSecretsDraft\(\)/);
   assert.match(script, /function initializationDialogBody\(\)/);
@@ -170,11 +170,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /input\.value = state\.initializationSecretsDraft\[name\] \?\? ''/);
   assert.match(script, /input\.addEventListener\('input', \(\) => \{[\s\S]*state\.initializationSecretsDraft\[name\] = input\.value;/);
   assert.match(script, /const focusedTextControl = focusedInitializationTextControl\(\);/);
-  assert.match(script, /activeId !== 'init-davis-password' && activeId !== 'init-pxeinstall-password' && activeId !== 'init-project-root'/);
+  assert.match(script, /activeId !== 'init-windows-username' && activeId !== 'init-windows-password' && activeId !== 'init-project-root'/);
   assert.match(script, /const dialogScrollPosition = captureInitializationDialogScrollPosition\(\);/);
   assert.match(script, /restoreInitializationDialogScrollPosition\(dialogScrollPosition\);/);
   assert.match(script, /restoreInitializationTextControlFocus\(focusedTextControl\);/);
-  assert.match(script, /clearInitializationSecretsDraft\(\);[\s\S]*controls\.davisPassword\.value = ''/);
+  assert.match(script, /clearInitializationSecretsDraft\(\);[\s\S]*controls\.windowsPassword\.value = ''/);
   assert.match(script, /function renderInitializationOperation\(appState\)/);
   assert.doesNotMatch(script, /operation\?\.lines[\s\S]{0,160}\.slice\(-8\)/);
   assert.match(script, /const lines = \(operation\?\.lines \?\? \[\]\)\.filter/);

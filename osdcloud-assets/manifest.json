@@ -1,13 +1,13 @@
-﻿{
+{
     "generatedAt":  "2026-05-28T11:55:10.6789770Z",
     "sourceRoot":  "C:\\OSDCloud",
     "assetsRoot":  "C:\\osdcloud-win11-deployment-lab\\osdcloud-assets",
     "hashLargeArtifacts":  true,
     "exports":  [
                     {
-                        "source":  "C:\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
+                        "source":  "C:\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-OobeCustomization.ps1",
                         "sourceKind":  "filesystem",
-                        "repoPath":  "osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
+                        "repoPath":  "osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1",
                         "length":  12694,
                         "lastWriteTimeUtc":  "2026-05-25T05:22:11.7440111Z",
                         "sha256":  "91A8A44DCDA34062FF38325D476FD33E5D3407B50C5F02444AA2E78C0687F212"
@@ -133,9 +133,9 @@
                         "sha256":  "109E84C8A3900C9F7C304FF617C0DAB857C07EDEE12386FF181950951703339A"
                     },
                     {
-                        "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-DavisOobe.ps1",
+                        "source":  "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-OobeCustomization.ps1",
                         "sourceKind":  "boot.wim:index1",
-                        "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-DavisOobe.ps1",
+                        "repoPath":  "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1",
                         "length":  12694,
                         "lastWriteTimeUtc":  "2026-05-25T05:22:11.7440111Z",
                         "sha256":  "91A8A44DCDA34062FF38325D476FD33E5D3407B50C5F02444AA2E78C0687F212"

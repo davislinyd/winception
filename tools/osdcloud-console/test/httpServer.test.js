@@ -289,7 +289,7 @@ test('serves boot configuration with secrets', async () => {
   fs.mkdirSync(secretsDir, { recursive: true });
   fs.writeFileSync(
     path.join(secretsDir, 'osdcloud-secrets.json'),
-    JSON.stringify({ davisPassword: 'davis-pass', pxeinstallPassword: 'pxe-pass' }),
+    JSON.stringify({ windowsUsername: 'custom-user', windowsPassword: 'custom-pass', pxeinstallPassword: 'pxe-pass' }),
     'utf8',
   );
 
@@ -314,7 +314,8 @@ test('serves boot configuration with secrets', async () => {
     assert.equal(body.share, '\\\\127.0.0.1\\OSDCloudiPXE');
     assert.equal(body.smbUser, 'pxeinstall');
     assert.equal(body.smbPassword, 'pxe-pass');
-    assert.equal(body.davisPassword, 'davis-pass');
+    assert.equal(body.windowsUsername, 'custom-user');
+    assert.equal(body.windowsPassword, 'custom-pass');
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

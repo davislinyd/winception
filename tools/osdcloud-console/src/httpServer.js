@@ -18,7 +18,8 @@ function loadSecrets(config) {
     } catch {}
   }
   return {
-    davisPassword: process.env.OSDCLOUD_DAVIS_PASSWORD || fileSecrets.davisPassword || '',
+    windowsUsername: process.env.OSDCLOUD_WINDOWS_USERNAME || fileSecrets.windowsUsername || 'Administrator',
+    windowsPassword: process.env.OSDCLOUD_WINDOWS_PASSWORD || fileSecrets.windowsPassword || '',
     pxeinstallPassword: process.env.OSDCLOUD_PXEINSTALL_PASSWORD || fileSecrets.pxeinstallPassword || '',
   };
 }
@@ -466,7 +467,8 @@ export class MediaHttpServer extends EventEmitter {
       share: `\\\\${serverIp}\\${shareName}`,
       smbUser: 'pxeinstall',
       smbPassword: secrets.pxeinstallPassword,
-      davisPassword: secrets.davisPassword,
+      windowsUsername: secrets.windowsUsername,
+      windowsPassword: secrets.windowsPassword,
     });
     this.log(`${remote} GET ${requestUrl.pathname} 200`);
   }

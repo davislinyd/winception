@@ -60,20 +60,23 @@ if ($bootConfig -and $bootConfig.ok) {
     $share = $bootConfig.share
     $smbUser = $bootConfig.smbUser
     $smbPassword = $bootConfig.smbPassword
-    $davisPassword = $bootConfig.davisPassword
+    $windowsUsername = $bootConfig.windowsUsername
+    $windowsPassword = $bootConfig.windowsPassword
 
     # Dynamically write secrets.json to RAM disk so other scripts can read them
     $ramSecretsPath = Join-Path $PSScriptRoot 'secrets.json'
     [ordered]@{
         pxeinstallPassword = $smbPassword
-        davisPassword = $davisPassword
+        windowsUsername = $windowsUsername
+        windowsPassword = $windowsPassword
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ramSecretsPath -Encoding UTF8 -Force
 } else {
     Write-Warning "Using static/fallback variables for deployment."
     $share = "\\$server\OSDCloudiPXE"
     $smbUser = "pxeinstall"
     $smbPassword = ""
-    $davisPassword = ""
+    $windowsUsername = "davis"
+    $windowsPassword = ""
 }
 
 $statusUrl = "http://$server/osdcloud/status"

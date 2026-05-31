@@ -355,7 +355,7 @@ function Get-MissingEndpointRuntimeFiles {
         'PXE-HttpRoot\osdcloud\boot.ipxe',
         'Config\Scripts\SetupComplete\SetupComplete.ps1',
         'Config\Scripts\SetupComplete\SetupComplete.cmd',
-        'Config\Scripts\Shutdown\Invoke-DavisOobe.ps1'
+        'Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1'
     )
     @($required | Where-Object {
         -not (Test-Path -LiteralPath (Join-Path $ipxeLab $_) -PathType Leaf)
