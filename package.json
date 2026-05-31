@@ -7,6 +7,7 @@
     "web": "node tools/osdcloud-console/src/webServer.js",
     "server:preflight": "node tools/osdcloud-console/src/serverPreflight.js",
     "test": "node --test \"tools/osdcloud-console/test/**/*.test.js\"",
-    "smoke": "node tools/osdcloud-console/src/smoke.js"
+    "smoke": "node tools/osdcloud-console/src/smoke.js",
+    "reload": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/Reload-Console.ps1"
   }
 }

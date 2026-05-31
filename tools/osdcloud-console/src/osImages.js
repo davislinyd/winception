@@ -1573,6 +1573,15 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
       imageId: finalImage.id,
     });
     fs.renameSync(exportStagingPath, destination);
+
+    const sourcesDir = path.join(imageOptions.cacheRoot, 'sources');
+    fs.mkdirSync(sourcesDir, { recursive: true });
+    const sourceDestination = assertInside(sourcesDir, path.join(sourcesDir, sourceImage.fileName), 'OS image source path');
+    if (fs.existsSync(sourceDestination)) {
+      fs.rmSync(sourceDestination, { force: true });
+    }
+    fs.renameSync(sourceStagingPath, sourceDestination);
+
     upsertCatalogImage(config, finalImage, options);
     appendCacheLog(config, { status: 'downloaded', imageId: finalImage.id, fileName: finalImage.fileName, bytes: finalImage.size }, options);
     return { status: 'downloaded', image: finalImage, filePath: destination, bytes: finalImage.size };

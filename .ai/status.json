@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-30T15:13:00.000Z",
+  "updated_at": "2026-05-31T09:53:00.000Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
@@ -49,8 +49,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "a6cb4daccb94346887013e4bdc87197c56ddf9f6",
-    "last_checked_head_short": "a6cb4da",
+    "last_checked_head": "8bbcf01bb10c47bbbd61fa3a83c4076447521662",
+    "last_checked_head_short": "8bbcf01",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -85,11 +85,27 @@
   },
   "recent_changes": [
     {
+      "id": "20260531-keep-downloaded-source-image",
+      "at": "2026-05-31T09:53:00.000+08:00",
+      "kind": "implementation",
+      "summary": "- Modified OS image download logic to keep the downloaded source files (typically ESD/ISO) in a dedicated sources/ subfolder under the cache root instead of deleting them.\n- Updated unit tests to assert correct retention and location of downloaded source files.",
+      "commit": "uncommitted",
+      "verification": "All 219 JavaScript tests pass successfully."
+    },
+    {
+      "id": "20260531-decouple-os-image-cache-step",
+      "at": "2026-05-31T09:40:00.000+08:00",
+      "kind": "implementation",
+      "summary": "- Decoupled OS Image Cache initialization step (Step 6) from selected-os.json publishing criteria. It now passes as long as there is at least one deployable OS WIM image in the host cache folder.\n- Left profile publishing (Step 7) responsible for setting the active OS image and publishing selected-os.json.",
+      "commit": "uncommitted",
+      "verification": "All 219 JavaScript tests pass successfully."
+    },
+    {
       "id": "20260530-workspace-consolidation",
       "at": "2026-05-30T23:13:00.000+08:00",
       "kind": "chore",
       "summary": "- Consolidated separate development workspace and deployment clone definitions into a single, path-independent workspace representing the active Git clone root.\n- Removed all references to the obsolete C:\\Users\\davis\\Documents\\Codex\\osdcloud-project directory.\n- Updated AGENTS.md, GEMINI.md, TEST-LOOP.md, docs/agent-reference/repo-workflow.md, and .ai/status.json.",
-      "commit": "uncommitted",
+      "commit": "8bbcf01bb10c47bbbd61fa3a83c4076447521662",
       "verification": "Grep search confirmed no references to obsolete paths; JSON schema validated."
     },
     {
@@ -107,22 +123,6 @@
       "summary": "- Fixed regex pattern mismatch error during endpoint sync in Set-OsdCloudIpxeEndpoint.ps1.\n- Updated Set-StartOsdCloudEndpoint to support optional trailing comments on the '$server =' line in Start-OSDCloud-iPXE.ps1.",
       "commit": "e6db34a6724fe5eaf75385c8391e7fd21c5286f0",
       "verification": "Powershell regex validation was successful and all 219 JavaScript tests pass."
-    },
-    {
-      "id": "20260530-verbose-operation-logs-redirection",
-      "at": "2026-05-30T12:41:08.737Z",
-      "kind": "implementation",
-      "summary": "- Redirected verbose stdout/stderr outputs from Prepare Runtime and Endpoint Sync processes to dedicated log files: C:\\OSDCloud\\logs\\runtime-prepare.log and endpoint-sync.log.\n- Wrote helper addOperationVerboseLog in serviceController.js to log raw syslog format to files and formatted output to Web UI.\n- Bumped package.json and package-lock.json version to 0.5.4.\n- Added unit tests to verify dedicated logging files and syslog formatting.",
-      "commit": "a21303cf9590db3d3143232cc5b92957ac16c216",
-      "verification": "node --test passed 219/219."
-    },
-    {
-      "id": "20260530-rfc5424-syslog-consolidation",
-      "at": "2026-05-30T12:06:56.148Z",
-      "kind": "implementation",
-      "summary": "- Consolidated host-side service logs (DHCP, TFTP, HTTP, WEB-OP) into a single RFC 5424 Syslog file: logs/host-services.log.\n- Wrote client-side progress status logs to per-run syslog files: logs/runs/<runId>/deployment.log.\n- Duplicated client-side screenshots under logs/runs/<runId>/screenshots/.\n- Implemented local offset timezone formatters and integrated Syslog header parsing to ensure Web UI console log display remains backward-compatible and clean.\n- Added new test cases verifying Syslog formatting, file writes, and screenshot duplication.\n- Bumped package.json and package-lock.json version to 0.5.3.",
-      "commit": "3af2fdba2869813e4b574d621774ed29a54df274",
-      "verification": "node --test passed 217/217."
     }
   ]
 }

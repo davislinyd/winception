@@ -218,6 +218,10 @@ test('OS image download uses staging and does not overwrite cached files', async
     assert.equal(downloaded.image.sourceImageIndex, 6);
     assert.equal(fs.readFileSync(path.join(config.osImage.cacheRoot, 'download.wim'), 'utf8'), 'downloaded source image exported');
     assert.deepEqual(fs.readdirSync(config.osImage.downloadStagingRoot), []);
+    const sourcesDir = path.join(config.osImage.cacheRoot, 'sources');
+    assert.equal(fs.existsSync(sourcesDir), true);
+    assert.equal(fs.existsSync(path.join(sourcesDir, 'download.esd')), true);
+    assert.equal(fs.readFileSync(path.join(sourcesDir, 'download.esd'), 'utf8'), 'downloaded source image');
     assert.match(fs.readFileSync(path.join(config.osImage.cacheRoot, 'os-image-cache.jsonl'), 'utf8'), /SMOKE-DOWNLOAD-PRO/);
     assert.deepEqual(progressEvents.map((event) => event.phase), [
       'downloading-source',

@@ -371,7 +371,11 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
   const web = webServerConfig(config);
   const webReady = Boolean(web.host) && Number.isInteger(web.port) && web.port >= 0;
   const rootStatus = projectRootStatus(config);
-  const osImageStatus = osImageDeployableStatus(osImage);
+  const cachedWims = osImage?.images?.filter((img) => img.cached && String(img.fileName ?? '').toLowerCase().endsWith('.wim')) ?? [];
+  const osImageCached = cachedWims.length > 0;
+  const osImageCachedDetail = osImageCached
+    ? `${cachedWims.length} deployable OS WIM image(s) cached.`
+    : 'No cached deployable WIM images found. Download or import one.';
   const profileStatus = profilePayloadStatus(profilePayload);
   const finalPreflight = preflightStatus(preflight);
   const runtimeNeedsElevation = elevated === false && runtime?.ready !== true;
@@ -454,9 +458,9 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       id: 'os-image',
       label: 'OS Image Cache',
       required: true,
-      done: osImageStatus.ready,
+      done: osImageCached,
       action: 'os-images',
-      detail: osImageStatus.detail,
+      detail: osImageCachedDetail,
     },
     {
       id: 'profile',
