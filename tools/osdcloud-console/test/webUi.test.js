@@ -543,7 +543,7 @@ test('web UI keeps local component layer', () => {
   assert.match(styles, /#view-dashboard\.active \.dashboard-status-column \{\s*grid-column: 2;/);
   assert.match(styles, /#view-dashboard\.active \.dashboard-log-column \{[\s\S]*grid-column: 3;[\s\S]*position: sticky;[\s\S]*top: 0;/);
   assert.match(styles, /#view-dashboard\.active \.dashboard-diagnostics-grid \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
-  assert.match(styles, /#view-dashboard\.active \.dashboard-log-column \.system-log-panel \{[\s\S]*height: calc\(100vh - 92px\);/);
+  assert.match(styles, /#view-dashboard\.active \.dashboard-log-column \.system-log-panel \{[\s\S]*flex: 0 0 calc\(\(100vh - 56px\) \* 0\.9\);[\s\S]*height: calc\(\(100vh - 56px\) \* 0\.9\);[\s\S]*min-height: 420px;/);
   assert.doesNotMatch(styles, /grid-template-areas:\s*"operations endpoint log"/);
   assert.doesNotMatch(styles, /#view-dashboard\.active \.dashboard-status-column \{\s*display: contents;/);
   assert.doesNotMatch(styles, /#view-dashboard\.active \.dashboard-grid \{[\s\S]*max-height: calc\(100vh - 124px\);/);

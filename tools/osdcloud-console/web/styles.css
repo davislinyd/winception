@@ -1345,9 +1345,10 @@ pre, .system-log-output, .initialization-operation-log, #sync-output {
   }
 
   #view-dashboard.active .dashboard-log-column .system-log-panel {
-    height: calc(100vh - 92px);
-    max-height: calc(100vh - 92px);
-    min-height: 320px;
+    flex: 0 0 calc((100vh - 56px) * 0.9);
+    height: calc((100vh - 56px) * 0.9);
+    max-height: calc((100vh - 56px) * 0.9);
+    min-height: 420px;
   }
 
   #view-dashboard.active .client-fleet-panel {

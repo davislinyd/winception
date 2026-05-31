@@ -340,7 +340,7 @@ Web Dashboard 主要區塊：
 鍵盤與滑鼠：
 
 - Web console 使用瀏覽器原生鍵盤焦點與滑鼠操作；`Tab` / `Shift+Tab` 可在 buttons、dialogs、tables 與 form controls 間移動。
-- 桌面版 dashboard 改成可垂直捲動的三欄 shell：左側 Operations 與右側 System Log 固定可見，中間主欄可正常向下捲動查看 `Driver Cache`、`Preflight Summary` 與 `Client Fleet`；窄版畫面仍維持上下堆疊。Tables、Preflight Summary、System Log 與 dialogs 各自保留 scroll area；窄版畫面下 service cards 會改成單欄，避免 `Start HTTP/TFTP/DHCP` 按鈕文字被擠壓。System Log 只有在 scroll 已位於底部時才會隨新增訊息跟到底；operator 往上捲動閱讀時，新增 log 不會把視窗拉回底部。Preflight failed row 的錯誤文字使用 browser-native hover tooltip 顯示 `How to fix:` 建議，不會被 scroll/clamped panel 裁切。
+- 桌面版 dashboard 改成可垂直捲動的三欄 shell：左側 Operations 與右側 System Log 固定可見，中間主欄可正常向下捲動查看 `Driver Cache`、`Preflight Summary` 與 `Client Fleet`；窄版畫面仍維持上下堆疊。Tables、Preflight Summary、System Log 與 dialogs 各自保留 scroll area；窄版畫面下 service cards 會改成單欄，避免 `Start HTTP/TFTP/DHCP` 按鈕文字被擠壓。桌面版 `System Log` 會明確覆蓋原本的 flex-basis，並將 sticky 右欄 panel 高度控制為先前設定的 90%，避免右欄過高同時仍保留足夠可視 log 行數。System Log 只有在 scroll 已位於底部時才會隨新增訊息跟到底；operator 往上捲動閱讀時，新增 log 不會把視窗拉回底部。Preflight failed row 的錯誤文字使用 browser-native hover tooltip 顯示 `How to fix:` 建議，不會被 scroll/clamped panel 裁切。
 - `Client Fleet` 標題列的 `Expand fleet` 會把 fleet 表格固定到前景，背景以灰色 backdrop 鎖住點擊；點 backdrop、按 `Escape` 或按 `Collapse fleet` 都會回到 dashboard。
 - `Select interface` drawer 會立即開啟，不等待 Windows NIC 枚舉完成。介面表格會顯示 `Loading endpoints...` / `Refreshing endpoints...`；若 `/api/interfaces` 失敗，drawer 會保留 inline error 與 `Refresh endpoints` 重試入口。
 - `Validation Evidence`、`OS Image Cache`、`Profiles`、endpoint settings、picker、profile form 與 confirmation dialog 開啟後，點擊灰色背景會立即走 cancel/close；點框內表單、按鈕、表格或捲動區不會關閉。Confirmation dialog 背景點擊只會取消，不會執行 Start、Sync、Delete、Clear 等動作。
