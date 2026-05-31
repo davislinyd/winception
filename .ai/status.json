@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-31T20:56:00.000Z",
+  "updated_at": "2026-06-01T02:54:53.532Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
@@ -49,8 +49,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "e27701a3904ddef19b18810390719b5f8f5bfd22",
-    "last_checked_head_short": "e27701a",
+    "last_checked_head": "6c11c70c8b95b89525add1ebb6bf4892a13b55a9",
+    "last_checked_head_short": "6c11c70",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -64,7 +64,7 @@
     "source_of_truth": "Live Git state is authoritative; this tracked status file records workflow context and may not self-reference the commit that contains it."
   },
   "workspace": {
-    "dirty_excludes_status_file": false,
+    "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
     "status_file_uncommitted": false
@@ -85,11 +85,19 @@
   },
   "recent_changes": [
     {
+      "id": "20260601-dashboard-scrollable-layout",
+      "at": "2026-06-01T10:50:00.000+08:00",
+      "kind": "implementation",
+      "summary": "- Refactored dashboard desktop layout into scroll-friendly three-column shell.\n- Added diagnostics wrapper for Driver Cache and Preflight Summary; kept sticky System Log and fleet overlay behavior.",
+      "commit": "6c11c70c8b95b89525add1ebb6bf4892a13b55a9",
+      "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; powershell -NoProfile -ExecutionPolicy Bypass -File tools\\Reload-Console.ps1; verified 127.0.0.1:8080 serves dashboard-diagnostics-grid."
+    },
+    {
       "id": "20260531-fix-boot-ipxe-redundant-dhcp",
       "at": "2026-05-31T22:35:00.000+08:00",
       "kind": "fix",
       "summary": "- Removed redundant dhcp command from boot.ipxe template.\n- Restored smooth iPXE chaining to wimboot by avoiding network link/STP blocking transitions.",
-      "commit": "pending",
+      "commit": "b01e108e1acc7b83790ca60cdc928079efdc9471",
       "verification": "All 221 JavaScript tests pass successfully."
     },
     {
@@ -114,22 +122,6 @@
       "kind": "chore",
       "summary": "- Bumped package.json and package-lock.json version to 0.5.8.\n- Committed dynamic account refactoring, pxeinstallPassword random auto-generation, custom OOBE script renaming, and built-in Administrator disablement.",
       "commit": "640f2043681432f8b548b896942c748c1e405a8b",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-custom-account-refactor",
-      "at": "2026-05-31T20:05:00.000+08:00",
-      "kind": "implementation",
-      "summary": "- Refactored from hardcoded davis account to dynamic windowsUsername/windowsPassword set in Web UI.\n- pxeinstallPassword auto-generated as 24-char alphanumeric random string.\n- Renamed Invoke-DavisOobe.ps1 to Invoke-OobeCustomization.ps1.\n- Built-in Administrator disabled by SID -500.\n- Purged davis references from all prescriptive docs; historical test evidence preserved.",
-      "commit": "640f2043681432f8b548b896942c748c1e405a8b",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-version-bump-0.5.7",
-      "at": "2026-05-31T19:02:00.000+08:00",
-      "kind": "chore",
-      "summary": "- Bumped package.json and package-lock.json version to 0.5.7.",
-      "commit": "ef9b38abc459784534c0dacdf7be7d2df7f9b3c0",
       "verification": "All 219 JavaScript tests pass successfully."
     }
   ]
