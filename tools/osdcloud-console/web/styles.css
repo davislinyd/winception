@@ -78,6 +78,12 @@ body {
   gap: 8px;
 }
 
+.dashboard-diagnostics-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .dashboard-grid > * {
   min-width: 0;
 }
@@ -387,7 +393,6 @@ body {
 
 .preflight-summary-panel {
   flex: 0 0 auto;
-  max-height: 220px;
   min-height: 0;
 }
 
@@ -1313,70 +1318,40 @@ pre, .system-log-output, .initialization-operation-log, #sync-output {
   }
 
   #view-dashboard.active .dashboard-grid {
-    flex: 1 1 auto;
-    grid-template-areas:
-      "operations endpoint log"
-      "operations runtime log"
-      "operations sync log"
-      "operations summary log"
-      "preflight preflight log"
-      "fleet fleet log";
+    align-items: start;
     grid-template-columns: clamp(168px, 10vw, 190px) minmax(0, 1fr) minmax(280px, 24vw);
-    grid-template-rows: auto auto auto auto auto minmax(220px, 1fr);
-    max-height: calc(100vh - 124px);
-    overflow: hidden;
   }
 
   #view-dashboard.active .dashboard-operations-column {
     align-self: start;
-    grid-area: operations;
+    grid-column: 1;
+    position: sticky;
+    top: 0;
   }
 
   #view-dashboard.active .dashboard-status-column {
-    display: contents;
-  }
-
-  #view-dashboard.active #endpoint-summary {
-    grid-area: endpoint;
-  }
-
-  #view-dashboard.active .runtime-readiness-panel {
-    grid-area: runtime;
-  }
-
-  #view-dashboard.active .sync-progress-panel {
-    grid-area: sync;
-  }
-
-  #view-dashboard.active .dashboard-status-summary {
-    grid-area: summary;
-  }
-
-  #view-dashboard.active .preflight-summary-panel {
-    grid-area: preflight;
-  }
-
-  #view-dashboard.active .client-fleet-panel {
-    grid-area: fleet;
+    grid-column: 2;
   }
 
   #view-dashboard.active .dashboard-log-column {
-    grid-area: log;
+    align-self: start;
+    grid-column: 3;
+    position: sticky;
+    top: 0;
   }
 
-  .dashboard-operations-column,
-  .dashboard-log-column {
-    max-height: calc(100vh - 124px);
-    overflow: hidden;
+  #view-dashboard.active .dashboard-diagnostics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dashboard-log-column .system-log-panel {
-    min-height: 0;
+  #view-dashboard.active .dashboard-log-column .system-log-panel {
+    height: calc(100vh - 92px);
+    max-height: calc(100vh - 92px);
+    min-height: 320px;
   }
 
-  .client-fleet-panel {
+  #view-dashboard.active .client-fleet-panel {
     min-height: 220px;
-    overflow: hidden;
   }
 }
 

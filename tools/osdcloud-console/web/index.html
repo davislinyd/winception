@@ -189,21 +189,23 @@
               <section id="services-grid" class="status-services-grid col-span-5 lg:col-span-3 grid grid-cols-3 gap-sm" aria-label="Services"></section>
             </div>
 
-            <section class="driver-cache-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
-              <div class="panel-title-row">
-                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Driver Cache</h3>
-                <span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span>
-              </div>
-              <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
-            </section>
+            <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm">
+              <section class="driver-cache-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
+                <div class="panel-title-row">
+                  <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Driver Cache</h3>
+                  <span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span>
+                </div>
+                <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
+              </section>
 
-            <section class="preflight-summary-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
-              <div class="panel-title-row">
-                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3>
-                <span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span>
-              </div>
-              <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
-            </section>
+              <section class="preflight-summary-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
+                <div class="panel-title-row">
+                  <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3>
+                  <span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span>
+                </div>
+                <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
+              </section>
+            </div>
 
             <section class="client-fleet-panel bg-surface-container-lowest border border-outline-variant rounded flex flex-col flex-1">
               <div class="client-fleet-header px-md py-sm border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
