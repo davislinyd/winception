@@ -1029,7 +1029,11 @@ export class ServiceController extends EventEmitter {
   }
 
   async saveDeploymentSecrets(input) {
-    return this.runOperation('Saving deployment secrets', async () => this.dependencies.writeDeploymentSecrets(this.config, input));
+    return this.runOperation('Saving deployment secrets', async () => {
+      const result = await this.dependencies.writeDeploymentSecrets(this.config, input);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      return result;
+    });
   }
 
   async updateProjectRoot(input = {}) {

@@ -39,6 +39,8 @@ let suppressBackdropClickUntil = 0;
 let interfacesLoadPromise = null;
 
 const elements = {
+  warningBanner: $('#warning-banner'),
+  warningBannerText: $('#warning-banner-text'),
   endpointLine: $('#endpoint-line'),
   appVersion: $('#app-version'),
   operationBadge: $('#operation-badge'),
@@ -1955,6 +1957,9 @@ function preflightResolutionHint(check) {
   const nameLower = name.toLowerCase();
   const fullText = `${name}\n${detail}`.toLowerCase();
 
+  if (nameLower === 'winpe boot.wim customization') {
+    return 'Open Select interface, choose an enabled adapter, and click Sync (or run the endpoint sync script) to mount and customize boot.wim with the active settings, then run preflight again.';
+  }
   if (nameLower === 'os image' && fullText.includes('selected manifest stale')) {
     return 'Open Deployment profiles, re-select the active profile (or edit its OS image) to refresh selected-os.json, then run preflight again.';
   }
@@ -2738,6 +2743,25 @@ function renderLogs(appState) {
   logElement.scrollTop = wasAtBottom ? logElement.scrollHeight : previousScrollTop;
 }
 
+function renderWarningBanner(appState) {
+  if (!elements.warningBanner || !elements.warningBannerText) {
+    return;
+  }
+  const preflight = appState.preflight ?? [];
+  const customizationCheck = preflight.find((c) => String(c.name).toLowerCase() === 'winpe boot.wim customization');
+  const syncCheck = preflight.find((c) => String(c.name).toLowerCase() === 'winpe boot.wim synchronization');
+
+  if (customizationCheck && customizationCheck.ok === false) {
+    elements.warningBanner.classList.remove('hidden');
+    elements.warningBannerText.textContent = customizationCheck.detail || 'WinPE boot.wim has not been customized yet. Please run Endpoint Sync.';
+  } else if (syncCheck && syncCheck.ok === false) {
+    elements.warningBanner.classList.remove('hidden');
+    elements.warningBannerText.textContent = syncCheck.detail || 'Configuration or secrets changes are pending. Please run Endpoint Sync to apply updates.';
+  } else {
+    elements.warningBanner.classList.add('hidden');
+  }
+}
+
 function render() {
   const appState = state.current;
   if (!appState) {
@@ -2747,6 +2771,7 @@ function render() {
   elements.appVersion.textContent = appState.app?.version ? `v${appState.app.version}` : '';
   elements.endpointLine.textContent = endpointLabel(appState.config);
   elements.updatedAt.textContent = `Updated ${localTime(appState.generatedAt)}`;
+  renderWarningBanner(appState);
   renderOperation(appState);
   renderEndpointSummary(appState);
   renderRuntimeReadiness(appState);

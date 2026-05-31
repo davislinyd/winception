@@ -49,8 +49,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "ef9b38abc459784534c0dacdf7be7d2df7f9b3c0",
-    "last_checked_head_short": "ef9b38a",
+    "last_checked_head": "6bad17f6347e0089c4d9d2e474978be3a0ad69df",
+    "last_checked_head_short": "6bad17f",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -85,11 +85,27 @@
   },
   "recent_changes": [
     {
+      "id": "20260531-version-bump-0.5.9",
+      "at": "2026-05-31T22:00:00.000+08:00",
+      "kind": "chore",
+      "summary": "- Bumped package.json and package-lock.json version to 0.5.9.\n- Committed uncustomized boot.wim detection and warning system across preflight, Web UI, HTTP logger, and client fleet timeouts.",
+      "commit": "6bad17f6347e0089c4d9d2e474978be3a0ad69df",
+      "verification": "All 221 JavaScript tests and smoke tests pass successfully."
+    },
+    {
+      "id": "20260531-uncustomized-boot-wim-warning-system",
+      "at": "2026-05-31T21:50:00.000+08:00",
+      "kind": "implementation",
+      "summary": "- Added preflight check comparing timestamps of configs/secrets vs published boot.wim.\n- Added warning banner in Web UI for uncustomized or out-of-sync boot.wim images.\n- Added HTTP server file-size warnings and synthetic 'pxe-booting' client creation during boot.wim downloads.\n- Added 5-minute timeout for booting status events to flag stale PXE boots with customization hints.",
+      "commit": "6bad17f6347e0089c4d9d2e474978be3a0ad69df",
+      "verification": "All 221 JavaScript tests and smoke tests pass successfully."
+    },
+    {
       "id": "20260531-version-bump-0.5.8",
       "at": "2026-05-31T20:56:00.000+08:00",
       "kind": "chore",
       "summary": "- Bumped package.json and package-lock.json version to 0.5.8.\n- Committed dynamic account refactoring, pxeinstallPassword random auto-generation, custom OOBE script renaming, and built-in Administrator disablement.",
-      "commit": "pending",
+      "commit": "640f2043681432f8b548b896942c748c1e405a8b",
       "verification": "All 219 JavaScript tests pass successfully."
     },
     {
@@ -97,7 +113,7 @@
       "at": "2026-05-31T20:05:00.000+08:00",
       "kind": "implementation",
       "summary": "- Refactored from hardcoded davis account to dynamic windowsUsername/windowsPassword set in Web UI.\n- pxeinstallPassword auto-generated as 24-char alphanumeric random string.\n- Renamed Invoke-DavisOobe.ps1 to Invoke-OobeCustomization.ps1.\n- Built-in Administrator disabled by SID -500.\n- Purged davis references from all prescriptive docs; historical test evidence preserved.",
-      "commit": "pending",
+      "commit": "640f2043681432f8b548b896942c748c1e405a8b",
       "verification": "All 219 JavaScript tests pass successfully."
     },
     {
@@ -106,22 +122,6 @@
       "kind": "chore",
       "summary": "- Bumped package.json and package-lock.json version to 0.5.7.",
       "commit": "ef9b38abc459784534c0dacdf7be7d2df7f9b3c0",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-fix-tray-encoding",
-      "at": "2026-05-31T18:54:00.000+08:00",
-      "kind": "implementation",
-      "summary": "- Changed system tray context menu items and balloon notifications to English-only to completely prevent character encoding issues in Windows PowerShell 5.1.",
-      "commit": "f923330c5dbf0449e192672114c46b20f0fead98",
-      "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-tray-app-architecture",
-      "at": "2026-05-31T17:20:00.000+08:00",
-      "kind": "implementation",
-      "summary": "- Replaced visible PowerShell console launch with a hidden Node server process managed by a native Windows System Tray app (Start-WebConsoleTray.ps1).\n- Updated Setup-DeploymentServer.ps1 and Start-InstalledWebConsole.ps1 to support process-locking and duplicate running instance detection.",
-      "commit": "014fa64d895abbe8e596d8402b97e42942038fe7",
       "verification": "All 219 JavaScript tests pass successfully."
     }
   ]

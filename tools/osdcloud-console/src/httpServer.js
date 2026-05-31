@@ -295,6 +295,18 @@ export class MediaHttpServer extends EventEmitter {
       remote,
       ...payload,
     };
+    
+    const remoteIp = remote.split(':')[0].replace(/[^0-9.]/g, '');
+    const sanitizedIp = remoteIp.replace(/\./g, '_');
+    const bootingSummaryPath = path.join(statusRoot, `booting-${sanitizedIp}.summary.json`);
+    if (fs.existsSync(bootingSummaryPath)) {
+      try {
+        fs.unlinkSync(bootingSummaryPath);
+      } catch (e) {
+        this.log(`Failed to delete synthetic booting summary: ${e.message}`);
+      }
+    }
+
     const rawRunId = event.runId;
     const runId = sanitizeName(rawRunId);
     const warnings = new Set(Array.isArray(event.warnings) ? event.warnings : []);
@@ -508,6 +520,58 @@ export class MediaHttpServer extends EventEmitter {
         res.end(`Not found: ${requestPath.relative}`);
         this.log(`${remote} ${req.method} /${requestPath.relative} 404 bytes=0`);
         return;
+      }
+
+      // Check if boot.wim is requested
+      const relativeNormalized = requestPath.relative.replace(/\\/g, '/');
+      if (req.method === 'GET' && relativeNormalized === 'osdcloud/boot.wim') {
+        const remoteIp = remote.split(':')[0].replace(/[^0-9.]/g, '');
+        const sanitizedIp = remoteIp.replace(/\./g, '_');
+        const runtimeRoot = this.config.paths?.osdCloudRoot || 'C:\\OSDCloud';
+        const sourceBootWim = path.join(runtimeRoot, 'Media', 'sources', 'boot.wim');
+        if (fs.existsSync(sourceBootWim)) {
+          try {
+            const sourceSize = fs.statSync(sourceBootWim).size;
+            const publishedSize = stats.size;
+            if (sourceSize === publishedSize) {
+              this.log(`WARNING: CLIENT ${remoteIp} REQUESTED UN-CUSTOMIZED boot.wim (identical size to ADK source). Client will hang at command prompt after wpeinit!`);
+            }
+          } catch (e) {
+            this.log(`Failed to compare boot.wim sizes: ${e.message}`);
+          }
+        }
+
+        // Create synthetic run summary for booting client
+        const statusRoot = this.config.statusRoot;
+        const bootingSummaryPath = path.join(statusRoot, `booting-${sanitizedIp}.summary.json`);
+        if (!fs.existsSync(bootingSummaryPath)) {
+          const nowStr = new Date().toISOString();
+          const bootingSummary = {
+            runId: `booting-${sanitizedIp}`,
+            clientId: remoteIp,
+            status: 'running',
+            startedAt: nowStr,
+            startedTimestamp: nowStr,
+            startStage: 'pxe-booting',
+            eventCount: 1,
+            latestStage: 'pxe-booting',
+            latestMessage: 'Client requested boot.wim from PXE HTTP server',
+            elapsedSeconds: 0,
+            lastReceivedAt: nowStr,
+            warnings: ['uncustomized-check-pending']
+          };
+          try {
+            fs.mkdirSync(statusRoot, { recursive: true });
+            fs.writeFileSync(bootingSummaryPath, `${JSON.stringify(bootingSummary, null, 2)}\n`, 'utf8');
+            
+            // Rebuild runs index
+            const indexJson = buildRunsIndex(statusRoot, new Date());
+            fs.writeFileSync(path.join(statusRoot, 'runs-index.json'), `${JSON.stringify(indexJson, null, 2)}\n`, 'utf8');
+            this.emit('status', { event: bootingSummary, summary: bootingSummary, runsIndex: indexJson });
+          } catch (e) {
+            this.log(`Failed to create synthetic booting summary: ${e.message}`);
+          }
+        }
       }
 
       const range = parseRange(req.headers.range, stats.size);

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  checkBootWimSyncState,
   evaluateDhcpSubnet,
   evaluateServiceIp,
   evaluateSmbImage,
@@ -383,3 +384,54 @@ test('desktop-ready status includes resolved dynamic desktop evidence fields', (
   assert.match(facts, /desktopReadyFilePath = \$desktopReadyFilePath/);
   assert.match(facts, /desktopReadyFile = \(-not \[string\]::IsNullOrWhiteSpace\(\$desktopReadyFilePath\)/);
 });
+
+test('WinPE boot.wim synchronization check fails when config or secrets are newer', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-sync-test-'));
+  const configDir = path.join(root, 'config');
+  fs.mkdirSync(configDir, { recursive: true });
+  
+  const secretsPath = path.join(configDir, 'osdcloud-secrets.json');
+  const configPath = path.join(configDir, 'osdcloud-console.json');
+  const publishedBootWim = path.join(root, 'boot.wim');
+  
+  fs.writeFileSync(publishedBootWim, 'wim');
+  fs.writeFileSync(secretsPath, '{}');
+  fs.writeFileSync(configPath, '{}');
+
+  // Set published boot.wim to be modified 10 seconds ago
+  const now = Date.now();
+  fs.utimesSync(publishedBootWim, new Date(now - 10000), new Date(now - 10000));
+  // Set secrets to be modified 5 seconds ago (newer than boot.wim)
+  fs.utimesSync(secretsPath, new Date(now - 5000), new Date(now - 5000));
+  // Set config to be modified 20 seconds ago (older than boot.wim)
+  fs.utimesSync(configPath, new Date(now - 20000), new Date(now - 20000));
+
+  try {
+    const config = {
+      __configPath: configPath,
+      paths: {
+        stateRoot: root,
+      }
+    };
+    
+    // 1. Check with newer secrets
+    let result = checkBootWimSyncState(config, publishedBootWim);
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /published boot\.wim is older than the current secrets/);
+
+    // 2. Set secrets to be older than boot.wim
+    fs.utimesSync(secretsPath, new Date(now - 30000), new Date(now - 30000));
+    result = checkBootWimSyncState(config, publishedBootWim);
+    assert.equal(result.ok, true);
+    assert.match(result.detail, /published boot\.wim is up to date/);
+
+    // 3. Set config to be newer than boot.wim
+    fs.utimesSync(configPath, new Date(now - 2000), new Date(now - 2000));
+    result = checkBootWimSyncState(config, publishedBootWim);
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /published boot\.wim is older than the current config/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+

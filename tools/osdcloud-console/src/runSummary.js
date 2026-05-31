@@ -105,10 +105,17 @@ export function compactRunSummary(summary, now = new Date()) {
 
   const lastSeen = parseDate(run.lastReceivedAt);
   const ageMs = lastSeen === null ? null : nowDate.getTime() - lastSeen;
-  if (!terminalStatuses.has(run.status) && ageMs !== null && ageMs > staleThresholdMs) {
+  const isBooting = run.latestStage === 'pxe-booting';
+  const threshold = isBooting ? 5 * 60 * 1000 : staleThresholdMs;
+
+  if (!terminalStatuses.has(run.status) && ageMs !== null && ageMs > threshold) {
     run.previousStatus = run.status;
     run.status = 'stale';
-    run.staleReason = `no status events for ${Math.floor(ageMs / 60000)} minutes`;
+    if (isBooting) {
+      run.staleReason = 'WinPE boot completed but client did not check in. boot.wim may be uncustomized.';
+    } else {
+      run.staleReason = `no status events for ${Math.floor(ageMs / 60000)} minutes`;
+    }
   }
 
   return run;

@@ -109,6 +109,14 @@
 
   <div class="flex flex-1 overflow-hidden">
     <main class="flex-1 overflow-y-auto p-container-padding flex flex-col gap-sm bg-surface">
+      <section id="warning-banner" class="hidden" role="alert">
+        <div class="flex items-center gap-sm">
+          <span class="material-symbols-outlined text-[24px]">warning</span>
+          <span id="warning-banner-text" class="font-ui-label text-ui-label font-medium"></span>
+        </div>
+        <button data-action="endpoint-sync" data-icon="sync_alt" class="warning" type="button">立即同步 (Sync now)</button>
+      </section>
+
       <section id="view-dashboard" class="view active flex-col gap-sm" aria-labelledby="dashboard-title">
         <div class="dashboard-grid grid grid-cols-12 gap-sm">
           <aside class="dashboard-operations-column col-span-12 xl:col-span-2 flex flex-col gap-sm">

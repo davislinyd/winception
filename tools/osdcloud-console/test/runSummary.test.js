@@ -154,3 +154,29 @@ test('stores missing run id events in unknown bucket with warning', () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('marks booting run stale after 5 minutes with customization warning', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-summary-booting-'));
+  try {
+    updateRunSummary(root, {
+      receivedAt: '2026-05-09T01:00:00Z',
+      runId: 'booting-test',
+      clientId: 'client-boot',
+      stage: 'pxe-booting',
+    });
+
+    // 1. Check at 4 minutes: should still be running
+    let index = buildRunsIndex(root, new Date('2026-05-09T01:04:00Z'));
+    let run = index.runs.find((r) => r.runId === 'booting-test');
+    assert.equal(run.status, 'running');
+
+    // 2. Check at 6 minutes: should be stale with custom reason
+    index = buildRunsIndex(root, new Date('2026-05-09T01:06:00Z'));
+    run = index.runs.find((r) => r.runId === 'booting-test');
+    assert.equal(run.status, 'stale');
+    assert.match(run.staleReason, /boot\.wim may be uncustomized/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
