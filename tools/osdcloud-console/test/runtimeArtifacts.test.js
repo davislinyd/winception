@@ -509,7 +509,7 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     const seededConfig = JSON.parse(fs.readFileSync(stateConfig, 'utf8'));
     assert.equal(seededConfig.paths.appRoot, appRoot);
     assert.equal(seededConfig.paths.stateRoot, stateRoot);
-    assert.deepEqual(JSON.parse(fs.readFileSync(stateSecrets, 'utf8')), { pxeinstallPassword: 'seeded-secret' });
+    assert.equal(fs.existsSync(stateSecrets), false);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'Start-InstalledWebConsole.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'HostTools', 'Open-WebConsole.cmd')), true);
   } finally {

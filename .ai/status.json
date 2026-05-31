@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-31T10:10:00.000Z",
+  "updated_at": "2026-05-31T17:01:00.000Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
@@ -49,8 +49,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "d942f6c4785fc32b57bf52c94a56f03f4e51f400",
-    "last_checked_head_short": "d942f6c",
+    "last_checked_head": "30ea447571b9458a69255cca26034085083f14b7",
+    "last_checked_head_short": "30ea447",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -85,6 +85,22 @@
   },
   "recent_changes": [
     {
+      "id": "20260531-version-bump-0.5.6",
+      "at": "2026-05-31T17:01:00.000+08:00",
+      "kind": "chore",
+      "summary": "- Bumped package.json and package-lock.json version to 0.5.6.",
+      "commit": "30ea447571b9458a69255cca26034085083f14b7",
+      "verification": "All 219 JavaScript tests pass successfully."
+    },
+    {
+      "id": "20260531-decouple-secrets-from-workspace",
+      "at": "2026-05-31T16:56:00.000+08:00",
+      "kind": "implementation",
+      "summary": "- Removed automatic copying of workspace secrets to the host state root in `Install-HostManagementBundle.ps1` to prevent workspace secret dependency.\n- Updated unit tests to assert that secrets are not copied during setup.",
+      "commit": "30ea447571b9458a69255cca26034085083f14b7",
+      "verification": "All 219 JavaScript tests pass successfully."
+    },
+    {
       "id": "20260531-version-bump-0.5.5",
       "at": "2026-05-31T10:10:00.000+08:00",
       "kind": "chore",
@@ -107,22 +123,6 @@
       "summary": "- Decoupled OS Image Cache initialization step (Step 6) from selected-os.json publishing criteria. It now passes as long as there is at least one deployable OS WIM image in the host cache folder.\n- Left profile publishing (Step 7) responsible for setting the active OS image and publishing selected-os.json.",
       "commit": "65eb57fbf7b20e04ca828be41cb6e4e3f50a79c0",
       "verification": "All 219 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260530-workspace-consolidation",
-      "at": "2026-05-30T23:13:00.000+08:00",
-      "kind": "chore",
-      "summary": "- Consolidated separate development workspace and deployment clone definitions into a single, path-independent workspace representing the active Git clone root.\n- Removed all references to the obsolete C:\\Users\\davis\\Documents\\Codex\\osdcloud-project directory.\n- Updated AGENTS.md, GEMINI.md, TEST-LOOP.md, docs/agent-reference/repo-workflow.md, and .ai/status.json.",
-      "commit": "8bbcf01bb10c47bbbd61fa3a83c4076447521662",
-      "verification": "Grep search confirmed no references to obsolete paths; JSON schema validated."
-    },
-    {
-      "id": "20260530-guided-setup-button-disabled-fix",
-      "at": "2026-05-30T23:03:00.000+08:00",
-      "kind": "bugfix",
-      "summary": "- Fixed right-side action buttons being disabled in guided setup steps when the runtime was already prepared. The runtime.ready check is now scoped specifically to the 'prepare-runtime' step.",
-      "commit": "a6cb4daccb94346887013e4bdc87197c56ddf9f6",
-      "verification": "All 219 unit tests passed successfully."
     }
   ]
 }
