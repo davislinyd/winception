@@ -731,6 +731,20 @@ test('endpoint sync injects progress reporter into rebuilt WinPE', () => {
   assert.match(script, /Set-ProgressReporterEndpoint/);
 });
 
+test('endpoint sync injects deployment Config scripts from the bundle, not the mutable live tree', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  const mountInjection = script.slice(script.indexOf('& dism /English /Mount-Wim'));
+
+  // boot.wim injection sources the deployment scripts from the self-contained bundle copy.
+  assert.match(mountInjection, /osdcloud-assets\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete\.ps1/);
+  assert.match(mountInjection, /osdcloud-assets\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete\.cmd/);
+  assert.match(mountInjection, /osdcloud-assets\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-OobeCustomization\.ps1/);
+
+  // The injection must not read these scripts from the mutable live ($ipxeLab) tree.
+  assert.doesNotMatch(mountInjection, /\$ipxeLab 'Config\\Scripts\\SetupComplete\\SetupComplete\.ps1'/);
+  assert.doesNotMatch(mountInjection, /\$ipxeLab 'Config\\Scripts\\Shutdown\\Invoke-OobeCustomization\.ps1'/);
+});
+
 test('endpoint sync injects Startnet boot chain into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
   const startnet = fs.readFileSync(

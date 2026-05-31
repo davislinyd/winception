@@ -740,13 +740,13 @@ if ($CommitWinPe) {
                 -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') `
                 -Destination (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1') | Out-Null
             Copy-IfPresent `
-                -Source (Join-Path $ipxeLab 'Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') `
+                -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') `
                 -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') | Out-Null
             Copy-IfPresent `
-                -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.cmd') `
+                -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd') `
                 -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd') | Out-Null
             Copy-IfPresent `
-                -Source (Join-Path $ipxeLab 'Config\Scripts\SetupComplete\SetupComplete.ps1') `
+                -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') `
                 -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') | Out-Null
 
             Copy-WinPePowerShellModule -Name 'OSD' -MountDir $mountDir
