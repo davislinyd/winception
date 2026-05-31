@@ -45,25 +45,25 @@ try {
     # Create context menu
     $contextMenu = New-Object System.Windows.Forms.ContextMenuStrip
 
-    $itemOpen = New-Object System.Windows.Forms.ToolStripMenuItem("開啟 Web 控制台 (Open Web Console)")
+    $itemOpen = New-Object System.Windows.Forms.ToolStripMenuItem("Open Web Console")
     $itemOpen.add_Click({
         Start-Process "http://${WebHost}:${WebPort}"
     })
     $contextMenu.Items.Add($itemOpen) | Out-Null
 
-    $itemRestart = New-Object System.Windows.Forms.ToolStripMenuItem("重啟 Web 伺服器 (Restart Web Server)")
+    $itemRestart = New-Object System.Windows.Forms.ToolStripMenuItem("Restart Web Server")
     $itemRestart.add_Click({
         if ($global:NodeProcess -and -not $global:NodeProcess.HasExited) {
             $global:NodeProcess | Stop-Process -Force
         }
         $global:NodeProcess = Start-NodeServer
-        $global:NotifyIcon.ShowBalloonTip(3000, "OSDCloud Console", "Web 伺服器已重啟 (Web server restarted)", [System.Windows.Forms.ToolTipIcon]::Info)
+        $global:NotifyIcon.ShowBalloonTip(3000, "OSDCloud Console", "Web server restarted", [System.Windows.Forms.ToolTipIcon]::Info)
     })
     $contextMenu.Items.Add($itemRestart) | Out-Null
 
     $contextMenu.Items.Add("-") | Out-Null # Separator
 
-    $itemExit = New-Object System.Windows.Forms.ToolStripMenuItem("結束退出 (Exit)")
+    $itemExit = New-Object System.Windows.Forms.ToolStripMenuItem("Exit")
     $itemExit.add_Click({
         if ($global:NodeProcess -and -not $global:NodeProcess.HasExited) {
             $global:NodeProcess | Stop-Process -Force
@@ -83,7 +83,7 @@ try {
 
     # Show Balloon Notification on startup
     if (-not $NoBrowser) {
-        $global:NotifyIcon.ShowBalloonTip(3000, "OSDCloud Console", "Web 控制台已在背景啟動 (Web Console running in background)", [System.Windows.Forms.ToolTipIcon]::Info)
+        $global:NotifyIcon.ShowBalloonTip(3000, "OSDCloud Console", "Web Console running in background", [System.Windows.Forms.ToolTipIcon]::Info)
     }
 }
 catch {

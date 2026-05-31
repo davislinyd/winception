@@ -49,9 +49,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "d61bf047df7628a301362508d82392ae359e73d9",
-    "last_checked_head_short": "d61bf04",
-    "dirty": true,
+    "last_checked_head": "014fa64d895abbe8e596d8402b97e42942038fe7",
+    "last_checked_head_short": "014fa64",
+    "dirty": false,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -89,7 +89,7 @@
       "at": "2026-05-31T17:20:00.000+08:00",
       "kind": "implementation",
       "summary": "- Replaced visible PowerShell console launch with a hidden Node server process managed by a native Windows System Tray app (Start-WebConsoleTray.ps1).\n- Updated Setup-DeploymentServer.ps1 and Start-InstalledWebConsole.ps1 to support process-locking and duplicate running instance detection.",
-      "commit": "d61bf047df7628a301362508d82392ae359e73d9",
+      "commit": "014fa64d895abbe8e596d8402b97e42942038fe7",
       "verification": "All 219 JavaScript tests pass successfully."
     },
     {
