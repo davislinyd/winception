@@ -584,9 +584,11 @@ try {
         Remove-LocalUser -Name 'defaultuser0' -ErrorAction SilentlyContinue
     }
 
-    # Disable the built-in Administrator account (SID ending in -500)
+    # Disable the built-in Administrator account (SID ending in -500),
+    # unless it is the account chosen for deployment (otherwise the only
+    # usable login on the machine would be disabled).
     $adminUser = Get-LocalUser | Where-Object { $_.SID.Value -like '*-500' }
-    if ($adminUser) {
+    if ($adminUser -and $adminUser.Name -ine $UserName) {
         Disable-LocalUser -Name $adminUser.Name -ErrorAction SilentlyContinue
     }
 

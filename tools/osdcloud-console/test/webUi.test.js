@@ -159,7 +159,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /function appendInitializationProjectRootForm\(body, step\)/);
   assert.match(script, /\/api\/project-root/);
   assert.match(script, /state\.initializationRootDraft/);
-  assert.match(script, /initializationSecretsDraft: \{[\s\S]*windowsUsername: 'Administrator'[\s\S]*windowsPassword: ''/);
+  assert.match(script, /initializationSecretsDraft: \{[\s\S]*windowsUsername: DEFAULT_WINDOWS_USERNAME[\s\S]*windowsPassword: ''/);
   assert.match(script, /function captureInitializationSecretsDraft\(\)/);
   assert.match(script, /function clearInitializationSecretsDraft\(\)/);
   assert.match(script, /function initializationDialogBody\(\)/);
@@ -194,8 +194,12 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /state\.initializationDetailScrollPositions = captureInitializationDetailScrollPositions\(\);[\s\S]*elements\.initializationSteps\.replaceChildren\(\);/);
   assert.match(script, /initializationPendingAction/);
   assert.match(script, /initializationOperationAction/);
-  assert.match(script, /step\.id === 'secrets' && !step\.done/);
+  assert.match(script, /step\.id === 'secrets' && \(!step\.done \|\| state\.initializationSecretsEditing\)/);
   assert.match(script, /appendInitializationSecretsForm\(body\)/);
+  assert.match(script, /function appendInitializationSecretsEditButton\(body\)/);
+  assert.match(script, /dataset\.initAction = 'edit-secrets'/);
+  assert.match(script, /resolvedAction === 'edit-secrets'/);
+  assert.match(script, /resolvedAction === 'cancel-secrets'/);
   assert.match(script, /const detailList = appendInitializationDetailItems\(body, step\.id, step\.detailItems\);/);
   assert.match(script, /restoreInitializationDetailScrollPosition\(step\.id, detailList\);/);
   assert.match(script, /!hasInlineSecretsForm/);

@@ -385,7 +385,9 @@ test('secrets API writes local secrets and never returns plaintext passwords', a
     assert.equal(payload.result.status.windowsUsername.present, true);
     assert.equal(payload.result.status.windowsPassword.present, true);
     assert.equal(payload.result.status.pxeinstallPassword.present, true);
-    assert.doesNotMatch(serialized, /custom-admin/);
+    // The account name is not a secret and is intentionally returned for pre-fill on edit.
+    assert.equal(payload.result.windowsUsername, 'custom-admin');
+    // Passwords must never be echoed back to the client.
     assert.doesNotMatch(serialized, /local-windows-secret/);
 
     const secretPath = path.join(root, 'config', 'osdcloud-secrets.json');
@@ -395,6 +397,29 @@ test('secrets API writes local secrets and never returns plaintext passwords', a
     assert.equal(saved.windowsUsername, 'custom-admin');
     assert.equal(saved.windowsPassword, 'local-windows-secret');
     assert.match(saved.pxeinstallPassword, /^[a-zA-Z0-9]{24}$/);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('secrets API rejects reserved Windows account names', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-secrets-reserved-'));
+  const server = await makeServer(root);
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const response = await fetch(`${base}/api/secrets`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        windowsUsername: 'Administrator',
+        windowsPassword: 'local-windows-secret',
+      }),
+    });
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.match(JSON.stringify(payload), /reserved Windows account name/);
+    assert.equal(fs.existsSync(path.join(root, 'config', 'osdcloud-secrets.json')), false);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

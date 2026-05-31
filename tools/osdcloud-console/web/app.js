@@ -1,3 +1,8 @@
+const RESERVED_WINDOWS_USERNAMES = new Set([
+  'administrator', 'guest', 'defaultaccount', 'wdagutilityaccount', 'system',
+]);
+const DEFAULT_WINDOWS_USERNAME = 'LabAdmin';
+
 const state = {
   current: null,
   selectedRunId: null,
@@ -24,8 +29,9 @@ const state = {
   initializationDetailScrollPositions: {},
   endpointSyncReturnToInitialization: false,
   initializationRootDraft: '',
+  initializationSecretsEditing: false,
   initializationSecretsDraft: {
-    windowsUsername: 'Administrator',
+    windowsUsername: DEFAULT_WINDOWS_USERNAME,
     windowsPassword: '',
   },
   currentView: null,
@@ -945,7 +951,7 @@ function captureInitializationSecretsDraft() {
 }
 
 function clearInitializationSecretsDraft() {
-  state.initializationSecretsDraft.windowsUsername = 'Administrator';
+  state.initializationSecretsDraft.windowsUsername = DEFAULT_WINDOWS_USERNAME;
   state.initializationSecretsDraft.windowsPassword = '';
 }
 
@@ -1047,11 +1053,15 @@ function createInitializationSecretField(id, name, labelText, type = 'password')
 }
 
 function appendInitializationSecretsForm(body) {
+  const editing = state.initializationSecretsEditing;
   const form = document.createElement('div');
   form.className = 'initialization-secrets-form';
   const status = document.createElement('span');
   status.className = 'initialization-secrets-status';
   status.setAttribute('aria-live', 'polite');
+  if (editing) {
+    status.textContent = '重新輸入 Windows 帳號與密碼以覆寫現有認證（密碼不會回填，需重新輸入）。';
+  }
   const actions = document.createElement('div');
   actions.className = 'initialization-secrets-actions';
   const button = document.createElement('button');
@@ -1059,8 +1069,15 @@ function appendInitializationSecretsForm(body) {
   button.className = 'warning';
   button.dataset.initAction = 'save-secrets';
   button.dataset.icon = 'password';
-  button.textContent = 'Save deployment secrets';
+  button.textContent = editing ? '更新部署認證' : 'Save deployment secrets';
   actions.append(button);
+  if (editing) {
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.dataset.initAction = 'cancel-secrets';
+    cancel.textContent = '取消';
+    actions.append(cancel);
+  }
   form.append(
     createInitializationSecretField('init-windows-username', 'windowsUsername', 'Windows 帳號', 'text'),
     createInitializationSecretField('init-windows-password', 'windowsPassword', 'Windows 密碼', 'password'),
@@ -1068,6 +1085,18 @@ function appendInitializationSecretsForm(body) {
     actions,
   );
   body.append(form);
+}
+
+function appendInitializationSecretsEditButton(body) {
+  const actions = document.createElement('div');
+  actions.className = 'initialization-secrets-actions';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset.initAction = 'edit-secrets';
+  button.dataset.icon = 'password';
+  button.textContent = '修改認證';
+  actions.append(button);
+  body.append(actions);
 }
 
 function appendInitializationProjectRootForm(body, step) {
@@ -1319,13 +1348,15 @@ function renderInitialization(appState) {
     body.className = 'guided-detail-body flex flex-col gap-md';
 
     const step = selectedStep;
-    const hasInlineSecretsForm = step.id === 'secrets' && !step.done;
+    const hasInlineSecretsForm = step.id === 'secrets' && (!step.done || state.initializationSecretsEditing);
     const hasInlineProjectRootForm = step.id === 'project-root';
 
     // Render detailed items & forms (named 'body' to pass test assertions)
     const detailList = appendInitializationDetailItems(body, step.id, step.detailItems);
     if (hasInlineSecretsForm) {
       appendInitializationSecretsForm(body);
+    } else if (step.id === 'secrets' && step.done) {
+      appendInitializationSecretsEditButton(body);
     }
     if (hasInlineProjectRootForm) {
       appendInitializationProjectRootForm(body, selectedStep);
@@ -4061,6 +4092,12 @@ async function saveInitializationSecrets() {
     }
     return;
   }
+  if (RESERVED_WINDOWS_USERNAMES.has(windowsUsername.trim().toLowerCase())) {
+    if (controls.status) {
+      controls.status.textContent = `"${windowsUsername.trim()}" is a reserved Windows account name. Choose a different account name (the built-in Administrator account is disabled during deployment).`;
+    }
+    return;
+  }
   if (state.busy) {
     return;
   }
@@ -4073,8 +4110,9 @@ async function saveInitializationSecrets() {
     });
     state.current = payload.state;
     state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
+    state.initializationSecretsEditing = false;
     clearInitializationSecretsDraft();
-    if (controls.windowsUsername) controls.windowsUsername.value = 'Administrator';
+    if (controls.windowsUsername) controls.windowsUsername.value = DEFAULT_WINDOWS_USERNAME;
     if (controls.windowsPassword) controls.windowsPassword.value = '';
     render();
   } catch (error) {
@@ -4166,6 +4204,21 @@ async function handleInitializationAction(action, source = null) {
     : action;
   if (resolvedAction === 'save-secrets') {
     await saveInitializationSecrets();
+    return;
+  }
+  if (resolvedAction === 'edit-secrets') {
+    state.initializationSecretsEditing = true;
+    state.initializationSecretsDraft.windowsUsername = state.current?.initialization?.secrets?.windowsUsername
+      ?? DEFAULT_WINDOWS_USERNAME;
+    state.initializationSecretsDraft.windowsPassword = '';
+    render();
+    initializationSecretsControls().windowsPassword?.focus();
+    return;
+  }
+  if (resolvedAction === 'cancel-secrets') {
+    state.initializationSecretsEditing = false;
+    clearInitializationSecretsDraft();
+    render();
     return;
   }
   if (resolvedAction === 'save-project-root') {

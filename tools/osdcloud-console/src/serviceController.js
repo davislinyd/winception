@@ -68,6 +68,10 @@ import { formatDisplayLogLine } from './timeFormat.js';
 import { appVersion } from './version.js';
 import { summarizeDriverPackCache } from './driverPackCache.js';
 
+const RESERVED_WINDOWS_USERNAMES = new Set([
+  'administrator', 'guest', 'defaultaccount', 'wdagutilityaccount', 'system',
+]);
+
 function errorWithStatus(message, statusCode = 500) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -181,6 +185,14 @@ function deploymentSecretsStatus(config, env = process.env) {
     }
   }
 
+  // The account name is not a secret; expose it so the Web console can
+  // pre-fill it when re-editing credentials. The passwords are never returned.
+  const resolvedUsername = (!fileError && hasSecretValue(fileSecrets?.windowsUsername))
+    ? String(fileSecrets.windowsUsername).trim()
+    : hasSecretValue(env?.OSDCLOUD_WINDOWS_USERNAME)
+      ? String(env.OSDCLOUD_WINDOWS_USERNAME).trim()
+      : null;
+
   return {
     ready: missing.length === 0,
     filePath,
@@ -188,6 +200,7 @@ function deploymentSecretsStatus(config, env = process.env) {
     fileError,
     missing,
     status,
+    windowsUsername: resolvedUsername,
   };
 }
 
@@ -199,6 +212,13 @@ function writeDeploymentSecrets(config, input = {}) {
   }
   if (!hasSecretValue(windowsPassword)) {
     throw errorWithStatus('windowsPassword is required.', 400);
+  }
+  if (RESERVED_WINDOWS_USERNAMES.has(windowsUsername.toLowerCase())) {
+    throw errorWithStatus(
+      `windowsUsername "${windowsUsername}" is a reserved Windows account name. `
+      + 'Choose a different account name (the built-in Administrator account is disabled during deployment).',
+      400,
+    );
   }
 
   // Generate a 24-character alphanumeric random password (no special characters)
