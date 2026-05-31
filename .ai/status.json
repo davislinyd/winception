@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-06-01T02:54:53.532Z",
+  "updated_at": "2026-05-31T19:11:22.624Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
@@ -49,8 +49,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "6c11c70c8b95b89525add1ebb6bf4892a13b55a9",
-    "last_checked_head_short": "6c11c70",
+    "last_checked_head": "91815f309670bec702140ba6675d47de2592756b",
+    "last_checked_head_short": "91815f3",
     "dirty": false,
     "ahead": 0,
     "behind": 0,
@@ -85,6 +85,14 @@
   },
   "recent_changes": [
     {
+      "id": "20260601-version-bump-0.5.10",
+      "at": "2026-06-01T11:11:22.624+08:00",
+      "kind": "fix",
+      "summary": "- Reduced desktop System Log panel to 90% of the previous sticky-right-column height.\n- Bumped package.json and package-lock.json version to 0.5.10.",
+      "commit": "91815f309670bec702140ba6675d47de2592756b",
+      "verification": "npm test; powershell -NoProfile -ExecutionPolicy Bypass -File tools\\Reload-Console.ps1; browser verification on http://localhost:8080 confirmed System Log panel height about 770.4px with about 735.4px log viewport."
+    },
+    {
       "id": "20260601-dashboard-scrollable-layout",
       "at": "2026-06-01T10:50:00.000+08:00",
       "kind": "implementation",
@@ -115,14 +123,6 @@
       "summary": "- Added preflight check comparing timestamps of configs/secrets vs published boot.wim.\n- Added warning banner in Web UI for uncustomized or out-of-sync boot.wim images.\n- Added HTTP server file-size warnings and synthetic 'pxe-booting' client creation during boot.wim downloads.\n- Added 5-minute timeout for booting status events to flag stale PXE boots with customization hints.",
       "commit": "e27701a3904ddef19b18810390719b5f8f5bfd22",
       "verification": "All 221 JavaScript tests and smoke tests pass successfully."
-    },
-    {
-      "id": "20260531-version-bump-0.5.8",
-      "at": "2026-05-31T20:56:00.000+08:00",
-      "kind": "chore",
-      "summary": "- Bumped package.json and package-lock.json version to 0.5.8.\n- Committed dynamic account refactoring, pxeinstallPassword random auto-generation, custom OOBE script renaming, and built-in Administrator disablement.",
-      "commit": "640f2043681432f8b548b896942c748c1e405a8b",
-      "verification": "All 219 JavaScript tests pass successfully."
     }
   ]
 }
