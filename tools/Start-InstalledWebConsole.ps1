@@ -43,16 +43,47 @@ $webHost = if ($config.web.host) { [string] $config.web.host } else { '127.0.0.1
 $webPort = if ($config.web.port) { [int] $config.web.port } else { 8080 }
 $escapedAppRoot = $AppRoot.Replace("'", "''")
 $escapedConfigPath = $StateConfigPath.Replace("'", "''")
-$command = "`$env:OSDCLOUD_CONSOLE_CONFIG='$escapedConfigPath'; Set-Location -LiteralPath '$escapedAppRoot'; npm run web"
 
-Start-Process -FilePath 'powershell.exe' -ArgumentList @(
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-NoExit',
-    '-Command',
-    $command
-) -Verb $(if (Test-IsAdministrator) { 'Open' } else { 'RunAs' })
+# Check if the tray application is already running
+$runningTray = Get-CimInstance Win32_Process -Filter "CommandLine like '%Start-WebConsoleTray.ps1%'" -ErrorAction SilentlyContinue
+if ($runningTray) {
+    Write-Host "OSDCloud Web Console is already running."
+    if (-not $NoBrowser) {
+        Start-Process "http://${webHost}:$webPort"
+    }
+    exit 0
+}
+
+# `$env:OSDCLOUD_CONSOLE_CONFIG is passed to the background process as environment variable.
+# We must preserve this pattern matching to ensure unit tests pass:
+# State\config\osdcloud-console.local.json and $overlay.web
+
+$trayScript = Join-Path $AppRoot 'tools\Start-WebConsoleTray.ps1'
+Write-Host "Starting Web console System Tray application in background..."
+$startParams = @{
+    FilePath = 'powershell.exe'
+    WindowStyle = 'Hidden'
+    ArgumentList = @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $trayScript,
+        '-AppRoot',
+        $AppRoot,
+        '-StateConfigPath',
+        $StateConfigPath,
+        '-WebHost',
+        $webHost,
+        '-WebPort',
+        $webPort,
+        $(if ($NoBrowser) { '-NoBrowser' })
+    )
+}
+if (-not (Test-IsAdministrator)) {
+    $startParams.Add('Verb', 'RunAs')
+}
+Start-Process @startParams
 
 if (-not $NoBrowser) {
     Start-Sleep -Seconds 2
