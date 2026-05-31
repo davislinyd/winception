@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-31T09:53:00.000Z",
+  "updated_at": "2026-05-31T10:10:00.000Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
@@ -49,9 +49,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "8bbcf01bb10c47bbbd61fa3a83c4076447521662",
-    "last_checked_head_short": "8bbcf01",
-    "dirty": true,
+    "last_checked_head": "d942f6c4785fc32b57bf52c94a56f03f4e51f400",
+    "last_checked_head_short": "d942f6c",
+    "dirty": false,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -85,11 +85,19 @@
   },
   "recent_changes": [
     {
+      "id": "20260531-version-bump-0.5.5",
+      "at": "2026-05-31T10:10:00.000+08:00",
+      "kind": "chore",
+      "summary": "- Bumped package.json and package-lock.json version to 0.5.5.",
+      "commit": "d942f6c4785fc32b57bf52c94a56f03f4e51f400",
+      "verification": "All 219 JavaScript tests pass successfully."
+    },
+    {
       "id": "20260531-keep-downloaded-source-image",
       "at": "2026-05-31T09:53:00.000+08:00",
       "kind": "implementation",
       "summary": "- Modified OS image download logic to keep the downloaded source files (typically ESD/ISO) in a dedicated sources/ subfolder under the cache root instead of deleting them.\n- Updated unit tests to assert correct retention and location of downloaded source files.",
-      "commit": "uncommitted",
+      "commit": "65eb57fbf7b20e04ca828be41cb6e4e3f50a79c0",
       "verification": "All 219 JavaScript tests pass successfully."
     },
     {
@@ -97,7 +105,7 @@
       "at": "2026-05-31T09:40:00.000+08:00",
       "kind": "implementation",
       "summary": "- Decoupled OS Image Cache initialization step (Step 6) from selected-os.json publishing criteria. It now passes as long as there is at least one deployable OS WIM image in the host cache folder.\n- Left profile publishing (Step 7) responsible for setting the active OS image and publishing selected-os.json.",
-      "commit": "uncommitted",
+      "commit": "65eb57fbf7b20e04ca828be41cb6e4e3f50a79c0",
       "verification": "All 219 JavaScript tests pass successfully."
     },
     {
@@ -115,14 +123,6 @@
       "summary": "- Fixed right-side action buttons being disabled in guided setup steps when the runtime was already prepared. The runtime.ready check is now scoped specifically to the 'prepare-runtime' step.",
       "commit": "a6cb4daccb94346887013e4bdc87197c56ddf9f6",
       "verification": "All 219 unit tests passed successfully."
-    },
-    {
-      "id": "20260530-endpoint-sync-regex-fix",
-      "at": "2026-05-30T22:52:00.000+08:00",
-      "kind": "bugfix",
-      "summary": "- Fixed regex pattern mismatch error during endpoint sync in Set-OsdCloudIpxeEndpoint.ps1.\n- Updated Set-StartOsdCloudEndpoint to support optional trailing comments on the '$server =' line in Start-OSDCloud-iPXE.ps1.",
-      "commit": "e6db34a6724fe5eaf75385c8391e7fd21c5286f0",
-      "verification": "Powershell regex validation was successful and all 219 JavaScript tests pass."
     }
   ]
 }
