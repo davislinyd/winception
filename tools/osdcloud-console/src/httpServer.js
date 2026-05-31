@@ -527,18 +527,13 @@ export class MediaHttpServer extends EventEmitter {
       if (req.method === 'GET' && relativeNormalized === 'osdcloud/boot.wim') {
         const remoteIp = remote.split(':')[0].replace(/[^0-9.]/g, '');
         const sanitizedIp = remoteIp.replace(/\./g, '_');
-        const runtimeRoot = this.config.paths?.osdCloudRoot || 'C:\\OSDCloud';
-        const sourceBootWim = path.join(runtimeRoot, 'Media', 'sources', 'boot.wim');
-        if (fs.existsSync(sourceBootWim)) {
-          try {
-            const sourceSize = fs.statSync(sourceBootWim).size;
-            const publishedSize = stats.size;
-            if (sourceSize === publishedSize) {
-              this.log(`WARNING: CLIENT ${remoteIp} REQUESTED UN-CUSTOMIZED boot.wim (identical size to ADK source). Client will hang at command prompt after wpeinit!`);
-            }
-          } catch (e) {
-            this.log(`Failed to compare boot.wim sizes: ${e.message}`);
-          }
+        // Endpoint Sync writes a boot.wim.sync.json marker next to the published image
+        // once it has been customized. Its absence means the served image was never
+        // customized (the client would hang at the command prompt after wpeinit).
+        // Use a cheap existence check here to avoid hashing the wim on every boot request.
+        const syncMarker = `${requestPath.resolved}.sync.json`;
+        if (!fs.existsSync(syncMarker)) {
+          this.log(`WARNING: CLIENT ${remoteIp} REQUESTED UN-CUSTOMIZED boot.wim (no Endpoint Sync marker). Client will hang at command prompt after wpeinit!`);
         }
 
         // Create synthetic run summary for booting client

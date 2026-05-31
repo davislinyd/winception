@@ -61,6 +61,29 @@ function Get-Sha256Hash {
     }
 }
 
+function Get-BootWimSyncMarkerPath {
+    param([Parameter(Mandatory)][string] $PublishedBootWim)
+
+    return "$PublishedBootWim.sync.json"
+}
+
+function Write-BootWimSyncMarker {
+    param(
+        [Parameter(Mandatory)]
+        [string] $PublishedBootWim,
+        [Parameter(Mandatory)]
+        [string] $Hash
+    )
+
+    $markerPath = Get-BootWimSyncMarkerPath -PublishedBootWim $PublishedBootWim
+    $marker = [ordered]@{
+        publishedSha256 = $Hash
+        syncedAtUtc     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    }
+    Write-Utf8NoBom -Path $markerPath -Content (($marker | ConvertTo-Json) + [Environment]::NewLine)
+    Write-Host "Wrote boot.wim sync marker: $markerPath"
+}
+
 function Set-Property {
     param(
         [Parameter(Mandatory)]
@@ -711,6 +734,21 @@ if ($CommitWinPe) {
 
     if ($isAlreadyCustomized -and -not $ForceCommitWinPe) {
         Write-Host "Skipped redundant boot.wim mount/commit as it is already customized."
+        # Repair installs that were customized before sync markers existed: ensure the
+        # marker matches the currently published image so preflight can confirm it.
+        $markerPath = Get-BootWimSyncMarkerPath -PublishedBootWim $publishedBootWim
+        $markerHash = $null
+        if (Test-Path -LiteralPath $markerPath -PathType Leaf) {
+            try {
+                $markerHash = (Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json).publishedSha256
+            }
+            catch {
+                $markerHash = $null
+            }
+        }
+        if ($markerHash -ne $publishedHash) {
+            Write-BootWimSyncMarker -PublishedBootWim $publishedBootWim -Hash $publishedHash
+        }
     }
     else {
         if (Test-Path -LiteralPath $mountDir) {
@@ -789,7 +827,9 @@ if ($CommitWinPe) {
         }
         else {
             Copy-Item -LiteralPath $bootWim -Destination $publishedBootWim -Force
+            $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
         }
+        Write-BootWimSyncMarker -PublishedBootWim $publishedBootWim -Hash $publishedHash
         Write-Host "Updated boot.wim embedded endpoint files and verified published boot.wim"
     }
 }

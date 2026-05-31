@@ -724,6 +724,13 @@ test('endpoint sync restores missing source boot.wim from published HTTP copy', 
   assert.match(script, /Published copy is also missing/);
 });
 
+test('endpoint sync writes a boot.wim sync marker after publishing', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  assert.match(script, /Write-BootWimSyncMarker/);
+  assert.match(script, /publishedSha256/);
+  assert.match(script, /syncedAtUtc/);
+});
+
 test('endpoint sync injects progress reporter into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
   assert.match(script, /WinPE\\OSDCloud\\Report-OSDCloudProgress\.ps1/);

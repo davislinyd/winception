@@ -556,6 +556,50 @@ export async function evaluateSmbImage(config, options = {}) {
   return pass('SMB image', `${imagePath} (backing=${backingPath}; ${accessUser} read access)`);
 }
 
+function bootWimSyncMarkerPath(publishedBootWim) {
+  return `${publishedBootWim}.sync.json`;
+}
+
+export async function evaluateBootWimCustomization(publishedBootWim) {
+  if (!fs.existsSync(publishedBootWim)) {
+    return fail('WinPE boot.wim customization', `Published boot.wim is missing at ${publishedBootWim}`);
+  }
+
+  const markerPath = bootWimSyncMarkerPath(publishedBootWim);
+  let marker = null;
+  try {
+    if (fs.existsSync(markerPath)) {
+      marker = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+    }
+  } catch {
+    marker = null;
+  }
+
+  if (!marker || typeof marker.publishedSha256 !== 'string') {
+    return fail(
+      'WinPE boot.wim customization',
+      'The published boot.wim has not been customized. You must run Endpoint Sync to inject WinPE settings before PXE boot.',
+    );
+  }
+
+  let publishedHash;
+  try {
+    publishedHash = await getFileSha256(publishedBootWim);
+  } catch (error) {
+    return fail('WinPE boot.wim customization', `Failed to calculate boot.wim hash: ${error.message}`);
+  }
+
+  if (publishedHash !== marker.publishedSha256.toUpperCase()) {
+    return fail(
+      'WinPE boot.wim customization',
+      'The published boot.wim has changed since the last Endpoint Sync. You must run Endpoint Sync to re-customize WinPE before PXE boot.',
+    );
+  }
+
+  const syncedAt = marker.syncedAtUtc ? ` (last synced ${marker.syncedAtUtc})` : '';
+  return pass('WinPE boot.wim customization', `The published boot.wim has been customized${syncedAt}.`);
+}
+
 export function checkBootWimSyncState(config, publishedBootWim) {
   if (!fs.existsSync(publishedBootWim)) {
     return fail('WinPE boot.wim synchronization', 'Published boot.wim is missing. Cannot check synchronization status.');
@@ -637,39 +681,15 @@ export async function runPreflight(config, services = {}) {
     checks.push(fs.existsSync(filePath) ? pass(`HTTP file ${relativePath}`, filePath) : fail(`HTTP file ${relativePath}`, filePath));
   }
 
-  // Check if published boot.wim has been customized (Option 1)
+  // Check whether the published boot.wim has been customized by Endpoint Sync.
+  // Endpoint Sync deliberately makes Media\sources\boot.wim and the published copy
+  // identical (it customizes the source in place then copies it over), so comparing
+  // those two files cannot detect customization. Instead, Endpoint Sync writes a
+  // boot.wim.sync.json marker recording the hash of the image it published; we
+  // validate the published wim against that marker.
   const runtimeRoot = config.paths?.osdCloudRoot || 'C:\\OSDCloud';
-  const sourceBootWim = path.join(runtimeRoot, 'Media', 'sources', 'boot.wim');
   const publishedBootWim = path.join(runtimeRoot, 'PXE-HttpRoot', 'osdcloud', 'boot.wim');
-
-  if (fs.existsSync(sourceBootWim) && fs.existsSync(publishedBootWim)) {
-    try {
-      const [sourceHash, publishedHash] = await Promise.all([
-        getFileSha256(sourceBootWim),
-        getFileSha256(publishedBootWim),
-      ]);
-      if (sourceHash === publishedHash) {
-        checks.push(fail(
-          'WinPE boot.wim customization',
-          'The published boot.wim is identical to the clean ADK source boot.wim. You must run Endpoint Sync to customize WinPE before PXE boot.',
-        ));
-      } else {
-        checks.push(pass(
-          'WinPE boot.wim customization',
-          'The published boot.wim has been customized.',
-        ));
-      }
-    } catch (error) {
-      checks.push(fail('WinPE boot.wim customization', `Failed to calculate boot.wim hash: ${error.message}`));
-    }
-  } else if (!fs.existsSync(publishedBootWim)) {
-    checks.push(fail('WinPE boot.wim customization', `Published boot.wim is missing at ${publishedBootWim}`));
-  } else {
-    checks.push(pass(
-      'WinPE boot.wim customization',
-      `Source boot.wim is missing at ${sourceBootWim}, but published boot.wim exists. Assuming it is customized.`,
-    ));
-  }
+  checks.push(await evaluateBootWimCustomization(publishedBootWim));
 
   // Check if published boot.wim is newer than config and secrets files (Option 1)
   checks.push(checkBootWimSyncState(config, publishedBootWim));

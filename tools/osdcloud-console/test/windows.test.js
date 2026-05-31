@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   checkBootWimSyncState,
+  evaluateBootWimCustomization,
   evaluateDhcpSubnet,
   evaluateServiceIp,
   evaluateSmbImage,
@@ -430,6 +432,43 @@ test('WinPE boot.wim synchronization check fails when config or secrets are newe
     result = checkBootWimSyncState(config, publishedBootWim);
     assert.equal(result.ok, false);
     assert.match(result.detail, /published boot\.wim is older than the current config/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('WinPE boot.wim customization check uses the sync marker', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-custom-test-'));
+  const publishedBootWim = path.join(root, 'boot.wim');
+  const markerPath = `${publishedBootWim}.sync.json`;
+  const wimContent = 'customized-wim-bytes';
+  const wimHash = crypto.createHash('sha256').update(wimContent).digest('hex').toUpperCase();
+
+  try {
+    // 0. Missing published boot.wim
+    let result = await evaluateBootWimCustomization(publishedBootWim);
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /Published boot\.wim is missing/);
+
+    fs.writeFileSync(publishedBootWim, wimContent);
+
+    // 1. No marker -> not customized
+    result = await evaluateBootWimCustomization(publishedBootWim);
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /has not been customized/);
+
+    // 2. Marker hash does not match published image -> changed since sync
+    fs.writeFileSync(markerPath, JSON.stringify({ publishedSha256: 'DEADBEEF', syncedAtUtc: '2026-06-01T00:00:00Z' }));
+    result = await evaluateBootWimCustomization(publishedBootWim);
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /has changed since the last Endpoint Sync/);
+
+    // 3. Marker matches published image -> customized
+    fs.writeFileSync(markerPath, JSON.stringify({ publishedSha256: wimHash, syncedAtUtc: '2026-06-01T12:34:56Z' }));
+    result = await evaluateBootWimCustomization(publishedBootWim);
+    assert.equal(result.ok, true);
+    assert.match(result.detail, /has been customized/);
+    assert.match(result.detail, /2026-06-01T12:34:56Z/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
