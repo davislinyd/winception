@@ -9,6 +9,7 @@ import {
   loadConfig,
   mediaHttpServerConfig,
   saveConfig,
+  stateRootForConfig,
   validateConfig,
   webServerConfig,
   workspaceInfo,
@@ -100,6 +101,22 @@ test('builds HTTP server config with root driver pack cache settings', () => {
   assert.equal(httpConfig.host, '192.168.100.1');
   assert.equal(httpConfig.statusRoot, 'C:\\PXE-HttpRoot\\status');
   assert.deepEqual(httpConfig.driverPackCache, config.driverPackCache);
+});
+
+test('mediaHttpServerConfig forwards the resolved state root for secrets lookup', () => {
+  // Regression: the media HTTP server reads deployment secrets (e.g.
+  // pxeinstallPassword served via /osdcloud/boot-config) from
+  // stateRootForConfig()/config/osdcloud-secrets.json. If mediaHttpServerConfig
+  // drops the state-root info, stateRootForConfig() falls back to defaultAppRoot
+  // and serves stale committed secrets, breaking WinPE SMB auth (net use error 86).
+  const config = {
+    paths: { stateRoot: 'C:\\OSDCloud\\HostTools\\State' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.1', port: 80 },
+    smb: { share: '\\\\192.168.100.1\\OSDCloudiPXE' },
+  };
+
+  const httpConfig = mediaHttpServerConfig(config);
+  assert.equal(stateRootForConfig(httpConfig), path.resolve('C:\\OSDCloud\\HostTools\\State'));
 });
 
 test('applies selectable project root outside the Git clone', () => {

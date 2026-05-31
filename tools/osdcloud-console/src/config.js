@@ -111,6 +111,11 @@ export function mediaHttpServerConfig(config) {
     ...config.http,
     driverPackCache: config.driverPackCache,
     smb: config.smb,
+    // Forward the resolved state root so the media server's loadSecrets() reads
+    // the live deployment secrets (e.g. the auto-generated pxeinstallPassword)
+    // instead of falling back to defaultAppRoot and serving stale committed
+    // secrets via /osdcloud/boot-config.
+    paths: { stateRoot: stateRootForConfig(config) },
   };
 }
 
