@@ -25,6 +25,10 @@ function getFileSha256(filePath) {
   });
 }
 
+function getFileSha256Sync(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex').toUpperCase();
+}
+
 function powershellExe() {
   return process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
 }
@@ -375,6 +379,96 @@ export function resolveRepoRoot(config = {}) {
   return appRootForConfig(config);
 }
 
+function bootWimSyncMarkerPath(publishedBootWim) {
+  return `${publishedBootWim}.sync.json`;
+}
+
+function readBootWimSyncMarker(publishedBootWim) {
+  const markerPath = bootWimSyncMarkerPath(publishedBootWim);
+  if (!fs.existsSync(markerPath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+const BOOT_WIM_TEMPLATE_SOURCES = [
+  ['Windows/System32/Startnet.cmd', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'Windows', 'System32', 'Startnet.cmd']],
+  ['OSDCloud/Start-OSDCloud-iPXE.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1']],
+  ['OSDCloud/Report-OSDCloudProgress.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Report-OSDCloudProgress.ps1']],
+  ['OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1', ['osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'Shutdown', 'Invoke-OobeCustomization.ps1']],
+  ['OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd', ['osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'SetupComplete', 'SetupComplete.cmd']],
+  ['OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1', ['osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'SetupComplete', 'SetupComplete.ps1']],
+];
+
+function resolveBootWimSecretSource(config) {
+  const repoRoot = resolveRepoRoot(config);
+  const stateRoot = stateRootForConfig(config);
+  const runtimeRoot = config.paths?.osdCloudRoot || 'C:\\OSDCloud';
+  const candidates = [
+    path.join(stateRoot, 'config', 'osdcloud-secrets.json'),
+    path.join(repoRoot, 'config', 'osdcloud-secrets.json'),
+    path.join(runtimeRoot, 'secrets.json'),
+    path.join(runtimeRoot, 'Config', 'secrets.json'),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+export function buildBootWimSyncInputs(config) {
+  const repoRoot = resolveRepoRoot(config);
+  const serverIp = String(config.adapter?.serverIp ?? '').trim();
+  const syncInputs = {
+    endpoint: {
+      serverIp,
+      statusUrl: `http://${serverIp}/osdcloud/status`,
+    },
+    secrets: {
+      present: false,
+    },
+    templates: {},
+  };
+
+  const secretSource = resolveBootWimSecretSource(config);
+  if (secretSource) {
+    syncInputs.secrets = {
+      present: true,
+      sha256: getFileSha256Sync(secretSource),
+    };
+  }
+
+  for (const [relativePath, parts] of BOOT_WIM_TEMPLATE_SOURCES) {
+    const sourcePath = path.join(repoRoot, ...parts);
+    syncInputs.templates[relativePath] = getFileSha256Sync(sourcePath);
+  }
+
+  return syncInputs;
+}
+
+function serializeBootWimSyncInputs(syncInputs) {
+  return JSON.stringify(syncInputs);
+}
+
+export function hashBootWimSyncInputs(syncInputs) {
+  return crypto.createHash('sha256').update(serializeBootWimSyncInputs(syncInputs), 'utf8').digest('hex').toUpperCase();
+}
+
+function diffBootWimSyncInputs(expected, actual) {
+  const mismatches = [];
+  if (JSON.stringify(expected?.endpoint ?? null) !== JSON.stringify(actual?.endpoint ?? null)) {
+    mismatches.push('endpoint settings');
+  }
+  if (JSON.stringify(expected?.secrets ?? null) !== JSON.stringify(actual?.secrets ?? null)) {
+    mismatches.push('deployment secrets');
+  }
+  if (JSON.stringify(expected?.templates ?? null) !== JSON.stringify(actual?.templates ?? null)) {
+    mismatches.push('WinPE template files');
+  }
+  return mismatches;
+}
+
 export function resolveEndpointSyncScript(config = {}) {
   const root = resolveRepoRoot(config);
   const configured = config.paths?.endpointSyncScript;
@@ -556,24 +650,12 @@ export async function evaluateSmbImage(config, options = {}) {
   return pass('SMB image', `${imagePath} (backing=${backingPath}; ${accessUser} read access)`);
 }
 
-function bootWimSyncMarkerPath(publishedBootWim) {
-  return `${publishedBootWim}.sync.json`;
-}
-
 export async function evaluateBootWimCustomization(publishedBootWim) {
   if (!fs.existsSync(publishedBootWim)) {
     return fail('WinPE boot.wim customization', `Published boot.wim is missing at ${publishedBootWim}`);
   }
 
-  const markerPath = bootWimSyncMarkerPath(publishedBootWim);
-  let marker = null;
-  try {
-    if (fs.existsSync(markerPath)) {
-      marker = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
-    }
-  } catch {
-    marker = null;
-  }
+  const marker = readBootWimSyncMarker(publishedBootWim);
 
   if (!marker || typeof marker.publishedSha256 !== 'string') {
     return fail(
@@ -600,7 +682,7 @@ export async function evaluateBootWimCustomization(publishedBootWim) {
   return pass('WinPE boot.wim customization', `The published boot.wim has been customized${syncedAt}.`);
 }
 
-export function checkBootWimSyncState(config, publishedBootWim) {
+function checkBootWimSyncStateLegacy(config, publishedBootWim) {
   if (!fs.existsSync(publishedBootWim)) {
     return fail('WinPE boot.wim synchronization', 'Published boot.wim is missing. Cannot check synchronization status.');
   }
@@ -650,6 +732,51 @@ export function checkBootWimSyncState(config, publishedBootWim) {
     );
   } catch (error) {
     return fail('WinPE boot.wim synchronization', `Failed to check configuration timestamps: ${error.message}`);
+  }
+}
+
+export function checkBootWimSyncState(config, publishedBootWim) {
+  if (!fs.existsSync(publishedBootWim)) {
+    return fail('WinPE boot.wim synchronization', 'Published boot.wim is missing. Cannot check synchronization status.');
+  }
+
+  const marker = readBootWimSyncMarker(publishedBootWim);
+  if (!marker || typeof marker.publishedSha256 !== 'string' || typeof marker.syncInputsSha256 !== 'string') {
+    const legacy = checkBootWimSyncStateLegacy(config, publishedBootWim);
+    if (!legacy.ok) {
+      return legacy;
+    }
+    return pass(
+      'WinPE boot.wim synchronization',
+      'The published boot.wim is up to date with configuration and secrets (legacy sync marker; run Endpoint Sync to upgrade to input fingerprint checks).',
+    );
+  }
+
+  if (!marker.syncInputs || typeof marker.syncInputs !== 'object') {
+    return fail(
+      'WinPE boot.wim synchronization',
+      'The published boot.wim sync marker is invalid. Run Endpoint Sync to regenerate fingerprint metadata.',
+    );
+  }
+
+  try {
+    const currentInputs = buildBootWimSyncInputs(config);
+    const currentSha256 = hashBootWimSyncInputs(currentInputs);
+    if (currentSha256 === String(marker.syncInputsSha256).toUpperCase()) {
+      return pass(
+        'WinPE boot.wim synchronization',
+        'The published boot.wim is up to date with WinPE sync inputs.',
+      );
+    }
+
+    const mismatches = diffBootWimSyncInputs(marker.syncInputs, currentInputs);
+    const detail = mismatches.length > 0 ? mismatches.join(', ') : 'WinPE sync inputs';
+    return fail(
+      'WinPE boot.wim synchronization',
+      `The published boot.wim is out of date with current ${detail}. You must run Endpoint Sync to apply WinPE input changes before PXE boot.`,
+    );
+  } catch (error) {
+    return fail('WinPE boot.wim synchronization', `Failed to check WinPE sync inputs: ${error.message}`);
   }
 }
 

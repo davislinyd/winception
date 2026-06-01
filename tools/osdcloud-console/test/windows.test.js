@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {
+  buildBootWimSyncInputs,
   checkBootWimSyncState,
   evaluateBootWimCustomization,
   evaluateDhcpSubnet,
@@ -17,9 +18,70 @@ import {
   removeStatusFiles,
   resolveEndpointSyncScript,
   resolveRepoRoot,
+  hashBootWimSyncInputs,
   smbAccessAllowsRead,
   smbBackingImagePath,
 } from '../src/windows.js';
+
+const templateFixtureFiles = {
+  'osdcloud-assets/OSDCloud/WinPE/Windows/System32/Startnet.cmd': 'startnet-template',
+  'osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1': 'start-osdcloud-template',
+  'osdcloud-assets/OSDCloud/WinPE/OSDCloud/Report-OSDCloudProgress.ps1': 'report-progress-template',
+  'osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1': 'oobe-customization-template',
+  'osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd': 'setupcomplete-cmd-template',
+  'osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1': 'setupcomplete-ps1-template',
+};
+
+function sha256Text(value) {
+  return crypto.createHash('sha256').update(value, 'utf8').digest('hex').toUpperCase();
+}
+
+function writeText(filePath, content) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf8');
+}
+
+function createBootWimSyncFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-sync-fixture-'));
+  const stateRoot = path.join(root, 'state');
+  const runtimeRoot = path.join(root, 'runtime');
+  const publishedBootWim = path.join(runtimeRoot, 'PXE-HttpRoot', 'osdcloud', 'boot.wim');
+  const secretsPath = path.join(stateRoot, 'config', 'osdcloud-secrets.json');
+  for (const [relativePath, content] of Object.entries(templateFixtureFiles)) {
+    writeText(path.join(root, ...relativePath.split('/')), content);
+  }
+  writeText(secretsPath, JSON.stringify({ windowsUsername: 'custom-user', windowsPassword: 'custom-pass', pxeinstallPassword: 'custom-pxe' }));
+  writeText(publishedBootWim, 'wim');
+  return {
+    root,
+    stateRoot,
+    runtimeRoot,
+    publishedBootWim,
+    secretsPath,
+    config: {
+      adapter: {
+        serverIp: '192.168.100.1',
+      },
+      paths: {
+        appRoot: root,
+        stateRoot,
+        osdCloudRoot: runtimeRoot,
+      },
+    },
+  };
+}
+
+function writeSyncMarker(publishedBootWim, syncInputs, extra = {}) {
+  const marker = {
+    publishedSha256: 'BOOT-WIM-SHA',
+    syncedAtUtc: '2026-06-02T01:02:03Z',
+    markerSchema: 2,
+    syncInputsSha256: hashBootWimSyncInputs(syncInputs),
+    syncInputs,
+    ...extra,
+  };
+  writeText(`${publishedBootWim}.sync.json`, `${JSON.stringify(marker, null, 2)}\n`);
+}
 
 test('prepends UTF-8 output settings to PowerShell command calls', () => {
   const args = preparePowerShellArgs(['-NoProfile', '-Command', 'Get-NetAdapter | ConvertTo-Json']);
@@ -41,6 +103,16 @@ test('endpoint sync adds -SyncAssets only when explicitly requested', () => {
   const source = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
 
   assert.match(source, /if \(options\.syncAssets === true\) \{\s*args\.push\('-SyncAssets'\);/);
+});
+
+test('endpoint sync script writes marker schema v2 with sync input fingerprints', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+
+  assert.match(source, /markerSchema\s*=\s*2/);
+  assert.match(source, /syncInputsSha256/);
+  assert.match(source, /syncInputs\s*=/);
+  assert.match(source, /Get-BootWimSyncInputs/);
+  assert.match(source, /ConvertTo-CanonicalJson/);
 });
 
 test('resolves endpoint sync paths from derived repo root by default', () => {
@@ -71,6 +143,32 @@ test('resolves endpoint sync script from app root when provided', () => {
     resolveEndpointSyncScript({ paths: { appRoot } }),
     path.join(path.resolve(appRoot), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'),
   );
+});
+
+test('builds boot.wim sync inputs from endpoint, secrets, and template sources', () => {
+  const fixture = createBootWimSyncFixture();
+
+  try {
+    const syncInputs = buildBootWimSyncInputs(fixture.config);
+    assert.deepEqual(syncInputs.endpoint, {
+      serverIp: '192.168.100.1',
+      statusUrl: 'http://192.168.100.1/osdcloud/status',
+    });
+    assert.deepEqual(syncInputs.secrets, {
+      present: true,
+      sha256: sha256Text(JSON.stringify({ windowsUsername: 'custom-user', windowsPassword: 'custom-pass', pxeinstallPassword: 'custom-pxe' })),
+    });
+    assert.equal(
+      syncInputs.templates['Windows/System32/Startnet.cmd'],
+      sha256Text(templateFixtureFiles['osdcloud-assets/OSDCloud/WinPE/Windows/System32/Startnet.cmd']),
+    );
+    assert.equal(
+      syncInputs.templates['OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1'],
+      sha256Text(templateFixtureFiles['osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1']),
+    );
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
 });
 
 test('clears status metadata and screenshot directory', () => {
@@ -387,25 +485,93 @@ test('desktop-ready status includes resolved dynamic desktop evidence fields', (
   assert.match(facts, /desktopReadyFile = \(-not \[string\]::IsNullOrWhiteSpace\(\$desktopReadyFilePath\)/);
 });
 
-test('WinPE boot.wim synchronization check fails when config or secrets are newer', () => {
+test('WinPE boot.wim synchronization check uses sync input fingerprints instead of mtimes', () => {
+  const fixture = createBootWimSyncFixture();
+
+  try {
+    const syncInputs = buildBootWimSyncInputs(fixture.config);
+    writeSyncMarker(fixture.publishedBootWim, syncInputs);
+
+    const now = Date.now();
+    fs.utimesSync(fixture.publishedBootWim, new Date(now - 20000), new Date(now - 20000));
+    fs.utimesSync(fixture.secretsPath, new Date(now - 5000), new Date(now - 5000));
+
+    const result = checkBootWimSyncState(fixture.config, fixture.publishedBootWim);
+    assert.equal(result.ok, true);
+    assert.match(result.detail, /up to date with WinPE sync inputs/);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('WinPE boot.wim synchronization check reports endpoint settings drift', () => {
+  const fixture = createBootWimSyncFixture();
+
+  try {
+    const syncInputs = buildBootWimSyncInputs(fixture.config);
+    writeSyncMarker(fixture.publishedBootWim, syncInputs);
+
+    fixture.config.adapter.serverIp = '192.168.100.2';
+    const result = checkBootWimSyncState(fixture.config, fixture.publishedBootWim);
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /endpoint settings/);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('WinPE boot.wim synchronization check reports deployment secrets drift', () => {
+  const fixture = createBootWimSyncFixture();
+
+  try {
+    const syncInputs = buildBootWimSyncInputs(fixture.config);
+    writeSyncMarker(fixture.publishedBootWim, syncInputs);
+
+    writeText(fixture.secretsPath, JSON.stringify({ windowsUsername: 'custom-user', windowsPassword: 'changed-pass', pxeinstallPassword: 'custom-pxe' }));
+    const result = checkBootWimSyncState(fixture.config, fixture.publishedBootWim);
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /deployment secrets/);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('WinPE boot.wim synchronization check reports WinPE template drift', () => {
+  const fixture = createBootWimSyncFixture();
+
+  try {
+    const syncInputs = buildBootWimSyncInputs(fixture.config);
+    writeSyncMarker(fixture.publishedBootWim, syncInputs);
+
+    writeText(
+      path.join(fixture.root, 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Report-OSDCloudProgress.ps1'),
+      'report-progress-template-v2',
+    );
+    const result = checkBootWimSyncState(fixture.config, fixture.publishedBootWim);
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /WinPE template files/);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('WinPE boot.wim synchronization check uses legacy mtime fallback when marker lacks sync fingerprints', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-sync-test-'));
   const configDir = path.join(root, 'config');
   fs.mkdirSync(configDir, { recursive: true });
-  
+
   const secretsPath = path.join(configDir, 'osdcloud-secrets.json');
   const configPath = path.join(configDir, 'osdcloud-console.json');
   const publishedBootWim = path.join(root, 'boot.wim');
-  
+
   fs.writeFileSync(publishedBootWim, 'wim');
   fs.writeFileSync(secretsPath, '{}');
   fs.writeFileSync(configPath, '{}');
+  fs.writeFileSync(`${publishedBootWim}.sync.json`, JSON.stringify({ publishedSha256: 'BOOT', syncedAtUtc: '2026-06-01T00:00:00Z' }));
 
-  // Set published boot.wim to be modified 10 seconds ago
   const now = Date.now();
   fs.utimesSync(publishedBootWim, new Date(now - 10000), new Date(now - 10000));
-  // Set secrets to be modified 5 seconds ago (newer than boot.wim)
-  fs.utimesSync(secretsPath, new Date(now - 5000), new Date(now - 5000));
-  // Set config to be modified 20 seconds ago (older than boot.wim)
+  fs.utimesSync(secretsPath, new Date(now - 30000), new Date(now - 30000));
   fs.utimesSync(configPath, new Date(now - 20000), new Date(now - 20000));
 
   try {
@@ -413,21 +579,13 @@ test('WinPE boot.wim synchronization check fails when config or secrets are newe
       __configPath: configPath,
       paths: {
         stateRoot: root,
-      }
+      },
     };
-    
-    // 1. Check with newer secrets
+
     let result = checkBootWimSyncState(config, publishedBootWim);
-    assert.equal(result.ok, false);
-    assert.match(result.detail, /published boot\.wim is older than the current secrets/);
-
-    // 2. Set secrets to be older than boot.wim
-    fs.utimesSync(secretsPath, new Date(now - 30000), new Date(now - 30000));
-    result = checkBootWimSyncState(config, publishedBootWim);
     assert.equal(result.ok, true);
-    assert.match(result.detail, /published boot\.wim is up to date/);
+    assert.match(result.detail, /legacy sync marker/);
 
-    // 3. Set config to be newer than boot.wim
     fs.utimesSync(configPath, new Date(now - 2000), new Date(now - 2000));
     result = checkBootWimSyncState(config, publishedBootWim);
     assert.equal(result.ok, false);

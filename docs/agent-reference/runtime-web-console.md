@@ -21,6 +21,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Bootstrap/setup must not silently change Windows NIC IP settings. If preflight reports that the service IP is not assigned or cannot bind, tell the operator to identify/configure the PXE/client NIC or use `tools\Set-IpxePhysicalNic.ps1` explicitly.
 - Before physical-laptop validation, select the intended service interface in the Web console or deliberately run `tools\Set-OsdCloudIpxeEndpoint.ps1` with `-CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - After changing deployment behavior that affects live runtime or WinPE, sync `osdcloud-assets` through the project workflow before committing.
+- Preflight `boot.wim` sync status is based on the published marker's WinPE input fingerprint (endpoint values, injected secrets fingerprint, and synced template hashes), not only file modification times for config or secrets.
 
 ## Web Console
 

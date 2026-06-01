@@ -61,10 +61,98 @@ function Get-Sha256Hash {
     }
 }
 
+function Get-Sha256Text {
+    param([Parameter(Mandatory)][string] $Text)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = $Utf8NoBom.GetBytes($Text)
+        $hashBytes = $sha256.ComputeHash($bytes)
+        return (-join ($hashBytes | ForEach-Object { $_.ToString('x2') })).ToUpperInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
 function Get-BootWimSyncMarkerPath {
     param([Parameter(Mandatory)][string] $PublishedBootWim)
 
     return "$PublishedBootWim.sync.json"
+}
+
+function Read-BootWimSyncMarker {
+    param([Parameter(Mandatory)][string] $PublishedBootWim)
+
+    $markerPath = Get-BootWimSyncMarkerPath -PublishedBootWim $PublishedBootWim
+    if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+        return $null
+    }
+
+    try {
+        return Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        return $null
+    }
+}
+
+function ConvertTo-CanonicalJson {
+    param([Parameter(Mandatory)][object] $InputObject)
+
+    return ($InputObject | ConvertTo-Json -Compress -Depth 12)
+}
+
+function Get-BootWimTemplateEntries {
+    param([Parameter(Mandatory)][string] $RepoRoot)
+
+    return @(
+        @{ Key = 'Windows/System32/Startnet.cmd'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\Windows\System32\Startnet.cmd') }
+        @{ Key = 'OSDCloud/Start-OSDCloud-iPXE.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') }
+        @{ Key = 'OSDCloud/Report-OSDCloudProgress.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') }
+        @{ Key = 'OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') }
+        @{ Key = 'OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd') }
+        @{ Key = 'OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') }
+    )
+}
+
+function Get-BootWimSyncInputs {
+    param(
+        [Parameter(Mandatory)]
+        [string] $RepoRoot,
+        [Parameter(Mandatory)]
+        [string] $StateRoot,
+        [Parameter(Mandatory)]
+        [string] $IpxeLab,
+        [Parameter(Mandatory)]
+        [string] $ServerIp
+    )
+
+    $statusUrl = "http://$ServerIp/osdcloud/status"
+    $syncInputs = [ordered]@{
+        endpoint = [ordered]@{
+            serverIp  = $ServerIp
+            statusUrl = $statusUrl
+        }
+        secrets = [ordered]@{
+            present = $false
+        }
+        templates = [ordered]@{}
+    }
+
+    $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $RepoRoot -StateRoot $StateRoot -IpxeLab $IpxeLab
+    if ($deploymentSecretSource) {
+        $syncInputs.secrets = [ordered]@{
+            present = $true
+            sha256  = (Get-Sha256Hash -LiteralPath $deploymentSecretSource)
+        }
+    }
+
+    foreach ($entry in (Get-BootWimTemplateEntries -RepoRoot $RepoRoot)) {
+        $syncInputs.templates[$entry.Key] = Get-Sha256Hash -LiteralPath $entry.Source
+    }
+
+    return $syncInputs
 }
 
 function Write-BootWimSyncMarker {
@@ -72,15 +160,21 @@ function Write-BootWimSyncMarker {
         [Parameter(Mandatory)]
         [string] $PublishedBootWim,
         [Parameter(Mandatory)]
-        [string] $Hash
+        [string] $Hash,
+        [Parameter(Mandatory)]
+        [object] $SyncInputs
     )
 
     $markerPath = Get-BootWimSyncMarkerPath -PublishedBootWim $PublishedBootWim
+    $syncInputsJson = ConvertTo-CanonicalJson -InputObject $SyncInputs
     $marker = [ordered]@{
         publishedSha256 = $Hash
         syncedAtUtc     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        markerSchema     = 2
+        syncInputsSha256 = (Get-Sha256Text -Text $syncInputsJson)
+        syncInputs       = $SyncInputs
     }
-    Write-Utf8NoBom -Path $markerPath -Content (($marker | ConvertTo-Json) + [Environment]::NewLine)
+    Write-Utf8NoBom -Path $markerPath -Content (($marker | ConvertTo-Json -Depth 12) + [Environment]::NewLine)
     Write-Host "Wrote boot.wim sync marker: $markerPath"
 }
 
@@ -736,18 +830,21 @@ if ($CommitWinPe) {
         Write-Host "Skipped redundant boot.wim mount/commit as it is already customized."
         # Repair installs that were customized before sync markers existed: ensure the
         # marker matches the currently published image so preflight can confirm it.
-        $markerPath = Get-BootWimSyncMarkerPath -PublishedBootWim $publishedBootWim
-        $markerHash = $null
-        if (Test-Path -LiteralPath $markerPath -PathType Leaf) {
-            try {
-                $markerHash = (Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json).publishedSha256
-            }
-            catch {
-                $markerHash = $null
-            }
+        $syncInputs = Get-BootWimSyncInputs -RepoRoot $repoRoot -StateRoot $stateRoot -IpxeLab $ipxeLab -ServerIp $ServerIp
+        $syncInputsJson = ConvertTo-CanonicalJson -InputObject $syncInputs
+        $syncInputsHash = Get-Sha256Text -Text $syncInputsJson
+        $marker = Read-BootWimSyncMarker -PublishedBootWim $publishedBootWim
+        $markerSchema = 0
+        if ($marker -and $marker.PSObject.Properties['markerSchema']) {
+            $markerSchema = [int]$marker.markerSchema
         }
-        if ($markerHash -ne $publishedHash) {
-            Write-BootWimSyncMarker -PublishedBootWim $publishedBootWim -Hash $publishedHash
+        if (
+            -not $marker `
+            -or $marker.publishedSha256 -ne $publishedHash `
+            -or [string]$marker.syncInputsSha256 -ne $syncInputsHash `
+            -or $markerSchema -lt 2
+        ) {
+            Write-BootWimSyncMarker -PublishedBootWim $publishedBootWim -Hash $publishedHash -SyncInputs $syncInputs
         }
     }
     else {
@@ -829,7 +926,8 @@ if ($CommitWinPe) {
             Copy-Item -LiteralPath $bootWim -Destination $publishedBootWim -Force
             $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
         }
-        Write-BootWimSyncMarker -PublishedBootWim $publishedBootWim -Hash $publishedHash
+        $syncInputs = Get-BootWimSyncInputs -RepoRoot $repoRoot -StateRoot $stateRoot -IpxeLab $ipxeLab -ServerIp $ServerIp
+        Write-BootWimSyncMarker -PublishedBootWim $publishedBootWim -Hash $publishedHash -SyncInputs $syncInputs
         Write-Host "Updated boot.wim embedded endpoint files and verified published boot.wim"
     }
 }

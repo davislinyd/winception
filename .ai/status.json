@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-06-01T15:36:40.1487304Z",
+  "updated_at": "2026-06-01T19:27:40.2735579Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
@@ -49,9 +49,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "fa476eb8e27994a3e444f4da375dee480209152a",
-    "last_checked_head_short": "fa476eb",
-    "dirty": true,
+    "last_checked_head": "ccac4a27485246c44e08c280297ff2cc9c670e33",
+    "last_checked_head_short": "ccac4a2",
+    "dirty": false,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -67,7 +67,7 @@
     "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": true
+    "status_file_uncommitted": false
   },
   "required_workflow": {
     "before_development_work": [
@@ -83,7 +83,21 @@
       "Do not write deployment runtime files back into the Git clone."
     ]
   },
-    "recent_changes": [
+  "recent_changes": [
+    {
+      "id": "20260602-version-bump-0.5.12",
+      "at": "2026-06-02T03:27:40.2106850+08:00",
+      "kind": "chore",
+      "summary": "- Bumped package.json and package-lock.json version to 0.5.12.\n- Bundled precise boot.wim sync fingerprinting, legacy fallback, docs, and regression coverage.",
+      "verification": "node --test tools\\osdcloud-console\\test\\windows.test.js; npm test; PowerShell parser check for tools\\Set-OsdCloudIpxeEndpoint.ps1"
+    },
+    {
+      "id": "20260602-boot-wim-sync-fingerprint",
+      "at": "2026-06-02T03:00:34.9155662+08:00",
+      "kind": "fix",
+      "summary": "- Replaced boot.wim sync mtime checks with WinPE input fingerprints and drift categories.\n- Added marker schema v2, legacy fallback, docs update, and regression coverage.",
+      "verification": "node --test tools\\osdcloud-console\\test\\windows.test.js; npm test; PowerShell parser check for tools\\Set-OsdCloudIpxeEndpoint.ps1"
+    },
     {
       "id": "20260601-setup-path-dedup",
       "at": "2026-06-01T23:36:40.1446177+08:00",
@@ -104,22 +118,6 @@
       "kind": "implementation",
       "summary": "- Removed phase/defaultPhase from new profile editing and published manifests.\n- Restored read compatibility for legacy script catalog/profile metadata so preloaded items still render.",
       "verification": "node --test tools\\osdcloud-console\\test\\deploymentProfiles.test.js; node --test tools\\osdcloud-console\\test\\webServer.test.js; node --test tools\\osdcloud-console\\test\\serviceController.test.js; npm test"
-    },
-    {
-      "id": "20260601-version-bump-0.5.10",
-      "at": "2026-06-01T11:11:22.624+08:00",
-      "kind": "fix",
-      "summary": "- Reduced desktop System Log panel to 90% of the previous sticky-right-column height.\n- Bumped package.json and package-lock.json version to 0.5.10.",
-      "commit": "91815f309670bec702140ba6675d47de2592756b",
-      "verification": "npm test; powershell -NoProfile -ExecutionPolicy Bypass -File tools\\Reload-Console.ps1; browser verification on http://localhost:8080 confirmed System Log panel height about 770.4px with about 735.4px log viewport."
-    },
-    {
-      "id": "20260601-dashboard-scrollable-layout",
-      "at": "2026-06-01T10:50:00.000+08:00",
-      "kind": "implementation",
-      "summary": "- Refactored dashboard desktop layout into scroll-friendly three-column shell.\n- Added diagnostics wrapper for Driver Cache and Preflight Summary; kept sticky System Log and fleet overlay behavior.",
-      "commit": "6c11c70c8b95b89525add1ebb6bf4892a13b55a9",
-      "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; powershell -NoProfile -ExecutionPolicy Bypass -File tools\\Reload-Console.ps1; verified 127.0.0.1:8080 serves dashboard-diagnostics-grid."
     }
   ]
 }
