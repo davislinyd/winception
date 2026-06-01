@@ -183,7 +183,6 @@ const elements = {
   scriptAddCancelSecondary: $('#script-add-cancel-secondary'),
   scriptAddName: $('#script-add-name'),
   scriptAddFile: $('#script-add-file'),
-  scriptAddDefaultPhase: $('#script-add-default-phase'),
   scriptAddError: $('#script-add-error'),
   scriptContentDialog: $('#script-content-dialog'),
   scriptContentTitle: $('#script-content-title'),
@@ -2266,7 +2265,7 @@ function renderProfiles(appState) {
   if (profileState?.error) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 6;
+    td.colSpan = 5;
     td.textContent = profileState.error;
     tr.append(td);
     elements.profilesBody.append(tr);
@@ -2413,7 +2412,7 @@ function renderScriptCatalog(appState) {
   if (!scripts.length) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 6;
+    td.colSpan = 5;
     td.textContent = 'No custom scripts.';
     tr.append(td);
     elements.scriptCatalogBody.append(tr);
@@ -2428,7 +2427,6 @@ function renderScriptCatalog(appState) {
       item.id,
       item.name,
       item.fileName,
-      item.defaultPhase === 'before' ? 'Before Apps' : 'After Apps',
       selectedProfiles.length ? selectedProfiles.join(', ') : 'not selected',
     ]) {
       const td = document.createElement('td');
@@ -2955,46 +2953,25 @@ function showSoftwareDialog(profile, profileToEdit = null) {
       const [type, ...rest] = String(key).split(':');
       return { type, id: rest.join(':') };
     };
-    const selectedScriptPhases = new Map();
-    const legacyScriptPhases = new Map((targetProfile?.customScripts ?? [])
-      .filter((entry) => scriptsById.has(entry.id))
-      .map((entry) => [entry.id, entry.phase === 'before' ? 'before' : 'after']));
     let selectedOrder = [];
-    if (Array.isArray(targetProfile?.installSequence) && targetProfile.installSequence.length > 0) {
-      for (const entry of targetProfile.installSequence) {
-        if (entry.type === 'software' && softwareById.has(entry.id) && !selectedOrder.includes(softwareKey(entry.id))) {
-          selectedOrder.push(softwareKey(entry.id));
-        } else if (entry.type === 'script' && scriptsById.has(entry.id) && !selectedOrder.includes(scriptKey(entry.id))) {
-          selectedOrder.push(scriptKey(entry.id));
-          selectedScriptPhases.set(entry.id, entry.phase === 'before' ? 'before' : 'after');
-        }
-      }
-    } else {
-      for (const entry of targetProfile?.customScripts ?? []) {
-        if (entry.phase === 'before' && scriptsById.has(entry.id)) {
-          selectedOrder.push(scriptKey(entry.id));
-          selectedScriptPhases.set(entry.id, 'before');
-        }
-      }
-      for (const id of targetProfile?.softwareIds ?? []) {
-        if (softwareById.has(id) && !selectedOrder.includes(softwareKey(id))) {
-          selectedOrder.push(softwareKey(id));
-        }
-      }
-      for (const entry of targetProfile?.customScripts ?? []) {
-        if (entry.phase !== 'before' && scriptsById.has(entry.id)) {
-          selectedOrder.push(scriptKey(entry.id));
-          selectedScriptPhases.set(entry.id, 'after');
-        }
+    for (const entry of targetProfile?.installSequence ?? []) {
+      if (entry.type === 'software' && softwareById.has(entry.id) && !selectedOrder.includes(softwareKey(entry.id))) {
+        selectedOrder.push(softwareKey(entry.id));
+      } else if (entry.type === 'script' && scriptsById.has(entry.id) && !selectedOrder.includes(scriptKey(entry.id))) {
+        selectedOrder.push(scriptKey(entry.id));
       }
     }
-    const selectedScriptOrder = () => selectedOrder
+    if (!selectedOrder.length) {
+      selectedOrder = [
+        ...(targetProfile?.softwareIds ?? [])
+          .filter((id) => softwareById.has(id))
+          .map((id) => softwareKey(id)),
+      ];
+    }
+    const selectedScriptIds = () => selectedOrder
       .map((key) => keyParts(key))
       .filter((entry) => entry.type === 'script')
-      .map((entry) => ({
-        id: entry.id,
-        phase: selectedScriptPhases.get(entry.id) ?? legacyScriptPhases.get(entry.id) ?? scriptsById.get(entry.id)?.defaultPhase ?? 'after',
-      }));
+      .map((entry) => entry.id);
     const selectedSoftwareIds = () => selectedOrder
       .map((key) => keyParts(key))
       .filter((entry) => entry.type === 'software')
@@ -3009,16 +2986,6 @@ function showSoftwareDialog(profile, profileToEdit = null) {
         ? 'Custom scripts are added and ordered in the unified install sequence above.'
         : 'No custom scripts in catalog. Add one from Custom Scripts.';
       elements.profileScriptsList.append(row);
-    };
-
-    const handleScriptsListChange = (event) => {
-      const phase = event.target.closest('[data-script-phase]');
-      if (phase) {
-        const id = phase.dataset.scriptPhase;
-        if (selectedOrder.includes(scriptKey(id))) {
-          selectedScriptPhases.set(id, phase.value === 'before' ? 'before' : 'after');
-        }
-      }
     };
     elements.softwareError.textContent = '';
     elements.softwareProfileSummary.textContent = isActiveTarget
@@ -3082,7 +3049,7 @@ function showSoftwareDialog(profile, profileToEdit = null) {
     const renderEditor = () => {
       elements.softwareList.replaceChildren();
       const selectedSoftwareSet = new Set(selectedSoftwareIds());
-      const selectedScriptSet = new Set(selectedScriptOrder().map((entry) => entry.id));
+      const selectedScriptSet = new Set(selectedScriptIds());
 
       const selectedSection = document.createElement('section');
       selectedSection.className = 'software-order-section';
@@ -3121,19 +3088,6 @@ function showSoftwareDialog(profile, profileToEdit = null) {
             renderSoftwareIdentity(label, item);
           }
 
-          let phaseSelect = null;
-          if (type === 'script') {
-            phaseSelect = document.createElement('select');
-            phaseSelect.dataset.scriptPhase = id;
-            for (const [value, optionLabel] of [['before', 'Before Apps'], ['after', 'After Apps']]) {
-              const opt = document.createElement('option');
-              opt.value = value;
-              opt.textContent = optionLabel;
-              phaseSelect.append(opt);
-            }
-            phaseSelect.value = selectedScriptPhases.get(id) ?? scriptsById.get(id)?.defaultPhase ?? 'after';
-          }
-
           const actions = document.createElement('span');
           actions.className = 'software-order-actions';
           actions.append(
@@ -3143,9 +3097,6 @@ function showSoftwareDialog(profile, profileToEdit = null) {
           );
 
           row.append(handle, rank, label);
-          if (phaseSelect) {
-            row.append(phaseSelect);
-          }
           row.append(actions);
           selectedList.append(row);
         });
@@ -3229,14 +3180,11 @@ function showSoftwareDialog(profile, profileToEdit = null) {
       elements.softwareSelectAll.removeEventListener('click', selectAll);
       elements.softwareSelectNone.removeEventListener('click', selectNone);
       elements.softwareList.removeEventListener('click', handleOrderClick);
-      elements.softwareList.removeEventListener('change', handleScriptsListChange);
       elements.softwareList.removeEventListener('dragstart', handleDragStart);
       elements.softwareList.removeEventListener('dragover', handleDragOver);
       elements.softwareList.removeEventListener('dragleave', handleDragLeave);
       elements.softwareList.removeEventListener('drop', handleDrop);
       elements.softwareList.removeEventListener('dragend', handleDragEnd);
-      elements.profileScriptsList.removeEventListener('change', handleScriptsListChange);
-      elements.profileScriptsList.removeEventListener('click', handleScriptOrderClick);
       if (isDialogOpen(elements.softwareDialog)) {
         closeDialog(elements.softwareDialog);
       }
@@ -3258,12 +3206,9 @@ function showSoftwareDialog(profile, profileToEdit = null) {
         elements.softwareError.textContent = 'Select an OS image for this profile.';
         return;
       }
-      const customScripts = selectedScriptOrder().map((entry) => ({ id: entry.id, phase: entry.phase }));
       const installSequence = selectedOrder.map((key) => {
         const { type, id } = keyParts(key);
-        return type === 'script'
-          ? { type, id, phase: selectedScriptPhases.get(id) ?? scriptsById.get(id)?.defaultPhase ?? 'after' }
-          : { type, id };
+        return { type, id };
       });
       done({
         profileId: targetProfile?.id ?? '',
@@ -3271,7 +3216,6 @@ function showSoftwareDialog(profile, profileToEdit = null) {
         name,
         description: elements.softwareProfileDescription.value.trim(),
         softwareIds: selectedSoftwareIds(),
-        customScripts,
         installSequence,
         osImageId,
       });
@@ -3281,10 +3225,7 @@ function showSoftwareDialog(profile, profileToEdit = null) {
       selectedOrder = [
         ...selectedOrder,
         ...software.map((item) => softwareKey(item.id)).filter((key) => !selectedSet.has(key)),
-        ...scripts.map((item) => {
-          selectedScriptPhases.set(item.id, selectedScriptPhases.get(item.id) ?? item.defaultPhase ?? 'after');
-          return scriptKey(item.id);
-        }).filter((key) => !selectedSet.has(key)),
+        ...scripts.map((item) => scriptKey(item.id)).filter((key) => !selectedSet.has(key)),
       ];
       renderEditor();
     };
@@ -3306,41 +3247,13 @@ function showSoftwareDialog(profile, profileToEdit = null) {
       const { type, id: itemId } = keyParts(id);
       if (action === 'add' && !selectedOrder.includes(id)
         && ((type === 'software' && softwareById.has(itemId)) || (type === 'script' && scriptsById.has(itemId)))) {
-        if (type === 'script') {
-          selectedScriptPhases.set(itemId, selectedScriptPhases.get(itemId) ?? scriptsById.get(itemId)?.defaultPhase ?? 'after');
-        }
         selectedOrder = [...selectedOrder, id];
       } else if (action === 'remove') {
         selectedOrder = selectedOrder.filter((selectedId) => selectedId !== id);
-        if (type === 'script') {
-          selectedScriptPhases.delete(itemId);
-        }
       } else if (action === 'up' && index > 0) {
         moveSelected(id, index - 1);
       } else if (action === 'down' && index >= 0 && index < selectedOrder.length - 1) {
         moveSelected(id, index + 2);
-      }
-      renderEditor();
-    };
-    const handleScriptOrderClick = (event) => {
-      const button = event.target.closest('[data-software-order-action]');
-      if (!button || !elements.profileScriptsList.contains(button)) {
-        return;
-      }
-      const id = button.dataset.softwareId;
-      const key = scriptKey(id);
-      const index = selectedOrder.indexOf(key);
-      if (index < 0) {
-        return;
-      }
-      if (button.dataset.softwareOrderAction === 'script-up' && index > 0) {
-        const next = [...selectedOrder];
-        [next[index - 1], next[index]] = [next[index], next[index - 1]];
-        selectedOrder = next;
-      } else if (button.dataset.softwareOrderAction === 'script-down' && index < selectedOrder.length - 1) {
-        const next = [...selectedOrder];
-        [next[index + 1], next[index]] = [next[index], next[index + 1]];
-        selectedOrder = next;
       }
       renderEditor();
     };
@@ -3411,14 +3324,11 @@ function showSoftwareDialog(profile, profileToEdit = null) {
     elements.softwareSelectAll.addEventListener('click', selectAll);
     elements.softwareSelectNone.addEventListener('click', selectNone);
     elements.softwareList.addEventListener('click', handleOrderClick);
-    elements.softwareList.addEventListener('change', handleScriptsListChange);
     elements.softwareList.addEventListener('dragstart', handleDragStart);
     elements.softwareList.addEventListener('dragover', handleDragOver);
     elements.softwareList.addEventListener('dragleave', handleDragLeave);
     elements.softwareList.addEventListener('drop', handleDrop);
     elements.softwareList.addEventListener('dragend', handleDragEnd);
-    elements.profileScriptsList.addEventListener('change', handleScriptsListChange);
-    elements.profileScriptsList.addEventListener('click', handleScriptOrderClick);
     renderEditor();
     renderScriptsEditor();
     openDialog(elements.softwareDialog);
@@ -3622,7 +3532,6 @@ function showAddScriptDialog() {
   return new Promise((resolve) => {
     elements.scriptAddForm.reset();
     elements.scriptAddError.textContent = '';
-    elements.scriptAddDefaultPhase.value = 'after';
 
     let settled = false;
     const done = (value) => {
@@ -3648,7 +3557,6 @@ function showAddScriptDialog() {
       const input = {
         name: elements.scriptAddName.value.trim(),
         file: elements.scriptAddFile.files?.[0] ?? null,
-        defaultPhase: elements.scriptAddDefaultPhase.value === 'before' ? 'before' : 'after',
       };
       if (!input.name) {
         elements.scriptAddError.textContent = 'Display name is required.';
@@ -3681,7 +3589,6 @@ async function handleScriptAdd(input) {
     details: [
       `Script: ${input.name}`,
       `File: ${input.file.name}`,
-      `Default phase: ${input.defaultPhase === 'before' ? 'Before Apps' : 'After Apps'}`,
     ],
     confirmLabel: 'Add to catalog',
     severity: 'warning',
@@ -3703,7 +3610,6 @@ async function handleScriptAdd(input) {
       body: JSON.stringify({
         uploadId: uploadPayload.result.uploadId,
         name: input.name,
-        defaultPhase: input.defaultPhase,
       }),
     });
     state.current = createPayload.state;
@@ -4312,8 +4218,11 @@ async function handleAction(action, source = null) {
     }
     const profileUpdate = await showSoftwareDialog(payload.profile, profileToEdit);
     if (profileUpdate) {
-      const scriptDetail = profileUpdate.customScripts?.length
-        ? profileUpdate.customScripts.map((entry) => `${entry.id} (${entry.phase})`).join(', ')
+      const scriptDetail = profileUpdate.installSequence?.some((entry) => entry.type === 'script')
+        ? profileUpdate.installSequence
+          .filter((entry) => entry.type === 'script')
+          .map((entry) => entry.id)
+          .join(', ')
         : 'none';
       const ok = await confirmAction(profileUpdate.isActive
         ? {

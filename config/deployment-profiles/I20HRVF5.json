@@ -3,5 +3,11 @@
   "name": "Default",
   "software": [
     "7zip"
+  ],
+  "installSequence": [
+    {
+      "type": "software",
+      "id": "7zip"
+    }
   ]
 }

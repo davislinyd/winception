@@ -527,7 +527,10 @@ function profileSummary(state) {
       usedByProfiles.push({ id: profile.id, name: profile.name });
       usageBySoftware.set(softwareId, usedByProfiles);
     }
-    for (const entry of profile.customScripts ?? []) {
+    for (const entry of profile.installSequence ?? []) {
+      if (entry.type !== 'script') {
+        continue;
+      }
       const usedByProfiles = usageByScript.get(entry.id) ?? [];
       usedByProfiles.push({ id: profile.id, name: profile.name });
       usageByScript.set(entry.id, usedByProfiles);
@@ -559,7 +562,6 @@ function profileSummary(state) {
       sourcePath: script.sourcePath,
       scriptFile: script.scriptFile,
       fileName: script.fileName,
-      defaultPhase: script.defaultPhase,
       bytes: script.bytes,
       sha256: script.sha256,
       usedByProfiles: usageByScript.get(script.id) ?? [],
@@ -572,14 +574,13 @@ function profileSummary(state) {
     selectedScripts: (state.selectedScripts ?? []).map((script) => ({
       id: script.id,
       name: script.name,
-      phase: script.phase,
     })),
     profiles: state.profiles.map((profile) => ({
       id: profile.id,
       name: profile.name,
       description: profile.description,
       softwareIds: profile.softwareIds,
-      customScripts: (profile.customScripts ?? []).map((entry) => ({ id: entry.id, phase: entry.phase })),
+      installSequence: (profile.installSequence ?? []).map((entry) => ({ type: entry.type, id: entry.id })),
       osImageId: profile.osImageId,
     })),
   };
@@ -1414,7 +1415,7 @@ export class ServiceController extends EventEmitter {
   async addCustomScript(input) {
     return this.runOperation('Adding custom script', async () => {
       const created = await this.dependencies.createCustomScript(this.config, input);
-      this.addLog(`Added custom script ${created.script.id}: ${created.script.fileName} (${created.script.defaultPhase})`);
+      this.addLog(`Added custom script ${created.script.id}: ${created.script.fileName}`);
       return created;
     });
   }
@@ -1457,7 +1458,6 @@ export class ServiceController extends EventEmitter {
         name: input.name,
         description: input.description,
         softwareIds: input.softwareIds ?? input.software,
-        customScripts: input.customScripts,
         installSequence: input.installSequence,
         osImageId: input.osImageId,
       };

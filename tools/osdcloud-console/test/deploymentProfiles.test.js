@@ -56,6 +56,10 @@ function catalogSoftware(id, name) {
   };
 }
 
+function installSequenceFromSoftware(softwareIds = []) {
+  return softwareIds.map((id) => ({ type: 'software', id }));
+}
+
 function writeSoftware(root, id, script = "Write-Host 'installed'\n") {
   const softwareRoot = path.join(root, 'Softwares', id);
   fs.mkdirSync(softwareRoot, { recursive: true });
@@ -105,6 +109,7 @@ function writeBaseFiles(root, options = {}) {
     id: 'default',
     name: 'Default',
     software: ['one'],
+    installSequence: installSequenceFromSoftware(['one']),
     osImage: 'TEST-OS',
   });
 }
@@ -117,6 +122,7 @@ test('loads active deployment profile with selected software order', () => {
         id: 'default',
         name: 'Default',
         software: ['two', 'one'],
+        installSequence: installSequenceFromSoftware(['two', 'one']),
       },
     });
     const state = resolveDeploymentProfileState(configFor(root));
@@ -198,6 +204,7 @@ test('rejects unknown software in profile', () => {
         id: 'default',
         name: 'Default',
         software: ['missing'],
+        installSequence: [{ type: 'software', id: 'missing' }],
       },
     });
 
@@ -245,6 +252,7 @@ test('accepts empty software profile', () => {
         id: 'default',
         name: 'Default',
         software: [],
+        installSequence: [],
       },
     });
 
@@ -486,6 +494,7 @@ test('creates a deployment profile by copying active profile software', () => {
       id: 'AAAAAAA0',
       name: 'Field Tech',
       software: ['one'],
+      installSequence: installSequenceFromSoftware(['one']),
       osImage: 'TEST-OS',
     });
     assert.equal(resolveDeploymentProfileState(configFor(root)).activeProfile.id, 'default');
@@ -579,6 +588,7 @@ test('updates deployment profile software while preserving other fields', () => 
         name: 'Default',
         description: 'Keep me',
         software: ['one'],
+        installSequence: installSequenceFromSoftware(['one']),
         owner: 'ops',
       },
     });
@@ -592,6 +602,7 @@ test('updates deployment profile software while preserving other fields', () => 
       name: 'Default',
       description: 'Keep me',
       software: ['two', 'one'],
+      installSequence: installSequenceFromSoftware(['two', 'one']),
       osImage: 'TEST-OS',
       owner: 'ops',
     });
@@ -609,6 +620,7 @@ test('updates deployment profile name and software without changing its id', () 
         name: 'Default',
         description: 'Keep me',
         software: ['one'],
+        installSequence: installSequenceFromSoftware(['one']),
         owner: 'ops',
       },
     });
@@ -629,6 +641,7 @@ test('updates deployment profile name and software without changing its id', () 
       name: 'Renamed Default',
       description: 'Updated description',
       software: ['two'],
+      installSequence: installSequenceFromSoftware(['two']),
       osImage: 'TEST-OS',
       owner: 'ops',
     });
@@ -1191,10 +1204,9 @@ test('installer script follows unified software and script install sequence', ()
     writeJson(path.join(appsRoot, 'selected-profile.json'), {
       profileId: 'default',
       selectedSoftware: ['one', 'two'],
-      customScripts: [{ id: 'SC-MIDDLE1', name: 'Middle Script', phase: 'after' }],
       installSequence: [
         { type: 'software', id: 'one' },
-        { type: 'script', id: 'SC-MIDDLE1', phase: 'after' },
+        { type: 'script', id: 'SC-MIDDLE1' },
         { type: 'software', id: 'two' },
       ],
     });
@@ -1271,9 +1283,9 @@ test('installer script runs custom scripts with per-script logs and summary', ()
     writeJson(path.join(appsRoot, 'selected-profile.json'), {
       profileId: 'default',
       selectedSoftware: [],
-      customScripts: [
-        { id: 'SC-AFTER001', name: 'After Script', phase: 'after' },
-        { id: 'SC-BEFORE01', name: 'Before Script', phase: 'before' },
+      installSequence: [
+        { type: 'script', id: 'SC-BEFORE01' },
+        { type: 'script', id: 'SC-AFTER001' },
       ],
     });
 
@@ -1297,10 +1309,11 @@ test('installer script runs custom scripts with per-script logs and summary', ()
     assert.equal(summary.failed, 0);
     assert.equal(summary.missing, 0);
     assert.deepEqual(summary.scripts.map((script) => script.status), ['succeeded', 'succeeded']);
+    assert.deepEqual(summary.scripts.map((script) => script.sequenceIndex), [1, 2]);
     const logFiles = fs.readdirSync(path.join(logRoot, 'custom-scripts'));
     assert.equal(logFiles.length, 2);
-    assert.ok(logFiles.some((name) => /^SC-BEFORE01-before-/u.test(name)));
-    assert.ok(logFiles.some((name) => /^SC-AFTER001-after-/u.test(name)));
+    assert.ok(logFiles.some((name) => /^001-SC-BEFORE01-/u.test(name)));
+    assert.ok(logFiles.some((name) => /^002-SC-AFTER001-/u.test(name)));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1326,10 +1339,10 @@ test('installer script records failed and missing custom scripts before failing'
     writeJson(path.join(appsRoot, 'selected-profile.json'), {
       profileId: 'default',
       selectedSoftware: [],
-      customScripts: [
-        { id: 'SC-GOOD000', name: 'Good Script', phase: 'before' },
-        { id: 'SC-BAD0000', name: 'Bad Script', phase: 'after' },
-        { id: 'SC-MISS000', name: 'Missing Script', phase: 'after' },
+      installSequence: [
+        { type: 'script', id: 'SC-GOOD000' },
+        { type: 'script', id: 'SC-BAD0000' },
+        { type: 'script', id: 'SC-MISS000' },
       ],
     });
 
@@ -1352,6 +1365,7 @@ test('installer script records failed and missing custom scripts before failing'
     assert.equal(summary.failed, 1);
     assert.equal(summary.missing, 1);
     assert.deepEqual(summary.scripts.map((script) => script.status), ['succeeded', 'failed', 'missing']);
+    assert.deepEqual(summary.scripts.map((script) => script.sequenceIndex), [1, 2, 3]);
     const bad = summary.scripts.find((script) => script.id === 'SC-BAD0000');
     assert.equal(bad.exitCode, 7);
     assert.match(bad.error, /exited with code 7/);
@@ -1359,7 +1373,7 @@ test('installer script records failed and missing custom scripts before failing'
     assert.match(missing.error, /not found/);
     const logFiles = fs.readdirSync(path.join(logRoot, 'custom-scripts'));
     assert.equal(logFiles.length, 3);
-    const badLog = fs.readFileSync(path.join(logRoot, 'custom-scripts', logFiles.find((name) => /^SC-BAD0000-after-/u.test(name))), 'utf8');
+    const badLog = fs.readFileSync(path.join(logRoot, 'custom-scripts', logFiles.find((name) => /^002-SC-BAD0000-/u.test(name))), 'utf8');
     assert.match(badLog, /bad script ran/);
     assert.match(badLog, /ExitCode: 7/);
   } finally {
@@ -1385,20 +1399,17 @@ test('uploads and creates a custom script package', async () => {
     const created = await createCustomScript(config, {
       uploadId: 'upload-script',
       name: 'Firewall Tweaks',
-      defaultPhase: 'after',
     }, {
       randomInt: () => 26,
     });
     assert.equal(created.script.id, 'SC-AAAAAAA0');
     assert.equal(created.script.fileName, 'firewall.ps1');
-    assert.equal(created.script.defaultPhase, 'after');
     const runScriptPath = path.join(root, 'Scripts', 'SC-AAAAAAA0', 'run.ps1');
     assert.equal(fs.existsSync(runScriptPath), true);
     assert.equal(fs.readFileSync(runScriptPath, 'utf8'), "Write-Host 'firewall rule'\n");
 
     const catalog = JSON.parse(fs.readFileSync(path.join(root, 'scripts-catalog.json'), 'utf8'));
     assert.deepEqual(catalog.scripts.map((script) => script.id), ['SC-AAAAAAA0']);
-    assert.equal(catalog.scripts[0].defaultPhase, 'after');
 
     const content = readCustomScriptContent(config, 'SC-AAAAAAA0');
     assert.equal(content.content, "Write-Host 'firewall rule'\n");
@@ -1422,7 +1433,7 @@ test('rejects non-ps1 custom script upload', async () => {
   }
 });
 
-test('profile customScripts must reference a known script', async () => {
+test('profile installSequence must reference a known script', async () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root, {
@@ -1430,7 +1441,10 @@ test('profile customScripts must reference a known script', async () => {
         id: 'default',
         name: 'Default',
         software: ['one'],
-        customScripts: [{ id: 'SC-NOPE0001', phase: 'after' }],
+        installSequence: [
+          { type: 'software', id: 'one' },
+          { type: 'script', id: 'SC-NOPE0001' },
+        ],
       },
     });
 
@@ -1440,7 +1454,7 @@ test('profile customScripts must reference a known script', async () => {
   }
 });
 
-test('profile customScripts rejects invalid phase', () => {
+test('legacy profile phase metadata is tolerated on read and normalized on save', () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root);
@@ -1453,17 +1467,36 @@ test('profile customScripts rejects invalid phase', () => {
       id: 'default',
       name: 'Default',
       software: ['one'],
-      customScripts: [{ id: 'SC-AAAAAAA0', phase: 'midway' }],
+      installSequence: [
+        { type: 'software', id: 'one' },
+        { type: 'script', id: 'SC-AAAAAAA0', phase: 'after' },
+      ],
       osImage: 'TEST-OS',
     });
 
-    assert.throws(() => loadDeploymentProfiles(configFor(root)), /must be 'before' or 'after'/);
+    const loaded = loadDeploymentProfiles(configFor(root));
+    assert.deepEqual(loaded[0].installSequence, [
+      { type: 'software', id: 'one' },
+      { type: 'script', id: 'SC-AAAAAAA0' },
+    ]);
+
+    updateDeploymentProfile(configFor(root), 'default', {
+      name: 'Default',
+      installSequence: loaded[0].installSequence,
+      softwareIds: ['one'],
+    });
+    const saved = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
+    assert.equal(Object.prototype.hasOwnProperty.call(saved, 'customScripts'), false);
+    assert.deepEqual(saved.installSequence, [
+      { type: 'software', id: 'one' },
+      { type: 'script', id: 'SC-AAAAAAA0' },
+    ]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('resolveDeploymentProfileState exposes selected custom scripts with phase', async () => {
+test('resolveDeploymentProfileState exposes selected custom scripts from install sequence', async () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root);
@@ -1475,24 +1508,25 @@ test('resolveDeploymentProfileState exposes selected custom scripts with phase',
     const created = await createCustomScript(config, {
       uploadId: 'upload-fw',
       name: 'Firewall',
-      defaultPhase: 'before',
     }, { randomInt: () => 26 });
 
     const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
-    profile.customScripts = [{ id: created.script.id, phase: 'after' }];
+    profile.installSequence = [
+      { type: 'software', id: 'one' },
+      { type: 'script', id: created.script.id },
+    ];
     fs.writeFileSync(path.join(root, 'profiles', 'default.json'), JSON.stringify(profile, null, 2), 'utf8');
 
     const state = resolveDeploymentProfileState(config);
     assert.equal(state.selectedScripts.length, 1);
     assert.equal(state.selectedScripts[0].id, created.script.id);
-    assert.equal(state.selectedScripts[0].phase, 'after');
-    assert.equal(state.selectedScripts[0].defaultPhase, 'before');
+    assert.equal(state.selectedScripts[0].name, 'Firewall');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('publishDeploymentProfile copies scripts and writes customScripts manifest', async () => {
+test('publishDeploymentProfile copies scripts and writes installSequence-only manifest', async () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root);
@@ -1505,7 +1539,6 @@ test('publishDeploymentProfile copies scripts and writes customScripts manifest'
     const beforeScript = await createCustomScript(config, {
       uploadId: 'upload-before',
       name: 'Before Script',
-      defaultPhase: 'before',
     }, { randomInt: () => 26 });
 
     await uploadCustomScript(config, {
@@ -1515,13 +1548,13 @@ test('publishDeploymentProfile copies scripts and writes customScripts manifest'
     const afterScript = await createCustomScript(config, {
       uploadId: 'upload-after',
       name: 'After Script',
-      defaultPhase: 'after',
     }, { randomInt: () => 27 });
 
     const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
-    profile.customScripts = [
-      { id: afterScript.script.id, phase: 'after' },
-      { id: beforeScript.script.id, phase: 'before' },
+    profile.installSequence = [
+      { type: 'script', id: beforeScript.script.id },
+      { type: 'software', id: 'one' },
+      { type: 'script', id: afterScript.script.id },
     ];
     fs.writeFileSync(path.join(root, 'profiles', 'default.json'), JSON.stringify(profile, null, 2), 'utf8');
 
@@ -1532,12 +1565,11 @@ test('publishDeploymentProfile copies scripts and writes customScripts manifest'
     assert.equal(fs.existsSync(path.join(publishedScriptsRoot, afterScript.script.id, 'run.ps1')), true);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
-    assert.deepEqual(manifest.customScripts.map((entry) => entry.id), [beforeScript.script.id, afterScript.script.id]);
-    assert.deepEqual(manifest.customScripts.map((entry) => entry.phase), ['before', 'after']);
+    assert.equal(Object.prototype.hasOwnProperty.call(manifest, 'customScripts'), false);
     assert.deepEqual(manifest.installSequence, [
-      { type: 'script', id: beforeScript.script.id, phase: 'before' },
+      { type: 'script', id: beforeScript.script.id },
       { type: 'software', id: 'one' },
-      { type: 'script', id: afterScript.script.id, phase: 'after' },
+      { type: 'script', id: afterScript.script.id },
     ]);
     assert.equal(evaluateDeploymentProfilePayload(config).ok, true);
   } finally {
@@ -1558,16 +1590,18 @@ test('deleteCustomScript refuses when a profile still references it', async () =
     const created = await createCustomScript(config, {
       uploadId: 'upload-fw',
       name: 'Firewall',
-      defaultPhase: 'after',
     }, { randomInt: () => 26 });
 
     const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
-    profile.customScripts = [{ id: created.script.id, phase: 'after' }];
+    profile.installSequence = [
+      { type: 'software', id: 'one' },
+      { type: 'script', id: created.script.id },
+    ];
     fs.writeFileSync(path.join(root, 'profiles', 'default.json'), JSON.stringify(profile, null, 2), 'utf8');
 
     assert.throws(() => deleteCustomScript(config, created.script.id), /still used by deployment profiles/);
 
-    profile.customScripts = [];
+    profile.installSequence = [{ type: 'software', id: 'one' }];
     fs.writeFileSync(path.join(root, 'profiles', 'default.json'), JSON.stringify(profile, null, 2), 'utf8');
     const deleted = deleteCustomScript(config, created.script.id);
     assert.equal(deleted.script.id, created.script.id);

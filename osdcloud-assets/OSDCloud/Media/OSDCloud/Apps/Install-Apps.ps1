@@ -73,15 +73,6 @@ function Get-SelectedSoftwareIds {
     return @($ids | ForEach-Object { [string] $_ })
 }
 
-function Get-CustomScripts {
-    param($Profile, [string] $Phase)
-
-    if (-not $Profile -or -not $Profile.customScripts) {
-        return @()
-    }
-    return @($Profile.customScripts | Where-Object { $_.phase -eq $Phase })
-}
-
 function Get-InstallSequence {
     param(
         [Parameter(Mandatory)][string] $AppsRoot,
@@ -93,14 +84,8 @@ function Get-InstallSequence {
     }
 
     $sequence = @()
-    foreach ($entry in @(Get-CustomScripts -Profile $Profile -Phase 'before')) {
-        $sequence += [pscustomobject]@{ type = 'script'; id = $entry.id; name = $entry.name; phase = $entry.phase }
-    }
     foreach ($softwareId in @(Get-SelectedSoftwareIds -AppsRoot $AppsRoot -Profile $Profile)) {
         $sequence += [pscustomobject]@{ type = 'software'; id = $softwareId }
-    }
-    foreach ($entry in @(Get-CustomScripts -Profile $Profile -Phase 'after')) {
-        $sequence += [pscustomobject]@{ type = 'script'; id = $entry.id; name = $entry.name; phase = $entry.phase }
     }
     return @($sequence)
 }
@@ -145,15 +130,15 @@ function Initialize-TargetUserEnvironment {
 function New-CustomScriptLogPath {
     param(
         [Parameter(Mandatory)][string] $ScriptId,
-        [Parameter(Mandatory)][string] $Phase
+        [Parameter(Mandatory)][int] $SequenceIndex
     )
 
     $scriptLogRoot = Join-Path $LogDir 'custom-scripts'
     New-Item -ItemType Directory -Path $scriptLogRoot -Force | Out-Null
     $safeId = $ScriptId -replace '[^A-Za-z0-9._-]', '_'
-    $safePhase = $Phase -replace '[^A-Za-z0-9._-]', '_'
+    $safeSequenceIndex = '{0:D3}' -f $SequenceIndex
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
-    Join-Path $scriptLogRoot "$safeId-$safePhase-$stamp.log"
+    Join-Path $scriptLogRoot "$safeSequenceIndex-$safeId-$stamp.log"
 }
 
 function Write-CustomScriptLog {
@@ -200,18 +185,18 @@ function Invoke-CustomScript {
     param(
         [Parameter(Mandatory)][string] $ScriptsRoot,
         [Parameter(Mandatory)] $Entry,
+        [Parameter(Mandatory)][int] $SequenceIndex,
         [System.Collections.ArrayList] $Failures,
         [System.Collections.ArrayList] $Results
     )
 
     $scriptId = [string] $Entry.id
-    $phase = [string] $Entry.phase
     $started = Get-Date
-    $logPath = New-CustomScriptLogPath -ScriptId $scriptId -Phase $phase
+    $logPath = New-CustomScriptLogPath -ScriptId $scriptId -SequenceIndex $SequenceIndex
     $result = [ordered]@{
         id = $scriptId
         name = if ($Entry.name) { [string] $Entry.name } else { $null }
-        phase = $phase
+        sequenceIndex = $SequenceIndex
         status = 'running'
         startedAt = $started.ToString('o')
         endedAt = $null
@@ -222,11 +207,11 @@ function Invoke-CustomScript {
         error = $null
     }
 
-    Write-Host "Running custom script ($phase): $scriptId"
+    Write-Host "Running custom script (#$SequenceIndex): $scriptId"
     Write-CustomScriptLog -Path $logPath -Message "StartedAt: $($result.startedAt)"
     Write-CustomScriptLog -Path $logPath -Message "Id: $scriptId"
     Write-CustomScriptLog -Path $logPath -Message "Name: $($result.name)"
-    Write-CustomScriptLog -Path $logPath -Message "Phase: $phase"
+    Write-CustomScriptLog -Path $logPath -Message "SequenceIndex: $SequenceIndex"
     try {
         $script = Resolve-PackageScript -Root $ScriptsRoot -PackageId $scriptId -ScriptName 'run.ps1' -Label 'custom script'
         $result.script = $script
@@ -303,11 +288,13 @@ try {
     $profile = Get-SelectedProfile -AppsRoot $appsRoot
     $installSequence = @(Get-InstallSequence -AppsRoot $appsRoot -Profile $profile)
     $softwareCount = 0
+    $sequenceIndex = 0
 
     foreach ($entry in $installSequence) {
+        $sequenceIndex += 1
         $entryType = [string] $entry.type
         if ($entryType -eq 'script') {
-            Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -Failures $failures -Results $customScriptResults
+            Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -SequenceIndex $sequenceIndex -Failures $failures -Results $customScriptResults
             continue
         }
         if ($entryType -ne 'software') {

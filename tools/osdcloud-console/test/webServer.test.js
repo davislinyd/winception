@@ -161,7 +161,6 @@ async function makeServer(root, overrides = {}) {
           name: input.name ?? 'Default',
           description: input.description ?? '',
           softwareIds: input.softwareIds,
-          customScripts: input.customScripts,
           installSequence: input.installSequence,
           osImageId: input.osImageId,
         },
@@ -581,9 +580,8 @@ test('runs mutating API actions through the controller', async () => {
         name: 'Renamed Default',
         description: 'Chrome build',
         softwareIds: ['chrome', '7zip'],
-        customScripts: [{ id: 'SC-TEST001', phase: 'after' }],
         installSequence: [
-          { type: 'script', id: 'SC-TEST001', phase: 'after' },
+          { type: 'script', id: 'SC-TEST001' },
           { type: 'software', id: 'chrome' },
           { type: 'software', id: '7zip' },
         ],
@@ -594,9 +592,8 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(payload.result.profile.name, 'Renamed Default');
     assert.equal(payload.result.profile.description, 'Chrome build');
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome', '7zip']);
-    assert.deepEqual(payload.result.profile.customScripts, [{ id: 'SC-TEST001', phase: 'after' }]);
     assert.deepEqual(payload.result.profile.installSequence, [
-      { type: 'script', id: 'SC-TEST001', phase: 'after' },
+      { type: 'script', id: 'SC-TEST001' },
       { type: 'software', id: 'chrome' },
       { type: 'software', id: '7zip' },
     ]);

@@ -67,16 +67,16 @@ test('fresh clone does not commit a preselected Windows image', () => {
 });
 
 test('active custom script is mirrored and handed off to deployed Windows', () => {
-  const profile = readTrackedJson('config/deployment-profiles/IZVZO7PU.json');
-  const scriptEntry = profile.customScripts?.find((entry) => entry.id === 'SC-J5GF07Y2');
+  const profile = readJson('config/deployment-profiles/IZVZO7PU.json');
+  const scriptEntry = profile.installSequence?.find((entry) => entry.type === 'script' && entry.id === 'SC-J5GF07Y2');
   const sourceScript = 'Scripts/SC-J5GF07Y2/run.ps1';
   const mirroredScript = 'osdcloud-assets/OSDCloud/Media/OSDCloud/Scripts/SC-J5GF07Y2/run.ps1';
   const shutdownScript = readText('osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1');
   const embeddedShutdownScript = readText('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1');
 
-  assert.equal(scriptEntry?.phase, 'after');
-  assert.equal(trackedExists(mirroredScript), true);
-  assert.equal(normalizedTrackedText(mirroredScript), normalizedTrackedText(sourceScript));
+  assert.deepEqual(scriptEntry, { type: 'script', id: 'SC-J5GF07Y2' });
+  assert.equal(fs.existsSync(path.join(repoRoot, mirroredScript)), true);
+  assert.equal(normalizedText(mirroredScript), normalizedText(sourceScript));
   assert.match(shutdownScript, /ProgramData\\OSDCloud\\Scripts/u);
   assert.match(shutdownScript, /Client scripts source:/u);
   assert.match(embeddedShutdownScript, /ProgramData\\OSDCloud\\Scripts/u);

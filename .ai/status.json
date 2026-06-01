@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-05-31T19:11:22.624Z",
+  "updated_at": "2026-06-01T14:19:00.0000000Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
@@ -49,9 +49,9 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "91815f309670bec702140ba6675d47de2592756b",
-    "last_checked_head_short": "91815f3",
-    "dirty": false,
+    "last_checked_head": "026c4c4069c2e266ef69351e8eca678ddd8723dc",
+    "last_checked_head_short": "026c4c4",
+    "dirty": true,
     "ahead": 0,
     "behind": 0,
     "remotes": [
@@ -67,7 +67,7 @@
     "dirty_excludes_status_file": true,
     "status_file_initialized": true,
     "status_file_tracked": true,
-    "status_file_uncommitted": false
+    "status_file_uncommitted": true
   },
   "required_workflow": {
     "before_development_work": [
@@ -84,6 +84,20 @@
     ]
   },
   "recent_changes": [
+    {
+      "id": "20260601-version-bump-0.5.11",
+      "at": "2026-06-01T22:19:00.0000000+08:00",
+      "kind": "chore",
+      "summary": "- Bumped package.json and package-lock.json version to 0.5.11.\n- Kept installSequence-only custom script ordering changes and legacy read compatibility in the same delivery batch.",
+      "verification": "npm test"
+    },
+    {
+      "id": "20260601-install-sequence-only-custom-scripts",
+      "at": "2026-06-01T22:14:58.0000000+08:00",
+      "kind": "implementation",
+      "summary": "- Removed phase/defaultPhase from new profile editing and published manifests.\n- Restored read compatibility for legacy script catalog/profile metadata so preloaded items still render.",
+      "verification": "node --test tools\\osdcloud-console\\test\\deploymentProfiles.test.js; node --test tools\\osdcloud-console\\test\\webServer.test.js; node --test tools\\osdcloud-console\\test\\serviceController.test.js; npm test"
+    },
     {
       "id": "20260601-version-bump-0.5.10",
       "at": "2026-06-01T11:11:22.624+08:00",
@@ -107,22 +121,6 @@
       "summary": "- Removed redundant dhcp command from boot.ipxe template.\n- Restored smooth iPXE chaining to wimboot by avoiding network link/STP blocking transitions.",
       "commit": "b01e108e1acc7b83790ca60cdc928079efdc9471",
       "verification": "All 221 JavaScript tests pass successfully."
-    },
-    {
-      "id": "20260531-version-bump-0.5.9",
-      "at": "2026-05-31T22:00:00.000+08:00",
-      "kind": "chore",
-      "summary": "- Bumped package.json and package-lock.json version to 0.5.9.\n- Committed uncustomized boot.wim detection and warning system across preflight, Web UI, HTTP logger, and client fleet timeouts.",
-      "commit": "e27701a3904ddef19b18810390719b5f8f5bfd22",
-      "verification": "All 221 JavaScript tests and smoke tests pass successfully."
-    },
-    {
-      "id": "20260531-uncustomized-boot-wim-warning-system",
-      "at": "2026-05-31T21:50:00.000+08:00",
-      "kind": "implementation",
-      "summary": "- Added preflight check comparing timestamps of configs/secrets vs published boot.wim.\n- Added warning banner in Web UI for uncustomized or out-of-sync boot.wim images.\n- Added HTTP server file-size warnings and synthetic 'pxe-booting' client creation during boot.wim downloads.\n- Added 5-minute timeout for booting status events to flag stale PXE boots with customization hints.",
-      "commit": "e27701a3904ddef19b18810390719b5f8f5bfd22",
-      "verification": "All 221 JavaScript tests and smoke tests pass successfully."
     }
   ]
 }

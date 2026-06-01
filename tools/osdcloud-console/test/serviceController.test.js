@@ -345,20 +345,18 @@ test('deployment profile management actions create, update active software, and 
       name: 'Renamed',
       description: 'Updated active profile',
       softwareIds: ['chrome', '7zip'],
-      customScripts: [{ id: 'SC-TEST001', phase: 'after' }],
       installSequence: [
         { type: 'software', id: 'chrome' },
-        { type: 'script', id: 'SC-TEST001', phase: 'after' },
+        { type: 'script', id: 'SC-TEST001' },
         { type: 'software', id: '7zip' },
       ],
     });
     assert.equal(updatedName, 'Renamed');
     assert.equal(updatedDescription, 'Updated active profile');
     assert.deepEqual(updatedSoftwareIds, ['chrome', '7zip']);
-    assert.deepEqual(updatedInput.customScripts, [{ id: 'SC-TEST001', phase: 'after' }]);
     assert.deepEqual(updatedInput.installSequence, [
       { type: 'software', id: 'chrome' },
-      { type: 'script', id: 'SC-TEST001', phase: 'after' },
+      { type: 'script', id: 'SC-TEST001' },
       { type: 'software', id: '7zip' },
     ]);
     assert.equal(updated.profile.id, 'default');

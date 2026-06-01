@@ -416,7 +416,6 @@
                   <th class="p-table-cell-padding font-medium">ID</th>
                   <th class="p-table-cell-padding font-medium">Name</th>
                   <th class="p-table-cell-padding font-medium">File</th>
-                  <th class="p-table-cell-padding font-medium">Default phase</th>
                   <th class="p-table-cell-padding font-medium">Profiles</th>
                   <th class="p-table-cell-padding font-medium">Actions</th>
                 </tr>
@@ -794,12 +793,6 @@
       <div class="form-grid compact">
         <label>Display name <input id="script-add-name" name="name" type="text" autocomplete="off" required placeholder="Firewall tweaks"></label>
         <label>Script file <input id="script-add-file" type="file" accept=".ps1" required></label>
-        <label>Default phase
-          <select id="script-add-default-phase">
-            <option value="after">After Apps</option>
-            <option value="before">Before Apps</option>
-          </select>
-        </label>
       </div>
       <p id="script-add-error" class="form-error" role="alert"></p>
       <div class="dialog-actions">
