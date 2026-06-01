@@ -808,7 +808,23 @@ test('endpoint sync injects Startnet boot chain into rebuilt WinPE', () => {
 
   assert.match(script, /WinPE\\Windows\\System32\\Startnet\.cmd/);
   assert.match(script, /Windows\\System32\\Startnet\.cmd/);
+  assert.match(startnet, /PowerShell -NoL -NoP -ExecutionPolicy Bypass -File X:\\OSDCloud\\Maximize-Console\.ps1/);
   assert.match(startnet, /PowerShell -NoL -NoP -ExecutionPolicy Bypass -File X:\\OSDCloud\\Start-OSDCloud-iPXE\.ps1/);
+});
+
+test('endpoint sync injects WinPE console maximize helper into rebuilt WinPE', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  const maximizeHelper = fs.readFileSync(
+    path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Maximize-Console.ps1'),
+    'utf8',
+  );
+
+  assert.match(script, /WinPE\\OSDCloud\\Maximize-Console\.ps1/);
+  assert.match(script, /OSDCloud\\Maximize-Console\.ps1/);
+  assert.match(maximizeHelper, /kernel32\.dll/);
+  assert.match(maximizeHelper, /GetConsoleWindow/);
+  assert.match(maximizeHelper, /user32\.dll/);
+  assert.match(maximizeHelper, /ShowWindow/);
 });
 
 test('WinPE deployment script uses a lab-scoped selected OS manifest helper', () => {
@@ -821,6 +837,21 @@ test('WinPE deployment script uses a lab-scoped selected OS manifest helper', ()
   assert.match(script, /\$SelectedOs = Get-LabSelectedOsManifest -OsRoot \$osRoot/);
   assert.match(script, /selected-os\.json did not produce a usable OS selection/);
   assert.doesNotMatch(script, /function Get-SelectedOsManifest/);
+});
+
+test('WinPE deployment script maximizes the visible console for deployment readability', () => {
+  const script = fs.readFileSync(
+    path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1'),
+    'utf8',
+  );
+
+  assert.match(script, /function Ensure-ConsoleMaximized/);
+  assert.match(script, /kernel32\.dll/);
+  assert.match(script, /GetConsoleWindow/);
+  assert.match(script, /user32\.dll/);
+  assert.match(script, /ShowWindow\(System\.IntPtr hWnd, int nCmdShow\)/);
+  assert.doesNotMatch(script, /Get-Process -Id \$PID/);
+  assert.match(script, /Ensure-ConsoleMaximized/);
 });
 
 test('endpoint sync injects OSD modules into rebuilt WinPE', () => {

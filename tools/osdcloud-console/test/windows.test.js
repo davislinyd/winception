@@ -25,6 +25,7 @@ import {
 
 const templateFixtureFiles = {
   'osdcloud-assets/OSDCloud/WinPE/Windows/System32/Startnet.cmd': 'startnet-template',
+  'osdcloud-assets/OSDCloud/WinPE/OSDCloud/Maximize-Console.ps1': 'maximize-console-template',
   'osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1': 'start-osdcloud-template',
   'osdcloud-assets/OSDCloud/WinPE/OSDCloud/Report-OSDCloudProgress.ps1': 'report-progress-template',
   'osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1': 'oobe-customization-template',

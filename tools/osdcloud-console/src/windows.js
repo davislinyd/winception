@@ -397,6 +397,7 @@ function readBootWimSyncMarker(publishedBootWim) {
 
 const BOOT_WIM_TEMPLATE_SOURCES = [
   ['Windows/System32/Startnet.cmd', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'Windows', 'System32', 'Startnet.cmd']],
+  ['OSDCloud/Maximize-Console.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Maximize-Console.ps1']],
   ['OSDCloud/Start-OSDCloud-iPXE.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1']],
   ['OSDCloud/Report-OSDCloudProgress.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Report-OSDCloudProgress.ps1']],
   ['OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1', ['osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'Shutdown', 'Invoke-OobeCustomization.ps1']],

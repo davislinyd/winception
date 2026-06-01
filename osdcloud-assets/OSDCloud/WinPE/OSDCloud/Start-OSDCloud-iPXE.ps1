@@ -11,6 +11,42 @@ catch {
     Write-Warning "Unable to start transcript: $($_.Exception.Message)"
 }
 
+function Ensure-ConsoleMaximized {
+    $nativeMethodsType = 'OSDCloudWin32.NativeMethods' -as [type]
+    if (-not $nativeMethodsType) {
+        try {
+            Add-Type -Namespace OSDCloudWin32 -Name NativeMethods -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("kernel32.dll")]
+public static extern System.IntPtr GetConsoleWindow();
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool IsZoomed(System.IntPtr hWnd);
+'@ -ErrorAction Stop
+            $nativeMethodsType = 'OSDCloudWin32.NativeMethods' -as [type]
+        }
+        catch {
+            Write-Warning "Unable to load console maximize helpers: $($_.Exception.Message)"
+            return
+        }
+    }
+
+    try {
+        $mainWindowHandle = $nativeMethodsType::GetConsoleWindow()
+        if ($mainWindowHandle -eq [System.IntPtr]::Zero) {
+            return
+        }
+
+        if (-not $nativeMethodsType::IsZoomed($mainWindowHandle)) {
+            [void] $nativeMethodsType::ShowWindow($mainWindowHandle, 3)
+        }
+    }
+    catch {
+        Write-Warning "Unable to maximize WinPE console window: $($_.Exception.Message)"
+    }
+}
+
+Ensure-ConsoleMaximized
 Write-Host "[$(Get-Date -Format G)] Start-OSDCloud iPXE custom image deployment"
 
 # Dynamic deployment server detection

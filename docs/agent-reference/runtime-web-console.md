@@ -58,6 +58,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - For iPXE no-redownload deployment, do not use `-ImageFileUrl`. WinPE must map `\\<service-ip>\OSDCloudiPXE` as `Z:`, read `Z:\OSDCloud\OS\selected-os.json`, set `$Global:StartOSDCloud.ImageFileDestination` to the exported WIM `FileInfo`, then call `Invoke-OSDCloud`.
 - For iPXE custom image deployment, do not mix custom image parameters with catalog OS parameters such as `-OSName`, `-OSLanguage`, `-OSEdition`, or `-OSActivation`.
 - For isolated or restricted networks, remove or bypass external startup update behavior that stalls before `Start-OSDCloud`.
+- WinPE `Startnet.cmd` should maximize the visible OSD/PowerShell console before `Initialize-OSDCloudStartnet` runs so operators can read deployment progress from the first screen.
 - When changing iPXE `SetupComplete`, update live runtime files and the embedded copy inside `boot.wim`.
 - Screenshot progress evidence is best-effort only. JSON deployment status and logs are the source of truth.
 - Do not install a desktop screenshot Startup helper from `SetupComplete`; the previous approach caused Defender/AMSI blocking.

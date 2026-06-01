@@ -108,6 +108,7 @@ function Get-BootWimTemplateEntries {
 
     return @(
         @{ Key = 'Windows/System32/Startnet.cmd'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\Windows\System32\Startnet.cmd') }
+        @{ Key = 'OSDCloud/Maximize-Console.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Maximize-Console.ps1') }
         @{ Key = 'OSDCloud/Start-OSDCloud-iPXE.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') }
         @{ Key = 'OSDCloud/Report-OSDCloudProgress.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') }
         @{ Key = 'OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') }
@@ -868,6 +869,9 @@ if ($CommitWinPe) {
             Copy-IfPresent `
                 -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\Windows\System32\Startnet.cmd') `
                 -Destination (Join-Path $mountDir 'Windows\System32\Startnet.cmd') | Out-Null
+            Copy-IfPresent `
+                -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Maximize-Console.ps1') `
+                -Destination (Join-Path $mountDir 'OSDCloud\Maximize-Console.ps1') | Out-Null
             Copy-IfPresent `
                 -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') `
                 -Destination (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1') | Out-Null
