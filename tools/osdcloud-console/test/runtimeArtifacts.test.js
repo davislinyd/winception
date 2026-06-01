@@ -101,6 +101,16 @@ function setupFixtureEnv(root) {
   };
 }
 
+function makeBloatedPath() {
+  const basePath = process.env.Path ?? '';
+  const fillerRoot = 'C:\\osdcloud-path-padding';
+  const entries = [];
+  for (let index = 0; index < 330; index += 1) {
+    entries.push(path.win32.join(fillerRoot, `entry-${String(index).padStart(3, '0')}`));
+  }
+  return [...entries, basePath].filter(Boolean).join(path.delimiter);
+}
+
 test('runtime artifact catalog validates download recipes and ignores software rows', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-runtime-artifacts-'));
   try {
@@ -432,6 +442,7 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /\[string\] \$AppRoot = 'C:\\OSDCloud\\HostTools\\App'/);
   assert.match(script, /\[string\] \$StateRoot = 'C:\\OSDCloud\\HostTools\\State'/);
   assert.match(script, /function Ensure-NodeAndNpm/);
+  assert.match(script, /function Get-UniquePathEntries/);
   assert.match(script, /function Add-NodeInstallPaths/);
   assert.match(script, /function Test-NodeAndNpmAvailable/);
   assert.match(script, /OpenJS\.NodeJS\.LTS/);
@@ -464,6 +475,42 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.doesNotMatch(script, /Set-OsdCloudIpxeEndpoint\.ps1/);
   assert.doesNotMatch(script, /server:preflight/);
   assert.doesNotMatch(script, /Start-Pxe|Start-Dhcp|Start-Tftp|Start-Http/);
+});
+
+test('setup prerequisite refresh keeps a long inherited PATH within Windows limits', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-setup-path-refresh-'));
+  try {
+    createSetupSourceFixture(root);
+    const appRoot = path.join(root, 'HostTools', 'App');
+    const stateRoot = path.join(root, 'HostTools', 'State');
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(root, 'tools', 'Setup-DeploymentServer.ps1'),
+      '-NoLaunch',
+      '-SkipNpmInstall',
+      '-SkipSmoke',
+      '-WebHost',
+      '127.0.0.1',
+      '-AppRoot',
+      appRoot,
+      '-StateRoot',
+      stateRoot,
+    ], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...setupFixtureEnv(root),
+        Path: makeBloatedPath(),
+      },
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.doesNotMatch(result.stdout + result.stderr, /Environment variable name or value is too long/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('setup cmd passes arguments through to PowerShell script', () => {

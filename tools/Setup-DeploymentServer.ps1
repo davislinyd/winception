@@ -104,10 +104,27 @@ function Test-IPv4Address {
 function Refresh-ProcessPath {
     $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-    $paths = @($machinePath, $userPath, $env:Path) |
-        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    $env:Path = $paths -join ';'
+    $env:Path = (Get-UniquePathEntries -Values @($machinePath, $userPath, $env:Path)) -join ';'
     Add-NodeInstallPaths
+}
+
+function Get-UniquePathEntries {
+    param([string[]] $Values)
+
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $entries = New-Object System.Collections.Generic.List[string]
+    foreach ($value in $Values) {
+        foreach ($entry in @($value -split ';')) {
+            $trimmed = $entry.Trim()
+            if ([string]::IsNullOrWhiteSpace($trimmed)) {
+                continue
+            }
+            if ($seen.Add($trimmed)) {
+                $entries.Add($trimmed)
+            }
+        }
+    }
+    $entries.ToArray()
 }
 
 function Add-PathEntry {
@@ -117,11 +134,7 @@ function Add-PathEntry {
         return
     }
 
-    $entries = @($env:Path -split ';') |
-        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    if ($entries -notcontains $Path) {
-        $env:Path = (@($Path) + $entries) -join ';'
-    }
+    $env:Path = (Get-UniquePathEntries -Values @($Path, $env:Path)) -join ';'
 }
 
 function Add-NodeInstallPaths {

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-06-01T14:19:00.0000000Z",
+  "updated_at": "2026-06-01T15:36:40.1487304Z",
   "project": {
     "name": "osdcloud-win11-deployment-lab",
     "root": ".",
@@ -49,8 +49,8 @@
   "git": {
     "branch": "master",
     "upstream": "origin/master",
-    "last_checked_head": "026c4c4069c2e266ef69351e8eca678ddd8723dc",
-    "last_checked_head_short": "026c4c4",
+    "last_checked_head": "fa476eb8e27994a3e444f4da375dee480209152a",
+    "last_checked_head_short": "fa476eb",
     "dirty": true,
     "ahead": 0,
     "behind": 0,
@@ -83,7 +83,14 @@
       "Do not write deployment runtime files back into the Git clone."
     ]
   },
-  "recent_changes": [
+    "recent_changes": [
+    {
+      "id": "20260601-setup-path-dedup",
+      "at": "2026-06-01T23:36:40.1446177+08:00",
+      "kind": "fix",
+      "summary": "- Deduplicated PATH refresh in Setup-DeploymentServer.ps1 to avoid Windows environment-length overflow.\n- Added a regression test covering a bloated inherited PATH during setup prerequisite checks.",
+      "verification": "node --test tools\\osdcloud-console\\test\\runtimeArtifacts.test.js; powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\\Setup-DeploymentServer.ps1 -DryRun -NoLaunch -SkipNpmInstall -SkipSmoke"
+    },
     {
       "id": "20260601-version-bump-0.5.11",
       "at": "2026-06-01T22:19:00.0000000+08:00",
@@ -113,14 +120,6 @@
       "summary": "- Refactored dashboard desktop layout into scroll-friendly three-column shell.\n- Added diagnostics wrapper for Driver Cache and Preflight Summary; kept sticky System Log and fleet overlay behavior.",
       "commit": "6c11c70c8b95b89525add1ebb6bf4892a13b55a9",
       "verification": "node --check tools/osdcloud-console/web/app.js; node --test tools/osdcloud-console/test/webUi.test.js; npm test; npm run smoke; powershell -NoProfile -ExecutionPolicy Bypass -File tools\\Reload-Console.ps1; verified 127.0.0.1:8080 serves dashboard-diagnostics-grid."
-    },
-    {
-      "id": "20260531-fix-boot-ipxe-redundant-dhcp",
-      "at": "2026-05-31T22:35:00.000+08:00",
-      "kind": "fix",
-      "summary": "- Removed redundant dhcp command from boot.ipxe template.\n- Restored smooth iPXE chaining to wimboot by avoiding network link/STP blocking transitions.",
-      "commit": "b01e108e1acc7b83790ca60cdc928079efdc9471",
-      "verification": "All 221 JavaScript tests pass successfully."
     }
   ]
 }
