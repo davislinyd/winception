@@ -814,6 +814,8 @@ function initializationActionLabel(action) {
     'os-images': 'Open OS images',
     profiles: 'Publish profile',
     preflight: 'Run preflight',
+    'all-services-toggle': 'Start services',
+    dashboard: 'Open dashboard',
   };
   return labels[action] ?? 'Open';
 }
@@ -828,6 +830,8 @@ function initializationActionIcon(action) {
     'os-images': 'deployed_code',
     profiles: 'list_alt',
     preflight: 'fact_check',
+    'all-services-toggle': 'play_arrow',
+    dashboard: 'dashboard',
   };
   return icons[action] ?? 'arrow_forward';
 }
@@ -879,6 +883,30 @@ function appendInitializationDetailItems(body, stepId, detailItems = []) {
   }
   body.append(list);
   return list;
+}
+
+function appendGuidedStepOverview(body, step) {
+  const items = [
+    ['用途', step.objective],
+    ['完成條件', step.doneWhen],
+    ['安全提醒', step.safetyNote],
+  ].filter(([, value]) => String(value ?? '').trim());
+  if (items.length === 0) {
+    return;
+  }
+  const overview = document.createElement('div');
+  overview.className = 'guided-step-overview';
+  for (const [label, value] of items) {
+    const row = document.createElement('div');
+    row.className = 'guided-step-overview-row';
+    const title = document.createElement('strong');
+    title.textContent = label;
+    const textNode = document.createElement('span');
+    textNode.textContent = value;
+    row.append(title, textNode);
+    overview.append(row);
+  }
+  body.append(overview);
 }
 
 function captureInitializationDetailScrollPositions() {
@@ -1132,6 +1160,9 @@ function initializationActionForOperation(operation) {
   if (operation.label === 'Applying service endpoint') {
     return 'endpoint-sync';
   }
+  if (operation.label === 'Starting all services' || operation.label === 'Stopping all services') {
+    return 'all-services-toggle';
+  }
   if (operation.label === 'Saving project root') {
     return 'project-root';
   }
@@ -1231,8 +1262,10 @@ function renderInitialization(appState) {
 
   // Set default view depending on initialization status
   const initialized = initialization.initialized === true;
+  const deploymentReady = initialization.deploymentReady === true;
+  const deploymentLive = initialization.deploymentLive === true;
   if (state.currentView === null) {
-    state.currentView = initialized ? 'dashboard' : 'guided';
+    state.currentView = deploymentLive ? 'dashboard' : 'guided';
   }
 
   // Toggle active views and nav tabs
@@ -1253,12 +1286,16 @@ function renderInitialization(appState) {
 
   const activeOperation = activeInitializationOperation(appState);
   const initializationBusy = state.busy || Boolean(state.initializationPendingAction) || appState.operation?.running === true;
-  elements.initializationBadge.textContent = initialized ? 'Initialized' : 'Guided setup';
-  elements.initializationBadge.className = `status-pill ${initialized ? 'ok' : 'working'}`;
+  elements.initializationBadge.textContent = deploymentLive ? 'Live' : deploymentReady ? 'Ready' : initialized ? 'Configured' : 'Guided setup';
+  elements.initializationBadge.className = `status-pill ${deploymentReady || deploymentLive ? 'ok' : initialized ? 'working' : 'neutral'}`;
   const nextStep = (initialization.steps ?? []).find((step) => step.id === initialization.nextStepId);
-  elements.initializationSummary.textContent = initialized
-    ? 'Deployment prerequisites are complete. Run preflight before starting services.'
-    : `Next: ${nextStep?.label ?? 'Run preflight'}`;
+  elements.initializationSummary.textContent = deploymentLive
+    ? 'Services are running. Boot the client from UEFI IPv4 PXE and monitor the dashboard.'
+    : deploymentReady
+      ? 'Preflight passed. Confirm DHCP safety before starting services.'
+      : initialized
+        ? 'Base setup is complete. Run preflight before starting services.'
+        : `Next: ${nextStep?.label ?? 'Run preflight'}`;
   renderInitializationOperation(appState);
   const dialogScrollPosition = captureInitializationDialogScrollPosition();
   state.initializationDetailScrollPositions = captureInitializationDetailScrollPositions();
@@ -1276,7 +1313,8 @@ function renderInitialization(appState) {
     const stepIsRunning = (step.id === 'runtime' && activeOperation?.action === 'prepare-runtime' && initializationBusy)
       || (step.id === 'project-root' && activeOperation?.action === 'project-root' && initializationBusy)
       || (step.id === 'endpoint' && activeOperation?.action === 'endpoint-sync' && initializationBusy)
-      || (step.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy);
+      || (step.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy)
+      || (step.id === 'services' && activeOperation?.action === 'all-services-toggle' && initializationBusy);
 
     const row = document.createElement('div');
     row.className = `initialization-step ${step.done ? 'done' : step.required ? 'blocked' : 'optional'}`;
@@ -1328,14 +1366,15 @@ function renderInitialization(appState) {
 
     const desc = document.createElement('p');
     desc.className = 'guided-detail-desc';
-    desc.textContent = selectedStep.detail ?? 'Configure this deployment parameter.';
+    desc.textContent = selectedStep.objective ?? selectedStep.detail ?? 'Configure this deployment parameter.';
     titleRow.append(title, desc);
 
     const badge = document.createElement('span');
     const stepIsRunning = (selectedStep.id === 'runtime' && activeOperation?.action === 'prepare-runtime' && initializationBusy)
       || (selectedStep.id === 'project-root' && activeOperation?.action === 'project-root' && initializationBusy)
       || (selectedStep.id === 'endpoint' && activeOperation?.action === 'endpoint-sync' && initializationBusy)
-      || (selectedStep.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy);
+      || (selectedStep.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy)
+      || (selectedStep.id === 'services' && activeOperation?.action === 'all-services-toggle' && initializationBusy);
     badge.className = `status-pill ${stepIsRunning ? 'working' : selectedStep.done ? 'ok' : selectedStep.required ? 'fail' : 'neutral'}`;
     badge.textContent = stepIsRunning ? 'Running' : selectedStep.done ? 'Ready' : selectedStep.required ? 'Required' : 'Optional';
 
@@ -1351,6 +1390,7 @@ function renderInitialization(appState) {
     const hasInlineProjectRootForm = step.id === 'project-root';
 
     // Render detailed items & forms (named 'body' to pass test assertions)
+    appendGuidedStepOverview(body, step);
     const detailList = appendInitializationDetailItems(body, step.id, step.detailItems);
     if (hasInlineSecretsForm) {
       appendInitializationSecretsForm(body);
@@ -1371,11 +1411,13 @@ function renderInitialization(appState) {
       button.className = selectedStep.required ? 'warning px-lg py-md' : 'px-lg py-md';
       button.dataset.initAction = selectedStep.action;
       button.dataset.icon = initializationActionIcon(selectedStep.action);
-      button.textContent = initializationActionLabel(selectedStep.action);
+      button.textContent = selectedStep.nextActionText ?? initializationActionLabel(selectedStep.action);
       
       const runtime = appState.runtime;
       const requiresElevation = appState?.host?.elevated === false;
-      button.disabled = state.busy || (selectedStep.action === 'prepare-runtime' && (runtime.ready || requiresElevation));
+      button.disabled = state.busy
+        || (selectedStep.action === 'prepare-runtime' && (runtime.ready || requiresElevation))
+        || (selectedStep.action === 'all-services-toggle' && initialization.deploymentReady !== true);
       
       buttonContainer.append(button);
       body.append(buttonContainer);
@@ -1390,7 +1432,7 @@ function renderInitialization(appState) {
     elements.initializationNext.dataset.initAction = 'next';
     elements.initializationNext.dataset.nextAction = nextStep.action;
     elements.initializationNext.dataset.icon = initializationActionIcon(nextStep.action);
-    elements.initializationNext.textContent = initializationActionLabel(nextStep.action);
+    elements.initializationNext.textContent = nextStep.nextActionText ?? initializationActionLabel(nextStep.action);
     elements.initializationNext.disabled = initializationBusy;
   } else {
     elements.initializationNext.hidden = initialized;
@@ -1400,7 +1442,7 @@ function renderInitialization(appState) {
     elements.initializationNext.disabled = initializationBusy;
   }
 
-  if (!initialized && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
+  if (!deploymentLive && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
     state.initializationAutoOpened = true;
     switchToView('guided');
   }
@@ -4142,6 +4184,10 @@ async function handleInitializationAction(action, source = null) {
     }
     openDialog(elements.initializationDialog);
     initializationSecretsControls().windowsPassword?.focus();
+    return;
+  }
+  if (resolvedAction === 'dashboard') {
+    switchToView('dashboard');
     return;
   }
   if (!resolvedAction || resolvedAction === 'setup') {

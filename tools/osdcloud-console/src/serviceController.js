@@ -322,6 +322,14 @@ function preflightStatus(preflight) {
   };
 }
 
+function deploymentServicesRunning(services = {}) {
+  return ['http', 'tftp', 'dhcp'].every((name) => services?.[name]?.running === true);
+}
+
+function fleetHasDeploymentRun(fleet = {}) {
+  return Number(fleet?.total ?? 0) > 0 || (Array.isArray(fleet?.runs) && fleet.runs.length > 0);
+}
+
 function runtimeInitializationDetailItems(runtime) {
   if (!runtime || runtime.ready === true || runtime.error || !Array.isArray(runtime.missing)) {
     return undefined;
@@ -396,7 +404,7 @@ function projectRootStatus(config) {
   };
 }
 
-function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight, elevated }) {
+function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight, services, fleet, elevated }) {
   const web = webServerConfig(config);
   const webReady = Boolean(web.host) && Number.isInteger(web.port) && web.port >= 0;
   const rootStatus = projectRootStatus(config);
@@ -407,6 +415,9 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
     : 'No cached deployable WIM images found. Download or import one.';
   const profileStatus = profilePayloadStatus(profilePayload);
   const finalPreflight = preflightStatus(preflight);
+  const deploymentReady = finalPreflight.ready === true;
+  const deploymentLive = deploymentServicesRunning(services);
+  const hasDeploymentRun = fleetHasDeploymentRun(fleet);
   const runtimeNeedsElevation = elevated === false && runtime?.ready !== true;
   const runtimeDetail = runtime?.ready
     ? `${runtime.readyCount}/${runtime.requiredCount} required artifact group(s) are ready.`
@@ -429,6 +440,11 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       done: rootStatus.ready,
       action: 'project-root',
       detail: rootStatus.detail,
+      objective: '確認部署 runtime 固定寫入 C:\\OSDCloud，Git clone 只作為安裝與設定來源。',
+      doneWhen: 'Runtime working directory 不在 Git clone 裡，HostTools App/State 路徑都已解析。',
+      safetyNote: '不要手動把 live runtime 檔案複製回 Git clone。',
+      nextActionText: '確認固定路徑',
+      phase: 'setup',
       detailItems: [
         {
           title: 'Runtime working directory',
@@ -457,6 +473,11 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       done: webReady,
       action: 'setup',
       detail: webReady ? `${web.host}:${web.port}` : 'Set web.host and web.port in the local overlay.',
+      objective: '確認這台 host 的 Web console 入口，後續所有部署操作都從這裡執行。',
+      doneWhen: 'Web host 與 port 已存在，operator 可以開啟 console。',
+      safetyNote: '需要控制 runtime 或服務時，Web console 必須從系統管理員 PowerShell 啟動。',
+      nextActionText: '確認 Web 入口',
+      phase: 'setup',
     },
     {
       id: 'secrets',
@@ -465,6 +486,11 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       done: secrets.ready,
       action: 'secrets',
       detail: secrets.ready ? 'windowsUsername, windowsPassword and pxeinstallPassword are present.' : `Missing: ${secrets.missing.join(', ')}`,
+      objective: '設定部署完成後要建立的 Windows 本機管理員帳號，以及 WinPE 掛載 SMB 用的本機密碼。',
+      doneWhen: 'windowsUsername、windowsPassword 與自動產生的 pxeinstallPassword 都存在於本機 ignored state。',
+      safetyNote: '密碼只寫入本機 state，不會出現在 API 回應、log、文件或 Git commit。',
+      nextActionText: secrets.ready ? '認證已就緒' : '輸入部署認證',
+      phase: 'setup',
     },
     {
       id: 'runtime',
@@ -473,6 +499,11 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       done: runtime?.ready === true,
       action: 'prepare-runtime',
       detail: runtimeDetail,
+      objective: '建立 PXE/WinPE 啟動所需的 runtime 結構、SMB account/share、iPXE 與 boot.wim。',
+      doneWhen: 'Runtime Readiness 顯示所有 required artifact group 都 ready。',
+      safetyNote: '這一步不會啟動 HTTP/TFTP/DHCP，也不會下載 client software。',
+      nextActionText: runtime?.ready === true ? 'Runtime 已就緒' : '準備 runtime',
+      phase: 'runtime',
       detailItems: runtimeDetailItems,
     },
     {
@@ -482,6 +513,11 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       done: endpoint.ready,
       action: 'interfaces',
       detail: endpoint.detail,
+      objective: '選擇本次服務 PXE client 的 NIC/IP，並把 endpoint 同步到 live boot.ipxe、boot.wim 與 SMB/firewall。',
+      doneWhen: 'Local endpoint overlay 已寫入，endpoint summary 與本次測試網段一致。',
+      safetyNote: '不要沿用 VM/vSwitch 或上一台 host 的 IP；每次實體部署前都要重新確認。',
+      nextActionText: endpoint.ready ? 'Endpoint 已同步' : '選擇服務介面',
+      phase: 'endpoint',
     },
     {
       id: 'os-image',
@@ -490,6 +526,11 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       done: osImageCached,
       action: 'os-images',
       detail: osImageCachedDetail,
+      objective: '下載或匯入 Windows ISO/ESD/WIM，選 DISM index，匯出成 host 端可部署的單一 WIM。',
+      doneWhen: 'OS Image Cache 至少有一個 cached deployable WIM，且後續 profile 可引用它。',
+      safetyNote: 'WinPE 部署時使用 SMB 讀取已匯出的 WIM，不讓 client 重新從外網下載 Windows。',
+      nextActionText: osImageCached ? 'OS 映像已快取' : '開啟 OS 映像',
+      phase: 'content',
     },
     {
       id: 'profile',
@@ -498,6 +539,11 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       done: profileStatus.ready,
       action: 'profiles',
       detail: profileStatus.detail,
+      objective: '選擇要部署的 profile，發佈 selected-os.json、selected-profile.json 與被選中的 client software/script payload。',
+      doneWhen: 'Active profile payload 通過檢查，live Apps/Scripts 與 profile 內容一致。',
+      safetyNote: 'Profile publish 只發佈被選中的 software；Minimal profile 不會下載 client installer。',
+      nextActionText: profileStatus.ready ? 'Profile 已發佈' : '發佈 profile',
+      phase: 'content',
     },
     {
       id: 'preflight',
@@ -506,12 +552,54 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       done: finalPreflight.ready,
       action: 'preflight',
       detail: finalPreflight.detail,
+      objective: '在啟動服務前檢查 endpoint、runtime、OS WIM、profile payload、SMB 與 port 是否可部署。',
+      doneWhen: 'Preflight Summary 顯示所有 checks passed。',
+      safetyNote: '只要有 blocking failure，就不要啟動 DHCP 或讓 client PXE 開機。',
+      nextActionText: finalPreflight.ready ? 'Preflight 已通過' : '執行 preflight',
+      phase: 'validate',
+    },
+    {
+      id: 'services',
+      label: 'Start services',
+      required: false,
+      done: deploymentLive,
+      action: 'all-services-toggle',
+      detail: deploymentLive
+        ? 'HTTP, TFTP and DHCP services are running.'
+        : deploymentReady
+          ? 'Preflight passed. Confirm DHCP safety, then start HTTP/TFTP/DHCP.'
+          : 'Run and pass preflight before starting deployment services.',
+      objective: '啟動 host 端 HTTP/status、TFTP 與 DHCP responder，讓實體 client 可以從 PXE 進入 WinPE。',
+      doneWhen: 'HTTP、TFTP、DHCP 三個 service card 都顯示 running。',
+      safetyNote: '只有確認測試 LAN 沒有其他 DHCP server 後，才啟動 DHCP 或 Start all services。',
+      nextActionText: deploymentLive ? '服務已啟動' : '啟動服務',
+      phase: 'go-live',
+    },
+    {
+      id: 'client',
+      label: 'Boot client',
+      required: false,
+      done: hasDeploymentRun,
+      action: 'dashboard',
+      detail: hasDeploymentRun
+        ? `${fleet?.total ?? fleet?.runs?.length ?? 0} deployment run(s) are visible in Client Fleet.`
+        : 'Boot the target computer from UEFI IPv4 PXE, then monitor Client Fleet and Validation Evidence.',
+      objective: '讓目標電腦從 UEFI IPv4 PXE 開機，並用 Client Fleet / Validation Evidence 監看部署。',
+      doneWhen: 'Client Fleet 出現本次 run，最後狀態到 windows-desktop-ready。',
+      safetyNote: '實體筆電驗證不能用 VM/vSwitch 結果替代。',
+      nextActionText: hasDeploymentRun ? '查看部署證據' : '前往儀表板監看',
+      phase: 'deploy',
     },
   ];
   const requiredSteps = steps.filter((step) => step.required);
-  const nextStep = requiredSteps.find((step) => !step.done) ?? steps.find((step) => !step.done) ?? null;
+  const nextStep = requiredSteps.find((step) => !step.done)
+    ?? (!deploymentReady ? steps.find((step) => step.id === 'preflight') : null)
+    ?? (!deploymentLive ? steps.find((step) => step.id === 'services') : null)
+    ?? (!hasDeploymentRun ? steps.find((step) => step.id === 'client') : null);
   return {
     initialized: requiredSteps.every((step) => step.done),
+    deploymentReady,
+    deploymentLive,
     nextStepId: nextStep?.id ?? null,
     secrets,
     steps,
@@ -1005,6 +1093,8 @@ export class ServiceController extends EventEmitter {
       osImage: osImageResult.error ? null : osImageResult.value,
       profilePayload: profilePayloadResult.value,
       preflight: this.preflightResults,
+      services: state.services,
+      fleet,
       elevated: elevatedResult.value,
     });
     return state;

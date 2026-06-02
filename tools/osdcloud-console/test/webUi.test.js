@@ -138,6 +138,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="driver-cache-details"/);
   assert.match(html, /data-action="prepare-runtime"/);
   assert.match(html, /data-action="initialization" data-icon="checklist"/);
+  assert.match(html, /首次部署引導/);
   assert.match(html, /id="initialization-dialog"/);
   assert.match(html, /id="initialization-operation" class="initialization-operation-panel"/);
   assert.match(html, /id="initialization-steps"/);
@@ -150,6 +151,13 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Restart the Web console from an elevated PowerShell session before preparing runtime artifacts\./);
   assert.match(script, /button\.disabled = state\.busy \|\| runtime\.ready \|\| requiresElevation/);
   assert.match(script, /function appendInitializationDetailItems\(body, stepId, detailItems = \[\]\)/);
+  assert.match(script, /function appendGuidedStepOverview\(body, step\)/);
+  assert.match(script, /'用途', step\.objective/);
+  assert.match(script, /'完成條件', step\.doneWhen/);
+  assert.match(script, /'安全提醒', step\.safetyNote/);
+  assert.match(script, /deploymentReady/);
+  assert.match(script, /deploymentLive/);
+  assert.match(script, /selectedStep\.action === 'all-services-toggle' && initialization\.deploymentReady !== true/);
   assert.match(script, /function initializationDetailStatusLabel\(statusClass\)/);
   assert.match(script, /statusClass === 'blocked'[\s\S]*return 'MISSING'/);
   assert.match(script, /statusClass === 'blocked-by-dependency'[\s\S]*return 'BLOCKED'/);
@@ -229,6 +237,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.initialization-operation-header-actions/);
   assert.match(styles, /\.initialization-operation-copy/);
   assert.match(styles, /\.initialization-operation-log/);
+  assert.match(styles, /\.guided-step-overview/);
+  assert.match(styles, /\.guided-step-overview-row/);
   assert.match(styles, /\.initialization-step-list/);
   assert.match(styles, /\.initialization-secrets-form/);
   assert.match(styles, /\.initialization-detail-list/);

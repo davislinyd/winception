@@ -39,3 +39,5 @@ client_osdcloud/
 # Windows metadata
 Thumbs.db
 desktop.ini
+
+.ai/status.json

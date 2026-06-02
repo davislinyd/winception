@@ -2,47 +2,56 @@
 
 這個資料夾記錄 OSDCloud + iPXE 自動部署 Windows 11 的測試結果與交接資訊。現在的 active path 是實體筆電從真實有線內網 PXE 開機，不使用 VM；既有 VM 內容只作為歷史驗證紀錄。
 
-## 交接快速流程
+## 第一次部署最短路徑
 
 另一台 Windows host 接手時，只需要 GitHub repo URL。不要搬 `deployment-server-bundle`，不要跑 `git lfs pull`，也不要先手動複製大型 MSI/ESD/WIM/ISO 檔。
 
-```powershell
-git clone <repo-url> <repo-root>
-cd '<repo-root>'
-.\Setup-DeploymentServer.cmd
-```
+1. 從系統管理員 PowerShell clone 並執行 setup：
 
-若 repo 已經 clone 在該主機上，先更新再啟動：
+   ```powershell
+   git clone <repo-url> <repo-root>
+   cd '<repo-root>'
+   .\Setup-DeploymentServer.cmd
+   ```
 
-```powershell
-git pull
-.\Setup-DeploymentServer.cmd
-```
+2. 若 repo 已存在，先更新再執行 setup：
 
-setup 完成後 Web console 會啟動在：
+   ```powershell
+   git pull
+   .\Setup-DeploymentServer.cmd
+   ```
 
-```text
-http://127.0.0.1:8080
-```
+3. setup 會安裝 host management bundle 到：
 
-setup 也會把 host management bundle 安裝到：
+   ```text
+   C:\OSDCloud\HostTools\App
+   C:\OSDCloud\HostTools\State
+   ```
 
-```text
-C:\OSDCloud\HostTools\App
-C:\OSDCloud\HostTools\State
-```
+4. setup 完成後開 Web console：
+
+   ```text
+   http://127.0.0.1:8080
+   ```
+
+5. 第一次進入 Web console 時，使用 `引導設定 (Guided Setup)`。它會依序顯示每一步的用途、完成條件與安全提醒。
+
+6. 在 Guided Setup 依序完成：
+
+   ```text
+   Project root -> Deployment secrets -> Prepare runtime -> Select endpoint
+   -> OS Image Cache -> Publish profile -> Run preflight
+   ```
+
+7. `Run preflight` 必須全部通過。只要有 blocking failure，不要啟動 DHCP，也不要讓 client PXE 開機。
+
+8. 確認測試 LAN 沒有其他 DHCP server 後，才在 Guided Setup 或 Dashboard 按 `Start services` / `Start all services`。
+
+9. 目標電腦從 `UEFI IPv4 PXE` 開機，不使用 USB/ISO，不手動點 OOBE。
+
+10. 回 Web Dashboard 看 `Client Fleet`、`Validation Evidence`、`System Log`，最後狀態應到 `windows-desktop-ready`。
 
 若後續只需要操作部署主機、不需要在該主機上修改 repo source，setup 成功後可刪除原始 clone，改用 `C:\OSDCloud\HostTools\Open-WebConsole.cmd` 重新開啟 Web console。
-
-在 Web console 內依序操作：
-
-1. 在 `Initialization` 確認或修改 deployment project root / working directory。
-2. `Runtime Readiness` > `Prepare runtime`
-3. `Select service interface` 並 sync endpoint
-4. `Run preflight`
-5. 確認測試 LAN 沒有其他 DHCP server
-6. 手動 `Start all services`
-7. 實體 client 從 UEFI IPv4 PXE 開機
 
 分工固定如下：
 

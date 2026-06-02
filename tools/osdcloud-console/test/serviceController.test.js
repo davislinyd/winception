@@ -209,6 +209,108 @@ test('state reads do not create live status roots', () => {
   }
 });
 
+test('initialization state guides first deployment through preflight and service start', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-init-guide-'));
+  try {
+    const { controller } = makeController(root, {
+      dependencies: {
+        getDeploymentSecretsStatus: () => ({
+          ready: true,
+          missing: [],
+          status: {
+            windowsUsername: { present: true, source: 'file' },
+            windowsPassword: { present: true, source: 'file' },
+            pxeinstallPassword: { present: true, source: 'file' },
+          },
+          windowsUsername: 'LabAdmin',
+        }),
+        getRuntimeReadiness: () => ({
+          ready: true,
+          requiredCount: 1,
+          readyCount: 1,
+          missingCount: 0,
+          missing: [],
+          artifacts: [],
+        }),
+        evaluateDeploymentProfilePayload: () => ({
+          name: 'Deployment profile',
+          ok: true,
+          detail: 'Active profile payload is published.',
+        }),
+        resolveOsImageState: () => ({
+          activeImageId: 'SMOKE-WIN11-PRO',
+          activeImage: {
+            id: 'SMOKE-WIN11-PRO',
+            name: 'Smoke Windows 11 Pro',
+            version: 'Windows 11 Smoke',
+            language: 'en-us',
+            edition: 'Pro',
+            imageIndex: 1,
+            fileName: 'install.wim',
+            cached: true,
+            bytes: 12,
+          },
+          images: [{
+            id: 'SMOKE-WIN11-PRO',
+            name: 'Smoke Windows 11 Pro',
+            version: 'Windows 11 Smoke',
+            language: 'en-us',
+            edition: 'Pro',
+            imageIndex: 1,
+            fileName: 'install.wim',
+            cached: true,
+            bytes: 12,
+          }],
+          cachedFiles: [],
+          selectedOs: { id: 'SMOKE-WIN11-PRO', fileName: 'install.wim', imageIndex: 1 },
+          catalogPath: path.join(root, 'os-image-catalog.json'),
+          downloadSourcesPath: path.join(root, 'os-download-sources.json'),
+          cacheRoot: path.join(root, 'OS'),
+          downloadStagingRoot: path.join(root, 'OS', '.downloads'),
+          selectedOsPath: path.join(root, 'OS', 'selected-os.json'),
+          cacheLogPath: path.join(root, 'OS', 'os-image-cache.jsonl'),
+        }),
+        readFleetStatus: () => ({ total: 0, counts: {}, runs: [] }),
+      },
+    });
+    const localConfigPath = path.join(root, 'osdcloud-console.local.json');
+    fs.writeFileSync(localConfigPath, JSON.stringify({
+      adapter: { interfaceAlias: 'LAN', serverIp: '10.10.10.1', prefixLength: 24 },
+      dhcp: { ipxeBootUrl: 'http://10.10.10.1/osdcloud/boot.ipxe' },
+      http: { host: '10.10.10.1' },
+      tftp: { listenIp: '10.10.10.1' },
+      smb: { share: '\\\\10.10.10.1\\OSDCloudiPXE' },
+    }), 'utf8');
+    controller.config.__localConfigPath = localConfigPath;
+
+    let state = controller.getState();
+    assert.equal(state.initialization.initialized, true);
+    assert.equal(state.initialization.deploymentReady, false);
+    assert.equal(state.initialization.deploymentLive, false);
+    assert.equal(state.initialization.nextStepId, 'preflight');
+    assert.match(
+      state.initialization.steps.find((step) => step.id === 'services').safetyNote,
+      /DHCP server/,
+    );
+    assert.match(
+      state.initialization.steps.find((step) => step.id === 'client').doneWhen,
+      /windows-desktop-ready/,
+    );
+
+    await controller.runPreflight();
+    state = controller.getState();
+    assert.equal(state.initialization.deploymentReady, true);
+    assert.equal(state.initialization.nextStepId, 'services');
+
+    await controller.startAll();
+    state = controller.getState();
+    assert.equal(state.initialization.deploymentLive, true);
+    assert.equal(state.initialization.nextStepId, 'client');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('state includes selected run events from per-run history', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-selected-events-'));
   try {

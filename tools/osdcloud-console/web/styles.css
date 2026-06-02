@@ -257,6 +257,62 @@ body {
   overflow-wrap: anywhere;
 }
 
+.guided-detail-header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--outline-variant);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 10px;
+}
+
+.guided-detail-title-row {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.guided-detail-title {
+  align-items: center;
+  display: flex;
+  font: 600 18px/24px Inter, sans-serif;
+  gap: 8px;
+  margin: 0;
+}
+
+.guided-detail-desc {
+  color: var(--on-surface-variant);
+  font: 400 13px/18px Inter, sans-serif;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.guided-step-overview {
+  display: grid;
+  gap: 6px;
+}
+
+.guided-step-overview-row {
+  background: var(--surface-container-low);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.guided-step-overview-row strong {
+  color: var(--on-surface);
+  font: 600 12px/16px Inter, sans-serif;
+}
+
+.guided-step-overview-row span {
+  color: var(--on-surface-variant);
+  font: 400 12px/17px Inter, sans-serif;
+  overflow-wrap: anywhere;
+}
+
 .initialization-detail-list {
   border-top: 1px solid var(--outline-variant);
   display: grid;
