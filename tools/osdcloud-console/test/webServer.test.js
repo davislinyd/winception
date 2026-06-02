@@ -580,9 +580,10 @@ test('runs mutating API actions through the controller', async () => {
         name: 'Renamed Default',
         description: 'Chrome build',
         softwareIds: ['chrome', '7zip'],
+        execution: { defaultTimeoutSeconds: 1200 },
         installSequence: [
           { type: 'script', id: 'SC-TEST001' },
-          { type: 'software', id: 'chrome' },
+          { type: 'software', id: 'chrome', timeoutSeconds: 45 },
           { type: 'software', id: '7zip' },
         ],
       }),
@@ -594,7 +595,7 @@ test('runs mutating API actions through the controller', async () => {
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome', '7zip']);
     assert.deepEqual(payload.result.profile.installSequence, [
       { type: 'script', id: 'SC-TEST001' },
-      { type: 'software', id: 'chrome' },
+      { type: 'software', id: 'chrome', timeoutSeconds: 45 },
       { type: 'software', id: '7zip' },
     ]);
 
@@ -878,7 +879,8 @@ test('editing an inactive profile via /api/profile/software keeps services runni
         profileId: 'minimal',
         name: 'Minimal Renamed',
         softwareIds: ['chrome'],
-        installSequence: [{ type: 'software', id: 'chrome' }],
+        execution: { defaultTimeoutSeconds: 600 },
+        installSequence: [{ type: 'software', id: 'chrome', timeoutSeconds: 30 }],
       }),
     });
     assert.equal(response.status, 200);
@@ -886,7 +888,7 @@ test('editing an inactive profile via /api/profile/software keeps services runni
     assert.equal(payload.result.profile.id, 'minimal');
     assert.equal(payload.result.profile.name, 'Minimal Renamed');
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome']);
-    assert.deepEqual(payload.result.profile.installSequence, [{ type: 'software', id: 'chrome' }]);
+    assert.deepEqual(payload.result.profile.installSequence, [{ type: 'software', id: 'chrome', timeoutSeconds: 30 }]);
     assert.equal(payload.result.selectedSoftware, undefined);
     assert.equal(publishCalled, false);
     assert.equal(payload.state.services.http.running, true);

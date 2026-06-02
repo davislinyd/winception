@@ -668,7 +668,12 @@ function profileSummary(state) {
       name: profile.name,
       description: profile.description,
       softwareIds: profile.softwareIds,
-      installSequence: (profile.installSequence ?? []).map((entry) => ({ type: entry.type, id: entry.id })),
+      execution: profile.execution,
+      installSequence: (profile.installSequence ?? []).map((entry) => ({
+        type: entry.type,
+        id: entry.id,
+        ...(entry.timeoutSeconds === undefined ? {} : { timeoutSeconds: entry.timeoutSeconds }),
+      })),
       osImageId: profile.osImageId,
     })),
   };
@@ -1549,6 +1554,7 @@ export class ServiceController extends EventEmitter {
         description: input.description,
         softwareIds: input.softwareIds ?? input.software,
         installSequence: input.installSequence,
+        execution: input.execution,
         osImageId: input.osImageId,
       };
       if (!editingActive) {

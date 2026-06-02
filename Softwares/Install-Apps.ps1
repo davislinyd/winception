@@ -1,8 +1,44 @@
 $ErrorActionPreference = 'Stop'
 
 $LogDir = if ($env:OSDCloudLogDir) { $env:OSDCloudLogDir } else { 'C:\Windows\Temp\osdcloud-logs' }
+$DefaultTimeoutSeconds = 900
+$StatePath = Join-Path $LogDir 'install-sequence-state.json'
+$SequenceSummaryPath = Join-Path $LogDir 'install-sequence-summary.json'
+$CustomScriptSummaryPath = Join-Path $LogDir 'custom-scripts-summary.json'
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 Start-Transcript -Path (Join-Path $LogDir 'apps-install.log') -Append -ErrorAction SilentlyContinue | Out-Null
+
+function Write-Utf8File {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $Content
+    )
+
+    [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
+}
+
+function ConvertTo-PositiveIntegerValue {
+    param(
+        $Value,
+        [Parameter(Mandatory)][string] $Label,
+        [switch] $Optional,
+        [int] $Min = 1
+    )
+
+    if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string] $Value)) {
+        if ($Optional) {
+            return $null
+        }
+        throw "Missing required $Label."
+    }
+
+    $number = 0
+    if (-not [int]::TryParse([string] $Value, [ref] $number) -or $number -lt $Min) {
+        throw "Invalid ${Label}: $Value"
+    }
+
+    return $number
+}
 
 function Test-SafePackageId {
     param([Parameter(Mandatory)][string] $Id)
@@ -90,6 +126,35 @@ function Get-InstallSequence {
     return @($sequence)
 }
 
+function Get-ExecutionConfig {
+    param($Profile)
+
+    $defaultTimeout = $DefaultTimeoutSeconds
+    if ($Profile -and $Profile.execution) {
+        $defaultTimeout = ConvertTo-PositiveIntegerValue -Value $Profile.execution.defaultTimeoutSeconds -Label 'selected-profile.execution.defaultTimeoutSeconds' -Optional
+        if ($null -eq $defaultTimeout) {
+            $defaultTimeout = $DefaultTimeoutSeconds
+        }
+    }
+
+    [ordered]@{
+        defaultTimeoutSeconds = $defaultTimeout
+    }
+}
+
+function Get-StepTimeoutSeconds {
+    param(
+        [Parameter(Mandatory)] $Entry,
+        [Parameter(Mandatory)] $Execution
+    )
+
+    $stepTimeout = ConvertTo-PositiveIntegerValue -Value $Entry.timeoutSeconds -Label "installSequence[$([string] $Entry.id)].timeoutSeconds" -Optional
+    if ($null -ne $stepTimeout) {
+        return $stepTimeout
+    }
+    return [int] $Execution.defaultTimeoutSeconds
+}
+
 function Resolve-TargetUserProfilePath {
     param([Parameter(Mandatory)][string] $TargetUser)
 
@@ -127,21 +192,65 @@ function Initialize-TargetUserEnvironment {
     [Environment]::SetEnvironmentVariable('OSDCloudTargetDesktopPath', $desktopPath, 'Process')
 }
 
-function New-CustomScriptLogPath {
-    param(
-        [Parameter(Mandatory)][string] $ScriptId,
-        [Parameter(Mandatory)][int] $SequenceIndex
-    )
+function Initialize-InstallStateFile {
+    param([Parameter(Mandatory)][string] $Path)
 
-    $scriptLogRoot = Join-Path $LogDir 'custom-scripts'
-    New-Item -ItemType Directory -Path $scriptLogRoot -Force | Out-Null
-    $safeId = $ScriptId -replace '[^A-Za-z0-9._-]', '_'
-    $safeSequenceIndex = '{0:D3}' -f $SequenceIndex
-    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
-    Join-Path $scriptLogRoot "$safeSequenceIndex-$safeId-$stamp.log"
+    Write-Utf8File -Path $Path -Content '{}'
 }
 
-function Write-CustomScriptLog {
+function Assert-ValidInstallStateFile {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $Label
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$Label install sequence state file not found: $Path"
+    }
+
+    $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        throw "$Label install sequence state file is empty: $Path"
+    }
+
+    try {
+        $null = $raw | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        throw "$Label install sequence state file contains invalid JSON: $($_.Exception.Message)"
+    }
+}
+
+function Get-TextFileTailText {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [int] $Count = 80
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return ''
+    }
+
+    [string]::Join("`n", @(Get-Content -LiteralPath $Path -Tail $Count -ErrorAction SilentlyContinue))
+}
+
+function New-StepLogPath {
+    param(
+        [Parameter(Mandatory)][string] $StepId,
+        [Parameter(Mandatory)][string] $StepType,
+        [Parameter(Mandatory)][int] $StepIndex
+    )
+
+    $stepLogRoot = Join-Path $LogDir 'install-sequence'
+    New-Item -ItemType Directory -Path $stepLogRoot -Force | Out-Null
+    $safeId = $StepId -replace '[^A-Za-z0-9._-]', '_'
+    $safeType = $StepType -replace '[^A-Za-z0-9._-]', '_'
+    $safeSequenceIndex = '{0:D3}' -f $StepIndex
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+    Join-Path $stepLogRoot "$safeSequenceIndex-$safeType-$safeId-$stamp.log"
+}
+
+function Write-StepLog {
     param(
         [Parameter(Mandatory)][string] $Path,
         [Parameter(Mandatory)][string] $Message
@@ -150,85 +259,241 @@ function Write-CustomScriptLog {
     Add-Content -LiteralPath $Path -Value $Message -Encoding UTF8
 }
 
-function Invoke-CustomScriptProcess {
+function Set-StepEnvironment {
     param(
-        [Parameter(Mandatory)][string] $Script,
+        [Parameter(Mandatory)][string] $StatePathValue,
+        [Parameter(Mandatory)][string] $StepId,
+        [Parameter(Mandatory)][string] $StepType,
+        [Parameter(Mandatory)][int] $StepIndex,
+        [Parameter(Mandatory)][int] $TimeoutSeconds
+    )
+
+    $names = @(
+        'OSDCloudInstallStatePath',
+        'OSDCloudStepId',
+        'OSDCloudStepType',
+        'OSDCloudStepIndex',
+        'OSDCloudStepTimeoutSeconds'
+    )
+    $previous = @{}
+    foreach ($name in $names) {
+        $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+    }
+
+    [Environment]::SetEnvironmentVariable('OSDCloudInstallStatePath', $StatePathValue, 'Process')
+    [Environment]::SetEnvironmentVariable('OSDCloudStepId', $StepId, 'Process')
+    [Environment]::SetEnvironmentVariable('OSDCloudStepType', $StepType, 'Process')
+    [Environment]::SetEnvironmentVariable('OSDCloudStepIndex', [string] $StepIndex, 'Process')
+    [Environment]::SetEnvironmentVariable('OSDCloudStepTimeoutSeconds', [string] $TimeoutSeconds, 'Process')
+
+    return $previous
+}
+
+function Restore-StepEnvironment {
+    param([Parameter(Mandatory)][hashtable] $Previous)
+
+    foreach ($name in $Previous.Keys) {
+        [Environment]::SetEnvironmentVariable($name, $Previous[$name], 'Process')
+    }
+}
+
+function Stop-StepProcessTree {
+    param([Parameter(Mandatory)][int] $ProcessId)
+
+    if ($ProcessId -le 0) {
+        return
+    }
+
+    $taskKillPath = Join-Path $env:WINDIR 'System32\taskkill.exe'
+    if (Test-Path -LiteralPath $taskKillPath -PathType Leaf) {
+        try {
+            & $taskKillPath /PID $ProcessId /T /F *> $null
+            return
+        }
+        catch {
+        }
+    }
+
+    try {
+        Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    catch {
+    }
+}
+
+function Invoke-StepProcess {
+    param(
+        [Parameter(Mandatory)][string] $ScriptPath,
+        [Parameter(Mandatory)][string] $StatePathValue,
+        [Parameter(Mandatory)][string] $StepId,
+        [Parameter(Mandatory)][string] $StepType,
+        [Parameter(Mandatory)][int] $StepIndex,
+        [Parameter(Mandatory)][int] $TimeoutSeconds,
         [Parameter(Mandatory)][string] $LogPath
     )
 
     $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$Script`""
     $stdoutPath = [System.IO.Path]::GetTempFileName()
     $stderrPath = [System.IO.Path]::GetTempFileName()
+    $bootstrapPath = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.ps1')
+    $failureMarkerPath = Join-Path ([System.IO.Path]::GetTempPath()) ("osdcloud-step-failure-{0}.marker" -f ([guid]::NewGuid().ToString('N')))
+    $escapedScriptPath = $ScriptPath.Replace("'", "''")
+    $escapedFailureMarkerPath = $failureMarkerPath.Replace("'", "''")
+    $bootstrapContent = @"
+`$ErrorActionPreference = 'Stop'
+try {
+    & '$escapedScriptPath'
+    if (`$LASTEXITCODE -is [int] -and `$LASTEXITCODE -ne 0) {
+        exit `$LASTEXITCODE
+    }
+    exit 0
+}
+catch {
+    [System.IO.File]::WriteAllText('$escapedFailureMarkerPath', 'failed')
+    Write-Error -ErrorRecord `$_
+    exit 1
+}
+"@
+    Write-Utf8File -Path $bootstrapPath -Content $bootstrapContent
+    $previousEnvironment = Set-StepEnvironment -StatePathValue $StatePathValue -StepId $StepId -StepType $StepType -StepIndex $StepIndex -TimeoutSeconds $TimeoutSeconds
     try {
-        $process = Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
-        $stdout = if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) { Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue } else { '' }
-        $stderr = if (Test-Path -LiteralPath $stderrPath -PathType Leaf) { Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue } else { '' }
-
-        if (-not [string]::IsNullOrWhiteSpace($stdout)) {
-            Write-CustomScriptLog -Path $LogPath -Message '--- stdout ---'
-            Write-CustomScriptLog -Path $LogPath -Message $stdout.TrimEnd()
-        }
-        if (-not [string]::IsNullOrWhiteSpace($stderr)) {
-            Write-CustomScriptLog -Path $LogPath -Message '--- stderr ---'
-            Write-CustomScriptLog -Path $LogPath -Message $stderr.TrimEnd()
+        $process = Start-Process -FilePath $powerShellPath -ArgumentList @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $bootstrapPath) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
+        if ($timedOut) {
+            Write-StepLog -Path $LogPath -Message "TimeoutSeconds: $TimeoutSeconds"
+            Write-StepLog -Path $LogPath -Message "Timeout: process exceeded timeout and will be terminated."
+            Stop-StepProcessTree -ProcessId $process.Id
         }
 
-        return $process.ExitCode
+        try {
+            $process.WaitForExit() | Out-Null
+        }
+        catch {
+        }
+        $process.Refresh()
+
+        $stdoutTailText = Get-TextFileTailText -Path $stdoutPath -Count 80
+        $stderrTailText = Get-TextFileTailText -Path $stderrPath -Count 80
+        $hasPowerShellErrorOutput = -not [string]::IsNullOrWhiteSpace($stderrTailText) -and (
+            $stderrTailText -match 'CategoryInfo\s+:' -or
+            $stderrTailText -match 'FullyQualifiedErrorId\s+:'
+        )
+
+        if (-not [string]::IsNullOrWhiteSpace($stdoutTailText)) {
+            Write-StepLog -Path $LogPath -Message '--- stdout tail ---'
+            Write-StepLog -Path $LogPath -Message $stdoutTailText.TrimEnd()
+        }
+        if (-not [string]::IsNullOrWhiteSpace($stderrTailText)) {
+            Write-StepLog -Path $LogPath -Message '--- stderr tail ---'
+            Write-StepLog -Path $LogPath -Message $stderrTailText.TrimEnd()
+        }
+
+        $effectiveExitCode = if (-not $timedOut -and $process.ExitCode -eq 0 -and ((Test-Path -LiteralPath $failureMarkerPath -PathType Leaf) -or $hasPowerShellErrorOutput)) { 1 } else { $process.ExitCode }
+
+        [ordered]@{
+            timedOut = $timedOut
+            exitCode = if ($timedOut) { $null } else { [int] $effectiveExitCode }
+            stdoutTailText = $stdoutTailText
+            stderrTailText = $stderrTailText
+        }
     }
     finally {
-        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+        Restore-StepEnvironment -Previous $previousEnvironment
+        Remove-Item -LiteralPath $stdoutPath, $stderrPath, $bootstrapPath, $failureMarkerPath -Force -ErrorAction SilentlyContinue
     }
 }
 
-function Invoke-CustomScript {
+function Invoke-SequenceStep {
     param(
+        [Parameter(Mandatory)][string] $AppsRoot,
         [Parameter(Mandatory)][string] $ScriptsRoot,
         [Parameter(Mandatory)] $Entry,
-        [Parameter(Mandatory)][int] $SequenceIndex,
-        [System.Collections.ArrayList] $Failures,
-        [System.Collections.ArrayList] $Results
+        [Parameter(Mandatory)][int] $StepIndex,
+        [Parameter(Mandatory)] $Execution,
+        [Parameter(Mandatory)][string] $StatePathValue
     )
 
-    $scriptId = [string] $Entry.id
+    $stepType = [string] $Entry.type
+    $stepId = [string] $Entry.id
+    $timeoutSeconds = Get-StepTimeoutSeconds -Entry $Entry -Execution $Execution
     $started = Get-Date
-    $logPath = New-CustomScriptLogPath -ScriptId $scriptId -SequenceIndex $SequenceIndex
+    $logPath = New-StepLogPath -StepId $stepId -StepType $stepType -StepIndex $StepIndex
     $result = [ordered]@{
-        id = $scriptId
+        stepIndex = $StepIndex
+        sequenceIndex = $StepIndex
+        type = $stepType
+        stepType = $stepType
+        id = $stepId
+        stepId = $stepId
         name = if ($Entry.name) { [string] $Entry.name } else { $null }
-        sequenceIndex = $SequenceIndex
         status = 'running'
         startedAt = $started.ToString('o')
         endedAt = $null
         durationSeconds = $null
+        timeoutSeconds = $timeoutSeconds
         script = $null
         logPath = $logPath
+        statePath = $StatePathValue
         exitCode = $null
+        reason = $null
         error = $null
+        stdoutTailText = ''
+        stderrTailText = ''
     }
 
-    Write-Host "Running custom script (#$SequenceIndex): $scriptId"
-    Write-CustomScriptLog -Path $logPath -Message "StartedAt: $($result.startedAt)"
-    Write-CustomScriptLog -Path $logPath -Message "Id: $scriptId"
-    Write-CustomScriptLog -Path $logPath -Message "Name: $($result.name)"
-    Write-CustomScriptLog -Path $logPath -Message "SequenceIndex: $SequenceIndex"
+    Write-Host "Running $stepType (#$StepIndex): $stepId"
+    Write-StepLog -Path $logPath -Message "StartedAt: $($result.startedAt)"
+    Write-StepLog -Path $logPath -Message "StepIndex: $StepIndex"
+    Write-StepLog -Path $logPath -Message "Type: $stepType"
+    Write-StepLog -Path $logPath -Message "Id: $stepId"
+    Write-StepLog -Path $logPath -Message "Name: $($result.name)"
+    Write-StepLog -Path $logPath -Message "TimeoutSeconds: $timeoutSeconds"
+    Write-StepLog -Path $logPath -Message "StatePath: $StatePathValue"
     try {
-        $script = Resolve-PackageScript -Root $ScriptsRoot -PackageId $scriptId -ScriptName 'run.ps1' -Label 'custom script'
-        $result.script = $script
-        Write-CustomScriptLog -Path $logPath -Message "Script: $script"
+        Assert-ValidInstallStateFile -Path $StatePathValue -Label "Before step $StepIndex"
 
-        $exitCode = Invoke-CustomScriptProcess -Script $script -LogPath $logPath
-        $result.exitCode = $exitCode
-        if ($exitCode -eq 0) {
+        switch ($stepType) {
+            'software' {
+                $scriptPath = Resolve-PackageScript -Root $AppsRoot -PackageId $stepId -ScriptName 'install.ps1' -Label 'app'
+            }
+            'script' {
+                $scriptPath = Resolve-PackageScript -Root $ScriptsRoot -PackageId $stepId -ScriptName 'run.ps1' -Label 'custom script'
+            }
+            default {
+                throw "Unsupported install sequence entry type: $stepType"
+            }
+        }
+
+        $result.script = $scriptPath
+        Write-StepLog -Path $logPath -Message "Script: $scriptPath"
+
+        $processResult = Invoke-StepProcess -ScriptPath $scriptPath -StatePathValue $StatePathValue -StepId $stepId -StepType $stepType -StepIndex $StepIndex -TimeoutSeconds $timeoutSeconds -LogPath $logPath
+        $result.stdoutTailText = $processResult.stdoutTailText
+        $result.stderrTailText = $processResult.stderrTailText
+        $hasPowerShellErrorOutput = -not [string]::IsNullOrWhiteSpace($processResult.stderrTailText) -and (
+            $processResult.stderrTailText -match 'CategoryInfo\s+:' -or
+            $processResult.stderrTailText -match 'FullyQualifiedErrorId\s+:'
+        )
+
+        if ($processResult.timedOut) {
+            $result.status = 'timed_out'
+            $result.reason = "Step timed out after $timeoutSeconds seconds"
+            $result.error = $result.reason
+            Write-Host "Timed out ${stepType}: $stepId"
+            return [pscustomobject] $result
+        }
+
+        $result.exitCode = if ($processResult.exitCode -eq 0 -and $hasPowerShellErrorOutput) { 1 } else { $processResult.exitCode }
+        Assert-ValidInstallStateFile -Path $StatePathValue -Label "After step $StepIndex"
+        if ($result.exitCode -eq 0) {
             $result.status = 'succeeded'
-            Write-Host "Completed custom script: $scriptId"
+            Write-Host "Completed ${stepType}: $stepId"
         }
         else {
             $result.status = 'failed'
-            $result.error = "Custom script exited with code $exitCode"
-            $message = "Failed custom script ${scriptId}: $($result.error)"
-            Write-Host $message
-            [void] $Failures.Add($message)
+            $result.reason = "Step exited with code $($result.exitCode)"
+            $result.error = $result.reason
+            Write-Host "Failed $stepType ${stepId}: $($result.reason)"
         }
     }
     catch {
@@ -238,97 +503,111 @@ function Invoke-CustomScript {
         else {
             $result.status = 'failed'
         }
+        $result.reason = $_.Exception.Message
         $result.error = $_.Exception.Message
-        $message = "Failed custom script ${scriptId}: $($_.Exception.Message)"
-        Write-Host $message
-        Write-CustomScriptLog -Path $logPath -Message "Exception: $($_.Exception.Message)"
-        [void] $Failures.Add($message)
+        Write-Host "Failed $stepType ${stepId}: $($_.Exception.Message)"
+        Write-StepLog -Path $logPath -Message "Exception: $($_.Exception.Message)"
     }
     finally {
         $ended = Get-Date
         $result.endedAt = $ended.ToString('o')
         $result.durationSeconds = [Math]::Round(($ended - $started).TotalSeconds, 3)
-        Write-CustomScriptLog -Path $logPath -Message "EndedAt: $($result.endedAt)"
-        Write-CustomScriptLog -Path $logPath -Message "DurationSeconds: $($result.durationSeconds)"
-        Write-CustomScriptLog -Path $logPath -Message "Status: $($result.status)"
+        Write-StepLog -Path $logPath -Message "EndedAt: $($result.endedAt)"
+        Write-StepLog -Path $logPath -Message "DurationSeconds: $($result.durationSeconds)"
+        Write-StepLog -Path $logPath -Message "Status: $($result.status)"
         if ($null -ne $result.exitCode) {
-            Write-CustomScriptLog -Path $logPath -Message "ExitCode: $($result.exitCode)"
+            Write-StepLog -Path $logPath -Message "ExitCode: $($result.exitCode)"
         }
-        if ($result.error) {
-            Write-CustomScriptLog -Path $logPath -Message "Error: $($result.error)"
+        if ($result.reason) {
+            Write-StepLog -Path $logPath -Message "Reason: $($result.reason)"
         }
-        [void] $Results.Add([pscustomobject] $result)
     }
+
+    return [pscustomobject] $result
+}
+
+function Write-InstallSequenceSummary {
+    param(
+        [Parameter(Mandatory)][System.Collections.ArrayList] $Results,
+        [Parameter(Mandatory)] $Execution,
+        [Parameter(Mandatory)][string] $StatePathValue
+    )
+
+    $steps = @($Results)
+    $failedStep = @($steps | Where-Object { $_.status -ne 'succeeded' } | Select-Object -First 1)
+    $summary = [ordered]@{
+        generatedAt = (Get-Date).ToString('o')
+        total = $steps.Count
+        succeeded = @($steps | Where-Object { $_.status -eq 'succeeded' }).Count
+        failed = @($steps | Where-Object { $_.status -eq 'failed' }).Count
+        missing = @($steps | Where-Object { $_.status -eq 'missing' }).Count
+        timedOut = @($steps | Where-Object { $_.status -eq 'timed_out' }).Count
+        statePath = $StatePathValue
+        execution = $Execution
+        failedStep = if ($failedStep.Count -gt 0) { $failedStep[0] } else { $null }
+        steps = $steps
+    }
+    Write-Utf8File -Path $SequenceSummaryPath -Content ($summary | ConvertTo-Json -Depth 8)
+    return $SequenceSummaryPath
 }
 
 function Write-CustomScriptSummary {
     param([Parameter(Mandatory)][System.Collections.ArrayList] $Results)
 
-    $summaryPath = Join-Path $LogDir 'custom-scripts-summary.json'
+    $scripts = @($Results | Where-Object { $_.type -eq 'script' })
+    if ($scripts.Count -eq 0) {
+        return $null
+    }
+
     $summary = [ordered]@{
         generatedAt = (Get-Date).ToString('o')
-        total = $Results.Count
-        succeeded = @($Results | Where-Object { $_.status -eq 'succeeded' }).Count
-        failed = @($Results | Where-Object { $_.status -eq 'failed' }).Count
-        missing = @($Results | Where-Object { $_.status -eq 'missing' }).Count
-        scripts = @($Results)
+        total = $scripts.Count
+        succeeded = @($scripts | Where-Object { $_.status -eq 'succeeded' }).Count
+        failed = @($scripts | Where-Object { $_.status -eq 'failed' }).Count
+        missing = @($scripts | Where-Object { $_.status -eq 'missing' }).Count
+        timedOut = @($scripts | Where-Object { $_.status -eq 'timed_out' }).Count
+        scripts = $scripts
     }
-    $summaryJson = $summary | ConvertTo-Json -Depth 8
-    [System.IO.File]::WriteAllText($summaryPath, $summaryJson, [System.Text.UTF8Encoding]::new($false))
-    return $summaryPath
+    Write-Utf8File -Path $CustomScriptSummaryPath -Content ($summary | ConvertTo-Json -Depth 8)
+    return $CustomScriptSummaryPath
 }
 
 try {
     $appsRoot = $PSScriptRoot
     $scriptsRoot = Join-Path (Split-Path -Parent $appsRoot) 'Scripts'
-    $failures = New-Object System.Collections.ArrayList
-    $customScriptResults = New-Object System.Collections.ArrayList
+    $results = New-Object System.Collections.ArrayList
     Initialize-TargetUserEnvironment
 
     $profile = Get-SelectedProfile -AppsRoot $appsRoot
+    $execution = Get-ExecutionConfig -Profile $profile
+    Initialize-InstallStateFile -Path $StatePath
+    Assert-ValidInstallStateFile -Path $StatePath -Label 'Initial'
     $installSequence = @(Get-InstallSequence -AppsRoot $appsRoot -Profile $profile)
-    $softwareCount = 0
-    $sequenceIndex = 0
-
-    foreach ($entry in $installSequence) {
-        $sequenceIndex += 1
-        $entryType = [string] $entry.type
-        if ($entryType -eq 'script') {
-            Invoke-CustomScript -ScriptsRoot $scriptsRoot -Entry $entry -SequenceIndex $sequenceIndex -Failures $failures -Results $customScriptResults
-            continue
-        }
-        if ($entryType -ne 'software') {
-            $message = "Unsupported install sequence entry type: $entryType"
-            Write-Host $message
-            [void] $failures.Add($message)
-            continue
-        }
-        $softwareId = [string] $entry.id
-        $softwareCount += 1
-        Write-Host "Installing app: $softwareId"
-        try {
-            $script = Resolve-PackageScript -Root $appsRoot -PackageId $softwareId -ScriptName 'install.ps1' -Label 'app'
-            & $script
-            Write-Host "Completed app: $softwareId"
-        }
-        catch {
-            $message = "Failed app ${softwareId}: $($_.Exception.Message)"
-            Write-Host $message
-            [void] $failures.Add($message)
-        }
-    }
-
-    if ($softwareCount -eq 0) {
+    if ($installSequence.Count -eq 0) {
         Write-Host 'No client applications selected by deployment profile.'
     }
 
-    if ($customScriptResults.Count -gt 0) {
-        $summaryPath = Write-CustomScriptSummary -Results $customScriptResults
-        Write-Host "Custom script summary: $summaryPath"
+    $failedStep = $null
+    $stepIndex = 0
+    foreach ($entry in $installSequence) {
+        $stepIndex += 1
+        $result = Invoke-SequenceStep -AppsRoot $appsRoot -ScriptsRoot $scriptsRoot -Entry $entry -StepIndex $stepIndex -Execution $execution -StatePathValue $StatePath
+        [void] $results.Add($result)
+        if ($result.status -ne 'succeeded') {
+            $failedStep = $result
+            break
+        }
     }
 
-    if ($failures.Count -gt 0) {
-        throw ($failures -join '; ')
+    $summaryPath = Write-InstallSequenceSummary -Results $results -Execution $execution -StatePathValue $StatePath
+    Write-Host "Install sequence summary: $summaryPath"
+    $customScriptSummaryPath = Write-CustomScriptSummary -Results $results
+    if ($customScriptSummaryPath) {
+        Write-Host "Custom script summary: $customScriptSummaryPath"
+    }
+
+    if ($failedStep) {
+        throw "Install sequence failed at step $($failedStep.stepIndex) ($($failedStep.type):$($failedStep.id)): $($failedStep.reason)"
     }
 }
 finally {

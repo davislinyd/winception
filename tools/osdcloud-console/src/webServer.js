@@ -338,12 +338,14 @@ export class WebManagementServer {
       const hasOsImage = Object.prototype.hasOwnProperty.call(body, 'osImageId')
         || Object.prototype.hasOwnProperty.call(body, 'osImage');
       const hasInstallSequence = Object.prototype.hasOwnProperty.call(body, 'installSequence');
+      const hasExecution = Object.prototype.hasOwnProperty.call(body, 'execution');
       const result = await this.controller.updateActiveDeploymentProfile({
         profileId: body.profileId ?? body.id,
         name: body.name,
         description: body.description,
         softwareIds: hasSoftware ? (body.softwareIds ?? body.software) : undefined,
         installSequence: hasInstallSequence ? body.installSequence : undefined,
+        execution: hasExecution ? body.execution : undefined,
         osImageId: hasOsImage ? (body.osImageId ?? body.osImage) : undefined,
       });
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });

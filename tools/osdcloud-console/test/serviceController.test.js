@@ -447,8 +447,9 @@ test('deployment profile management actions create, update active software, and 
       name: 'Renamed',
       description: 'Updated active profile',
       softwareIds: ['chrome', '7zip'],
+      execution: { defaultTimeoutSeconds: 1200 },
       installSequence: [
-        { type: 'software', id: 'chrome' },
+        { type: 'software', id: 'chrome', timeoutSeconds: 45 },
         { type: 'script', id: 'SC-TEST001' },
         { type: 'software', id: '7zip' },
       ],
@@ -456,8 +457,9 @@ test('deployment profile management actions create, update active software, and 
     assert.equal(updatedName, 'Renamed');
     assert.equal(updatedDescription, 'Updated active profile');
     assert.deepEqual(updatedSoftwareIds, ['chrome', '7zip']);
+    assert.deepEqual(updatedInput.execution, { defaultTimeoutSeconds: 1200 });
     assert.deepEqual(updatedInput.installSequence, [
-      { type: 'software', id: 'chrome' },
+      { type: 'software', id: 'chrome', timeoutSeconds: 45 },
       { type: 'script', id: 'SC-TEST001' },
       { type: 'software', id: '7zip' },
     ]);
@@ -536,13 +538,15 @@ test('editing an inactive deployment profile only rewrites JSON and leaves servi
       profileId: 'minimal',
       name: 'Minimal Renamed',
       softwareIds: ['chrome'],
-      installSequence: [{ type: 'software', id: 'chrome' }],
+      execution: { defaultTimeoutSeconds: 600 },
+      installSequence: [{ type: 'software', id: 'chrome', timeoutSeconds: 30 }],
     });
 
     assert.equal(updatedProfileId, 'minimal');
     assert.equal(updatedInput.name, 'Minimal Renamed');
     assert.deepEqual(updatedInput.softwareIds, ['chrome']);
-    assert.deepEqual(updatedInput.installSequence, [{ type: 'software', id: 'chrome' }]);
+    assert.deepEqual(updatedInput.execution, { defaultTimeoutSeconds: 600 });
+    assert.deepEqual(updatedInput.installSequence, [{ type: 'software', id: 'chrome', timeoutSeconds: 30 }]);
     assert.equal(publishCalled, false);
     assert.equal(preflightCalled, false);
     assert.equal(services.http.running, true);

@@ -275,6 +275,60 @@ function Get-TextFileTailText {
     [string]::Join("`n", @(Get-TextFileTail -Path $Path -Count $Count))
 }
 
+function Get-JsonFileObject {
+    param([Parameter(Mandatory)][string] $Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $null
+    }
+
+    try {
+        return Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        return $null
+    }
+}
+
+function Get-InstallSequenceFailureDetails {
+    param([Parameter(Mandatory)][string] $LogRoot)
+
+    $summaryPath = Join-Path $LogRoot 'install-sequence-summary.json'
+    $summary = Get-JsonFileObject -Path $summaryPath
+    if ($null -eq $summary) {
+        return @{}
+    }
+
+    $failedStep = $summary.failedStep
+    if ($null -eq $failedStep -and $summary.steps) {
+        $failedStep = @($summary.steps | Where-Object { $_.status -ne 'succeeded' } | Select-Object -First 1)
+        if ($failedStep.Count -gt 0) {
+            $failedStep = $failedStep[0]
+        }
+    }
+
+    if ($null -eq $failedStep) {
+        return @{
+            sequenceSummaryPath = $summaryPath
+            statePath = $summary.statePath
+        }
+    }
+
+    @{
+        sequenceSummaryPath = $summaryPath
+        statePath = $summary.statePath
+        stepIndex = $failedStep.stepIndex
+        stepType = $failedStep.stepType
+        stepId = $failedStep.stepId
+        stepStatus = $failedStep.status
+        reason = $failedStep.reason
+        timeoutSeconds = $failedStep.timeoutSeconds
+        stepLogPath = $failedStep.logPath
+        stepStdoutTailText = $failedStep.stdoutTailText
+        stepStderrTailText = $failedStep.stderrTailText
+    }
+}
+
 function Invoke-ClientAppInstallers {
     $appsRoot = 'C:\ProgramData\OSDCloud\Apps'
     $installer = Join-Path $appsRoot 'Install-Apps.ps1'
@@ -294,6 +348,8 @@ function Invoke-ClientAppInstallers {
     $stdoutPath = Join-Path $LogDir 'apps-install.stdout.log'
     $stderrPath = Join-Path $LogDir 'apps-install.stderr.log'
     $transcriptPath = Join-Path $LogDir 'apps-install.log'
+    $sequenceSummaryPath = Join-Path $LogDir 'install-sequence-summary.json'
+    $statePath = Join-Path $LogDir 'install-sequence-state.json'
     Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
     $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
     $result = [ordered]@{
@@ -304,14 +360,29 @@ function Invoke-ClientAppInstallers {
         stdoutLog = $stdoutPath
         stderrLog = $stderrPath
         transcriptLog = $transcriptPath
+        sequenceSummaryPath = $sequenceSummaryPath
+        statePath = $statePath
         stdoutTailText = Get-TextFileTailText -Path $stdoutPath -Count 80
         stderrTailText = Get-TextFileTailText -Path $stderrPath -Count 80
         transcriptTailText = Get-TextFileTailText -Path $transcriptPath -Count 80
     }
+    $failureDetails = Get-InstallSequenceFailureDetails -LogRoot $LogDir
+    foreach ($key in $failureDetails.Keys) {
+        $result[$key] = $failureDetails[$key]
+    }
 
     if ($process.ExitCode -ne 0) {
-        [void] (Send-DeploymentStatus -Stage 'windows-apps-error' -Message "Client application installer failed with exit code $($process.ExitCode)." -Percent 94.9 -Extra $result)
-        throw "Client application installer failed with exit code $($process.ExitCode)."
+        $message = if ($result.stepStatus -eq 'timed_out') {
+            "Client application installer timed out at step $($result.stepIndex) ($($result.stepType):$($result.stepId))."
+        }
+        elseif ($result.stepId) {
+            "Client application installer failed at step $($result.stepIndex) ($($result.stepType):$($result.stepId)): $($result.reason)"
+        }
+        else {
+            "Client application installer failed with exit code $($process.ExitCode)."
+        }
+        [void] (Send-DeploymentStatus -Stage 'windows-apps-error' -Message $message -Percent 94.9 -Extra $result)
+        throw $message
     }
 
     [void] (Send-DeploymentStatus -Stage 'windows-apps-finished' -Message 'Client applications installed.' -Percent 95.5 -Extra $result)

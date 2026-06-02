@@ -20,6 +20,7 @@ const allowedCustomScriptExtensions = new Set(['.ps1']);
 const defaultSoftwareUploadMaxBytes = 2 * 1024 * 1024 * 1024;
 const defaultRawInstallScriptMaxBytes = 256 * 1024;
 const defaultCustomScriptUploadMaxBytes = 1 * 1024 * 1024;
+const defaultInstallSequenceTimeoutSeconds = 900;
 
 export const selectedProfileFileName = 'selected-profile.json';
 
@@ -99,6 +100,31 @@ function normalizePositiveInteger(value, label, options = {}) {
     throw inputError(`Invalid ${label}: ${value}`);
   }
   return number;
+}
+
+function normalizeExecutionSettings(value, label) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw inputError(`${label} must be an object`);
+  }
+  const defaultTimeoutSeconds = normalizePositiveInteger(
+    value.defaultTimeoutSeconds,
+    `${label}.defaultTimeoutSeconds`,
+    { optional: true, min: 1 },
+  );
+  if (defaultTimeoutSeconds === null) {
+    return null;
+  }
+  return { defaultTimeoutSeconds };
+}
+
+function resolveExecutionSettings(value, label) {
+  const normalized = normalizeExecutionSettings(value, label);
+  return {
+    defaultTimeoutSeconds: normalized?.defaultTimeoutSeconds ?? defaultInstallSequenceTimeoutSeconds,
+  };
 }
 
 function formatGeneratedProfileId(value, alphabet = generatedProfileIdAlphabet, idLength = generatedProfileIdLength) {
@@ -1031,13 +1057,15 @@ function normalizeInstallSequence(value, catalog, scriptCatalog, label) {
       if (!catalog.byId.has(id)) {
         throw new Error(`${label} references unknown software: ${id}`);
       }
-      return { type, id };
+      const timeoutSeconds = normalizePositiveInteger(entry?.timeoutSeconds, `${itemLabel}.timeoutSeconds`, { optional: true, min: 1 });
+      return timeoutSeconds === null ? { type, id } : { type, id, timeoutSeconds };
     }
     const catalogEntry = scriptCatalog?.byId?.get(id);
     if (scriptCatalog && !catalogEntry) {
       throw new Error(`${label} references unknown custom script: ${id}`);
     }
-    return { type, id };
+    const timeoutSeconds = normalizePositiveInteger(entry?.timeoutSeconds, `${itemLabel}.timeoutSeconds`, { optional: true, min: 1 });
+    return timeoutSeconds === null ? { type, id } : { type, id, timeoutSeconds };
   });
 }
 
@@ -1129,6 +1157,8 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
     }
     seen.add(id);
 
+    const explicitExecution = normalizeExecutionSettings(raw.execution, `deployment profile ${id} execution`);
+    const execution = resolveExecutionSettings(raw.execution, `deployment profile ${id} execution`);
     const rawInstallSequence = normalizeInstallSequence(
       raw.installSequence,
       catalog,
@@ -1172,6 +1202,8 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       description: String(raw.description ?? ''),
       softwareIds: selectedIds,
       installSequence,
+      execution,
+      hasExplicitExecution: explicitExecution !== null,
       hasInstallSequence: rawInstallSequence !== null,
       osImageId,
       filePath,
@@ -1199,10 +1231,24 @@ export function resolveDeploymentProfileState(config = {}, profileId = null, opt
   const installSequence = (activeProfile.installSequence ?? []).map((entry) => {
     if (entry.type === 'software') {
       const software = catalog.byId.get(entry.id);
-      return software ? { type: 'software', id: entry.id, software } : null;
+      return software
+        ? {
+          type: 'software',
+          id: entry.id,
+          software,
+          ...(entry.timeoutSeconds === undefined ? {} : { timeoutSeconds: entry.timeoutSeconds }),
+        }
+        : null;
     }
     const script = scriptCatalog.byId.get(entry.id);
-    return script ? { type: 'script', id: entry.id, script } : null;
+    return script
+      ? {
+        type: 'script',
+        id: entry.id,
+        script,
+        ...(entry.timeoutSeconds === undefined ? {} : { timeoutSeconds: entry.timeoutSeconds }),
+      }
+      : null;
   }).filter(Boolean);
   return {
     options: profileOptions,
@@ -1274,6 +1320,9 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
     .map((entry) => ({ ...entry }));
   const rawOsImageId = String(input.osImageId ?? state.activeProfile.osImageId ?? '').trim();
   const osImageId = rawOsImageId ? normalizeId(rawOsImageId, `deployment profile ${id} osImage`) : null;
+  const explicitExecution = Object.prototype.hasOwnProperty.call(input, 'execution')
+    ? normalizeExecutionSettings(input.execution, `deployment profile ${id} execution`)
+    : (state.activeProfile.hasExplicitExecution ? { ...state.activeProfile.execution } : null);
   const raw = {
     id,
     name,
@@ -1286,6 +1335,9 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   if (input.description !== undefined) {
     raw.description = normalizeProfileDescription(input.description);
   }
+  if (explicitExecution) {
+    raw.execution = explicitExecution;
+  }
   writeJson(filePath, raw);
 
   return {
@@ -1295,6 +1347,8 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
       description: raw.description ?? '',
       softwareIds,
       installSequence,
+      execution: explicitExecution ?? { defaultTimeoutSeconds: defaultInstallSequenceTimeoutSeconds },
+      hasExplicitExecution: explicitExecution !== null,
       hasInstallSequence: true,
       osImageId,
       filePath,
@@ -1338,6 +1392,13 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
     ? profile.osImageId
     : String(input.osImageId ?? '').trim();
   const osImageId = rawOsImageId ? normalizeId(rawOsImageId, `deployment profile ${id} osImage`) : null;
+  const hasExecution = Object.prototype.hasOwnProperty.call(input, 'execution');
+  const rawExecution = hasExecution
+    ? normalizeExecutionSettings(input.execution, `deployment profile ${id} execution`)
+    : null;
+  const execution = hasExecution
+    ? resolveExecutionSettings(input.execution, `deployment profile ${id} execution`)
+    : profile.execution;
   if (osImageId && options.osImageCatalog && !options.osImageCatalog.byId?.has(osImageId)) {
     throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
   }
@@ -1348,6 +1409,13 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   raw.software = sequenceSoftwareIds;
   delete raw.customScripts;
   raw.installSequence = installSequence;
+  if (hasExecution) {
+    if (rawExecution) {
+      raw.execution = rawExecution;
+    } else {
+      delete raw.execution;
+    }
+  }
   if (osImageId) {
     raw.osImage = osImageId;
   } else {
@@ -1365,6 +1433,8 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
       description: String(raw.description ?? ''),
       softwareIds: sequenceSoftwareIds,
       installSequence,
+      execution,
+      hasExplicitExecution: hasExecution ? rawExecution !== null : profile.hasExplicitExecution,
       hasInstallSequence: true,
       osImageId,
     },
@@ -1829,9 +1899,13 @@ function profileManifest(state, osImageResult = null) {
       id: software.id,
       name: software.name,
     })),
+    execution: {
+      defaultTimeoutSeconds: state.activeProfile.execution?.defaultTimeoutSeconds ?? defaultInstallSequenceTimeoutSeconds,
+    },
     installSequence: sequence.map((entry) => ({
       type: entry.type,
       id: entry.id,
+      ...(entry.timeoutSeconds === undefined ? {} : { timeoutSeconds: entry.timeoutSeconds }),
     })),
     osImageId: state.activeProfile.osImageId,
   };

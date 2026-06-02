@@ -60,6 +60,10 @@ function installSequenceFromSoftware(softwareIds = []) {
   return softwareIds.map((id) => ({ type: 'software', id }));
 }
 
+function installSequenceEntry(type, id, extra = {}) {
+  return { type, id, ...extra };
+}
+
 function writeSoftware(root, id, script = "Write-Host 'installed'\n") {
   const softwareRoot = path.join(root, 'Softwares', id);
   fs.mkdirSync(softwareRoot, { recursive: true });
@@ -918,6 +922,7 @@ test('publishes only selected software and removes stale apps', async () => {
     assert.equal(manifest.profileId, 'default');
     assert.deepEqual(manifest.selectedSoftware, ['two', 'one']);
     assert.deepEqual(manifest.software.map((software) => software.id), ['two', 'one']);
+    assert.equal(manifest.execution.defaultTimeoutSeconds, 900);
     assert.equal(evaluateDeploymentProfilePayload(configFor(root)).ok, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -947,6 +952,7 @@ test('publishes Minimal profile without downloading software payloads', async ()
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'one')), false);
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
     assert.deepEqual(manifest.selectedSoftware, []);
+    assert.equal(manifest.execution.defaultTimeoutSeconds, 900);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1180,6 +1186,10 @@ test('installer script installs selected apps in selected-profile order', () => 
     assert.equal(fs.existsSync(path.join(appsRoot, 'two.marker')), true);
     const order = fs.readFileSync(path.join(appsRoot, 'order.marker'), 'utf8').trim().split(/\r?\n/u);
     assert.deepEqual(order, ['two', 'one']);
+    const summary = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'install-sequence-summary.json'), 'utf8'));
+    assert.equal(summary.total, 2);
+    assert.equal(summary.succeeded, 2);
+    assert.equal(summary.failedStep, null);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1224,6 +1234,10 @@ test('installer script follows unified software and script install sequence', ()
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.deepEqual(fs.readFileSync(marker, 'utf8').trim().split(/\r?\n/u), ['one', 'script', 'two']);
+    const summary = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'install-sequence-summary.json'), 'utf8'));
+    assert.equal(summary.total, 3);
+    assert.equal(summary.succeeded, 3);
+    assert.equal(summary.failedStep, null);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1258,6 +1272,11 @@ test('installer script fails when selected app is missing', () => {
 
     assert.notEqual(result.status, 0);
     assert.match(`${result.stdout}\n${result.stderr}`, /Selected app script not found/);
+    const summary = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'install-sequence-summary.json'), 'utf8'));
+    assert.equal(summary.total, 1);
+    assert.equal(summary.failedStep.stepType, 'software');
+    assert.equal(summary.failedStep.stepId, 'missing');
+    assert.equal(summary.failedStep.status, 'missing');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1308,12 +1327,13 @@ test('installer script runs custom scripts with per-script logs and summary', ()
     assert.equal(summary.succeeded, 2);
     assert.equal(summary.failed, 0);
     assert.equal(summary.missing, 0);
+    assert.equal(summary.timedOut, 0);
     assert.deepEqual(summary.scripts.map((script) => script.status), ['succeeded', 'succeeded']);
     assert.deepEqual(summary.scripts.map((script) => script.sequenceIndex), [1, 2]);
-    const logFiles = fs.readdirSync(path.join(logRoot, 'custom-scripts'));
+    const logFiles = fs.readdirSync(path.join(logRoot, 'install-sequence'));
     assert.equal(logFiles.length, 2);
-    assert.ok(logFiles.some((name) => /^001-SC-BEFORE01-/u.test(name)));
-    assert.ok(logFiles.some((name) => /^002-SC-AFTER001-/u.test(name)));
+    assert.ok(logFiles.some((name) => /^001-script-SC-BEFORE01-/u.test(name)));
+    assert.ok(logFiles.some((name) => /^002-script-SC-AFTER001-/u.test(name)));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1335,7 +1355,7 @@ test('installer script records failed and missing custom scripts before failing'
     fs.mkdirSync(appsRoot, { recursive: true });
     fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
     fs.writeFileSync(path.join(scriptsRoot, 'SC-GOOD000', 'run.ps1'), "Add-Content -LiteralPath $env:ORDER_MARKER -Value 'good'\n", 'utf8');
-    fs.writeFileSync(path.join(scriptsRoot, 'SC-BAD0000', 'run.ps1'), "Write-Host 'bad script ran'\nexit 7\n", 'utf8');
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-BAD0000', 'run.ps1'), "Write-Host 'bad script ran'\nthrow 'bad script failed'\n", 'utf8');
     writeJson(path.join(appsRoot, 'selected-profile.json'), {
       profileId: 'default',
       selectedSoftware: [],
@@ -1360,22 +1380,24 @@ test('installer script records failed and missing custom scripts before failing'
     assert.notEqual(result.status, 0);
     assert.equal(fs.readFileSync(marker, 'utf8').trim(), 'good');
     const summary = JSON.parse(fs.readFileSync(path.join(logRoot, 'custom-scripts-summary.json'), 'utf8'));
-    assert.equal(summary.total, 3);
+    assert.equal(summary.total, 2);
     assert.equal(summary.succeeded, 1);
     assert.equal(summary.failed, 1);
-    assert.equal(summary.missing, 1);
-    assert.deepEqual(summary.scripts.map((script) => script.status), ['succeeded', 'failed', 'missing']);
-    assert.deepEqual(summary.scripts.map((script) => script.sequenceIndex), [1, 2, 3]);
+    assert.equal(summary.missing, 0);
+    assert.equal(summary.timedOut, 0);
+    assert.deepEqual(summary.scripts.map((script) => script.status), ['succeeded', 'failed']);
+    assert.deepEqual(summary.scripts.map((script) => script.sequenceIndex), [1, 2]);
     const bad = summary.scripts.find((script) => script.id === 'SC-BAD0000');
-    assert.equal(bad.exitCode, 7);
-    assert.match(bad.error, /exited with code 7/);
-    const missing = summary.scripts.find((script) => script.id === 'SC-MISS000');
-    assert.match(missing.error, /not found/);
-    const logFiles = fs.readdirSync(path.join(logRoot, 'custom-scripts'));
-    assert.equal(logFiles.length, 3);
-    const badLog = fs.readFileSync(path.join(logRoot, 'custom-scripts', logFiles.find((name) => /^002-SC-BAD0000-/u.test(name))), 'utf8');
+    assert.equal(bad.exitCode, 1);
+    assert.match(bad.error, /Step exited with code 1/);
+    const sequenceSummary = JSON.parse(fs.readFileSync(path.join(logRoot, 'install-sequence-summary.json'), 'utf8'));
+    assert.equal(sequenceSummary.failedStep.stepId, 'SC-BAD0000');
+    assert.equal(sequenceSummary.total, 2);
+    const logFiles = fs.readdirSync(path.join(logRoot, 'install-sequence'));
+    assert.equal(logFiles.length, 2);
+    const badLog = fs.readFileSync(path.join(logRoot, 'install-sequence', logFiles.find((name) => /^002-script-SC-BAD0000-/u.test(name))), 'utf8');
     assert.match(badLog, /bad script ran/);
-    assert.match(badLog, /ExitCode: 7/);
+    assert.match(badLog, /Reason: Step exited with code 1/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1449,6 +1471,232 @@ test('profile installSequence must reference a known script', async () => {
     });
 
     assert.throws(() => loadDeploymentProfiles(configFor(root)), /unknown custom script/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installer script allows steps to exchange state through install-sequence-state.json', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const root = makeRoot('osdcloud-install-state-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const scriptsRoot = path.join(root, 'Scripts');
+    const marker = path.join(root, 'state.marker');
+    fs.mkdirSync(path.join(appsRoot, 'one'), { recursive: true });
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-STATE001'), { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-STATE001', 'run.ps1'), [
+      "$state = Get-Content -LiteralPath $env:OSDCloudInstallStatePath -Raw | ConvertFrom-Json",
+      "$state | Add-Member -NotePropertyName token -NotePropertyValue 'ready' -Force",
+      "[System.IO.File]::WriteAllText($env:OSDCloudInstallStatePath, ($state | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))",
+      "Write-Host 'state written'",
+      '',
+    ].join('\n'), 'utf8');
+    fs.writeFileSync(path.join(appsRoot, 'one', 'install.ps1'), [
+      "$state = Get-Content -LiteralPath $env:OSDCloudInstallStatePath -Raw | ConvertFrom-Json",
+      "if ($state.token -ne 'ready') { throw 'shared state missing token' }",
+      "Set-Content -LiteralPath $env:STATE_MARKER -Value $state.token",
+      '',
+    ].join('\n'), 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'default',
+      selectedSoftware: ['one'],
+      installSequence: [
+        { type: 'script', id: 'SC-STATE001' },
+        { type: 'software', id: 'one' },
+      ],
+    });
+
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: path.join(root, 'logs'), STATE_MARKER: marker },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(fs.readFileSync(marker, 'utf8').trim(), 'ready');
+    const state = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'install-sequence-state.json'), 'utf8'));
+    assert.equal(state.token, 'ready');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installer script stops immediately when a step times out', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const root = makeRoot('osdcloud-install-timeout-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const scriptsRoot = path.join(root, 'Scripts');
+    const marker = path.join(root, 'timeout.marker');
+    fs.mkdirSync(path.join(appsRoot, 'one'), { recursive: true });
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-SLOW001'), { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-SLOW001', 'run.ps1'), "Start-Sleep -Seconds 3\nWrite-Host 'slow done'\n", 'utf8');
+    fs.writeFileSync(path.join(appsRoot, 'one', 'install.ps1'), "Set-Content -LiteralPath $env:TIMEOUT_MARKER -Value 'should-not-run'\n", 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'default',
+      selectedSoftware: ['one'],
+      execution: { defaultTimeoutSeconds: 10 },
+      installSequence: [
+        { type: 'script', id: 'SC-SLOW001', timeoutSeconds: 1 },
+        { type: 'software', id: 'one' },
+      ],
+    });
+
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: path.join(root, 'logs'), TIMEOUT_MARKER: marker },
+    });
+
+    assert.notEqual(result.status, 0);
+    assert.equal(fs.existsSync(marker), false);
+    const summary = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'install-sequence-summary.json'), 'utf8'));
+    assert.equal(summary.total, 1);
+    assert.equal(summary.timedOut, 1);
+    assert.equal(summary.failedStep.stepId, 'SC-SLOW001');
+    assert.equal(summary.failedStep.status, 'timed_out');
+    assert.equal(summary.failedStep.timeoutSeconds, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installer script fails fast when a step leaves invalid shared state JSON', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const root = makeRoot('osdcloud-install-bad-state-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const scriptsRoot = path.join(root, 'Scripts');
+    const marker = path.join(root, 'bad-state.marker');
+    fs.mkdirSync(path.join(appsRoot, 'one'), { recursive: true });
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-BADJSON'), { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-BADJSON', 'run.ps1'), "[System.IO.File]::WriteAllText($env:OSDCloudInstallStatePath, '{bad json', [System.Text.UTF8Encoding]::new($false))\n", 'utf8');
+    fs.writeFileSync(path.join(appsRoot, 'one', 'install.ps1'), "Set-Content -LiteralPath $env:BAD_STATE_MARKER -Value 'should-not-run'\n", 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'default',
+      selectedSoftware: ['one'],
+      installSequence: [
+        { type: 'script', id: 'SC-BADJSON' },
+        { type: 'software', id: 'one' },
+      ],
+    });
+
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: path.join(root, 'logs'), BAD_STATE_MARKER: marker },
+    });
+
+    assert.notEqual(result.status, 0);
+    assert.equal(fs.existsSync(marker), false);
+    const summary = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'install-sequence-summary.json'), 'utf8'));
+    assert.equal(summary.total, 1);
+    assert.equal(summary.failedStep.stepId, 'SC-BADJSON');
+    assert.equal(summary.failedStep.status, 'failed');
+    assert.match(summary.failedStep.reason, /invalid JSON/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects invalid execution default timeout in deployment profile', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        execution: { defaultTimeoutSeconds: 0 },
+        installSequence: installSequenceFromSoftware(['one']),
+        osImage: 'TEST-OS',
+      },
+    });
+
+    assert.throws(() => loadDeploymentProfiles(configFor(root)), /defaultTimeoutSeconds/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects invalid installSequence timeout override in deployment profile', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        installSequence: [installSequenceEntry('software', 'one', { timeoutSeconds: 0 })],
+        osImage: 'TEST-OS',
+      },
+    });
+
+    assert.throws(() => loadDeploymentProfiles(configFor(root)), /timeoutSeconds/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('loads execution defaults and per-step timeouts from deployment profiles', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one', 'two'],
+        execution: { defaultTimeoutSeconds: 1200 },
+        installSequence: [
+          installSequenceEntry('software', 'one', { timeoutSeconds: 45 }),
+          installSequenceEntry('software', 'two'),
+        ],
+        osImage: 'TEST-OS',
+      },
+    });
+
+    const state = resolveDeploymentProfileState(configFor(root));
+    assert.equal(state.activeProfile.execution.defaultTimeoutSeconds, 1200);
+    assert.deepEqual(state.activeProfile.installSequence, [
+      { type: 'software', id: 'one', timeoutSeconds: 45 },
+      { type: 'software', id: 'two' },
+    ]);
+    assert.deepEqual(state.installSequence.map((entry) => ({
+      type: entry.type,
+      id: entry.id,
+      timeoutSeconds: entry.timeoutSeconds ?? null,
+    })), [
+      { type: 'software', id: 'one', timeoutSeconds: 45 },
+      { type: 'software', id: 'two', timeoutSeconds: null },
+    ]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1551,8 +1799,9 @@ test('publishDeploymentProfile copies scripts and writes installSequence-only ma
     }, { randomInt: () => 27 });
 
     const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
+    profile.execution = { defaultTimeoutSeconds: 600 };
     profile.installSequence = [
-      { type: 'script', id: beforeScript.script.id },
+      { type: 'script', id: beforeScript.script.id, timeoutSeconds: 90 },
       { type: 'software', id: 'one' },
       { type: 'script', id: afterScript.script.id },
     ];
@@ -1566,8 +1815,9 @@ test('publishDeploymentProfile copies scripts and writes installSequence-only ma
 
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
     assert.equal(Object.prototype.hasOwnProperty.call(manifest, 'customScripts'), false);
+    assert.equal(manifest.execution.defaultTimeoutSeconds, 600);
     assert.deepEqual(manifest.installSequence, [
-      { type: 'script', id: beforeScript.script.id },
+      { type: 'script', id: beforeScript.script.id, timeoutSeconds: 90 },
       { type: 'software', id: 'one' },
       { type: 'script', id: afterScript.script.id },
     ]);
