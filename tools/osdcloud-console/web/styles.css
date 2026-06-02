@@ -1,36 +1,45 @@
 :root {
-  --surface: #f8f9fa;
-  --surface-dim: #f1f3f4;
+  /* Winception Aurora — light / modern theme (ported from Stitch) */
+  --surface: #f8f9fd;
+  --surface-dim: #eceef2;
   --surface-bright: #ffffff;
   --surface-container-lowest: #ffffff;
-  --surface-container-low: #f8f9fa;
-  --surface-container: #f1f3f4;
-  --surface-container-high: #e8eaed;
-  --surface-container-highest: #dadce0;
-  --on-surface: #202124;
-  --on-surface-variant: #5f6368;
-  --inverse-surface: #3c4043;
-  --inverse-on-surface: #ffffff;
-  --outline: #747775;
-  --outline-variant: #dadce0;
-  --surface-tint: #1a73e8;
-  --primary: #1a73e8;
-  --primary-container: #e8f0fe; /* --primary-container: #1e3a8a */
+  --surface-container-low: #f2f3f7;
+  --surface-container: #edeef2;
+  --surface-container-high: #e7e8ec;
+  --surface-container-highest: #e1e2e6;
+  --on-surface: #191c1f;
+  --on-surface-variant: #4a4a5a;
+  --inverse-surface: #2e3134;
+  --inverse-on-surface: #eff1f5;
+  --outline: #8b89a0;
+  --outline-variant: #e3e1ee;
+  --surface-tint: #4648d4;
+  --primary: #4648d4;
+  --primary-strong: #2f2ebe;
+  --primary-container: #e1e0ff;
   --on-primary: #ffffff;
-  --on-primary-container: #1a73e8;
-  --primary-fixed: #e8f0fe;
-  --primary-fixed-dim: #d2e3fc;
-  --secondary: #5f6368;
-  --secondary-container: #f1f3f4;
-  --error: #d93025;
-  --error-container: #fce8e6;
-  --background: #f8f9fa;
-  --surface-variant: #f1f3f4;
-  --ok: #1e8e3e;
-  --ok-bg: #e6f4ea;
-  --warn: #f9ab00;
-  --warn-bg: #fef7e0;
-  font-family: Roboto, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --on-primary-container: #07006c;
+  --primary-fixed: #e1e0ff;
+  --primary-fixed-dim: #c0c1ff;
+  --secondary: #8127cf;
+  --secondary-container: #f0dbff;
+  --tertiary: #0891b2;
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --background: #f8f9fd;
+  --surface-variant: #eef0f6;
+  --ok: #15803d;
+  --ok-bg: #dcfce7;
+  --warn: #b45309;
+  --warn-bg: #fef3c7;
+  /* Aurora gradients + elevation */
+  --aurora-grad: linear-gradient(135deg, #4648d4 0%, #8127cf 55%, #0891b2 120%);
+  --card-radius: 20px;
+  --card-shadow: 0 8px 30px rgba(24, 28, 47, 0.05);
+  --card-shadow-hover: 0 14px 44px rgba(24, 28, 47, 0.09);
+  --card-border: 1px solid #e9e8f3;
+  font-family: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
 * {
@@ -39,6 +48,40 @@
 
 body {
   margin: 0;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(900px circle at 50% -15%, rgba(70, 72, 212, 0.10) 0%, transparent 55%),
+    radial-gradient(700px circle at 100% 0%, rgba(129, 39, 207, 0.06) 0%, transparent 45%);
+  background-attachment: fixed;
+}
+
+/* ---- Aurora bento card treatment for dashboard / guided panels ---- */
+.operations-panel,
+.runtime-readiness-panel,
+.sync-progress-panel,
+.status-profile-panel,
+.status-os-panel,
+.driver-cache-panel,
+.preflight-summary-panel,
+.client-fleet-panel,
+.system-log-panel,
+#endpoint-summary,
+#guided-step-detail,
+.guided-layout .operations-panel {
+  background: var(--surface-container-lowest) !important;
+  border: var(--card-border) !important;
+  border-radius: var(--card-radius) !important;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.28s ease;
+}
+
+.runtime-readiness-panel:hover,
+.status-profile-panel:hover,
+.status-os-panel:hover,
+.driver-cache-panel:hover,
+.preflight-summary-panel:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--card-shadow-hover);
 }
 
 .material-symbols-outlined {
@@ -740,10 +783,10 @@ button.warning:active:not(:disabled) {
 .system-log-panel,
 .client-fleet-panel,
 .service-card {
-  background: #ffffff;
-  border: 1px solid var(--outline-variant);
-  border-radius: 8px !important;
-  box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.1), 0 1px 2px 0 rgba(60, 64, 67, 0.06);
+  background: var(--surface-container-lowest);
+  border: var(--card-border);
+  border-radius: var(--card-radius) !important;
+  box-shadow: var(--card-shadow);
 }
 
 /* Operations sidebar menu list items */
@@ -2350,4 +2393,473 @@ button.software-icon-button {
 }
 #warning-banner.hidden {
   display: none !important;
+}
+
+/* ============================================================
+   Winception Aurora — modern light component layer (Stitch port)
+   ============================================================ */
+
+/* ---- Floating top bar ---- */
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 60px;
+  padding: 0 20px;
+  margin: 12px 16px 0;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(180%) blur(14px);
+  border: 1px solid #ececf6;
+  border-radius: 18px;
+  box-shadow: 0 6px 24px rgba(24, 28, 47, 0.06);
+  flex: 0 0 auto;
+}
+.topbar-left,
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; padding-right: 4px; }
+.brand-mark {
+  width: 28px; height: 28px; border-radius: 9px;
+  background: var(--aurora-grad);
+  box-shadow: 0 4px 12px rgba(70, 72, 212, 0.35);
+}
+.brand-name { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; color: var(--on-surface); }
+.brand-version { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--on-surface-variant); opacity: 0.7; }
+
+.segmented-nav {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--surface-container);
+  border-radius: 999px;
+  padding: 4px;
+}
+.seg-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: none; background: transparent; cursor: pointer;
+  color: var(--on-surface-variant);
+  font: 600 13px/1 "Geist", "Inter", sans-serif;
+  padding: 8px 16px; border-radius: 999px;
+  transition: all 0.18s ease;
+}
+.seg-tab:hover { color: var(--on-surface); }
+.seg-tab.active {
+  background: var(--surface-container-lowest);
+  color: var(--primary);
+  box-shadow: 0 2px 8px rgba(24, 28, 47, 0.08);
+}
+
+.endpoint-chip {
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  padding: 6px 10px; border-radius: 999px;
+}
+.command-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surface-container); border: 1px solid #e7e7f2;
+  border-radius: 999px; padding: 6px 12px; cursor: pointer;
+  color: var(--on-surface-variant); transition: all 0.18s ease;
+}
+.command-pill:hover { background: var(--surface-container-high); }
+.cmd-key {
+  font: 600 11px/1 "JetBrains Mono", monospace;
+  background: var(--surface-container-lowest); color: var(--on-surface-variant);
+  border: 1px solid #e3e3ef; border-radius: 6px; padding: 3px 6px;
+}
+.live-chip { display: inline-flex; align-items: center; }
+.updated-chip { color: var(--on-surface-variant); white-space: nowrap; }
+.topbar-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 999px;
+  border: 1px solid transparent; background: transparent; cursor: pointer;
+  color: var(--on-surface-variant); transition: all 0.18s ease;
+}
+.topbar-icon-btn:hover { background: var(--surface-container); color: var(--primary); }
+.topbar-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 999px;
+  background: var(--aurora-grad); color: #fff;
+  font: 700 13px/1 "Geist", sans-serif;
+}
+
+/* main content gets breathing room like Stitch */
+body > .flex.flex-1 > main { padding: 16px !important; gap: 16px !important; }
+
+/* ---- Rounded Aurora pills (override tiny square badges) ---- */
+.badge,
+.status-pill {
+  border-radius: 999px !important;
+  font: 700 10px/1.4 "Geist", "Inter", sans-serif !important;
+  letter-spacing: 0.04em !important;
+  padding: 4px 10px !important;
+  border: 1px solid transparent;
+}
+.status-pill.ok, .badge.ok {
+  background: var(--ok-bg) !important; color: var(--ok) !important;
+}
+.badge.neutral, .status-pill.neutral {
+  background: var(--surface-container) !important;
+  border-color: #e2e2ee !important; color: var(--on-surface-variant) !important;
+}
+.badge.running, .status-pill.working {
+  background: var(--warn-bg) !important; color: var(--warn) !important;
+}
+.badge.failed, .status-pill.fail {
+  background: var(--error-container) !important; color: #991b1b !important;
+}
+.live-chip.running::before, .live-chip.ok::before {
+  content: ""; width: 7px; height: 7px; border-radius: 999px;
+  background: currentColor; margin-right: 6px;
+  animation: aurora-pulse 1.6s ease-in-out infinite;
+}
+@keyframes aurora-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.45); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(21, 128, 61, 0); }
+}
+
+/* ---- Section heading labels ---- */
+.runtime-readiness-panel h3,
+.sync-progress-panel h3,
+.status-profile-panel h3,
+.status-os-panel h3,
+.driver-cache-panel h3,
+.preflight-summary-panel h3,
+.client-fleet-header h3,
+.system-log-panel h3,
+.operations-panel h3 {
+  letter-spacing: 0.08em !important;
+}
+
+/* ---- Operations rail: severity-colored buttons ---- */
+.operations-stack button[data-action="all-services-toggle"],
+.operations-stack button.danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.25) !important;
+}
+.operations-stack button[data-action="all-services-toggle"]:hover:not(:disabled),
+.operations-stack button.danger:hover:not(:disabled) {
+  filter: brightness(1.05);
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #fff !important;
+}
+.operations-stack button[data-action="all-services-toggle"][data-icon]::before,
+.operations-stack button.danger[data-icon]::before { color: #fff !important; }
+
+.operations-stack button[data-action="endpoint-sync"],
+.operations-stack button.warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: #fff !important; border: none !important;
+  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.22) !important;
+}
+.operations-stack button[data-action="endpoint-sync"][data-icon]::before,
+.operations-stack button.warning[data-icon]::before { color: #fff !important; }
+
+/* ---- Primary gradient action (Run preflight, Prepare runtime hero) ---- */
+.runtime-readiness-actions button,
+.operations-stack button[data-action="preflight"] {
+  background: var(--aurora-grad) !important;
+  color: #fff !important; border: none !important;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 20px rgba(70, 72, 212, 0.28) !important;
+  font-weight: 600 !important;
+}
+.runtime-readiness-actions button[data-icon]::before,
+.operations-stack button[data-action="preflight"][data-icon]::before { color: #fff !important; }
+
+/* ---- Service cards: soft modern toggles ---- */
+.service-card {
+  border-radius: 16px !important;
+  padding: 14px !important;
+}
+.service-switch {
+  background: var(--surface-container-high);
+}
+.service-switch.running { background: var(--ok) !important; }
+
+/* ---- Topology hero ---- */
+.topology-hero {
+  position: relative;
+  background: var(--surface-container-lowest);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: 18px 20px 20px;
+  overflow: hidden;
+  min-height: 320px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.topology-hero::before {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(520px circle at 30% 0%, rgba(70, 72, 212, 0.08), transparent 60%),
+    radial-gradient(circle at 1px 1px, rgba(70, 72, 212, 0.07) 1px, transparent 0);
+  background-size: auto, 22px 22px;
+  pointer-events: none;
+}
+.topology-hero > * { position: relative; z-index: 1; }
+.topology-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.topology-title { font: 700 20px/1.2 "Geist", sans-serif; letter-spacing: -0.01em; color: var(--on-surface); }
+.topology-sub { font: 400 13px/1.4 "Geist", sans-serif; color: var(--on-surface-variant); }
+.throughput-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surface-container); border-radius: 999px;
+  padding: 6px 12px; font: 500 12px/1 "JetBrains Mono", monospace;
+  color: var(--on-surface-variant);
+}
+.throughput-chip .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ok); animation: aurora-pulse 1.6s infinite; }
+.topology-stage {
+  flex: 1; display: grid; grid-template-columns: 1fr 1fr 1.4fr;
+  align-items: center; gap: 8px; min-height: 220px;
+}
+.topo-node {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  text-align: center;
+}
+.topo-tile {
+  display: flex; align-items: center; justify-content: center;
+  width: 76px; height: 76px; border-radius: 20px;
+  background: var(--surface-container-low); border: 1px solid #e6e6f3;
+  color: var(--primary); box-shadow: 0 6px 18px rgba(24,28,47,0.05);
+  position: relative;
+}
+.topo-tile .material-symbols-outlined { font-size: 34px; }
+.topo-online { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 999px; background: var(--ok); border: 2px solid #fff; animation: aurora-pulse 1.6s infinite; }
+.topo-label { font: 600 13px/1.2 "Geist", sans-serif; color: var(--on-surface); }
+.topo-ip { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--on-surface-variant); }
+.topo-clients { display: flex; flex-direction: column; gap: 10px; }
+.topo-client {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface-container-lowest); border: 1px solid #ececf6;
+  border-radius: 16px; padding: 10px 12px; box-shadow: 0 4px 14px rgba(24,28,47,0.04);
+}
+.ring { --val: 0; --ring-color: var(--primary); width: 46px; height: 46px; flex: 0 0 auto; border-radius: 999px;
+  background: conic-gradient(var(--ring-color) calc(var(--val) * 1%), var(--surface-container-high) 0);
+  display: flex; align-items: center; justify-content: center; }
+.ring::after { content: attr(data-label); width: 36px; height: 36px; border-radius: 999px; background: var(--surface-container-lowest);
+  display: flex; align-items: center; justify-content: center; font: 700 11px/1 "Geist", sans-serif; color: var(--on-surface); }
+.ring.done { --ring-color: var(--ok); }
+.ring.idle { background: none; border: 2px dashed #cfcfe0; }
+.topo-client-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.topo-client-name { font: 600 13px/1.2 "Geist", sans-serif; color: var(--on-surface); }
+.topo-client-stage { font: 400 12px/1.2 "Geist", sans-serif; color: var(--on-surface-variant); }
+.topo-wire { position: relative; height: 2px; background: linear-gradient(90deg, var(--primary), var(--tertiary)); border-radius: 2px; opacity: 0.55; }
+.topo-wire.idle { background: #d6d6e6; opacity: 0.8; }
+.topo-wire .packet { position: absolute; top: -2px; width: 6px; height: 6px; border-radius: 999px; background: var(--primary); box-shadow: 0 0 8px var(--primary); animation: packet-flow 2.4s linear infinite; }
+@keyframes packet-flow { from { left: -4px; } to { left: 100%; } }
+.topo-legend { display: flex; gap: 16px; font: 400 11px/1 "Geist", sans-serif; color: var(--on-surface-variant); }
+.topo-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.topo-legend .lg-live { width: 8px; height: 8px; border-radius: 999px; background: var(--primary); }
+.topo-legend .lg-idle { width: 14px; border-top: 2px dashed #c9c9da; height: 0; }
+
+/* ---- Vertical pipeline stepper ---- */
+.pipeline-panel {
+  background: var(--surface-container-lowest); border: var(--card-border);
+  border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+  padding: 18px; display: flex; flex-direction: column; gap: 6px;
+}
+.pipeline-title { font: 700 16px/1.2 "Geist", sans-serif; color: var(--on-surface); margin-bottom: 8px; }
+.pipe-step { display: flex; align-items: flex-start; gap: 12px; position: relative; padding-bottom: 14px; }
+.pipe-step:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 26px; bottom: 0; width: 2px; background: var(--surface-container-high); }
+.pipe-step.done:not(:last-child)::before { background: var(--ok); }
+.pipe-dot { width: 28px; height: 28px; border-radius: 999px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font: 700 12px/1 "Geist", sans-serif; background: var(--surface-container-high); color: var(--on-surface-variant); z-index: 1; }
+.pipe-step.done .pipe-dot { background: var(--ok); color: #fff; }
+.pipe-step.current .pipe-dot { background: var(--primary); color: #fff; box-shadow: 0 0 0 4px rgba(70,72,212,0.18); }
+.pipe-step.locked .pipe-dot { background: var(--surface-container); color: var(--outline); }
+.pipe-body { display: flex; flex-direction: column; gap: 2px; }
+.pipe-name { font: 600 13px/1.3 "Geist", sans-serif; color: var(--on-surface); }
+.pipe-meta { font: 400 11px/1.3 "Geist", sans-serif; color: var(--on-surface-variant); }
+
+/* ---- Fleet card grid (Fleet view) ---- */
+#view-fleet .fleet-stat-strip { display: flex; gap: 10px; flex-wrap: wrap; }
+.fleet-stat { background: var(--surface-container-lowest); border: var(--card-border); border-radius: 14px; box-shadow: var(--card-shadow); padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+.fleet-stat .num { font: 800 22px/1 "Geist", sans-serif; color: var(--on-surface); }
+.fleet-stat .lbl { font: 500 11px/1 "Geist", sans-serif; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.06em; }
+.fleet-stat.fail .num { color: var(--error); }
+.fleet-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.fleet-card { background: var(--surface-container-lowest); border: var(--card-border); border-radius: 18px; box-shadow: var(--card-shadow); padding: 16px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s ease; }
+.fleet-card:hover { transform: translateY(-4px); box-shadow: var(--card-shadow-hover); }
+.fleet-card .fc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fleet-card .fc-name { font: 600 14px/1.2 "Geist", sans-serif; color: var(--on-surface); }
+.fleet-card .fc-run { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--on-surface-variant); }
+.fleet-card .ring { width: 72px; height: 72px; align-self: center; }
+.fleet-card .ring::after { width: 58px; height: 58px; font-size: 14px; }
+.fleet-card .fc-stage { text-align: center; font: 400 12px/1.3 "Geist", sans-serif; color: var(--on-surface-variant); }
+
+/* ---- Live activity styling for the system log panel ---- */
+.system-log-output { font-size: 11px; line-height: 1.6; }
+
+/* ============================================================
+   Overview bento (Stitch parity) — replaces old 3-col cockpit
+   ============================================================ */
+#view-dashboard.active { display: flex; flex-direction: column; }
+
+.bento-card {
+  background: var(--surface-container-lowest);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+  transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s ease;
+}
+.bento-card:hover { transform: translateY(-3px); box-shadow: var(--card-shadow-hover); }
+.bento-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bento-head h3 {
+  margin: 0; font: 700 11px/1.4 "Geist", "Inter", sans-serif;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);
+}
+
+/* small pill buttons used inside cards / activity header */
+.bento-mini {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid #e6e6f3; background: var(--surface-container-low);
+  color: var(--on-surface-variant); cursor: pointer;
+  border-radius: 999px; padding: 5px 12px;
+  font: 600 12px/1 "Geist", "Inter", sans-serif; transition: all 0.18s ease;
+}
+.bento-mini[data-icon]::before { font-size: 15px; }
+.bento-mini:hover:not(:disabled) { background: var(--surface-container-high); color: var(--on-surface); }
+.bento-mini.ghost { background: transparent; }
+.bento-mini.warning { background: linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border:none; box-shadow:0 4px 12px rgba(217,119,6,0.2); }
+.bento-mini.warning[data-icon]::before { color:#fff; }
+.bento-mini.danger { background: linear-gradient(135deg,#ef4444,#dc2626); color:#fff; border:none; box-shadow:0 4px 12px rgba(220,38,38,0.2); }
+.bento-mini.danger[data-icon]::before { color:#fff; }
+.bento-mini.danger-text { color: var(--error); }
+.bento-mini.danger-text:hover { background: var(--error-container); color: var(--error); }
+
+/* services inside a bento card stack vertically */
+#services-grid.status-services-grid { display: flex; flex-direction: column; gap: 10px; }
+
+/* Live metrics card */
+.live-metrics { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
+.live-metric { display: flex; flex-direction: column; gap: 2px; }
+.live-metric .lm-num { font: 800 26px/1 "Geist", sans-serif; color: var(--on-surface); letter-spacing: -0.02em; }
+.live-metric.deploying .lm-num { color: var(--primary); }
+.live-metric.ready .lm-num { color: var(--ok); }
+.live-metric.failed .lm-num { color: var(--error); }
+.live-metric .lm-lbl { font: 600 10px/1 "Geist", sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--on-surface-variant); }
+.live-metrics .lm-foot { flex-basis: 100%; font: 500 11px/1.3 "JetBrains Mono", monospace; color: var(--on-surface-variant); }
+
+/* Live Activity card */
+.live-activity-card { padding: 0; min-height: 240px; border-radius: var(--card-radius); }
+.live-activity-head { padding: 16px 18px 10px; align-items: flex-start; }
+.live-activity-head h3 { margin: 0; font: 700 16px/1.2 "Geist", sans-serif; letter-spacing: -0.01em; text-transform: none; color: var(--on-surface); }
+.live-activity-sub { font: 400 12px/1.3 "Geist", sans-serif; color: var(--on-surface-variant); }
+.live-activity-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.live-activity-card .system-log-output { margin: 0; border-top: 1px solid var(--outline-variant); border-radius: 0 0 var(--card-radius) var(--card-radius); max-height: 320px; }
+
+/* Advanced diagnostics collapsible */
+.overview-diagnostics {
+  background: var(--surface-container-lowest); border: var(--card-border);
+  border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden;
+}
+.overview-diagnostics > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+  padding: 14px 18px; font: 700 12px/1 "Geist", sans-serif; letter-spacing: 0.04em;
+  color: var(--on-surface-variant); text-transform: uppercase;
+}
+.overview-diagnostics > summary::-webkit-details-marker { display: none; }
+.overview-diagnostics > summary::after { content: "expand_more"; font-family: "Material Symbols Outlined"; margin-left: auto; transition: transform 0.2s ease; }
+.overview-diagnostics[open] > summary::after { transform: rotate(180deg); }
+.overview-diagnostics-body { padding: 0 16px 16px; }
+
+/* baseline for plain buttons that used to live in the operations rail */
+.runtime-readiness-actions button,
+.client-fleet-header-actions button {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid #e6e6f3; background: var(--surface-container-low);
+  color: var(--on-surface-variant); cursor: pointer;
+  border-radius: 999px; padding: 7px 14px;
+  font: 600 13px/1 "Geist", "Inter", sans-serif; transition: all 0.18s ease;
+}
+.runtime-readiness-actions button:hover:not(:disabled),
+.client-fleet-header-actions button:hover:not(:disabled) { background: var(--surface-container-high); color: var(--on-surface); }
+.runtime-readiness-actions button.warning {
+  background: linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border:none;
+  box-shadow: 0 6px 16px rgba(217,119,6,0.22);
+}
+.runtime-readiness-actions button.warning[data-icon]::before { color:#fff; }
+
+/* ============================================================
+   Fleet view (Stitch parity): toolbar + filter + search + drawer
+   ============================================================ */
+.fleet-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.fleet-toolbar-right { display: flex; align-items: center; gap: 10px; }
+.fleet-filter { display: inline-flex; gap: 2px; background: var(--surface-container); border-radius: 999px; padding: 4px; }
+.fleet-filter button {
+  border: none; background: transparent; cursor: pointer; color: var(--on-surface-variant);
+  font: 600 12px/1 "Geist","Inter",sans-serif; padding: 7px 14px; border-radius: 999px; transition: all 0.18s ease;
+}
+.fleet-filter button:hover { color: var(--on-surface); }
+.fleet-filter button.active { background: var(--surface-container-lowest); color: var(--primary); box-shadow: 0 2px 8px rgba(24,28,47,0.08); }
+.fleet-search {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surface-container-lowest); border: 1px solid #e6e6f3;
+  border-radius: 999px; padding: 6px 14px; color: var(--on-surface-variant); min-width: 220px;
+}
+.fleet-search input { border: none; outline: none; background: transparent; font: 400 13px/1 "Geist","Inter",sans-serif; color: var(--on-surface); width: 100%; }
+
+.fleet-layout { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .fleet-layout { grid-template-columns: 1fr; } }
+
+.fleet-card .fc-stage-label { text-align: center; font: 600 10px/1 "Geist",sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--on-surface-variant); }
+.fleet-card.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(70,72,212,0.18), var(--card-shadow); }
+
+.fleet-detail {
+  position: sticky; top: 12px;
+  background: var(--surface-container-lowest); border: var(--card-border);
+  border-radius: 18px; box-shadow: var(--card-shadow);
+  padding: 18px; display: flex; flex-direction: column; gap: 12px;
+}
+.fleet-detail.empty { align-items: center; justify-content: center; color: var(--on-surface-variant); min-height: 200px; }
+.fd-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fd-name { font: 700 15px/1.2 "Geist",sans-serif; color: var(--on-surface); word-break: break-all; }
+.fd-meta { font: 500 11px/1.4 "JetBrains Mono", monospace; color: var(--on-surface-variant); word-break: break-all; }
+.fleet-detail > .ring { width: 84px; height: 84px; align-self: center; }
+.fleet-detail > .ring::after { width: 68px; height: 68px; font-size: 16px; }
+.fd-section-title { font: 700 11px/1 "Geist",sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--on-surface-variant); margin-top: 4px; }
+.fd-flow { display: flex; flex-direction: column; }
+.fd-flow-step { display: flex; align-items: center; gap: 10px; position: relative; padding-bottom: 12px; }
+.fd-flow-step:not(:last-child)::before { content: ""; position: absolute; left: 9px; top: 20px; bottom: 0; width: 2px; background: var(--surface-container-high); }
+.fd-flow-step.done:not(:last-child)::before { background: var(--ok); }
+.fd-flow-dot { width: 20px; height: 20px; border-radius: 999px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: var(--surface-container-high); color: #fff; z-index: 1; }
+.fd-flow-dot .material-symbols-outlined { font-size: 13px; }
+.fd-flow-step.done .fd-flow-dot { background: var(--ok); }
+.fd-flow-step.current .fd-flow-dot { background: var(--primary); box-shadow: 0 0 0 3px rgba(70,72,212,0.18); animation: aurora-pulse 1.6s infinite; }
+.fd-flow-name { font: 500 12px/1.2 "Geist",sans-serif; color: var(--on-surface); }
+.fd-flow-step.pending .fd-flow-name { color: var(--on-surface-variant); }
+.fd-footer { display: flex; gap: 8px; border-top: 1px solid var(--outline-variant); padding-top: 12px; }
+
+/* ============================================================
+   Setup (Guided) view — Stitch "Let's get you deploying"
+   ============================================================ */
+.guided-card { padding: 20px; gap: 14px; }
+.guided-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.guided-welcome { margin: 0; font: 700 22px/1.2 "Geist", sans-serif; letter-spacing: -0.02em; color: var(--on-surface); }
+.guided-sub { display: block; margin-top: 4px; font: 400 13px/1.4 "Geist", sans-serif; color: var(--on-surface-variant); }
+.guided-progress { display: flex; flex-direction: column; gap: 6px; }
+.guided-progress-track { height: 8px; border-radius: 999px; background: var(--surface-container-high); overflow: hidden; }
+.guided-progress-fill { height: 100%; width: 0; border-radius: 999px; background: var(--aurora-grad); transition: width 0.5s cubic-bezier(0.34,1.2,0.64,1); }
+.guided-progress-text { font: 600 11px/1 "Geist", sans-serif; color: var(--on-surface-variant); text-align: right; }
+.guided-foot { padding-top: 4px; }
+
+/* Stitch-style step rows in the guided stepper */
+.guided-card .initialization-step {
+  border: 1px solid #ececf6; border-radius: 14px; background: var(--surface-container-lowest);
+  padding: 12px 14px; align-items: center;
+}
+.guided-card .initialization-step.done { background: #f1fbf4; border-color: #cdeddb; }
+.guided-card .initialization-step.blocked { background: #fff8f1; border-color: #f6e0c8; }
+.guided-card .initialization-step.working { background: var(--warn-bg); border-color: #f3dca0; }
+.guided-card .initialization-step.optional { background: var(--surface-container-low); }
+.guided-card .initialization-step.active { box-shadow: 0 0 0 2px rgba(70,72,212,0.2); border-color: var(--primary); }
+.guided-card .initialization-step-body strong { font-family: "Geist", "Inter", sans-serif; }
+
+/* Right focused step card uses bento treatment */
+#guided-step-detail {
+  background: var(--surface-container-lowest) !important;
+  border: var(--card-border) !important;
+  border-radius: var(--card-radius) !important;
+  box-shadow: var(--card-shadow);
+  padding: 24px !important;
 }

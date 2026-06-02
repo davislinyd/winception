@@ -13,13 +13,25 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="tailwind-config"/);
   assert.match(html, /cdn\.tailwindcss\.com\?plugins=forms,container-queries/);
   assert.match(html, /bg-surface text-on-surface min-h-screen flex flex-col font-body-sm/);
-  assert.match(html, /dashboard-grid grid grid-cols-12 gap-sm/);
-  assert.match(html, /dashboard-operations-column/);
-  assert.match(html, /dashboard-status-column/);
-  assert.match(html, /dashboard-log-column/);
+  // Aurora top bar + three-view segmented nav (Stitch parity)
+  assert.match(html, /class="app-topbar"/);
+  assert.match(html, /class="segmented-nav"/);
+  assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-guided"[\s\S]*id="tab-fleet"/);
+  // Overview = topology hero + vertical pipeline + bento + live activity
+  assert.match(html, /class="topology-hero/);
+  assert.match(html, /id="pipeline-steps"/);
+  assert.match(html, /class="overview-bento/);
+  assert.match(html, /id="live-metrics"/);
+  assert.match(html, /class="system-log-panel live-activity-card/);
+  // Detailed operational panels remain (kept functional) inside diagnostics
+  assert.match(html, /class="overview-diagnostics"/);
   assert.match(html, /dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm/);
-  assert.match(html, /dashboard-status-summary[\s\S]*dashboard-diagnostics-grid[\s\S]*client-fleet-panel/);
+  assert.match(html, /client-fleet-panel/);
   assert.match(html, /id="view-dashboard"/);
+  // Fleet view = filter + search + card grid + detail drawer
+  assert.match(html, /id="view-fleet"/);
+  assert.match(html, /id="fleet-filter"/);
+  assert.match(html, /id="fleet-detail"/);
   assert.doesNotMatch(html, /id="view-endpoints"/);
   assert.doesNotMatch(html, /id="view-sync"/);
   assert.doesNotMatch(html, /id="view-validation"/);
@@ -138,7 +150,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="driver-cache-details"/);
   assert.match(html, /data-action="prepare-runtime"/);
   assert.match(html, /data-action="initialization" data-icon="checklist"/);
-  assert.match(html, /首次部署引導/);
+  assert.match(html, /Let's get you deploying/);
+  assert.match(html, /id="init-progress-fill"/);
   assert.match(html, /id="initialization-dialog"/);
   assert.match(html, /id="initialization-operation" class="initialization-operation-panel"/);
   assert.match(html, /id="initialization-steps"/);
@@ -250,7 +263,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.initialization-detail-item\.status-blocked \.initialization-detail-status/);
   assert.match(styles, /\.initialization-detail-item\.status-blocked-by-dependency \.initialization-detail-status/);
   assert.doesNotMatch(styles, /grid-area: runtime;/);
-  assert.match(html, /data-action="preflight" data-icon="fact_check" type="button">Run preflight/);
+  assert.match(html, /data-action="preflight"[\s\S]{0,90}>Run preflight</);
   assert.doesNotMatch(html, /data-action="preflight"[^>]*primary-action/);
   assert.match(html, /data-action="endpoint-sync" data-icon="sync_alt" class="warning"/);
   assert.match(html, /id="preflight-status-badge"[^>]*aria-live="polite"/);
@@ -385,8 +398,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(styles, /body\.fleet-expanded \.dashboard-log-column/);
   assert.match(html, /Material\+Symbols\+Outlined/);
   assert.match(html, /Inter:wght@400;500;600/);
-  assert.match(html, />Operations</);
-  assert.match(html, />System Log</);
+  assert.match(html, />Services</);
+  assert.match(html, />Live Activity</);
   assert.doesNotMatch(html, /Quick Actions/);
   assert.doesNotMatch(html, /quick-actions-panel/);
   assert.doesNotMatch(html, /```html/);
@@ -542,7 +555,8 @@ test('web UI keeps local component layer', () => {
   const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
   const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
 
-  assert.match(styles, /--primary-container: #1e3a8a/);
+  assert.match(styles, /--primary: #4648d4/);
+  assert.match(styles, /--aurora-grad:/);
   assert.match(styles, /\.view\.active/);
   assert.match(styles, /\.service-switch/);
   assert.match(styles, /\.preflight-summary-list/);
