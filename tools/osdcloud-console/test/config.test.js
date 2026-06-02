@@ -85,7 +85,7 @@ test('builds HTTP server config with root driver pack cache settings', () => {
   const config = {
     http: {
       root: 'C:\\PXE-HttpRoot',
-      host: '192.168.100.1',
+      host: '192.168.100.101',
       port: 80,
       logPath: 'C:\\PXE-HttpRoot\\host-http.log',
       statusRoot: 'C:\\PXE-HttpRoot\\status',
@@ -98,7 +98,7 @@ test('builds HTTP server config with root driver pack cache settings', () => {
   };
 
   const httpConfig = mediaHttpServerConfig(config);
-  assert.equal(httpConfig.host, '192.168.100.1');
+  assert.equal(httpConfig.host, '192.168.100.101');
   assert.equal(httpConfig.statusRoot, 'C:\\PXE-HttpRoot\\status');
   assert.deepEqual(httpConfig.driverPackCache, config.driverPackCache);
 });
@@ -307,26 +307,26 @@ test('drops DHCP reservations outside the selected endpoint subnet', () => {
 
 test('validates DHCP reservations', () => {
   const config = {
-    adapter: { interfaceAlias: 'Ethernet', serverIp: '192.168.100.1', prefixLength: 24 },
+    adapter: { interfaceAlias: 'Ethernet', serverIp: '192.168.100.101', prefixLength: 24 },
     dhcp: {
-      listenIp: '192.168.100.1',
+      listenIp: '192.168.100.101',
       leaseStartIp: '192.168.100.200',
       leaseEndIp: '192.168.100.250',
       subnetMask: '255.255.255.0',
-      router: '192.168.100.1',
+      router: '192.168.100.101',
       reservations: [{ mac: 'AA-BB-CC-DD-EE-FF', ip: '192.168.100.115' }],
       bootFile: 'snponly.efi',
-      ipxeBootUrl: 'http://192.168.100.1/osdcloud/boot.ipxe',
+      ipxeBootUrl: 'http://192.168.100.101/osdcloud/boot.ipxe',
     },
-    tftp: { root: 'C:\\PXE-TFTP', listenIp: '192.168.100.1' },
-    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.1', statusRoot: 'C:\\status' },
+    tftp: { root: 'C:\\PXE-TFTP', listenIp: '192.168.100.101' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.101', statusRoot: 'C:\\status' },
     paths: {
       expectedHttpFiles: ['osdcloud\\boot.ipxe'],
       imageNamePattern: 'install.esd',
     },
     smb: {
-      share: '\\\\192.168.100.1\\OSDCloudiPXE',
-      imagePath: '\\\\192.168.100.1\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
+      share: '\\\\192.168.100.101\\OSDCloudiPXE',
+      imagePath: '\\\\192.168.100.101\\OSDCloudiPXE\\OSDCloud\\OS\\install.esd',
     },
   };
 

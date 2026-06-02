@@ -670,7 +670,6 @@ test('host PowerShell entrypoints initialize UTF-8 console output', () => {
     'tools/Sync-OsdCloudAssets.ps1',
     'tools/Export-DeploymentServerBundle.ps1',
     'tools/Install-HostManagementBundle.ps1',
-    'tools/Invoke-IpxeTimingRun.ps1',
     'tools/Restore-DeploymentArtifacts.ps1',
     'tools/Start-InstalledWebConsole.ps1',
   ]) {

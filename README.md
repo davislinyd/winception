@@ -1,6 +1,6 @@
 # OSDCloud Windows 11 Zero-Touch Deployment Lab
 
-這個資料夾記錄 OSDCloud + iPXE 自動部署 Windows 11 的測試結果與交接資訊。現在的 active path 是實體筆電從真實有線內網 PXE 開機，不使用 VM；既有 VM 內容只作為歷史驗證紀錄。
+這個資料夾記錄 OSDCloud + iPXE 自動部署 Windows 11 的工具與設定。Active path 是實體筆電從有線內網 PXE 開機；VM regression 只用來快速驗證 WinPE/OOBE/status callback 流程。
 
 ## 第一次部署最短路徑
 
@@ -111,10 +111,10 @@ notepad 'C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json'
 | 路徑 | 用途 | Host endpoint | 入口 | 驗證意義 |
 | --- | --- | --- | --- | --- |
 | 實體筆電 iPXE | Active path，用來驗證真實大量部署 | Web console 選定的 service interface / service IP | `npm run web` | 可作為實體部署證據 |
-| VM VM iPXE | Regression path，用來快速驗證 WinPE、OOBE、status callback | `Ethernet` / `192.168.100.1` | `node .\tools\osdcloud-console\src\headless.js` | 只證明 VM regression，不代表實體筆電路徑已準備好 |
+| VM iPXE | Regression path，用來快速驗證 WinPE、OOBE、status callback | VM 用的 internal switch | `node .\tools\osdcloud-console\src\headless.js` | 只證明 VM regression，不代表實體筆電路徑已準備好 |
 | ISO VM | Retired historical path，過去用來驗證 ISO zero-touch | retired `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso` | VM DVD/ISO boot | 只保留為歷史證據，不屬於 fresh-host runtime |
 
-切換路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-console.json` 與 `osdcloud-assets`。不要把 VM 的 `192.168.100.1` endpoint 當成實體筆電設定，也不要把某一次實體筆電測試使用的 service IP 當成永久設定。
+切換路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-console.json` 與 `osdcloud-assets`。不要把 VM 的 endpoint 當成實體筆電設定，也不要把某一次實體筆電測試使用的 service IP 當成永久設定。
 
 實體筆電 endpoint 每次以 Web console 選定的 service interface / service IP 為準。下一次實體筆電測試前，先確認 `config\osdcloud-console.json`、live `boot.ipxe`、published `boot.wim` 內嵌 endpoint 與 host 網卡狀態一致。
 
@@ -124,7 +124,7 @@ notepad 'C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json'
 
 | 介面 | 角色 | Host IP | Gateway | 備註 |
 | --- | --- | --- | --- | --- |
-| `WAN` | Host 預設上網 | `192.168.100.1/24` | `192.168.100.1` | Default route 只走這張，metric `5` |
+| `WAN` | Host 預設上網 | （依環境設定）| （依環境設定）| Default route 只走這張，metric `5` |
 | `LAN` | 實體 client / PXE lab | `192.168.88.1/24` | 無 | Metric `500`，IP forwarding enabled |
 
 `LAN` 目前規劃為獨立 client subnet。Windows NAT 已建立：
@@ -275,7 +275,7 @@ setup 選擇的 NIC/IP 會寫入 ignored `config\osdcloud-console.local.json`，
 
 ## 使用手冊
 
-本節是給實際操作人員看的流程。除非要做 VM regression，日常部署都走「實體筆電 iPXE」路徑。Host console 現在只使用 Web/GUI 版；舊 Node TUI 已在 `0.3.0` 退役。
+本節是給實際操作人員看的流程。日常部署走「實體筆電 iPXE」路徑；VM regression 只在需要驗證 WinPE/OOBE 流程時使用。Host console 現在只使用 Web/GUI 版；舊 Node TUI 已在 `0.3.0` 退役。
 
 ### 操作前檢查
 
@@ -398,7 +398,7 @@ Web Dashboard 主要區塊：
 需要重新同步 endpoint 的情況：
 
 - `LAN` service IP 從 `192.168.88.1` 改成別的 IP。
-- 從實體 `LAN` 切到 VM `Ethernet`。
+- 從實體 `LAN` 切到 VM regression 用的 internal switch。
 - 從 VM regression 切回實體 `LAN`。
 - `config\osdcloud-console.json`、live `boot.ipxe`、SMB share 或 `boot.wim` 內嵌 endpoint 不一致。
 - Client 拿到正確 DHCP lease，但 iPXE 後續 HTTP 仍跑去另一張 NIC 或舊 IP。
@@ -489,11 +489,7 @@ OSDCloud-Win11-NoTouch-01
 OSDCloud-Win11-iPXE-01
 ```
 
-最新 VM vSwitch 回歸驗證 VM：
-
-```text
-OSDCloud-Win11-vSwitch-04
-```
+最新 VM regression 驗證記錄：
 
 最終測試結果：
 
@@ -528,8 +524,8 @@ CurrentBuild     : 26200
 EditionID        : Professional
 Culture          : zh-TW
 TimeZone         : Taipei Standard Time
-IPv4             : 192.168.100.200
-Gateway          : 192.168.100.1
+IPv4             : 192.168.88.200
+Gateway          : 192.168.88.1
 Dns              : 1.1.1.1,8.8.8.8
 PingCloudflare   : True
 DnsMicrosoft     : True
@@ -620,7 +616,7 @@ C:\OSDCloud\PXE-HttpRoot\osdcloud
 - Custom script payload 由同一個 deployment profile 一起發佈到 `<project-root>\Media\OSDCloud\Scripts`，WinPE shutdown 會把 sibling `Scripts` 子樹同步複製到 client `C:\ProgramData\OSDCloud\Scripts`。Web profile editor 的 `Selected install sequence` 可把 software 與 custom scripts 放在同一個序列中上移/下移；相依性風險由技術人員自行承擔。Runner 現在對 software 與 custom script 使用同一套 step contract：子 `powershell.exe`、step timeout、stdout/stderr tail、per-step log、shared state JSON、fail-fast。任一步只要 `failed` / `missing` / `timed_out`，後續步驟就不再執行。沒有勾選 custom script 的 profile 仍維持原本只跑 app 的行為。
 - 測試時真實環境 DHCP server 必須暫時關閉，避免和本機 PXE DHCP responder 衝突。
 - iPXE 只載入 `boot.wim`，沒有 ISO 光碟路徑，所以 Shutdown script 必須先找 `$PSScriptRoot\..\SetupComplete`，不能只假設 `D:\OSDCloud\Config\Scripts\SetupComplete` 存在。
-- VM / PowerShell Direct 只屬於歷史 VM 回歸測試，不屬於目前實體筆電流程。
+- VM regression 結果不屬於實體筆電流程的證據。
 
 自行新增 client 軟體與 profile：
 
@@ -745,9 +741,9 @@ npm run web
 
 進入 Web UI 後先 `Select service interface`，再 `Run preflight`，最後 `Start all services`。`Start-PxeDhcp.ps1`、`Start-PxeTftp.ps1`、`Serve-OsdCloudMedia.mjs` 只保留作為低階 fallback；一般實體部署不要優先使用這些 helper，否則使用者看不到 fleet status、endpoint sync progress 與完整 validation。
 
-## VM VM 回歸流程
+## VM Regression 流程
 
-這條流程只用來驗證 VM regression。它使用 VM `vSwitch` 與 `192.168.100.1/24`，不應作為實體筆電部署 runbook。
+這條流程只用來驗證 VM regression，不應作為實體筆電部署 runbook。
 
 VM 回歸用途：
 
@@ -755,10 +751,10 @@ VM 回歸用途：
 - 在不碰實體筆電的情況下重跑 Windows 11 zero-touch 邏輯
 - 驗證文件或工具變更沒有破壞已知 VM path
 
-VM 回歸前切到 vSwitch endpoint：
+VM 回歸前切到 VM regression endpoint（使用 VM 用的 internal switch IP）：
 
 ```powershell
-.\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias 'Ethernet' -ServerIp '192.168.100.1' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts
+.\tools\Set-OsdCloudIpxeEndpoint.ps1 -InterfaceAlias '<vm-switch-alias>' -ServerIp '<vm-host-ip>' -PrefixLength 24 -CommitWinPe -SyncAssets -HashLargeArtifacts
 ```
 
 VM 回歸可用 headless services：
@@ -769,7 +765,7 @@ node .\tools\osdcloud-console\src\headless.js
 
 VM 回歸注意事項：
 
-- VM 使用 `vSwitch` / `192.168.100.1` / `\\192.168.100.1\OSDCloudiPXE`
+- VM endpoint 視 internal switch 設定而定
 - 成功條件仍是 `windows-desktop-ready`、自訂帳號桌面、OOBE registry 正確、HTTP log 沒有 zh-TW ESD `HEAD` / `GET`
 - `osdcloud-finished` 後不要強制關機，讓 WinPE 自然 `wpeutil reboot`
 - 測試結束後停止 headless services，避免 DHCP responder 留著
@@ -841,24 +837,6 @@ Computer    : DESKTOP-8AMUG6V
 Message     : Windows desktop is ready for <windowsUsername>.
 ```
 
-最新 VM vSwitch 回歸驗證結果：
-
-```text
-RunId       : 20260509-180631-3516-7778-8933-1804-0874-8294-77
-VM          : OSDCloud-Win11-vSwitch-04
-Switch      : vSwitch
-Status      : windows-desktop-ready
-User        : DESKTOP-BM8R03K\<windowsUsername>
-IPv4        : 192.168.100.200/24
-Gateway     : 192.168.100.1
-DNS         : 1.1.1.1,8.8.8.8
-Explorer    : True
-OOBE        : skipped
-OS          : Windows 11 Pro 25H2 build 26200 zh-TW
-HTTP ESD    : 0 HEAD/GET matches during this run
-Internet    : ping 1.1.1.1, DNS, and msftconnecttest all passed
-```
-
 `config\osdcloud-console.json` 與 live iPXE WinPE endpoint 會隨 Web console `Select service interface` 或 `Set-OsdCloudIpxeEndpoint.ps1` 改變。下一次實體筆電驗證前，先確認 service IP、DHCP router、HTTP base、SMB share、live `boot.ipxe` 與 `boot.wim` 內嵌 endpoint 都指向同一個本次要使用的 service IP。
 
 可用下列方式即時監看：
@@ -914,8 +892,8 @@ Web console 會接管 host 端 DHCP、TFTP、HTTP media server、`/osdcloud/stat
 - 若要管理 profile，使用 `Add profile` 與每列上的 `Edit` / `Set active` / `Delete`（或上方的 `Edit active`、`Delete inactive` 捷徑）。新增 profile 會複製目前 active profile 與其軟體順序但不切換/不發佈；對 **active** profile 編輯會停服務、寫回 JSON、立即重新發佈 live `Apps` payload 與 OS manifest、跑 preflight；對 **非 active** profile 編輯只改寫該 profile 的 JSON，不停服務、不發佈，下次對它 `Set active` 才會把調整套用到 live payload；刪除只允許刪非 active profile
 - `Select service interface` 觸發 endpoint 更新時，Preflight panel 會顯示目前正在更新的項目，Logs 會即時串流同步腳本輸出，完成後會自動針對新 endpoint 跑 preflight
 - 選擇新介面時，HTTP/TFTP/DHCP 任一服務若正在 running，Web console 會先要求停止服務再更新 endpoint
-- 切換介面後 DHCP responder 必須使用新 endpoint 的 lease pool；若 log 顯示服務在 `192.168.100.x` 但仍 OFFER/ACK `192.168.100.x`，代表正在跑舊 host console process，停止服務並重新啟動 `npm run web`
-- `dhcp.reservations` 可針對已知實體 client MAC 固定派發 IP；切到新 endpoint 時，Web console / `Set-OsdCloudIpxeEndpoint.ps1` 會移除不在新 subnet 內的 reservation，避免沿用舊 `192.168.100.x` 或 vSwitch 位址
+- 切換介面後 DHCP responder 必須使用新 endpoint 的 lease pool；若 log 顯示服務仍在舊 IP 上 OFFER/ACK，代表正在跑舊 host console process，停止服務並重新啟動 `npm run web`
+- `dhcp.reservations` 可針對已知實體 client MAC 固定派發 IP；切到新 endpoint 時，Web console / `Set-OsdCloudIpxeEndpoint.ps1` 會移除不在新 subnet 內的 reservation，避免沿用舊位址
 - 只有確認真實 LAN DHCP server 已暫時停用後，才在 Web console 啟動 DHCP
 - `Start HTTP/status`、`Start TFTP`、`Start DHCP` 是個別服務 toggle；服務 running 時同一個 action 會顯示為 `Stop ...` 並可關閉服務
 - Web console 不提供 `Configure physical NIC` 動作；如需改 Windows 網卡 IP，請明確執行 `.\tools\Set-IpxePhysicalNic.ps1`
@@ -934,8 +912,6 @@ npm run smoke
 
 狀態截圖是本機 evidence，不應提交到 Git；需要保留時以 runId 對應 `status\screenshots\<runId>`。
 
-歷史 VM timing evidence 保留在詳細測試報告；實體筆電驗證不使用 VM timing script。
-
 若安裝後 Start menu 顯示灰色 placeholder，先確認筆電是否能經由當次部署設定的 gateway 出口連網，再重啟 Start menu / Explorer 或清除目前使用者的 icon cache。
 
 ## Git 管理
@@ -946,8 +922,6 @@ npm run smoke
 
 - `README.md`
 - `AGENTS.md`
-- `OSDCloud-Win11-Automated-Deployment-Test-Report.md`
-- `tools\Invoke-IpxeTimingRun.ps1`
 - `tools\Set-IpxePhysicalNic.ps1`
 - `tools\Set-OsdCloudIpxeEndpoint.ps1`
 - `tools\Sync-OsdCloudAssets.ps1`
@@ -1031,18 +1005,16 @@ ISO VM 還要確認：
 - `OSImageIndex` 為 exported WIM index `1`，並符合 `selected-os.json`
 - 硬碟第一次開機直接進入自訂帳號桌面，不停在 OOBE
 
-## VM VM 驗證重點
+## VM Regression 驗證重點
 
 VM 回歸完成後，應確認：
 
-- VM 網卡接在 `vSwitch`
-- VM endpoint 使用 `192.168.100.1`
+- VM 網卡接在 regression 用的 internal switch
 - HTTP access log 有 `boot.ipxe`、`wimboot`、`boot.wim`
 - 本次 run window 沒有 active OS WIM `HEAD` / `GET`
-- `DeploymentStatus.share` 為 `\\192.168.100.1\OSDCloudiPXE`
+- `DeploymentStatus.share` 指向 VM regression endpoint 的 SMB share
 - `DeploymentStatus.imagePath` 指向 `Z:\OSDCloud\OS\<selected-image>.wim`
 - `windows-desktop-ready` 回報成功
-- PowerShell Direct 驗證 `DESKTOP-...\<windowsUsername>`、Explorer、OOBE registry、版本、語系、時區、網路
 
 VM 結果只能作為 regression evidence。要宣告實體筆電 path 可用，仍必須跑實體筆電 iPXE 流程。
 

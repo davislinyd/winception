@@ -2191,8 +2191,8 @@ function roleForInterface(item) {
   if (alias === 'wan') {
     return 'host internet path, not PXE service';
   }
-  if (alias.includes('vethernet') || ip.startsWith('192.168.100.')) {
-    return 'VM regression only';
+  if (alias.includes('vethernet')) {
+    return 'virtual adapter';
   }
   return 'service candidate';
 }

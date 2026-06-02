@@ -33,13 +33,12 @@ Do not treat a single failed test, failed preflight, failed deployment phase, or
 
 Read these files only when the task touches the relevant area:
 
-- Deployment path, physical laptop, VM, VM regression, vSwitch, timing run, ISO, or path evidence questions: `docs/agent-reference/deployment-paths.md`.
+- Deployment path, physical laptop, VM regression, timing run, ISO, or path evidence questions: `docs/agent-reference/deployment-paths.md`.
 - Runtime Readiness, Prepare runtime, endpoint sync, Web console, service controls, OS Image Cache, deployment profile publish, WinPE, SetupComplete, or desktop-ready behavior: `docs/agent-reference/runtime-web-console.md`.
 - Choosing verification for Web, OS image, profile/software/custom script, driver pack, multi-client, WinPE/SetupComplete, or other subsystem changes: `docs/agent-reference/validation-scenarios.md`.
 - Documentation updates, Git file selection, generated artifact handling, handoff, push, or deployment-clone workflow questions: `docs/agent-reference/repo-workflow.md`.
 - Completed 0-to-1 deployment setup evidence, restored-VM rebuild steps, or no-AI operator runbook questions: `TEST-RESULT.md`.
 - Human operator instructions: `README.md`.
-- Historical evidence and result interpretation: `OSDCloud-Win11-Automated-Deployment-Test-Report.md`.
 
 ## Live State Rules
 
@@ -50,13 +49,13 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - Read the active deployment project root / working directory, service interface, service IP, DHCP lease range, router, HTTP base, SMB share, active OS image, driver cache summary, and active deployment profile from live Web/API/config state.
 - Inspect `config\osdcloud-console.json`, any ignored local overlay, live `boot.ipxe`, host adapter state, and relevant Web state immediately before acting.
 - Treat `config\osdcloud-console.json` as the last synced lab snapshot, not guaranteed production truth.
-- If the repo or runtime appears to be on a VM/vSwitch endpoint, switch deliberately before physical-laptop validation.
+- If the repo or runtime appears to be on a non-production endpoint, switch deliberately before physical-laptop validation.
 
 ## Path Guardrails
 
-- For deployment path, physical laptop, VM, VM regression, vSwitch, timing, ISO, or path evidence tasks, read `docs/agent-reference/deployment-paths.md`.
+- For deployment path, physical laptop, VM regression, timing, ISO, or path evidence tasks, read `docs/agent-reference/deployment-paths.md`.
 - Physical-laptop work must use the Web-selected live endpoint.
-- VM/VM/vSwitch/headless evidence must not be used as proof that the physical-laptop path is ready.
+- VM regression evidence must not be used as proof that the physical-laptop path is ready.
 - The retired ISO path must not be restored as the active deployment path.
 
 ## Workspace Isolation

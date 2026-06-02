@@ -345,7 +345,7 @@ test('normalizes enabled non-APIPA IPv4 service interfaces', () => {
       InterfaceIndex: 6,
       InterfaceDescription: 'Realtek USB GbE',
       Status: 'Up',
-      MacAddress: '48-65-EE-10-94-77',
+      MacAddress: 'AA-BB-CC-00-00-03',
       LinkSpeed: '1 Gbps',
       IPAddress: '192.168.100.100',
       PrefixLength: 24,
@@ -354,9 +354,9 @@ test('normalizes enabled non-APIPA IPv4 service interfaces', () => {
     {
       InterfaceAlias: 'Ethernet 2',
       InterfaceIndex: 36,
-      InterfaceDescription: 'VM Virtual Ethernet Adapter',
+      InterfaceDescription: 'Intel(R) Ethernet Adapter',
       Status: 'Up',
-      IPAddress: '172.25.96.1',
+      IPAddress: '10.0.50.1',
       PrefixLength: 28,
       Gateway: '',
     },
@@ -369,7 +369,7 @@ test('normalizes enabled non-APIPA IPv4 service interfaces', () => {
     {
       InterfaceAlias: 'Wi-Fi',
       Status: 'Disabled',
-      IPAddress: '192.168.100.1',
+      IPAddress: '192.168.100.101',
       PrefixLength: 24,
     },
   ]);

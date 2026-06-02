@@ -37,15 +37,15 @@ function packetWithOptions(options) {
 }
 
 test('converts IPv4 values', () => {
-  assert.equal(ipv4ToUInt32('192.168.100.100'), 2887085156);
-  assert.equal(uint32ToIPv4(2887085156), '192.168.100.100');
+  assert.equal(ipv4ToUInt32('192.168.100.100'), 3232261220);
+  assert.equal(uint32ToIPv4(3232261220), '192.168.100.100');
   assert.equal(broadcastAddress('192.168.100.100', '255.255.255.0'), '192.168.100.255');
 });
 
 test('parses DHCP message type, requested IP, and iPXE markers', () => {
   const packet = packetWithOptions([
     [53, [1]],
-    [50, [172, 21, 108, 222]],
+    [50, [192, 168, 100, 222]],
     [60, [...Buffer.from('iPXE', 'ascii')]],
   ]);
 
@@ -55,11 +55,11 @@ test('parses DHCP message type, requested IP, and iPXE markers', () => {
 });
 
 test('allocates requested IPs only inside the lease pool', () => {
-  const pool = new LeasePool('192.168.100.200', '192.168.100.0');
+  const pool = new LeasePool('192.168.100.200', '192.168.100.202');
   assert.equal(pool.getLease('AA-BB-CC-00-00-01', '192.168.100.201'), '192.168.100.201');
-  assert.equal(pool.getLease('AA-BB-CC-00-00-01', '192.168.100.0'), '192.168.100.201');
+  assert.equal(pool.getLease('AA-BB-CC-00-00-01', '192.168.100.202'), '192.168.100.201');
   assert.equal(pool.getLease('AA-BB-CC-00-00-02', '192.168.100.201'), '192.168.100.200');
-  assert.equal(pool.getLease('AA-BB-CC-00-00-03', '10.0.0.10'), '192.168.100.0');
+  assert.equal(pool.getLease('AA-BB-CC-00-00-03', '10.0.0.10'), '192.168.100.202');
 });
 
 test('normalizes MAC address formats', () => {
@@ -69,7 +69,7 @@ test('normalizes MAC address formats', () => {
 });
 
 test('honors DHCP reservations outside the dynamic lease pool', () => {
-  const pool = new LeasePool('192.168.100.200', '192.168.100.0', [
+  const pool = new LeasePool('192.168.100.200', '192.168.100.202', [
     { mac: 'AA-BB-CC-DD-EE-FF', ip: '192.168.100.115' },
   ]);
 
@@ -93,11 +93,11 @@ test('refreshes DHCP lease pool after endpoint lease range changes', () => {
   const responder = new DhcpResponder(config);
   assert.equal(responder.leasePool.getLease('AA-BB-CC-00-00-01', null), '192.168.100.200');
 
-  config.listenIp = '192.168.100.1';
+  config.listenIp = '192.168.100.2';
   config.leaseStartIp = '192.168.100.200';
   config.leaseEndIp = '192.168.100.250';
-  config.router = '192.168.100.1';
-  config.ipxeBootUrl = 'http://192.168.100.1/osdcloud/boot.ipxe';
+  config.router = '192.168.100.2';
+  config.ipxeBootUrl = 'http://192.168.100.2/osdcloud/boot.ipxe';
   config.reservations = [{ mac: 'AA-BB-CC-DD-EE-FF', ip: '192.168.100.115' }];
   responder.refreshLeasePool();
 
