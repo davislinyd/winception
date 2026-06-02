@@ -36,6 +36,8 @@ const state = {
   },
   currentView: null,
   selectedGuidedStepId: null,
+  fleetFilter: 'all',
+  fleetSearch: '',
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -87,9 +89,23 @@ const elements = {
   initializationOperation: $('#initialization-operation'),
   initializationSteps: $('#initialization-steps'),
   initializationNext: $('#initialization-next'),
+  initProgressFill: $('#init-progress-fill'),
+  initProgressText: $('#init-progress-text'),
   tabGuided: $('#tab-guided'),
   tabDashboard: $('#tab-dashboard'),
+  tabFleet: $('#tab-fleet'),
   guidedStepDetail: $('#guided-step-detail'),
+  pipelineSteps: $('#pipeline-steps'),
+  topologyClients: $('#topology-clients'),
+  topologyHostIp: $('#topology-host-ip'),
+  topologyPorts: $('#topology-ports'),
+  topologyThroughput: $('#topology-throughput'),
+  liveMetrics: $('#live-metrics'),
+  fleetStatStrip: $('#fleet-stat-strip'),
+  fleetCards: $('#fleet-cards'),
+  fleetFilter: $('#fleet-filter'),
+  fleetSearch: $('#fleet-search'),
+  fleetDetail: $('#fleet-detail'),
   endpointSettingsDialog: $('#endpoint-settings-dialog'),
   deploymentProfilesDialog: $('#deployment-profiles-dialog'),
   osImagesDialog: $('#os-images-dialog'),
@@ -1273,12 +1289,19 @@ function renderInitialization(appState) {
     elements.tabGuided.classList.toggle('active', state.currentView === 'guided');
     elements.tabDashboard.classList.toggle('active', state.currentView === 'dashboard');
   }
+  if (elements.tabFleet) {
+    elements.tabFleet.classList.toggle('active', state.currentView === 'fleet');
+  }
   if (elements.initializationDialog) {
     elements.initializationDialog.classList.toggle('active', state.currentView === 'guided');
   }
   const dashboardView = $('#view-dashboard');
   if (dashboardView) {
     dashboardView.classList.toggle('active', state.currentView === 'dashboard');
+  }
+  const fleetView = $('#view-fleet');
+  if (fleetView) {
+    fleetView.classList.toggle('active', state.currentView === 'fleet');
   }
 
   captureInitializationSecretsDraft();
@@ -1306,6 +1329,18 @@ function renderInitialization(appState) {
   }
 
   elements.initializationSteps.replaceChildren();
+
+  // Setup progress bar (Stitch parity)
+  const allSteps = initialization.steps ?? [];
+  const totalSteps = allSteps.length;
+  const doneSteps = allSteps.filter((step) => step.done).length;
+  const progressPercent = totalSteps ? Math.round((doneSteps / totalSteps) * 100) : 0;
+  if (elements.initProgressFill) {
+    elements.initProgressFill.style.width = `${progressPercent}%`;
+  }
+  if (elements.initProgressText) {
+    elements.initProgressText.textContent = `${doneSteps} of ${totalSteps} complete · ${progressPercent}%`;
+  }
 
   // 1. Render Left Column Stepper List
   let index = 1;
@@ -2862,7 +2897,352 @@ function render() {
   renderSync(appState);
   renderValidation(appState);
   renderLogs(appState);
+  renderPipeline(appState);
+  renderTopology(appState);
+  renderLiveMetrics(appState);
+  renderFleetCards(appState);
   setControlsDisabled(state.busy || appState.operation?.running === true);
+}
+
+// ---- Aurora: Live Metrics bento card (Overview) ----
+function renderLiveMetrics(appState) {
+  if (!elements.liveMetrics) {
+    return;
+  }
+  const counts = appState.fleet?.counts ?? {};
+  const deploying = counts.running ?? 0;
+  const ready = counts.completed ?? 0;
+  const failed = counts.failed ?? 0;
+  const metrics = [
+    ['deploying', deploying, 'Deploying'],
+    ['ready', ready, 'Ready'],
+  ];
+  if (failed) {
+    metrics.push(['failed', failed, 'Failed']);
+  }
+  elements.liveMetrics.replaceChildren();
+  for (const [cls, num, lbl] of metrics) {
+    const metric = document.createElement('div');
+    metric.className = `live-metric ${cls}`;
+    const n = document.createElement('span');
+    n.className = 'lm-num';
+    n.textContent = String(num).padStart(2, '0');
+    const l = document.createElement('span');
+    l.className = 'lm-lbl';
+    l.textContent = lbl;
+    metric.append(n, l);
+    elements.liveMetrics.append(metric);
+  }
+  const foot = document.createElement('div');
+  foot.className = 'lm-foot';
+  const runs = appState.fleet?.runs ?? [];
+  const lastSeen = runs.map((r) => r.lastReceivedAt).filter(Boolean).sort().at(-1);
+  foot.textContent = lastSeen ? `last seen ${localTime(lastSeen)}` : 'no client activity yet';
+  elements.liveMetrics.append(foot);
+}
+
+// ---- Aurora: vertical deployment pipeline (Overview hero sidebar) ----
+function renderPipeline(appState) {
+  if (!elements.pipelineSteps) {
+    return;
+  }
+  const init = appState.initialization ?? {};
+  const steps = init.steps ?? [];
+  elements.pipelineSteps.replaceChildren();
+  let index = 1;
+  for (const step of steps) {
+    const isCurrent = step.id === init.nextStepId;
+    const cls = step.done ? 'done' : isCurrent ? 'current' : step.required ? 'locked' : '';
+    const row = document.createElement('div');
+    row.className = `pipe-step ${cls}`.trim();
+    const dot = document.createElement('span');
+    dot.className = 'pipe-dot';
+    if (step.done) {
+      dot.append(makeIcon('check'));
+    } else if (cls === 'locked') {
+      dot.append(makeIcon('lock'));
+    } else {
+      dot.textContent = String(index);
+    }
+    const body = document.createElement('div');
+    body.className = 'pipe-body';
+    const name = document.createElement('span');
+    name.className = 'pipe-name';
+    name.textContent = step.label ?? step.id;
+    const meta = document.createElement('span');
+    meta.className = 'pipe-meta';
+    meta.textContent = step.done ? 'Done' : isCurrent ? 'Current step' : step.required ? 'Locked' : 'Optional';
+    body.append(name, meta);
+    row.append(dot, body);
+    elements.pipelineSteps.append(row);
+    index += 1;
+  }
+}
+
+// ---- Aurora: live network topology client nodes (Overview hero) ----
+function topologyRingClass(run) {
+  if (run.status === 'completed') return 'ring done';
+  if (run.status === 'failed') return 'ring';
+  return 'ring';
+}
+
+function renderTopology(appState) {
+  if (elements.topologyHostIp) {
+    elements.topologyHostIp.textContent = appState.config?.serverIp ?? appState.config?.ipxe?.serverIp ?? '—';
+  }
+  const anyRunning = ['http', 'tftp', 'dhcp'].some((name) => appState.services?.[name]?.running);
+  if (elements.topologyPorts) {
+    const active = ['http', 'tftp', 'dhcp'].filter((name) => appState.services?.[name]?.running).length;
+    elements.topologyPorts.textContent = active ? `${active} ports active` : 'ready';
+  }
+  if (elements.topologyThroughput) {
+    elements.topologyThroughput.textContent = anyRunning ? 'serving · live stream' : 'idle · no active stream';
+  }
+  if (!elements.topologyClients) {
+    return;
+  }
+  const runs = (appState.fleet?.runs ?? []).slice(0, 5);
+  elements.topologyClients.replaceChildren();
+  if (!runs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'topo-client';
+    const ring = document.createElement('div');
+    ring.className = 'ring idle';
+    ring.dataset.label = '—';
+    const meta = document.createElement('div');
+    meta.className = 'topo-client-meta';
+    const name = document.createElement('span');
+    name.className = 'topo-client-name';
+    name.textContent = 'Waiting for clients';
+    const stage = document.createElement('span');
+    stage.className = 'topo-client-stage';
+    stage.textContent = 'No PXE boot yet';
+    meta.append(name, stage);
+    empty.append(ring, meta);
+    elements.topologyClients.append(empty);
+    return;
+  }
+  for (const run of runs) {
+    const node = document.createElement('div');
+    node.className = 'topo-client';
+    const pct = Math.max(0, Math.min(100, Math.round(run.latestPercent ?? 0)));
+    const ring = document.createElement('div');
+    ring.className = topologyRingClass(run);
+    if (run.status !== 'completed' && run.status !== 'failed' && !pct) {
+      ring.classList.add('idle');
+      ring.dataset.label = '—';
+    } else {
+      ring.style.setProperty('--val', String(pct));
+      ring.dataset.label = run.status === 'completed' ? '✓' : `${pct}%`;
+    }
+    if (run.status === 'failed') {
+      ring.style.setProperty('--ring-color', 'var(--error)');
+    }
+    const meta = document.createElement('div');
+    meta.className = 'topo-client-meta';
+    const name = document.createElement('span');
+    name.className = 'topo-client-name';
+    name.textContent = text(run.clientId);
+    const stage = document.createElement('span');
+    stage.className = 'topo-client-stage';
+    stage.textContent = text(run.latestStage, 'pending');
+    meta.append(name, stage);
+    node.append(ring, meta);
+    elements.topologyClients.append(node);
+  }
+}
+
+// ---- Aurora: Fleet view card grid (reuses fleet data) ----
+function renderFleetCards(appState) {
+  if (elements.fleetStatStrip) {
+    const counts = appState.fleet?.counts ?? {};
+    const stats = [
+      [appState.fleet?.total ?? 0, 'Total', ''],
+      [counts.running ?? 0, 'Deploying', ''],
+      [counts.completed ?? 0, 'Ready', ''],
+      [counts.failed ?? 0, 'Failed', 'fail'],
+    ];
+    elements.fleetStatStrip.replaceChildren();
+    for (const [num, lbl, cls] of stats) {
+      const stat = document.createElement('div');
+      stat.className = `fleet-stat ${cls}`.trim();
+      const n = document.createElement('span');
+      n.className = 'num';
+      n.textContent = String(num);
+      const l = document.createElement('span');
+      l.className = 'lbl';
+      l.textContent = lbl;
+      stat.append(n, l);
+      elements.fleetStatStrip.append(stat);
+    }
+  }
+  if (elements.fleetFilter) {
+    for (const button of elements.fleetFilter.querySelectorAll('[data-fleet-filter]')) {
+      button.classList.toggle('active', button.dataset.fleetFilter === state.fleetFilter);
+    }
+  }
+  if (!elements.fleetCards) {
+    return;
+  }
+  const allRuns = appState.fleet?.runs ?? [];
+  const query = state.fleetSearch.trim().toLowerCase();
+  const runs = allRuns.filter((run) => {
+    if (state.fleetFilter === 'active' && !(run.status !== 'completed' && run.status !== 'failed')) return false;
+    if (state.fleetFilter === 'done' && run.status !== 'completed') return false;
+    if (state.fleetFilter === 'failed' && run.status !== 'failed') return false;
+    if (query) {
+      const hay = `${run.clientId ?? ''} ${run.runId ?? ''}`.toLowerCase();
+      if (!hay.includes(query)) return false;
+    }
+    return true;
+  });
+  elements.fleetCards.replaceChildren();
+  if (!runs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'fc-stage';
+    empty.textContent = allRuns.length ? 'No clients match the current filter.' : 'No deployment clients have reported status yet.';
+    elements.fleetCards.append(empty);
+    renderFleetDetail(null);
+    return;
+  }
+  if (!runs.some((run) => run.runId === state.selectedRunId)) {
+    state.selectedRunId = runs[0].runId;
+  }
+  for (const run of runs) {
+    const card = document.createElement('div');
+    card.className = 'fleet-card';
+    if (run.runId === state.selectedRunId) {
+      card.classList.add('selected');
+    }
+    card.dataset.fleetSelect = run.runId;
+    const head = document.createElement('div');
+    head.className = 'fc-head';
+    const nameWrap = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'fc-name';
+    name.textContent = text(run.clientId);
+    const runId = document.createElement('div');
+    runId.className = 'fc-run';
+    runId.textContent = text(run.runId);
+    nameWrap.append(name, runId);
+    head.append(nameWrap, makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : 'working'));
+    const ring = makeFleetRing(run);
+    const stageLabel = document.createElement('div');
+    stageLabel.className = 'fc-stage-label';
+    stageLabel.textContent = 'Current Stage';
+    const stage = document.createElement('div');
+    stage.className = 'fc-stage';
+    stage.textContent = text(run.latestStage, 'pending');
+    card.append(head, ring, stageLabel, stage);
+    elements.fleetCards.append(card);
+  }
+  renderFleetDetail(runs.find((run) => run.runId === state.selectedRunId) ?? runs[0]);
+}
+
+function makeFleetRing(run) {
+  const pct = Math.max(0, Math.min(100, Math.round(run.latestPercent ?? 0)));
+  const ring = document.createElement('div');
+  ring.className = run.status === 'completed' ? 'ring done' : 'ring';
+  if (run.status !== 'completed' && run.status !== 'failed' && !pct) {
+    ring.classList.add('idle');
+    ring.dataset.label = '—';
+  } else {
+    ring.style.setProperty('--val', String(pct));
+    ring.dataset.label = run.status === 'completed' ? '✓' : `${pct}%`;
+  }
+  if (run.status === 'failed') {
+    ring.style.setProperty('--ring-color', 'var(--error)');
+  }
+  return ring;
+}
+
+const FLEET_STAGE_FLOW = [
+  ['winpe-start', 'winpe-start'],
+  ['smb-mounted', 'smb-mounted'],
+  ['osdcloud-start', 'osdcloud-start'],
+  ['apply-image', 'apply-image'],
+  ['rebooting', 'reboot'],
+  ['windows-setupcomplete', 'windows-setupcomplete'],
+  ['windows-desktop-ready', 'desktop-ready'],
+];
+
+function renderFleetDetail(run) {
+  if (!elements.fleetDetail) {
+    return;
+  }
+  elements.fleetDetail.replaceChildren();
+  if (!run) {
+    elements.fleetDetail.classList.add('empty');
+    const empty = document.createElement('div');
+    empty.className = 'fc-stage';
+    empty.textContent = 'Select a client to see deployment detail.';
+    elements.fleetDetail.append(empty);
+    return;
+  }
+  elements.fleetDetail.classList.remove('empty');
+
+  const head = document.createElement('div');
+  head.className = 'fd-head';
+  const title = document.createElement('div');
+  title.className = 'fd-name';
+  title.textContent = text(run.clientId);
+  head.append(title, makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : 'working'));
+  elements.fleetDetail.append(head);
+
+  const meta = document.createElement('div');
+  meta.className = 'fd-meta';
+  meta.textContent = `${text(run.runId)}${run.clientIp ? ' · ' + run.clientIp : ''}`;
+  elements.fleetDetail.append(meta);
+
+  elements.fleetDetail.append(makeFleetRing(run));
+
+  const flowTitle = document.createElement('div');
+  flowTitle.className = 'fd-section-title';
+  flowTitle.textContent = 'Execution Flow';
+  elements.fleetDetail.append(flowTitle);
+
+  const flow = document.createElement('div');
+  flow.className = 'fd-flow';
+  const reachedIndex = FLEET_STAGE_FLOW.findIndex(([key]) => key === run.latestStage);
+  const isDone = run.status === 'completed';
+  FLEET_STAGE_FLOW.forEach(([key, label], idx) => {
+    const isReached = isDone || (reachedIndex >= 0 && idx < reachedIndex);
+    const isCurrent = !isDone && reachedIndex === idx;
+    const cls = isReached ? 'done' : isCurrent ? 'current' : 'pending';
+    const row = document.createElement('div');
+    row.className = `fd-flow-step ${cls}`;
+    const dot = document.createElement('span');
+    dot.className = 'fd-flow-dot';
+    if (isReached) {
+      dot.append(makeIcon('check'));
+    }
+    const name = document.createElement('span');
+    name.className = 'fd-flow-name';
+    name.textContent = label;
+    row.append(dot, name);
+    flow.append(row);
+  });
+  elements.fleetDetail.append(flow);
+
+  const footer = document.createElement('div');
+  footer.className = 'fd-footer';
+  const evidence = document.createElement('button');
+  evidence.type = 'button';
+  evidence.className = 'bento-mini ghost';
+  evidence.dataset.icon = 'fact_check';
+  evidence.dataset.action = 'run-evidence';
+  evidence.dataset.runAction = 'evidence';
+  evidence.dataset.runId = run.runId;
+  evidence.textContent = 'View evidence';
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'bento-mini ghost danger-text';
+  del.dataset.icon = 'delete';
+  del.dataset.action = 'status-run-delete';
+  del.dataset.runId = run.runId;
+  del.textContent = 'Delete run';
+  footer.append(evidence, del);
+  elements.fleetDetail.append(footer);
 }
 
 function validateProfileInput(name) {
@@ -4385,8 +4765,22 @@ document.addEventListener('click', (event) => {
     elements.fleetExpandToggle?.focus();
     return;
   }
+  const fleetFilterButton = target.closest('[data-fleet-filter]');
+  if (fleetFilterButton) {
+    state.fleetFilter = fleetFilterButton.dataset.fleetFilter;
+    render();
+    return;
+  }
+
   if (openValidationEvidenceFromTarget(target)) {
     event.preventDefault();
+    return;
+  }
+
+  const fleetCardSelect = target.closest('[data-fleet-select]');
+  if (fleetCardSelect) {
+    state.selectedRunId = fleetCardSelect.dataset.fleetSelect;
+    render();
     return;
   }
 
@@ -4602,6 +4996,15 @@ enableBackdropCloseForDialogs();
 if (elements.tabGuided && elements.tabDashboard) {
   elements.tabGuided.addEventListener('click', () => switchToView('guided'));
   elements.tabDashboard.addEventListener('click', () => switchToView('dashboard'));
+  if (elements.tabFleet) {
+    elements.tabFleet.addEventListener('click', () => switchToView('fleet'));
+  }
+  if (elements.fleetSearch) {
+    elements.fleetSearch.addEventListener('input', () => {
+      state.fleetSearch = elements.fleetSearch.value;
+      renderFleetCards(state.current ?? {});
+    });
+  }
 }
 
 // Stepper items click handler
