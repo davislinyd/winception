@@ -100,6 +100,7 @@ export class TorrentTracker extends EventEmitter {
     this.config = config;
     this.server = null;
     this._running = false;
+    this._logStream = null;
   }
 
   get running() {
@@ -108,6 +109,33 @@ export class TorrentTracker extends EventEmitter {
 
   get address() {
     return this.server?.http?.address?.() ?? null;
+  }
+
+  // Count peers currently tracked for any swarm (diagnostic: are all clients
+  // discovering each other through the tracker?).
+  swarmSummary() {
+    const torrents = this.server?.torrents ?? {};
+    const lines = [];
+    for (const [infoHash, torrent] of Object.entries(torrents)) {
+      const peers = torrent?.peers;
+      let count = 0;
+      let complete = 0;
+      try {
+        const values = typeof peers?.values === 'function' ? [...peers.values()] : Object.values(peers ?? {});
+        for (const p of values) {
+          if (!p) continue;
+          count += 1;
+          if (p.complete) complete += 1;
+        }
+      } catch {}
+      lines.push(`${infoHash.slice(0, 12)} peers=${count} seeders=${complete}`);
+    }
+    return lines.join('; ') || 'no swarms';
+  }
+
+  trackerLog(message) {
+    if (!this._logStream) return;
+    try { this._logStream.write(`${new Date().toISOString()} ${message}\n`); } catch {}
   }
 
   async start() {
@@ -119,9 +147,30 @@ export class TorrentTracker extends EventEmitter {
       return;
     }
 
+    // Open a tracker diagnostic log: records every announce (peer ip:port, event,
+    // left=0 means a seeder) and the resulting swarm size, so we can see whether
+    // all clients register with the tracker and learn about each other.
+    if (this.config.trackerLogPath) {
+      try {
+        fs.mkdirSync(path.dirname(this.config.trackerLogPath), { recursive: true });
+        this._logStream = fs.createWriteStream(this.config.trackerLogPath, { flags: 'a' });
+        this._logStream.write(`\n===== tracker start ${new Date().toISOString()} =====\n`);
+      } catch (error) {
+        this.emit('log', `tracker log unavailable: ${error.message}`);
+        this._logStream = null;
+      }
+    }
+
     const server = new TrackerServer({ http: true, udp: false, ws: false, stats: false });
     server.on('error', (error) => this.emit('error', error));
     server.on('warning', (error) => this.emit('log', `WARNING ${error.message}`));
+    for (const event of ['start', 'update', 'complete', 'stop']) {
+      server.on(event, (addr, params) => {
+        const peer = (params && (params.ip || params.addr)) ? `${params.ip ?? ''}:${params.port ?? ''}` : String(addr ?? '');
+        const left = params?.left;
+        this.trackerLog(`${event.toUpperCase()} peer=${peer} left=${left} | swarm: ${this.swarmSummary()}`);
+      });
+    }
 
     await new Promise((resolve, reject) => {
       const onError = (error) => reject(error);
@@ -134,7 +183,7 @@ export class TorrentTracker extends EventEmitter {
 
     this.server = server;
     this._running = true;
-    this.emit('log', `START tracker ${trackerAnnounceUrl(this.config.serverIp, this.config.trackerPort)}`);
+    this.emit('log', `START tracker ${trackerAnnounceUrl(this.config.serverIp, this.config.trackerPort)}${this.config.trackerLogPath ? ` log=${this.config.trackerLogPath}` : ''}`);
   }
 
   async stop() {
@@ -145,6 +194,8 @@ export class TorrentTracker extends EventEmitter {
     const server = this.server;
     this.server = null;
     this._running = false;
+    try { this._logStream?.end(); } catch {}
+    this._logStream = null;
     await new Promise((resolve) => server.close(() => resolve()));
     this.emit('log', 'Torrent tracker stopped');
   }

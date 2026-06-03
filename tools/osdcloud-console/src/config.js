@@ -188,6 +188,7 @@ export function torrentServerConfig(config = {}) {
     seederLogLevel: torrent.seederLogLevel ?? defaultTorrentConfig.seederLogLevel,
     seederSummaryIntervalSeconds: Number(torrent.seederSummaryIntervalSeconds ?? defaultTorrentConfig.seederSummaryIntervalSeconds),
     seederMaxUploadLimit: torrent.seederMaxUploadLimit ?? defaultTorrentConfig.seederMaxUploadLimit,
+    trackerLogPath: torrent.trackerLogPath ?? path.join(liveRoot, 'logs', 'torrent-tracker.log'),
   };
 }
 
