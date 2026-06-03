@@ -146,7 +146,7 @@ test('torrentServerConfig resolves a default seeder log path under the live root
     torrent: { enabled: true },
   });
   assert.equal(resolved.seederLogPath, 'C:\\OSDCloud\\logs\\torrent-seeder.log');
-  assert.equal(resolved.seederLogLevel, 'info');
+  assert.equal(resolved.seederLogLevel, 'notice');
   assert.equal(resolved.seederSummaryIntervalSeconds, 30);
 });
 

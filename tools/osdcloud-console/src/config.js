@@ -150,7 +150,11 @@ export const defaultTorrentConfig = Object.freeze({
   seederListenPort: 6881,
   pieceLengthBytes: 4194304,
   seedMinutes: 30,
-  seederLogLevel: 'info',
+  // 'notice' keeps periodic upload (UL + cumulative + ratio) and connection
+  // count (CN) without the per-16KB-block flood that 'info'/'debug' produce
+  // (info grows the log ~1 MB/s during transfer). Set to 'info' for per-peer
+  // piece-level detail when debugging.
+  seederLogLevel: 'notice',
   seederSummaryIntervalSeconds: 30,
 });
 
