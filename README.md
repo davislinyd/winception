@@ -83,22 +83,28 @@
 
 數十台 client 同時部署時，過去每台都直接從 host SMB 串流套用 OS WIM，host 磁碟/網卡是單點瓶頸。現在預設啟用 BitTorrent P2P：每台 client 邊下載 WIM 邊把 piece 分享給其他 peer，傳檔壓力分散到整個 fleet。
 
-- **技術**：WinPE 端用單一靜態執行檔 `aria2c.exe`（開源，邊下載邊做種）；host 端在既有 Node console 內跑 `bittorrent-tracker`（MIT）當 tracker，並用 host HTTP 兼作 BEP19 webseed 後援來源。
-- **host 服務**：啟動服務後會多一個 `Torrent Tracker`（預設 `serverIp:6969`），隨 `Start all services` 一起啟停；Dashboard 服務區會顯示其狀態。
-- **WIM 落地**：WinPE 先用 `New-OSDisk` 分割目標磁碟，把 WIM 下載到本機 OS 分割區並驗證 SHA-256，再以本機檔案套用（`SkipAllDiskSteps`，不重複分割）。任一環節失敗（缺 `aria2c.exe`、torrent metadata 不全、下載或雜湊失敗）會自動回退到既有的 SMB 直接套用路徑。
-- **runtime 需求**：`aria2c.exe` 由 `Prepare runtime` 依 `config\runtime-artifacts.json` 下載（zip 解壓 + SHA-256 驗證，不進 Git），endpoint sync 時注入 `boot.wim`。`.torrent` 與其 sidecar `os-torrent.json` 會在 profile publish / endpoint sync 時於 OS cache 內重新產生（announce/webseed URL 內嵌 service IP）。
+- **技術**：WinPE 端用單一靜態執行檔 `aria2c.exe`（開源，邊下載邊做種）當 BT client；host 端在既有 Node console 內跑 `bittorrent-tracker`（MIT）當 tracker，並用同一支 `aria2c.exe` 對 OS `.torrent` **做種（seeder）**當 swarm 來源。
+- **不使用 HTTP webseed**：`.torrent` 刻意不嵌 BEP19 webseed —— aria2 會把 webseed 當主來源，導致每台 client 都從 host 整檔拉、完全不分擔。改走純 BitTorrent（tracker + peers + host 種子）。
+- **種子節流（關鍵）**：host 種子預設以 `--max-upload-limit`（`seederMaxUploadLimit`，預設 `50M`）限速。單一快速種子若不限速，會在 peer 還來不及互傳前就把每台餵滿（實測 4 台 → host 上傳 4 份）。限速讓種子成為瓶頸，逼 client 之間互相交換 piece，host 只需上傳約 1 份。
+- **host 服務**：啟動服務後會多一個 `Torrent Tracker`（tracker 預設 `serverIp:6969`、種子 listen `6881`），隨 `Start all services` 一起啟停；Dashboard 卡片顯示 `… · seeding <檔名>`。
+- **種子 log**：host 種子輸出寫到 `C:\OSDCloud\logs\torrent-seeder.log`，含週期上傳摘要（`UL` 速度 + 累積上傳量 + seed ratio）與連線數 `CN`。預設 level `notice`（避免逐 block 灌爆）；要看 per-peer piece 細節可設 `seederLogLevel: "info"`（log 會很大）。
+- **WIM 落地**：WinPE 先用 `New-OSDisk` 分割目標磁碟，把 WIM 下載到本機 OS 分割區並驗證 SHA-256，再以本機檔案套用（`SkipAllDiskSteps`，不重複分割）。任一環節失敗（缺 `aria2c.exe`、torrent metadata 不全、下載/雜湊失敗、或無 peer/種子可連）會自動回退到既有的 SMB 直接套用路徑。
+- **runtime 需求**：`aria2c.exe` 由 `Prepare runtime` 依 `config\runtime-artifacts.json` 下載（zip 解壓 + SHA-256 驗證，不進 Git），endpoint sync 時注入 `boot.wim`。`.torrent` 與其 sidecar `os-torrent.json` 會在 profile publish / endpoint sync 時於 OS cache 內重新產生（announce URL 內嵌 service IP），種子也會跟著重啟。
 - **設定**：`config\osdcloud-console.json` 的 `torrent` 區塊可調整。停用時設 `"torrent": { "enabled": false }`，client 會直接走 SMB 路徑。
 
 ```json
 "torrent": {
   "enabled": true,
   "trackerPort": 6969,
+  "seederListenPort": 6881,
   "pieceLengthBytes": 4194304,
-  "seedMinutes": 30
+  "seedMinutes": 30,
+  "seederMaxUploadLimit": "50M",
+  "seederLogLevel": "notice"
 }
 ```
 
-> 注意：P2P 落地路徑會在套用前重新分割目標磁碟，屬於部署關鍵路徑變更。請先以 VM regression 路徑驗證再用於大量實體部署；SMB 直接套用回退會完整保留。
+> 注意：P2P 落地路徑會在套用前重新分割目標磁碟，屬於部署關鍵路徑變更。請先以 VM regression 路徑驗證再用於大量實體部署；SMB 直接套用回退會完整保留。`seederMaxUploadLimit` 太高（接近 line rate）會讓 offload 失效、太低則拖慢首份散佈，依網路頻寬調整。
 
 ## 本機 Deployment Secrets
 

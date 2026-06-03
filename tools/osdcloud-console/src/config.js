@@ -156,6 +156,11 @@ export const defaultTorrentConfig = Object.freeze({
   // piece-level detail when debugging.
   seederLogLevel: 'notice',
   seederSummaryIntervalSeconds: 30,
+  // aria2 --max-upload-limit for the host seeder (e.g. '50M', '0' = unlimited).
+  // Throttling the single seed below line rate forces simultaneous clients to
+  // trade pieces with each other instead of each pulling a full copy from the
+  // host, which is what actually distributes the transfer load.
+  seederMaxUploadLimit: '50M',
 });
 
 // Resolve the host-side torrent/tracker settings, mirroring mediaHttpServerConfig.
@@ -182,6 +187,7 @@ export function torrentServerConfig(config = {}) {
     seederLogPath: torrent.seederLogPath ?? path.join(liveRoot, 'logs', 'torrent-seeder.log'),
     seederLogLevel: torrent.seederLogLevel ?? defaultTorrentConfig.seederLogLevel,
     seederSummaryIntervalSeconds: Number(torrent.seederSummaryIntervalSeconds ?? defaultTorrentConfig.seederSummaryIntervalSeconds),
+    seederMaxUploadLimit: torrent.seederMaxUploadLimit ?? defaultTorrentConfig.seederMaxUploadLimit,
   };
 }
 

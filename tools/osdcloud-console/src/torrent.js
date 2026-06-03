@@ -188,7 +188,7 @@ export class TorrentSeeder extends EventEmitter {
     const summaryInterval = Number.isFinite(this.config.seederSummaryIntervalSeconds)
       ? this.config.seederSummaryIntervalSeconds
       : 30;
-    return [
+    const args = [
       `--dir=${target.cacheRoot}`,
       '--enable-rpc=false',
       '--bt-seed-unverified=true', // file came from this host; skip the multi-GB recheck
@@ -200,8 +200,16 @@ export class TorrentSeeder extends EventEmitter {
       `--console-log-level=${logLevel}`,
       `--summary-interval=${summaryInterval}`,
       `--bt-tracker-connect-timeout=10`,
-      target.torrentPath,
     ];
+    // Throttle the seed below line rate so simultaneous clients are forced to
+    // trade pieces with each other (real load distribution) instead of each
+    // pulling a full copy from the host. '0'/empty = unlimited.
+    const uploadLimit = String(this.config.seederMaxUploadLimit ?? '').trim();
+    if (uploadLimit && uploadLimit !== '0') {
+      args.push(`--max-upload-limit=${uploadLimit}`);
+    }
+    args.push(target.torrentPath);
+    return args;
   }
 
   // Locate the active OS torrent (and its complete WIM) to seed, via the sidecar

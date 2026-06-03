@@ -138,6 +138,17 @@ test('TorrentSeeder builds aria2 args with detailed logging', () => {
   assert.equal(seeder.logPath, 'C:/OSDCloud/logs/torrent-seeder.log');
 });
 
+test('TorrentSeeder applies an upload throttle to force peer sharing', () => {
+  const target = { cacheRoot: 'C:/cache', torrentPath: 'C:/cache/x.wim.torrent', fileName: 'x.wim' };
+  const throttled = new TorrentSeeder({ osCacheRoot: 'C:/cache', aria2cPath: 'C:/aria2c.exe', seederMaxUploadLimit: '50M' });
+  assert.ok(throttled.buildSeederArgs(target).includes('--max-upload-limit=50M'));
+
+  for (const unlimited of ['0', '', undefined]) {
+    const s = new TorrentSeeder({ osCacheRoot: 'C:/cache', aria2cPath: 'C:/aria2c.exe', seederMaxUploadLimit: unlimited });
+    assert.ok(!s.buildSeederArgs(target).some((a) => a.startsWith('--max-upload-limit')), `no throttle when ${JSON.stringify(unlimited)}`);
+  }
+});
+
 test('torrentServerConfig resolves a default seeder log path under the live root', () => {
   const resolved = torrentServerConfig({
     http: { host: '192.168.77.1', port: 80 },
