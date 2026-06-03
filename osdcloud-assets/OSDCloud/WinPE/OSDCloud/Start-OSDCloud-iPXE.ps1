@@ -522,10 +522,26 @@ function Invoke-TorrentOsImageDownload {
             $seedMinutes = [int] $BootConfig.seedMinutes
         }
 
-        # Peers must accept inbound BitTorrent connections for P2P to offload the
-        # host. WinPE usually has no firewall, but disable it defensively so peers
-        # on the deployment subnet can connect to each other.
-        try { & netsh advfirewall set allprofiles state off | Out-Null } catch {}
+        # Peers MUST accept INBOUND BitTorrent connections for P2P to offload the
+        # host: VM<->VM peering needs each VM to accept inbound TCP on the aria2
+        # listen range. (VM->host works because the host accepts; if every VM
+        # blocks inbound, no VM<->VM link forms and each pulls a full copy from
+        # the seeder -> ~Nx, no offload.) Disable the firewall by every available
+        # method, add an explicit allow rule, then report the resulting state so
+        # the host can confirm inbound is actually open.
+        $fwReport = @()
+        try { $null = & netsh advfirewall set allprofiles state off 2>&1; $fwReport += 'advfirewall=off' } catch { $fwReport += "advfirewall-err=$($_.Exception.Message)" }
+        try { $null = & netsh advfirewall firewall add rule name='aria2-in' dir=in action=allow protocol=TCP localport=6881-6999 2>&1; $fwReport += 'rule=added' } catch {}
+        try { $null = & netsh firewall set opmode mode=disable 2>&1; $fwReport += 'legacy=disabled' } catch {}
+        try {
+            $svc = Get-Service -Name MpsSvc -ErrorAction SilentlyContinue
+            $fwReport += "MpsSvc=$(if ($svc) { $svc.Status } else { 'absent' })"
+        } catch {}
+        try {
+            $state = (& netsh advfirewall show allprofiles state 2>&1 | Where-Object { $_ -match 'State|ON|OFF' }) -join ' '
+            if ($state) { $fwReport += "state: $state" }
+        } catch {}
+        Send-DeploymentStatus -Stage 'torrent-firewall' -Message ($fwReport -join ' | ')
 
         Send-DeploymentStatus -Stage 'torrent-download' -Message "Starting BitTorrent download of $fileName (tracker + peers + host seed)." -Extra @{ torrentUrl = [string] $BootConfig.torrentUrl }
         Send-Screenshot -Stage 'torrent-download'
