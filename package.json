@@ -9,5 +9,9 @@
     "test": "node --test \"tools/osdcloud-console/test/**/*.test.js\"",
     "smoke": "node tools/osdcloud-console/src/smoke.js",
     "reload": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/Reload-Console.ps1"
+  },
+  "dependencies": {
+    "bittorrent-tracker": "^11.2.3",
+    "create-torrent": "^6.1.2"
   }
 }

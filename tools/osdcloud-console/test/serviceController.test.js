@@ -1270,3 +1270,66 @@ test('prepareRuntime and changeEndpoint write stdout to dedicated logs', async (
   }
 });
 
+
+test('torrent tracker is part of servicesState and start/stop all', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-torrent-ctl-'));
+  try {
+    const config = {
+      adapter: { interfaceAlias: 'LAN', serverIp: '10.10.10.1', prefixLength: 24 },
+      dhcp: { listenIp: '10.10.10.1', logPath: path.join(root, 'svc.log') },
+      tftp: { listenIp: '10.10.10.1', root: path.join(root, 'tftp') },
+      http: { host: '10.10.10.1', port: 80, root: path.join(root, 'http'), statusRoot: path.join(root, 'status') },
+      paths: { logsDir: root },
+      torrent: { enabled: true, trackerPort: 6969, pieceLengthBytes: 4194304, seedMinutes: 30 },
+    };
+    const services = {
+      dhcp: new FakeService(config.dhcp),
+      tftp: new FakeService(config.tftp),
+      http: new FakeService(config.http),
+      torrent: new FakeService(config.torrent),
+    };
+    const controller = new ServiceController({ config, services, dependencies: {} });
+
+    let state = controller.servicesState();
+    assert.equal(state.torrent.running, false);
+    assert.equal(state.torrent.enabled, true);
+    assert.equal(state.torrent.trackerPort, 6969);
+    assert.equal(state.torrent.serverIp, '10.10.10.1');
+
+    await controller.startAll();
+    assert.equal(controller.servicesState().torrent.running, true);
+    assert.equal(services.torrent.starts, 1);
+
+    await controller.stopAll();
+    assert.equal(controller.servicesState().torrent.running, false);
+    assert.equal(services.torrent.stops, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('torrent tracker is not started by startAll when disabled', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-torrent-off-'));
+  try {
+    const config = {
+      adapter: { interfaceAlias: 'LAN', serverIp: '10.10.10.1', prefixLength: 24 },
+      dhcp: { listenIp: '10.10.10.1', logPath: path.join(root, 'svc.log') },
+      tftp: { listenIp: '10.10.10.1', root: path.join(root, 'tftp') },
+      http: { host: '10.10.10.1', port: 80, root: path.join(root, 'http'), statusRoot: path.join(root, 'status') },
+      paths: { logsDir: root },
+      torrent: { enabled: false, trackerPort: 6969 },
+    };
+    const services = {
+      dhcp: new FakeService(config.dhcp),
+      tftp: new FakeService(config.tftp),
+      http: new FakeService(config.http),
+      torrent: new FakeService(config.torrent),
+    };
+    const controller = new ServiceController({ config, services, dependencies: {} });
+    await controller.startAll();
+    assert.equal(services.torrent.starts, 0);
+    assert.equal(controller.servicesState().torrent.enabled, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

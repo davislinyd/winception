@@ -138,6 +138,40 @@ function normalizeSourcePath(value, label, required) {
   return normalized;
 }
 
+function normalizeArchiveMember(value, label) {
+  const member = String(value ?? '').replace(/\\/gu, '/').trim();
+  if (!member) {
+    throw new Error(`${label} archive member is required`);
+  }
+  if (path.win32.isAbsolute(member) || /^[A-Za-z]:/u.test(member) || member.startsWith('/')) {
+    throw new Error(`${label} archive member must be relative: ${value}`);
+  }
+  const normalized = path.posix.normalize(member);
+  if (normalized === '..' || normalized.startsWith('../')) {
+    throw new Error(`${label} archive member escapes archive: ${value}`);
+  }
+  return normalized;
+}
+
+function normalizeArchive(value, label) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} archive must be an object`);
+  }
+  const format = String(value.format ?? 'zip').trim().toLowerCase();
+  if (format !== 'zip') {
+    throw new Error(`${label} archive format is not supported: ${value.format}`);
+  }
+  return {
+    format,
+    member: normalizeArchiveMember(value.member, label),
+    length: normalizeLength(value.length ?? value.size, `${label} archive`, true),
+    sha256: normalizeSha256(value.sha256, `${label} archive`, true),
+  };
+}
+
 function normalizeDependencyIds(value, label) {
   if (value === undefined || value === null) {
     return [];
@@ -166,6 +200,7 @@ function normalizeArtifact(row, section) {
     sourcePath: normalizeSourcePath(row.sourcePath, `artifact ${id}`, repoFile),
     targets: normalizeTargets(row, `artifact ${id}`),
     dependencyIds: normalizeDependencyIds(row.dependsOn, `artifact ${id}`),
+    archive: normalizeArchive(row.archive, `artifact ${id}`),
     prepareGroup: String(row.prepareGroup ?? '').trim(),
     prepareReason: String(row.prepareReason ?? '').trim(),
     length: normalizeLength(row.length ?? row.size, `artifact ${id}`, requireHash),

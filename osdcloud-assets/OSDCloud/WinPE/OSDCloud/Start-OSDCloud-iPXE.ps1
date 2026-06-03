@@ -460,6 +460,126 @@ function Save-DeploymentStatusMetadata {
     }
 }
 
+function Invoke-TorrentOsImageDownload {
+    <#
+        Attempt to acquire the OS WIM over BitTorrent so the transfer load is
+        shared across the client fleet instead of every client streaming the WIM
+        from the host SMB share. Returns a FileInfo for a locally staged, hash-
+        verified WIM on a freshly partitioned target disk, or $null to fall back
+        to the unchanged SMB-direct apply path.
+
+        Because the multi-GB WIM must land on a volume that survives OSDCloud's
+        disk wipe, we partition the target disk here (New-OSDisk) and download to
+        C:\OSDCloud\OS. The caller then sets $StartOSDCloud.SkipAllDiskSteps so
+        Invoke-OSDCloud reuses this disk instead of re-partitioning.
+    #>
+    param(
+        [object] $BootConfig,
+        [string] $ExpectedFileName
+    )
+
+    if (-not $BootConfig -or -not $BootConfig.torrentEnabled) {
+        return $null
+    }
+
+    $aria2 = Join-Path $PSScriptRoot 'aria2c.exe'
+    if (-not (Test-Path -LiteralPath $aria2 -PathType Leaf)) {
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message 'aria2c.exe not present in WinPE; using SMB-direct apply.'
+        return $null
+    }
+
+    $fileName = [string] $BootConfig.osWimFileName
+    if ([string]::IsNullOrWhiteSpace($fileName) -or ($ExpectedFileName -and $fileName -ne $ExpectedFileName)) {
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message "Torrent image name mismatch ('$fileName' vs '$ExpectedFileName'); using SMB-direct apply."
+        return $null
+    }
+    if ([string]::IsNullOrWhiteSpace([string] $BootConfig.torrentUrl) -or [string]::IsNullOrWhiteSpace([string] $BootConfig.osWimSha256)) {
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message 'Torrent metadata incomplete in boot-config; using SMB-direct apply.'
+        return $null
+    }
+
+    try {
+        Send-DeploymentStatus -Stage 'partition-target' -Message 'Partitioning target disk for P2P image staging.'
+        Send-Screenshot -Stage 'partition-target'
+        New-OSDisk -PartitionStyle GPT -Force -ErrorAction Stop
+        Start-Sleep -Seconds 5
+        if (-not (Get-PSDrive -Name 'C' -ErrorAction SilentlyContinue)) {
+            throw 'New-OSDisk did not produce a C: volume.'
+        }
+
+        $osDir = 'C:\OSDCloud\OS'
+        New-Item -ItemType Directory -Path $osDir -Force | Out-Null
+        $torrentPath = Join-Path $osDir "$fileName.torrent"
+        Invoke-WebRequest -Uri ([string] $BootConfig.torrentUrl) -OutFile $torrentPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+
+        $targetWim = Join-Path $osDir $fileName
+        $controlFile = "$targetWim.aria2"
+        Remove-Item -LiteralPath $targetWim -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $controlFile -Force -ErrorAction SilentlyContinue
+
+        $seedMinutes = 30
+        if ($BootConfig.PSObject.Properties['seedMinutes'] -and [int] $BootConfig.seedMinutes -ge 0) {
+            $seedMinutes = [int] $BootConfig.seedMinutes
+        }
+
+        Send-DeploymentStatus -Stage 'torrent-download' -Message "Starting BitTorrent download of $fileName." -Extra @{ torrentUrl = [string] $BootConfig.torrentUrl }
+        Send-Screenshot -Stage 'torrent-download'
+
+        $aria2Args = @(
+            "--dir=$osDir",
+            '--check-integrity=true',
+            "--seed-time=$seedMinutes",
+            '--seed-ratio=0.0',
+            '--file-allocation=falloc',
+            '--bt-save-metadata=false',
+            '--enable-dht=false',
+            '--enable-dht6=false',
+            '--listen-port=6881-6999',
+            '--console-log-level=warn',
+            '--summary-interval=0',
+            "--log=$logRoot\aria2.log",
+            '--log-level=notice',
+            $torrentPath
+        )
+        $proc = Start-Process -FilePath $aria2 -ArgumentList $aria2Args -WindowStyle Hidden -PassThru
+
+        # aria2 removes the .aria2 control file once the download completes, then
+        # keeps running to seed to peers. Poll for completion; do not block on the
+        # seeding window (the apply proceeds while this client keeps seeding).
+        $deadline = (Get-Date).AddMinutes(90)
+        while ($true) {
+            Start-Sleep -Seconds 5
+            $downloadComplete = (Test-Path -LiteralPath $targetWim) -and (-not (Test-Path -LiteralPath $controlFile))
+            if ($downloadComplete) {
+                break
+            }
+            if ($proc.HasExited) {
+                throw "aria2c exited (code $($proc.ExitCode)) before completing the download."
+            }
+            if ((Get-Date) -gt $deadline) {
+                throw 'BitTorrent download timed out.'
+            }
+        }
+
+        Send-DeploymentStatus -Stage 'torrent-verify' -Message 'Verifying downloaded image SHA-256.'
+        $actual = (Get-FileHash -LiteralPath $targetWim -Algorithm SHA256).Hash.ToUpperInvariant()
+        $expected = ([string] $BootConfig.osWimSha256).ToUpperInvariant()
+        if ($actual -ne $expected) {
+            throw "SHA-256 mismatch (actual=$actual expected=$expected)."
+        }
+
+        $item = Get-Item -LiteralPath $targetWim
+        Send-DeploymentStatus -Stage 'torrent-download' -Message "P2P download complete; seeding to peers (up to $seedMinutes min)." -Percent 100 -Extra @{ fileName = $fileName; bytes = $item.Length }
+        Send-Screenshot -Stage 'torrent-download'
+        return $item
+    }
+    catch {
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message "Torrent path failed; falling back to SMB-direct apply. $($_.Exception.Message)"
+        Send-Screenshot -Stage 'torrent-fallback'
+        return $null
+    }
+}
+
 Remove-Item -LiteralPath $stopProgressPath -Force -ErrorAction SilentlyContinue
 Send-DeploymentStatus -Stage 'winpe-start' -Message 'Start-OSDCloud iPXE custom image deployment started.'
 Send-Screenshot -Stage 'winpe-start'
@@ -528,10 +648,22 @@ if (-not (Test-Path -LiteralPath $imagePath)) {
     exit 1
 }
 
-$imageFile = Get-Item -LiteralPath $imagePath
-Write-Host "[$(Get-Date -Format G)] Using mapped SMB image: $($imageFile.FullName)"
-Send-DeploymentStatus -Stage 'smb-mounted' -Message "Using mapped SMB image: $($imageFile.FullName)" -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
+$smbImageFile = Get-Item -LiteralPath $imagePath
+Write-Host "[$(Get-Date -Format G)] Mapped SMB image available: $($smbImageFile.FullName)"
+Send-DeploymentStatus -Stage 'smb-mounted' -Message "Using mapped SMB image: $($smbImageFile.FullName)" -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $smbImageFile)
 Send-Screenshot -Stage 'smb-mounted'
+
+# Default-enabled BitTorrent P2P acceleration. On success the WIM is staged
+# locally on a freshly partitioned disk and disk steps are skipped; on any
+# failure we transparently fall back to the proven SMB-direct apply.
+$imageFile = $smbImageFile
+$skipDiskSteps = $false
+$torrentImageFile = Invoke-TorrentOsImageDownload -BootConfig $bootConfig -ExpectedFileName ([string] $SelectedOs.fileName)
+if ($torrentImageFile) {
+    $imageFile = $torrentImageFile
+    $skipDiskSteps = $true
+    Write-Host "[$(Get-Date -Format G)] Using P2P-staged local image: $($imageFile.FullName)"
+}
 
 $Global:StartOSDCloud = [ordered]@{
     LaunchMethod         = 'OSDCloudCLI'
@@ -544,6 +676,7 @@ $Global:StartOSDCloud = [ordered]@{
     OSLanguage           = [string] $SelectedOs.language
     OSActivation         = [string] $SelectedOs.activation
     ZTI                  = $true
+    SkipAllDiskSteps     = $skipDiskSteps
     SkipAutopilot        = $true
     SkipODT              = $true
     Restart              = $false

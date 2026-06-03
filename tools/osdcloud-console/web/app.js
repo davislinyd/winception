@@ -777,6 +777,36 @@ function renderServices(appState) {
     elements.servicesGrid.append(row);
   }
 
+  // Read-only status for the BitTorrent tracker. It is started/stopped together
+  // with the core services (Start/Stop all services) and accelerates the OS image
+  // transfer via P2P, so it is surfaced for visibility rather than as a toggle.
+  const torrent = appState.services.torrent;
+  if (torrent) {
+    const torrentEnabled = torrent.enabled !== false;
+    const row = document.createElement('div');
+    row.className = 'service-card service-row';
+    row.dataset.serviceState = torrent.running ? 'running' : 'stopped';
+    const head = document.createElement('div');
+    head.className = 'service-row-head';
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'service-title';
+    titleWrap.append(makeIcon('hub', 'service-icon'));
+    const title = document.createElement('strong');
+    title.textContent = 'Torrent Tracker';
+    titleWrap.append(title);
+    const pill = torrentEnabled
+      ? makeStatusPill(torrent.running ? 'Running' : 'Stopped', torrent.running ? 'ok' : 'neutral')
+      : makeStatusPill('Disabled', 'neutral');
+    head.append(titleWrap, pill);
+    const address = document.createElement('code');
+    address.className = 'service-address';
+    address.textContent = torrent.serverIp
+      ? `${torrent.serverIp}:${torrent.trackerPort ?? 6969} (P2P OS image)`
+      : 'P2P OS image distribution';
+    row.append(head, address);
+    elements.servicesGrid.append(row);
+  }
+
   setActionLabel('http-toggle', `${appState.services.http.running ? 'Stop' : 'Start'} HTTP`);
   setActionLabel('tftp-toggle', `${appState.services.tftp.running ? 'Stop' : 'Start'} TFTP`);
   setActionLabel('dhcp-toggle', `${appState.services.dhcp.running ? 'Stop' : 'Start'} DHCP`);

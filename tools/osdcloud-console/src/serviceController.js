@@ -9,12 +9,14 @@ import {
   mediaHttpServerConfig,
   saveConfig,
   stateRootForConfig,
+  torrentServerConfig,
   webServerConfig,
   workspaceInfo,
 } from './config.js';
 import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
+import { TorrentTracker, createOsImageTorrent } from './torrent.js';
 import {
   createSoftwarePackage,
   createDeploymentProfile,
@@ -768,6 +770,7 @@ export class ServiceController extends EventEmitter {
       summarizeDriverPackCache,
       summarizeValidation,
       syncIpxeEndpoint,
+      createOsImageTorrent,
       isElevated: isElevatedSync,
       getRuntimeReadiness,
       getDeploymentSecretsStatus: deploymentSecretsStatus,
@@ -786,6 +789,7 @@ export class ServiceController extends EventEmitter {
       dhcp: new DhcpResponder(this.config.dhcp),
       tftp: new TftpResponder(this.config.tftp),
       http: new MediaHttpServer(mediaHttpServerConfig(this.config)),
+      torrent: new TorrentTracker(torrentServerConfig(this.config)),
     };
     this.runtimeLog = new RingBuffer(options.logLimit ?? 500);
     this.preflightResults = [];
@@ -872,6 +876,9 @@ export class ServiceController extends EventEmitter {
     if (this.services.http) {
       this.services.http.config = mediaHttpServerConfig(this.config);
     }
+    if (this.services.torrent) {
+      this.services.torrent.config = torrentServerConfig(this.config);
+    }
   }
 
   serviceByName(name) {
@@ -946,6 +953,11 @@ export class ServiceController extends EventEmitter {
         router: this.config.dhcp.router,
         bootFile: this.config.dhcp.bootFile,
         ipxeBootUrl: this.config.dhcp.ipxeBootUrl,
+      }),
+      torrent: serviceSummary(this.services.torrent, {
+        enabled: this.config.torrent?.enabled !== false,
+        serverIp: torrentServerConfig(this.config).serverIp,
+        trackerPort: this.config.torrent?.trackerPort ?? 6969,
       }),
     };
   }
@@ -1187,6 +1199,15 @@ export class ServiceController extends EventEmitter {
       await this.services.http.start();
       await this.services.tftp.start();
       await this.services.dhcp.start();
+      // Torrent is an accelerator with SMB fallback; a tracker start failure must
+      // not abort the core deployment services that already came up.
+      if (this.services.torrent && this.config.torrent?.enabled !== false) {
+        try {
+          await this.services.torrent.start();
+        } catch (error) {
+          this.addLog(`[TORRENT] start failed (continuing with SMB fallback): ${error.message}`);
+        }
+      }
       return this.servicesState();
     });
   }
@@ -1203,7 +1224,36 @@ export class ServiceController extends EventEmitter {
       this.services.dhcp.stop(),
       this.services.tftp.stop(),
       this.services.http.stop(),
+      this.services.torrent?.stop() ?? Promise.resolve(),
     ]);
+  }
+
+  // Best-effort (re)generation of the active OS image .torrent + sidecar manifest.
+  // Called after profile publish and endpoint sync (announce/webseed URLs embed
+  // the service IP). Never throws: torrent is optional and falls back to SMB.
+  async regenerateOsTorrent() {
+    if (this.config.torrent?.enabled === false) {
+      return null;
+    }
+    let osImage;
+    try {
+      osImage = this.getOsImages();
+    } catch {
+      return null;
+    }
+    const active = osImage?.activeImage;
+    const fileName = active?.fileName;
+    if (!fileName || !String(fileName).toLowerCase().endsWith('.wim') || !active.cached) {
+      return null;
+    }
+    try {
+      const meta = await this.dependencies.createOsImageTorrent(this.config, { fileName });
+      this.addLog(`Generated OS image torrent ${meta.fileName} (piece=${meta.pieceLengthBytes}B sha256=${meta.wimSha256.slice(0, 12)}...)`);
+      return meta;
+    } catch (error) {
+      this.addLog(`OS image torrent generation skipped: ${error.message}`);
+      return null;
+    }
   }
 
   async changeEndpoint(choice) {
@@ -1238,6 +1288,10 @@ export class ServiceController extends EventEmitter {
         stream.flush();
       }
       this.addEndpointStatus('Endpoint files synced and published boot.wim verified', 'ok');
+
+      // Announce/webseed URLs embed the service IP, so regenerate the OS torrent
+      // whenever the endpoint changes (no-op when torrent is disabled or no image).
+      await this.regenerateOsTorrent();
 
       this.addEndpointStatus('Running preflight against the new endpoint', 'run');
       this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
@@ -1274,6 +1328,7 @@ export class ServiceController extends EventEmitter {
       if (result.osImage?.image) {
         this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
       }
+      await this.regenerateOsTorrent();
       this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
       return {
         configPath: savedPath,
@@ -1575,6 +1630,7 @@ export class ServiceController extends EventEmitter {
       if (result.osImage?.image) {
         this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
       }
+      await this.regenerateOsTorrent();
       this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
       return {
         profile: updated.profile,

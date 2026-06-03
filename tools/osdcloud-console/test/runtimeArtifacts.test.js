@@ -887,3 +887,66 @@ test('deployment bootstrap prepares host SMB share from local secrets', () => {
   assert.match(script, /Grant-SmbShareAccess/);
   assert.match(script, /SkipHostShareSetup/);
 });
+
+test('parses a download artifact with an archive (zip member) spec', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-archive-'));
+  try {
+    const catalogPath = makeCatalog(root, {
+      schemaVersion: 1,
+      artifacts: [{
+        id: 'aria2c',
+        kind: 'torrent',
+        name: 'aria2 client',
+        sourceType: 'download',
+        required: true,
+        url: 'https://example.com/aria2.zip',
+        target: 'Tools\aria2c.exe',
+        length: 5649408,
+        sha256: 'B'.repeat(64),
+        archive: {
+          format: 'zip',
+          member: 'aria2-1.37.0-win-64bit-build1/aria2c.exe',
+          length: 2475379,
+          sha256: '6'.repeat(64),
+        },
+      }],
+    });
+    const catalog = loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath });
+    const artifact = catalog.artifacts.find((a) => a.id === 'aria2c');
+    assert.equal(artifact.archive.format, 'zip');
+    assert.equal(artifact.archive.member, 'aria2-1.37.0-win-64bit-build1/aria2c.exe');
+    assert.equal(artifact.archive.length, 2475379);
+    assert.equal(artifact.archive.sha256, '6'.repeat(64));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('rejects archive members that escape the archive or have bad metadata', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-archive-bad-'));
+  try {
+    const base = (archive) => ({
+      schemaVersion: 1,
+      artifacts: [{
+        id: 'aria2c',
+        sourceType: 'download',
+        url: 'https://example.com/aria2.zip',
+        target: 'Tools\aria2c.exe',
+        length: 10,
+        sha256: 'B'.repeat(64),
+        archive,
+      }],
+    });
+
+    let catalogPath = makeCatalog(root, base({ member: '../evil.exe', length: 1, sha256: '6'.repeat(64) }));
+    assert.throws(() => loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath }), /escapes archive/);
+
+    catalogPath = makeCatalog(root, base({ member: 'aria2c.exe', length: 1, sha256: 'nothex' }));
+    assert.throws(() => loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath }), /sha256/);
+
+    catalogPath = makeCatalog(root, base({ format: 'tar', member: 'aria2c.exe', length: 1, sha256: '6'.repeat(64) }));
+    assert.throws(() => loadRuntimeArtifactCatalog({ paths: { repoRoot: root } }, { catalogPath }), /format is not supported/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

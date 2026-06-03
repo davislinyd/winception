@@ -501,3 +501,57 @@ test('loads JSON config files with UTF-8 BOM from Windows PowerShell', () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+function minimalConfig(overrides = {}) {
+  return {
+    adapter: { interfaceAlias: 'LAN', serverIp: '192.168.88.1', prefixLength: 24 },
+    dhcp: {
+      listenIp: '192.168.88.1',
+      leaseStartIp: '192.168.88.200',
+      leaseEndIp: '192.168.88.250',
+      subnetMask: '255.255.255.0',
+      router: '192.168.88.1',
+      bootFile: 'snponly.efi',
+      ipxeBootUrl: 'http://192.168.88.1/osdcloud/boot.ipxe',
+    },
+    tftp: { root: 'C:\\PXE-TFTP' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.88.1', port: 80, statusRoot: 'C:\\status' },
+    paths: { expectedHttpFiles: ['osdcloud\\boot.ipxe'] },
+    smb: { share: '\\\\192.168.88.1\\OSDCloudiPXE' },
+    osImage: { cacheRoot: 'C:\\OSDCloud\\Media\\OSDCloud\\OS' },
+    ...overrides,
+  };
+}
+
+test('validateConfig fills torrent defaults and keeps it enabled', () => {
+  const config = validateConfig(minimalConfig());
+  assert.equal(config.torrent.enabled, true);
+  assert.equal(config.torrent.trackerPort, 6969);
+  assert.equal(config.torrent.pieceLengthBytes, 4194304);
+  assert.equal(config.torrent.seedMinutes, 30);
+});
+
+test('validateConfig honours an explicit torrent override', () => {
+  const config = validateConfig(minimalConfig({
+    torrent: { enabled: false, trackerPort: 7000, pieceLengthBytes: 1048576, seedMinutes: 5 },
+  }));
+  assert.equal(config.torrent.enabled, false);
+  assert.equal(config.torrent.trackerPort, 7000);
+  assert.equal(config.torrent.pieceLengthBytes, 1048576);
+  assert.equal(config.torrent.seedMinutes, 5);
+});
+
+test('validateConfig rejects invalid torrent settings', () => {
+  assert.throws(() => validateConfig(minimalConfig({ torrent: { trackerPort: 0 } })), /torrent.trackerPort/);
+  assert.throws(() => validateConfig(minimalConfig({ torrent: { pieceLengthBytes: 1024 } })), /torrent.pieceLengthBytes/);
+  assert.throws(() => validateConfig(minimalConfig({ torrent: { seedMinutes: -1 } })), /torrent.seedMinutes/);
+});
+
+test('mediaHttpServerConfig forwards torrent settings and OS cache root', () => {
+  const config = validateConfig(minimalConfig());
+  const mediaConfig = mediaHttpServerConfig(config);
+  assert.equal(mediaConfig.osCacheRoot, 'C:\\OSDCloud\\Media\\OSDCloud\\OS');
+  assert.equal(mediaConfig.torrent.enabled, true);
+  assert.equal(mediaConfig.torrent.serverIp, '192.168.88.1');
+  assert.equal(mediaConfig.torrent.trackerPort, 6969);
+});

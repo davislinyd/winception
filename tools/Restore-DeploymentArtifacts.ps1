@@ -325,6 +325,41 @@ function Save-DownloadArtifact {
 
     Write-Host "Downloading $($Artifact.id)"
     Invoke-DownloadFile -Url ([string] $Artifact.url) -Destination $stagingFile
+
+    if ($Artifact.archive) {
+        # Archive artifacts ship as a zip: verify the downloaded zip against
+        # archive.sha256/length, extract the named member, then verify and place
+        # the member using the artifact's own (member) length/sha256.
+        $archiveSpec = [pscustomobject]@{ length = $Artifact.archive.length; sha256 = $Artifact.archive.sha256 }
+        Assert-ArtifactMatches -Path $stagingFile -Artifact $archiveSpec -Label "Downloaded archive $($Artifact.id)"
+
+        $member = ([string] $Artifact.archive.member).Replace('/', '\')
+        if ([string]::IsNullOrWhiteSpace($member) -or ($member -split '\\') -contains '..') {
+            throw "Invalid archive member for $($Artifact.id): $($Artifact.archive.member)"
+        }
+
+        $extractRoot = Join-ChildPath -Root $stagingRoot -RelativePath "$($Artifact.id).extract" -Label 'archive extract path'
+        if (Test-Path -LiteralPath $extractRoot) {
+            Remove-Item -LiteralPath $extractRoot -Recurse -Force
+        }
+        New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+        Expand-Archive -LiteralPath $stagingFile -DestinationPath $extractRoot -Force
+
+        $memberPath = Join-Path $extractRoot $member
+        if (-not (Test-Path -LiteralPath $memberPath -PathType Leaf)) {
+            throw "Archive member not found in $($Artifact.id): $($Artifact.archive.member)"
+        }
+        Assert-ArtifactMatches -Path $memberPath -Artifact $Artifact -Label "Extracted artifact $($Artifact.id)"
+        foreach ($target in $targets) {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+            Copy-Item -LiteralPath $memberPath -Destination $target -Force
+            Assert-ArtifactMatches -Path $target -Artifact $Artifact -Label "Restored artifact $($Artifact.id)"
+        }
+        Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $stagingFile -Force -ErrorAction SilentlyContinue
+        return
+    }
+
     Assert-ArtifactMatches -Path $stagingFile -Artifact $Artifact -Label "Downloaded artifact $($Artifact.id)"
     foreach ($target in $targets) {
         New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
