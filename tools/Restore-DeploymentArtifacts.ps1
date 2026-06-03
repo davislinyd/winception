@@ -338,12 +338,18 @@ function Save-DownloadArtifact {
             throw "Invalid archive member for $($Artifact.id): $($Artifact.archive.member)"
         }
 
+        # Expand-Archive only accepts a .zip extension, but the staging file is
+        # named "<id>.download"; copy it to a .zip path before extracting.
+        $zipFile = Join-ChildPath -Root $stagingRoot -RelativePath "$($Artifact.id).zip" -Label 'archive zip path'
+        Remove-Item -LiteralPath $zipFile -Force -ErrorAction SilentlyContinue
+        Copy-Item -LiteralPath $stagingFile -Destination $zipFile -Force
+
         $extractRoot = Join-ChildPath -Root $stagingRoot -RelativePath "$($Artifact.id).extract" -Label 'archive extract path'
         if (Test-Path -LiteralPath $extractRoot) {
             Remove-Item -LiteralPath $extractRoot -Recurse -Force
         }
         New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
-        Expand-Archive -LiteralPath $stagingFile -DestinationPath $extractRoot -Force
+        Expand-Archive -LiteralPath $zipFile -DestinationPath $extractRoot -Force
 
         $memberPath = Join-Path $extractRoot $member
         if (-not (Test-Path -LiteralPath $memberPath -PathType Leaf)) {
@@ -356,6 +362,7 @@ function Save-DownloadArtifact {
             Assert-ArtifactMatches -Path $target -Artifact $Artifact -Label "Restored artifact $($Artifact.id)"
         }
         Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $zipFile -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $stagingFile -Force -ErrorAction SilentlyContinue
         return
     }
