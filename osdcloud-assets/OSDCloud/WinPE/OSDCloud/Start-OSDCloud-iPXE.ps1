@@ -501,6 +501,13 @@ function Invoke-TorrentOsImageDownload {
     try {
         Send-DeploymentStatus -Stage 'partition-target' -Message 'Partitioning target disk for P2P image staging.'
         Send-Screenshot -Stage 'partition-target'
+        Write-Host ''
+        Write-Host 'WARNING: Disk will be wiped and repartitioned. Press Ctrl+C to abort.' -ForegroundColor Yellow
+        for ($secs = 5; $secs -gt 0; $secs--) {
+            Write-Host "  Proceeding in $secs..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 1
+        }
+        $ConfirmPreference = 'None'
         New-OSDisk -PartitionStyle GPT -Force -ErrorAction Stop
         Start-Sleep -Seconds 5
         if (-not (Get-PSDrive -Name 'C' -ErrorAction SilentlyContinue)) {
@@ -562,19 +569,20 @@ function Invoke-TorrentOsImageDownload {
             '--console-log-level=warn',
             '--summary-interval=0',
             "--log=$logRoot\aria2.log",
-            '--log-level=notice',
+            '--log-level=info',
             $torrentPath
         )
+        $downloadStartTime = Get-Date
         $proc = Start-Process -FilePath $aria2 -ArgumentList $aria2Args -WindowStyle Hidden -PassThru
 
         # aria2 removes the .aria2 control file once the download completes, then
         # keeps running to seed to peers. Poll for completion; do not block on the
         # seeding window (the apply proceeds while this client keeps seeding).
-        # Abort early if the swarm cannot deliver data (no growth) so SMB fallback
-        # kicks in quickly instead of waiting out the whole deadline.
+        # No intermediate stall check: file-size and file-mtime are both unreliable
+        # for BT (falloc pre-fills to full size; rarest-first writes are non-sequential;
+        # Windows delays LastWriteTime until file close). aria2 has its own retry/
+        # reconnect logic; a 30-min outer deadline covers genuine hung downloads.
         $deadline = (Get-Date).AddMinutes(30)
-        $lastSize = -1L
-        $lastProgressAt = Get-Date
         while ($true) {
             Start-Sleep -Seconds 5
             $downloadComplete = (Test-Path -LiteralPath $targetWim) -and (-not (Test-Path -LiteralPath $controlFile))
@@ -584,17 +592,8 @@ function Invoke-TorrentOsImageDownload {
             if ($proc.HasExited) {
                 throw "aria2c exited (code $($proc.ExitCode)) before completing the download."
             }
-            $size = 0L
-            if (Test-Path -LiteralPath $targetWim) { $size = (Get-Item -LiteralPath $targetWim).Length }
-            if ($size -gt $lastSize) {
-                $lastSize = $size
-                $lastProgressAt = Get-Date
-            }
-            elseif (((Get-Date) - $lastProgressAt).TotalMinutes -ge 5) {
-                throw "BitTorrent download stalled (no progress for 5 min, $([math]::Round($size/1MB)) MB)."
-            }
             if ((Get-Date) -gt $deadline) {
-                throw 'BitTorrent download timed out.'
+                throw 'BitTorrent download timed out (30 min).'
             }
         }
 
@@ -605,8 +604,30 @@ function Invoke-TorrentOsImageDownload {
             throw "SHA-256 mismatch (actual=$actual expected=$expected)."
         }
 
+        # Count VM peer IPs in the aria2 log (info-level records peer IP:port).
+        # Filters to the same /24 as the host seeder ($server) and excludes the
+        # host itself — remaining IPs are other VMs that this client exchanged
+        # pieces with, confirming VM<->VM BT links formed (firewall is open).
+        $peerDiag = 'peers=0'
+        try {
+            $subnet = $server -replace '\.\d+$', '.'
+            $logLines = Get-Content "$logRoot\aria2.log" -ErrorAction SilentlyContinue -TotalCount 100000
+            if ($logLines) {
+                $vmPeerIps = $logLines |
+                    Select-String -Pattern '(\b(?:\d{1,3}\.){3}\d{1,3}\b)' -AllMatches |
+                    ForEach-Object { $_.Matches | ForEach-Object { $_.Groups[1].Value } } |
+                    Where-Object { $_.StartsWith($subnet) -and $_ -ne $server } |
+                    Sort-Object -Unique
+                $n = @($vmPeerIps).Count
+                $peerDiag = "peers=$n$(if ($n -gt 0) { " ips=$(($vmPeerIps | Select-Object -First 8) -join ',')" })"
+            }
+        } catch {}
+        Send-DeploymentStatus -Stage 'torrent-peers' -Message $peerDiag
+
         $item = Get-Item -LiteralPath $targetWim
-        Send-DeploymentStatus -Stage 'torrent-download' -Message "P2P download complete; seeding to peers (up to $seedMinutes min)." -Percent 100 -Extra @{ fileName = $fileName; bytes = $item.Length }
+        $durationSeconds = [math]::Round(((Get-Date) - $downloadStartTime).TotalSeconds, 1)
+        $avgSpeedMiBps   = if ($durationSeconds -gt 0) { [math]::Round($item.Length / 1MB / $durationSeconds, 1) } else { 0 }
+        Send-DeploymentStatus -Stage 'torrent-download' -Message "P2P download complete; seeding to peers (up to $seedMinutes min)." -Percent 100 -Extra @{ fileName = $fileName; bytes = $item.Length; durationSeconds = $durationSeconds; avgSpeedMiBps = $avgSpeedMiBps }
         Send-Screenshot -Stage 'torrent-download'
         return $item
     }
@@ -718,6 +739,19 @@ $Global:StartOSDCloud = [ordered]@{
     SkipODT              = $true
     Restart              = $false
     Shutdown             = $false
+}
+
+# When the torrent path already partitioned the disk, Invoke-OSDCloud skips the
+# wipe. When it hasn't (non-torrent path), show a countdown so the operator can
+# abort, then suppress the Clear-Disk confirmation dialog that would otherwise block.
+if (-not $skipDiskSteps) {
+    Write-Host ''
+    Write-Host 'WARNING: Disk will be wiped and repartitioned. Press Ctrl+C to abort.' -ForegroundColor Yellow
+    for ($secs = 5; $secs -gt 0; $secs--) {
+        Write-Host "  Proceeding in $secs..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 1
+    }
+    $ConfirmPreference = 'None'
 }
 
 $deploymentSucceeded = $false
