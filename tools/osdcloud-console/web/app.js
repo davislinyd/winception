@@ -800,8 +800,11 @@ function renderServices(appState) {
     head.append(titleWrap, pill);
     const address = document.createElement('code');
     address.className = 'service-address';
+    const seedText = torrent.seederRunning
+      ? (torrent.seeding ? `seeding ${torrent.seeding}` : 'seeding')
+      : 'no seed';
     address.textContent = torrent.serverIp
-      ? `${torrent.serverIp}:${torrent.trackerPort ?? 6969} (P2P OS image)`
+      ? `${torrent.serverIp}:${torrent.trackerPort ?? 6969} · ${seedText}`
       : 'P2P OS image distribution';
     row.append(head, address);
     elements.servicesGrid.append(row);

@@ -527,6 +527,7 @@ test('validateConfig fills torrent defaults and keeps it enabled', () => {
   const config = validateConfig(minimalConfig());
   assert.equal(config.torrent.enabled, true);
   assert.equal(config.torrent.trackerPort, 6969);
+  assert.equal(config.torrent.seederListenPort, 6881);
   assert.equal(config.torrent.pieceLengthBytes, 4194304);
   assert.equal(config.torrent.seedMinutes, 30);
 });

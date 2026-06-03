@@ -522,9 +522,17 @@ function Invoke-TorrentOsImageDownload {
             $seedMinutes = [int] $BootConfig.seedMinutes
         }
 
-        Send-DeploymentStatus -Stage 'torrent-download' -Message "Starting BitTorrent download of $fileName." -Extra @{ torrentUrl = [string] $BootConfig.torrentUrl }
+        # Peers must accept inbound BitTorrent connections for P2P to offload the
+        # host. WinPE usually has no firewall, but disable it defensively so peers
+        # on the deployment subnet can connect to each other.
+        try { & netsh advfirewall set allprofiles state off | Out-Null } catch {}
+
+        Send-DeploymentStatus -Stage 'torrent-download' -Message "Starting BitTorrent download of $fileName (tracker + peers + host seed)." -Extra @{ torrentUrl = [string] $BootConfig.torrentUrl }
         Send-Screenshot -Stage 'torrent-download'
 
+        # No HTTP webseed is embedded in the torrent on purpose; the data comes
+        # from the host BitTorrent seeder and from peers, so the host uploads
+        # roughly one copy while clients redistribute pieces to each other.
         $aria2Args = @(
             "--dir=$osDir",
             '--check-integrity=true',
@@ -546,7 +554,11 @@ function Invoke-TorrentOsImageDownload {
         # aria2 removes the .aria2 control file once the download completes, then
         # keeps running to seed to peers. Poll for completion; do not block on the
         # seeding window (the apply proceeds while this client keeps seeding).
-        $deadline = (Get-Date).AddMinutes(90)
+        # Abort early if the swarm cannot deliver data (no growth) so SMB fallback
+        # kicks in quickly instead of waiting out the whole deadline.
+        $deadline = (Get-Date).AddMinutes(30)
+        $lastSize = -1L
+        $lastProgressAt = Get-Date
         while ($true) {
             Start-Sleep -Seconds 5
             $downloadComplete = (Test-Path -LiteralPath $targetWim) -and (-not (Test-Path -LiteralPath $controlFile))
@@ -555,6 +567,15 @@ function Invoke-TorrentOsImageDownload {
             }
             if ($proc.HasExited) {
                 throw "aria2c exited (code $($proc.ExitCode)) before completing the download."
+            }
+            $size = 0L
+            if (Test-Path -LiteralPath $targetWim) { $size = (Get-Item -LiteralPath $targetWim).Length }
+            if ($size -gt $lastSize) {
+                $lastSize = $size
+                $lastProgressAt = Get-Date
+            }
+            elseif (((Get-Date) - $lastProgressAt).TotalMinutes -ge 5) {
+                throw "BitTorrent download stalled (no progress for 5 min, $([math]::Round($size/1MB)) MB)."
             }
             if ((Get-Date) -gt $deadline) {
                 throw 'BitTorrent download timed out.'

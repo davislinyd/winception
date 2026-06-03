@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import createTorrent from 'create-torrent';
 import { Server as TrackerServer } from 'bittorrent-tracker';
@@ -43,13 +44,17 @@ export async function createOsImageTorrent(config, options = {}) {
   const announce = trackerAnnounceUrl(torrent.serverIp, torrent.trackerPort);
   const webSeed = osWebSeedUrl(torrent.serverIp, torrent.httpPort, fileName);
 
+  // Intentionally NO urlList (BEP19 webseed): aria2 treats an HTTP webseed as a
+  // primary source, so every client would pull the full WIM from the host and
+  // P2P would offload nothing. Clients must use BitTorrent (tracker + peers +
+  // the host BT seeder), which coordinates pieces so the host uploads ~one copy
+  // while peers redistribute. The /osdcloud/os route still serves the .torrent.
   const torrentBuffer = await new Promise((resolve, reject) => {
     createTorrent(wimPath, {
       name: fileName,
       pieceLength: torrent.pieceLengthBytes,
       private: true,
       announceList: [[announce]],
-      urlList: [webSeed],
       comment: 'winception OSDCloud P2P OS image',
       createdBy: 'winception',
     }, (error, result) => (error ? reject(error) : resolve(result)));
@@ -142,5 +147,127 @@ export class TorrentTracker extends EventEmitter {
     this._running = false;
     await new Promise((resolve) => server.close(() => resolve()));
     this.emit('log', 'Torrent tracker stopped');
+  }
+}
+
+// Host-side BitTorrent seeder. Reuses the same aria2c.exe that Prepare runtime
+// downloads, seeding the active OS .torrent against the on-disk WIM so the swarm
+// has an origin. With BitTorrent piece coordination the seeder uploads roughly
+// one copy and peers redistribute the rest — unlike the HTTP webseed, which
+// served one full copy per client. Mirrors the service lifecycle interface so
+// ServiceController can manage it (start/stop/running + 'log'/'error').
+export class TorrentSeeder extends EventEmitter {
+  constructor(config = {}) {
+    super();
+    this.config = config;
+    this.child = null;
+    this._running = false;
+    this._seeding = null;
+  }
+
+  get running() {
+    return this._running && Boolean(this.child) && this.child.exitCode === null;
+  }
+
+  get seeding() {
+    return this._seeding;
+  }
+
+  // Locate the active OS torrent (and its complete WIM) to seed, via the sidecar
+  // manifest written by createOsImageTorrent.
+  resolveTorrentToSeed() {
+    const cacheRoot = this.config.osCacheRoot;
+    if (!cacheRoot) {
+      return null;
+    }
+    try {
+      const manifestPath = path.join(cacheRoot, osTorrentManifestName);
+      if (!fs.existsSync(manifestPath)) {
+        return null;
+      }
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^﻿/u, ''));
+      const fileName = manifest.fileName;
+      if (!fileName) {
+        return null;
+      }
+      const wimPath = path.join(cacheRoot, fileName);
+      const torrentPath = `${wimPath}.torrent`;
+      if (!fs.existsSync(wimPath) || !fs.existsSync(torrentPath)) {
+        return null;
+      }
+      return { cacheRoot, fileName, wimPath, torrentPath };
+    } catch (error) {
+      this.emit('log', `Torrent seeder: unable to resolve torrent (${error.message})`);
+      return null;
+    }
+  }
+
+  async start() {
+    if (this._running) {
+      return;
+    }
+    if (this.config.enabled === false) {
+      this.emit('log', 'Torrent seeder disabled by config; not starting');
+      return;
+    }
+    const aria2 = this.config.aria2cPath;
+    if (!aria2 || !fs.existsSync(aria2)) {
+      this.emit('log', `Torrent seeder: aria2c not found at ${aria2 ?? '(unset)'}; not seeding`);
+      return;
+    }
+    const target = this.resolveTorrentToSeed();
+    if (!target) {
+      this.emit('log', 'Torrent seeder: no published OS torrent to seed yet');
+      return;
+    }
+
+    const listenPort = this.config.seederListenPort ?? 6881;
+    const args = [
+      `--dir=${target.cacheRoot}`,
+      '--enable-rpc=false',
+      '--bt-seed-unverified=true', // file came from this host; skip the multi-GB recheck
+      '--seed-ratio=0.0', // seed indefinitely (until stopped), regardless of ratio
+      `--listen-port=${listenPort}`,
+      '--enable-dht=false',
+      '--enable-dht6=false',
+      '--bt-enable-lpd=false',
+      '--console-log-level=warn',
+      '--summary-interval=0',
+      target.torrentPath,
+    ];
+
+    const child = spawn(aria2, args, { windowsHide: true });
+    child.on('error', (error) => this.emit('error', error));
+    child.stdout?.on('data', () => {});
+    child.stderr?.on('data', () => {});
+    child.on('exit', (code) => {
+      this._running = false;
+      this._seeding = null;
+      this.child = null;
+      this.emit('log', `Torrent seeder exited (code ${code})`);
+    });
+
+    this.child = child;
+    this._running = true;
+    this._seeding = target.fileName;
+    this.emit('log', `START seeder ${target.fileName} (port ${listenPort})`);
+  }
+
+  async stop() {
+    const child = this.child;
+    this.child = null;
+    this._running = false;
+    this._seeding = null;
+    if (child && child.exitCode === null) {
+      await new Promise((resolve) => {
+        child.once('exit', () => resolve());
+        try {
+          child.kill();
+        } catch {
+          resolve();
+        }
+        setTimeout(resolve, 3000);
+      });
+    }
   }
 }

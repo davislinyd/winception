@@ -147,6 +147,7 @@ export function osTorrentUrl(serverIp, httpPort, fileName) {
 export const defaultTorrentConfig = Object.freeze({
   enabled: true,
   trackerPort: 6969,
+  seederListenPort: 6881,
   pieceLengthBytes: 4194304,
   seedMinutes: 30,
 });
@@ -159,14 +160,18 @@ export function torrentServerConfig(config = {}) {
   const torrent = config.torrent ?? {};
   const serverIp = config.http?.host ?? config.adapter?.serverIp ?? '127.0.0.1';
   const httpPort = Number(config.http?.port ?? 80);
+  const liveRoot = config.runtimeArtifacts?.liveRoot ?? config.paths?.osdCloudRoot ?? 'C:\\OSDCloud';
+  const aria2cPath = torrent.aria2cPath ?? path.join(liveRoot, 'Tools', 'aria2c.exe');
   return {
     enabled: torrent.enabled !== false,
     serverIp,
     httpPort,
     trackerPort: Number(torrent.trackerPort ?? defaultTorrentConfig.trackerPort),
+    seederListenPort: Number(torrent.seederListenPort ?? defaultTorrentConfig.seederListenPort),
     pieceLengthBytes: Number(torrent.pieceLengthBytes ?? defaultTorrentConfig.pieceLengthBytes),
     seedMinutes: Number(torrent.seedMinutes ?? defaultTorrentConfig.seedMinutes),
     osCacheRoot: config.osImage?.cacheRoot ?? null,
+    aria2cPath,
     logPath: config.http?.logPath ?? null,
   };
 }
@@ -452,6 +457,7 @@ export function validateConfig(config) {
   config.torrent ??= {};
   config.torrent.enabled = config.torrent.enabled !== false;
   config.torrent.trackerPort ??= defaultTorrentConfig.trackerPort;
+  config.torrent.seederListenPort ??= defaultTorrentConfig.seederListenPort;
   config.torrent.pieceLengthBytes ??= defaultTorrentConfig.pieceLengthBytes;
   config.torrent.seedMinutes ??= defaultTorrentConfig.seedMinutes;
   const trackerPort = Number(config.torrent.trackerPort);
@@ -459,6 +465,11 @@ export function validateConfig(config) {
     throw new Error(`Invalid torrent.trackerPort: ${config.torrent.trackerPort}`);
   }
   config.torrent.trackerPort = trackerPort;
+  const seederListenPort = Number(config.torrent.seederListenPort);
+  if (!Number.isInteger(seederListenPort) || seederListenPort < 1 || seederListenPort > 65535) {
+    throw new Error(`Invalid torrent.seederListenPort: ${config.torrent.seederListenPort}`);
+  }
+  config.torrent.seederListenPort = seederListenPort;
   const pieceLengthBytes = Number(config.torrent.pieceLengthBytes);
   if (!Number.isInteger(pieceLengthBytes) || pieceLengthBytes < 16384) {
     throw new Error(`torrent.pieceLengthBytes must be an integer >= 16384: ${config.torrent.pieceLengthBytes}`);

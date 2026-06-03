@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { createOsImageTorrent, TorrentTracker } from '../src/torrent.js';
+import { createOsImageTorrent, TorrentTracker, TorrentSeeder } from '../src/torrent.js';
 import { osTorrentManifestName, torrentServerConfig } from '../src/config.js';
 
 function makeFixture() {
@@ -21,7 +21,7 @@ function makeFixture() {
   return { dir, cacheRoot, fileName, config };
 }
 
-test('createOsImageTorrent builds a torrent with announce, webseed, and manifest', async () => {
+test('createOsImageTorrent builds a BT-only torrent (announce, no webseed) and manifest', async () => {
   const { dir, cacheRoot, fileName, config } = makeFixture();
   try {
     const meta = await createOsImageTorrent(config, { fileName });
@@ -31,6 +31,13 @@ test('createOsImageTorrent builds a torrent with announce, webseed, and manifest
     assert.equal(meta.torrentUrl, 'http://192.168.88.1/osdcloud/os/Win11_25H2_zh-TW.wim.torrent');
     assert.equal(meta.pieceLengthBytes, 262144);
     assert.match(meta.wimSha256, /^[0-9A-F]{64}$/);
+
+    // The torrent must NOT embed an HTTP webseed (url-list): aria2 treats it as a
+    // primary source, which would make every client pull the full WIM from the
+    // host and defeat P2P offload. Clients must use BitTorrent instead.
+    const torrentBytes = fs.readFileSync(meta.torrentPath).toString('latin1');
+    assert.ok(!torrentBytes.includes('url-list'), 'torrent must not contain a webseed url-list');
+    assert.ok(torrentBytes.includes('announce'), 'torrent must contain the tracker announce');
 
     assert.ok(fs.existsSync(meta.torrentPath), 'writes the .torrent next to the WIM');
     const manifestPath = path.join(cacheRoot, osTorrentManifestName);
@@ -95,4 +102,46 @@ test('TorrentTracker is a no-op when disabled', async () => {
   assert.equal(tracker.running, false);
   assert.equal(tracker.address, null);
   await tracker.stop();
+});
+
+test('TorrentSeeder resolves the active torrent from the manifest', async () => {
+  const { dir, cacheRoot, fileName, config } = makeFixture();
+  try {
+    // Before a torrent exists, there is nothing to seed.
+    const seederBefore = new TorrentSeeder({ enabled: true, osCacheRoot: cacheRoot, aria2cPath: 'C:/nope/aria2c.exe' });
+    assert.equal(seederBefore.resolveTorrentToSeed(), null);
+
+    await createOsImageTorrent(config, { fileName });
+    const seeder = new TorrentSeeder({ enabled: true, osCacheRoot: cacheRoot, aria2cPath: 'C:/nope/aria2c.exe' });
+    const target = seeder.resolveTorrentToSeed();
+    assert.ok(target, 'resolves a target after the torrent is generated');
+    assert.equal(target.fileName, fileName);
+    assert.ok(target.torrentPath.endsWith('.torrent'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('TorrentSeeder start is a no-op when disabled or aria2c is missing', async () => {
+  const { dir, cacheRoot, fileName, config } = makeFixture();
+  try {
+    await createOsImageTorrent(config, { fileName });
+    const logs = [];
+
+    const disabled = new TorrentSeeder({ enabled: false, osCacheRoot: cacheRoot, aria2cPath: 'C:/nope/aria2c.exe' });
+    disabled.on('log', (l) => logs.push(l));
+    await disabled.start();
+    assert.equal(disabled.running, false);
+
+    const missing = new TorrentSeeder({ enabled: true, osCacheRoot: cacheRoot, aria2cPath: 'C:/definitely/missing/aria2c.exe' });
+    missing.on('log', (l) => logs.push(l));
+    await missing.start();
+    assert.equal(missing.running, false);
+    await missing.stop();
+
+    assert.ok(logs.some((l) => /disabled/i.test(l)));
+    assert.ok(logs.some((l) => /aria2c not found/i.test(l)));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

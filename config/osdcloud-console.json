@@ -89,6 +89,7 @@
     "torrent":  {
                     "enabled":  true,
                     "trackerPort":  6969,
+                    "seederListenPort":  6881,
                     "pieceLengthBytes":  4194304,
                     "seedMinutes":  30
                 }

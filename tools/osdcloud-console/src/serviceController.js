@@ -16,7 +16,7 @@ import {
 import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
-import { TorrentTracker, createOsImageTorrent } from './torrent.js';
+import { TorrentTracker, TorrentSeeder, createOsImageTorrent } from './torrent.js';
 import {
   createSoftwarePackage,
   createDeploymentProfile,
@@ -790,6 +790,7 @@ export class ServiceController extends EventEmitter {
       tftp: new TftpResponder(this.config.tftp),
       http: new MediaHttpServer(mediaHttpServerConfig(this.config)),
       torrent: new TorrentTracker(torrentServerConfig(this.config)),
+      torrentSeeder: new TorrentSeeder(torrentServerConfig(this.config)),
     };
     this.runtimeLog = new RingBuffer(options.logLimit ?? 500);
     this.preflightResults = [];
@@ -879,6 +880,9 @@ export class ServiceController extends EventEmitter {
     if (this.services.torrent) {
       this.services.torrent.config = torrentServerConfig(this.config);
     }
+    if (this.services.torrentSeeder) {
+      this.services.torrentSeeder.config = torrentServerConfig(this.config);
+    }
   }
 
   serviceByName(name) {
@@ -958,6 +962,8 @@ export class ServiceController extends EventEmitter {
         enabled: this.config.torrent?.enabled !== false,
         serverIp: torrentServerConfig(this.config).serverIp,
         trackerPort: this.config.torrent?.trackerPort ?? 6969,
+        seederRunning: Boolean(this.services.torrentSeeder?.running),
+        seeding: this.services.torrentSeeder?.seeding ?? null,
       }),
     };
   }
@@ -1201,9 +1207,10 @@ export class ServiceController extends EventEmitter {
       await this.services.dhcp.start();
       // Torrent is an accelerator with SMB fallback; a tracker start failure must
       // not abort the core deployment services that already came up.
-      if (this.services.torrent && this.config.torrent?.enabled !== false) {
+      if (this.config.torrent?.enabled !== false) {
         try {
-          await this.services.torrent.start();
+          await this.services.torrent?.start();
+          await this.services.torrentSeeder?.start();
         } catch (error) {
           this.addLog(`[TORRENT] start failed (continuing with SMB fallback): ${error.message}`);
         }
@@ -1225,6 +1232,7 @@ export class ServiceController extends EventEmitter {
       this.services.tftp.stop(),
       this.services.http.stop(),
       this.services.torrent?.stop() ?? Promise.resolve(),
+      this.services.torrentSeeder?.stop() ?? Promise.resolve(),
     ]);
   }
 
@@ -1249,6 +1257,17 @@ export class ServiceController extends EventEmitter {
     try {
       const meta = await this.dependencies.createOsImageTorrent(this.config, { fileName });
       this.addLog(`Generated OS image torrent ${meta.fileName} (piece=${meta.pieceLengthBytes}B sha256=${meta.wimSha256.slice(0, 12)}...)`);
+      // If the seeder was already running, restart it so it seeds the new torrent.
+      const seeder = this.services.torrentSeeder;
+      if (seeder?.running) {
+        try {
+          await seeder.stop();
+          await seeder.start();
+          this.addLog(`Torrent seeder restarted for ${meta.fileName}`);
+        } catch (error) {
+          this.addLog(`Torrent seeder restart skipped: ${error.message}`);
+        }
+      }
       return meta;
     } catch (error) {
       this.addLog(`OS image torrent generation skipped: ${error.message}`);
