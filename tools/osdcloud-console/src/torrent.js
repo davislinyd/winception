@@ -163,6 +163,7 @@ export class TorrentSeeder extends EventEmitter {
     this.child = null;
     this._running = false;
     this._seeding = null;
+    this._logStream = null;
   }
 
   get running() {
@@ -171,6 +172,36 @@ export class TorrentSeeder extends EventEmitter {
 
   get seeding() {
     return this._seeding;
+  }
+
+  get logPath() {
+    return this.config.seederLogPath ?? null;
+  }
+
+  // aria2 args for the seeder. console-log-level=info captures peer connections
+  // and announces; summary-interval emits periodic upload speed/ratio lines. The
+  // child's stdout/stderr are written to seederLogPath so the host has a detailed
+  // seeding log (peers + upload), since aria2 is reused as the seeder.
+  buildSeederArgs(target) {
+    const listenPort = this.config.seederListenPort ?? 6881;
+    const logLevel = this.config.seederLogLevel ?? 'info';
+    const summaryInterval = Number.isFinite(this.config.seederSummaryIntervalSeconds)
+      ? this.config.seederSummaryIntervalSeconds
+      : 30;
+    return [
+      `--dir=${target.cacheRoot}`,
+      '--enable-rpc=false',
+      '--bt-seed-unverified=true', // file came from this host; skip the multi-GB recheck
+      '--seed-ratio=0.0', // seed indefinitely (until stopped), regardless of ratio
+      `--listen-port=${listenPort}`,
+      '--enable-dht=false',
+      '--enable-dht6=false',
+      '--bt-enable-lpd=false',
+      `--console-log-level=${logLevel}`,
+      `--summary-interval=${summaryInterval}`,
+      `--bt-tracker-connect-timeout=10`,
+      target.torrentPath,
+    ];
   }
 
   // Locate the active OS torrent (and its complete WIM) to seed, via the sidecar
@@ -222,35 +253,41 @@ export class TorrentSeeder extends EventEmitter {
     }
 
     const listenPort = this.config.seederListenPort ?? 6881;
-    const args = [
-      `--dir=${target.cacheRoot}`,
-      '--enable-rpc=false',
-      '--bt-seed-unverified=true', // file came from this host; skip the multi-GB recheck
-      '--seed-ratio=0.0', // seed indefinitely (until stopped), regardless of ratio
-      `--listen-port=${listenPort}`,
-      '--enable-dht=false',
-      '--enable-dht6=false',
-      '--bt-enable-lpd=false',
-      '--console-log-level=warn',
-      '--summary-interval=0',
-      target.torrentPath,
-    ];
+    const args = this.buildSeederArgs(target);
+
+    // Open a detailed server-side seeding log (peer connections + upload summary).
+    let logStream = null;
+    const logPath = this.config.seederLogPath;
+    if (logPath) {
+      try {
+        fs.mkdirSync(path.dirname(logPath), { recursive: true });
+        logStream = fs.createWriteStream(logPath, { flags: 'a' });
+        logStream.write(`\n===== seeder start ${new Date().toISOString()} ${target.fileName} (listen ${listenPort}) =====\n`);
+      } catch (error) {
+        this.emit('log', `Torrent seeder: unable to open log ${logPath} (${error.message})`);
+        logStream = null;
+      }
+    }
+    this._logStream = logStream;
 
     const child = spawn(aria2, args, { windowsHide: true });
     child.on('error', (error) => this.emit('error', error));
-    child.stdout?.on('data', () => {});
-    child.stderr?.on('data', () => {});
+    child.stdout?.on('data', (chunk) => { logStream?.write(chunk); });
+    child.stderr?.on('data', (chunk) => { logStream?.write(chunk); });
     child.on('exit', (code) => {
       this._running = false;
       this._seeding = null;
       this.child = null;
+      try { this._logStream?.write(`===== seeder exited (code ${code}) ${new Date().toISOString()} =====\n`); } catch {}
+      try { this._logStream?.end(); } catch {}
+      this._logStream = null;
       this.emit('log', `Torrent seeder exited (code ${code})`);
     });
 
     this.child = child;
     this._running = true;
     this._seeding = target.fileName;
-    this.emit('log', `START seeder ${target.fileName} (port ${listenPort})`);
+    this.emit('log', `START seeder ${target.fileName} (port ${listenPort})${logPath ? ` log=${logPath}` : ''}`);
   }
 
   async stop() {
@@ -258,6 +295,8 @@ export class TorrentSeeder extends EventEmitter {
     this.child = null;
     this._running = false;
     this._seeding = null;
+    try { this._logStream?.end(); } catch {}
+    this._logStream = null;
     if (child && child.exitCode === null) {
       await new Promise((resolve) => {
         child.once('exit', () => resolve());

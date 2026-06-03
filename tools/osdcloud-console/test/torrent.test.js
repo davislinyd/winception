@@ -122,6 +122,34 @@ test('TorrentSeeder resolves the active torrent from the manifest', async () => 
   }
 });
 
+test('TorrentSeeder builds aria2 args with detailed logging', () => {
+  const seeder = new TorrentSeeder({
+    enabled: true, osCacheRoot: 'C:/cache', aria2cPath: 'C:/aria2c.exe',
+    seederListenPort: 6881, seederLogLevel: 'info', seederSummaryIntervalSeconds: 30,
+    seederLogPath: 'C:/OSDCloud/logs/torrent-seeder.log',
+  });
+  const args = seeder.buildSeederArgs({ cacheRoot: 'C:/cache', torrentPath: 'C:/cache/x.wim.torrent', fileName: 'x.wim' });
+  assert.ok(args.includes('--console-log-level=info'), 'logs peer connections at info level');
+  assert.ok(args.includes('--summary-interval=30'), 'emits periodic upload/seed summaries');
+  assert.ok(args.includes('--bt-seed-unverified=true'));
+  assert.ok(args.includes('--seed-ratio=0.0'));
+  assert.ok(args.includes('--listen-port=6881'));
+  assert.equal(args[args.length - 1], 'C:/cache/x.wim.torrent', 'torrent path is the final arg');
+  assert.equal(seeder.logPath, 'C:/OSDCloud/logs/torrent-seeder.log');
+});
+
+test('torrentServerConfig resolves a default seeder log path under the live root', () => {
+  const resolved = torrentServerConfig({
+    http: { host: '192.168.77.1', port: 80 },
+    osImage: { cacheRoot: 'C:/OSDCloud/Media/OSDCloud/OS' },
+    runtimeArtifacts: { liveRoot: 'C:/OSDCloud' },
+    torrent: { enabled: true },
+  });
+  assert.equal(resolved.seederLogPath, 'C:\\OSDCloud\\logs\\torrent-seeder.log');
+  assert.equal(resolved.seederLogLevel, 'info');
+  assert.equal(resolved.seederSummaryIntervalSeconds, 30);
+});
+
 test('TorrentSeeder start is a no-op when disabled or aria2c is missing', async () => {
   const { dir, cacheRoot, fileName, config } = makeFixture();
   try {

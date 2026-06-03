@@ -150,6 +150,8 @@ export const defaultTorrentConfig = Object.freeze({
   seederListenPort: 6881,
   pieceLengthBytes: 4194304,
   seedMinutes: 30,
+  seederLogLevel: 'info',
+  seederSummaryIntervalSeconds: 30,
 });
 
 // Resolve the host-side torrent/tracker settings, mirroring mediaHttpServerConfig.
@@ -173,6 +175,9 @@ export function torrentServerConfig(config = {}) {
     osCacheRoot: config.osImage?.cacheRoot ?? null,
     aria2cPath,
     logPath: config.http?.logPath ?? null,
+    seederLogPath: torrent.seederLogPath ?? path.join(liveRoot, 'logs', 'torrent-seeder.log'),
+    seederLogLevel: torrent.seederLogLevel ?? defaultTorrentConfig.seederLogLevel,
+    seederSummaryIntervalSeconds: Number(torrent.seederSummaryIntervalSeconds ?? defaultTorrentConfig.seederSummaryIntervalSeconds),
   };
 }
 
