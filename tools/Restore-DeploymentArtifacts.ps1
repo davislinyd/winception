@@ -736,8 +736,16 @@ function Invoke-ExternalCommand {
     }
 }
 
+function Get-OsdCloudTemplatePsMarkerPath {
+    param([Parameter(Mandatory)][string] $TemplatePath)
+    Join-Path $TemplatePath '.winpe-ps-built'
+}
+
 function Test-OsdCloudTemplateReady {
-    param([string] $TemplatePath)
+    param(
+        [string] $TemplatePath,
+        [switch] $SkipPsMarkerCheck
+    )
 
     if ([string]::IsNullOrWhiteSpace($TemplatePath)) {
         return $false
@@ -758,6 +766,18 @@ function Test-OsdCloudTemplateReady {
             return $false
         }
     }
+
+    # Require a build marker written by our controlled New-OSDCloudTemplate call.
+    # Templates built outside this pipeline (e.g. a previous OSDCloud install that predates
+    # this check) won't have the marker, so they are treated as incomplete and rebuilt.
+    # This ensures WinPE-PowerShell is always present in the template's boot.wim.
+    if (-not $SkipPsMarkerCheck) {
+        $psMarker = Get-OsdCloudTemplatePsMarkerPath -TemplatePath $TemplatePath
+        if (-not (Test-Path -LiteralPath $psMarker -PathType Leaf)) {
+            return $false
+        }
+    }
+
     $true
 }
 
@@ -855,16 +875,21 @@ function Ensure-OsdCloudTemplate {
         Write-Host "No usable OSDCloud Template found. Creating the default template from ADK WinPE media."
     }
     else {
-        Write-Host "OSDCloud Template is incomplete: $templatePath"
-        Write-Host "Rebuilding the default template from ADK WinPE media."
+        Write-Host "OSDCloud Template is missing WinPE-PowerShell build marker or required files: $templatePath"
+        Write-Host "Rebuilding the default template from ADK WinPE media to ensure WinPE-PowerShell is present."
     }
 
     New-OSDCloudTemplate -Name 'default' | Out-Null
     $templatePath = Get-CurrentOsdCloudTemplatePath
-    if (-not (Test-OsdCloudTemplateReady -TemplatePath $templatePath)) {
+    if (-not (Test-OsdCloudTemplateReady -TemplatePath $templatePath -SkipPsMarkerCheck)) {
         throw "OSDCloud Template build did not produce required WinPE media: $templatePath"
     }
-    Write-Host "Created OSDCloud Template: $templatePath"
+    # Write build marker — signals that this template was built by our controlled pipeline
+    # and has WinPE-PowerShell. The marker causes Test-OsdCloudTemplateReady to accept the
+    # template on future runs, rather than forcing a rebuild every time.
+    $psMarker = Get-OsdCloudTemplatePsMarkerPath -TemplatePath $templatePath
+    [System.IO.File]::WriteAllText($psMarker, (Get-Date).ToUniversalTime().ToString('o') + [Environment]::NewLine)
+    Write-Host "Created OSDCloud Template with WinPE-PowerShell: $templatePath"
     $templatePath
 }
 
