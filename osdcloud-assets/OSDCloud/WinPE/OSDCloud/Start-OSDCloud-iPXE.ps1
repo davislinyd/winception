@@ -507,7 +507,7 @@ function Invoke-TorrentOsImageDownload {
             Write-Host "  Proceeding in $secs..." -ForegroundColor Yellow
             Start-Sleep -Seconds 1
         }
-        $ConfirmPreference = 'None'
+        $Global:ConfirmPreference = 'None'
         New-OSDisk -PartitionStyle GPT -Force -ErrorAction Stop
         Start-Sleep -Seconds 5
         if (-not (Get-PSDrive -Name 'C' -ErrorAction SilentlyContinue)) {
@@ -751,7 +751,7 @@ if (-not $skipDiskSteps) {
         Write-Host "  Proceeding in $secs..." -ForegroundColor Yellow
         Start-Sleep -Seconds 1
     }
-    $ConfirmPreference = 'None'
+    $Global:ConfirmPreference = 'None'
 }
 
 $deploymentSucceeded = $false
