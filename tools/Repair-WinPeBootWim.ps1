@@ -71,6 +71,15 @@ Write-Ok 'App bundle updated'
 # ---------------------------------------------------------------------------
 Write-Step 'Step 2 — Prepare runtime (OSDCloud template + workspace rebuild)'
 
+# Clean up any stale DISM mounts left by previous failed runs (e.g. the Step 4
+# read-only verification mount). A stale mount causes New-OSDCloudTemplate's
+# Save-WindowsImage to fail with 'The specified image needs to be remounted'.
+Write-Info "Cleaning up stale DISM mounts..."
+& dism /English /Cleanup-Mountpoints | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "DISM Cleanup-Mountpoints returned exit $LASTEXITCODE (continuing)"
+}
+
 # The runtime catalog has NO sha256/length for winpe-boot-wim, so
 # Test-ArtifactMatches returns true whenever the file merely exists — even if it
 # was built without WinPE-PowerShell. Remove it to force a catalog miss, which
