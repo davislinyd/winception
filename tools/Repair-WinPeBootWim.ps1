@@ -71,6 +71,16 @@ Write-Ok 'App bundle updated'
 # ---------------------------------------------------------------------------
 Write-Step 'Step 2 — Prepare runtime (OSDCloud template + workspace rebuild)'
 
+# The runtime catalog has NO sha256/length for winpe-boot-wim, so
+# Test-ArtifactMatches returns true whenever the file merely exists — even if it
+# was built without WinPE-PowerShell. Remove it to force a catalog miss, which
+# triggers Ensure-OsdCloudWorkspace → Ensure-OsdCloudTemplate → rebuild.
+$sourceWim = Join-Path $LiveRoot 'Media\sources\boot.wim'
+if (Test-Path -LiteralPath $sourceWim -PathType Leaf) {
+    Remove-Item -LiteralPath $sourceWim -Force
+    Write-Info "Removed existing workspace boot.wim to force template + workspace rebuild"
+}
+
 $restoreScript = Join-Path $AppRoot 'tools\Restore-DeploymentArtifacts.ps1'
 $catalogPath   = Join-Path $AppRoot 'config\runtime-artifacts.json'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $restoreScript `
