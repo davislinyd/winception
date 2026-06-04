@@ -197,6 +197,19 @@ try {
         @{ Source = Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1'; SourceKind = 'boot.wim:index1' }
     )
 
+    # WIM-sourced exports require the boot.wim to be mounted. When it isn't and
+    # -MountWinPe was not requested, skip those entries with a warning rather than
+    # failing: the common case of "I just edited a WinPE template" still completes
+    # and pushes the updated file to the App copy so endpoint sync picks it up.
+    $wimAvailable = Test-Path -LiteralPath (Join-Path $winPeMount 'Windows\System32\Startnet.cmd') -PathType Leaf
+    if (-not $wimAvailable) {
+        $wimOnlyExports = @($exports | Where-Object { $_.ContainsKey('SourceKind') -and $_['SourceKind'] -eq 'boot.wim:index1' })
+        if ($wimOnlyExports.Count -gt 0) {
+            Write-Warning "boot.wim not mounted at $winPeMount; skipping $($wimOnlyExports.Count) WIM export(s). Run with -MountWinPe to include them."
+        }
+        $exports = @($exports | Where-Object { -not ($_.ContainsKey('SourceKind') -and $_['SourceKind'] -eq 'boot.wim:index1') })
+    }
+
     $copied = foreach ($entry in $exports) {
         $sourceKind = if ($entry.ContainsKey('SourceKind')) { $entry.SourceKind } else { 'filesystem' }
         Copy-VersionedAsset -Source $entry.Source -Target $entry.Target -SourceKind $sourceKind
