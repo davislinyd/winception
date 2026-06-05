@@ -103,6 +103,9 @@ export class TorrentTracker extends EventEmitter {
     this.server = null;
     this._running = false;
     this._logStream = null;
+    // Live swarm peer map. Keyed by 'ip:port'; populated from tracker announce events.
+    // Provides real-time per-VM download progress for the dashboard UI.
+    this._swarmPeers = new Map();
   }
 
   get running() {
@@ -171,6 +174,25 @@ export class TorrentTracker extends EventEmitter {
         const peer = (params && (params.ip || params.addr)) ? `${params.ip ?? ''}:${params.port ?? ''}` : String(addr ?? '');
         const left = params?.left;
         this.trackerLog(`${event.toUpperCase()} peer=${peer} left=${left} | swarm: ${this.swarmSummary()}`);
+        // Maintain live swarm map for dashboard UI
+        const ip = params?.ip ?? '';
+        const port = Number(params?.port ?? 0);
+        const key = `${ip}:${port}`;
+        if (ip) {
+          if (event === 'stop') {
+            this._swarmPeers.delete(key);
+          } else {
+            this._swarmPeers.set(key, {
+              ip,
+              port,
+              left: Number(params?.left ?? 0),
+              downloaded: Number(params?.downloaded ?? 0),
+              uploaded: Number(params?.uploaded ?? 0),
+              complete: event === 'complete' || Number(params?.left ?? 1) === 0,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        }
       });
     }
 
@@ -188,6 +210,12 @@ export class TorrentTracker extends EventEmitter {
     this.emit('log', `START tracker ${trackerAnnounceUrl(this.config.serverIp, this.config.trackerPort)}${this.config.trackerLogPath ? ` log=${this.config.trackerLogPath}` : ''}`);
   }
 
+  // Return current swarm peers sorted by IP, for the dashboard UI.
+  // Each entry: { ip, port, left, downloaded, uploaded, complete, updatedAt }
+  getSwarmPeers() {
+    return [...this._swarmPeers.values()].sort((a, b) => a.ip.localeCompare(b.ip));
+  }
+
   async stop() {
     if (!this.server) {
       this._running = false;
@@ -196,6 +224,7 @@ export class TorrentTracker extends EventEmitter {
     const server = this.server;
     this.server = null;
     this._running = false;
+    this._swarmPeers.clear();
     try { this._logStream?.end(); } catch {}
     this._logStream = null;
     await new Promise((resolve) => server.close(() => resolve()));

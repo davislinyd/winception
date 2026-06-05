@@ -104,6 +104,16 @@ test('TorrentTracker is a no-op when disabled', async () => {
   await tracker.stop();
 });
 
+test('TorrentTracker.getSwarmPeers returns an empty array before and after lifecycle', async () => {
+  const tracker = new TorrentTracker({ enabled: true, serverIp: '127.0.0.1', trackerPort: 0 });
+  assert.ok(Array.isArray(tracker.getSwarmPeers()), 'getSwarmPeers is callable before start');
+  assert.deepEqual(tracker.getSwarmPeers(), []);
+  await tracker.start();
+  assert.deepEqual(tracker.getSwarmPeers(), [], 'no peers yet after start with no announces');
+  await tracker.stop();
+  assert.deepEqual(tracker.getSwarmPeers(), [], 'cleared on stop');
+});
+
 test('TorrentSeeder resolves the active torrent from the manifest', async () => {
   const { dir, cacheRoot, fileName, config } = makeFixture();
   try {

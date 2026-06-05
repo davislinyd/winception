@@ -964,6 +964,7 @@ export class ServiceController extends EventEmitter {
         trackerPort: this.config.torrent?.trackerPort ?? 6969,
         seederRunning: Boolean(this.services.torrentSeeder?.running),
         seeding: this.services.torrentSeeder?.seeding ?? null,
+        swarmPeers: this.services.torrent?.getSwarmPeers?.() ?? [],
       }),
     };
   }
