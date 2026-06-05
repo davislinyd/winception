@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { createOsImageTorrent, TorrentTracker, TorrentSeeder } from '../src/torrent.js';
+import { createOsImageTorrent, TorrentTracker, TorrentSeeder, NodeSuperSeeder } from '../src/torrent.js';
 import { osTorrentManifestName, torrentServerConfig } from '../src/config.js';
 
 function makeFixture() {
@@ -108,44 +108,17 @@ test('TorrentSeeder resolves the active torrent from the manifest', async () => 
   const { dir, cacheRoot, fileName, config } = makeFixture();
   try {
     // Before a torrent exists, there is nothing to seed.
-    const seederBefore = new TorrentSeeder({ enabled: true, osCacheRoot: cacheRoot, aria2cPath: 'C:/nope/aria2c.exe' });
+    const seederBefore = new TorrentSeeder({ enabled: true, osCacheRoot: cacheRoot });
     assert.equal(seederBefore.resolveTorrentToSeed(), null);
 
     await createOsImageTorrent(config, { fileName });
-    const seeder = new TorrentSeeder({ enabled: true, osCacheRoot: cacheRoot, aria2cPath: 'C:/nope/aria2c.exe' });
+    const seeder = new TorrentSeeder({ enabled: true, osCacheRoot: cacheRoot });
     const target = seeder.resolveTorrentToSeed();
     assert.ok(target, 'resolves a target after the torrent is generated');
     assert.equal(target.fileName, fileName);
     assert.ok(target.torrentPath.endsWith('.torrent'));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('TorrentSeeder builds aria2 args with detailed logging', () => {
-  const seeder = new TorrentSeeder({
-    enabled: true, osCacheRoot: 'C:/cache', aria2cPath: 'C:/aria2c.exe',
-    seederListenPort: 6881, seederLogLevel: 'info', seederSummaryIntervalSeconds: 30,
-    seederLogPath: 'C:/OSDCloud/logs/torrent-seeder.log',
-  });
-  const args = seeder.buildSeederArgs({ cacheRoot: 'C:/cache', torrentPath: 'C:/cache/x.wim.torrent', fileName: 'x.wim' });
-  assert.ok(args.includes('--console-log-level=info'), 'logs peer connections at info level');
-  assert.ok(args.includes('--summary-interval=30'), 'emits periodic upload/seed summaries');
-  assert.ok(args.includes('--bt-seed-unverified=true'));
-  assert.ok(args.includes('--seed-ratio=0.0'));
-  assert.ok(args.includes('--listen-port=6881'));
-  assert.equal(args[args.length - 1], 'C:/cache/x.wim.torrent', 'torrent path is the final arg');
-  assert.equal(seeder.logPath, 'C:/OSDCloud/logs/torrent-seeder.log');
-});
-
-test('TorrentSeeder applies an upload throttle to force peer sharing', () => {
-  const target = { cacheRoot: 'C:/cache', torrentPath: 'C:/cache/x.wim.torrent', fileName: 'x.wim' };
-  const throttled = new TorrentSeeder({ osCacheRoot: 'C:/cache', aria2cPath: 'C:/aria2c.exe', seederMaxUploadLimit: '50M' });
-  assert.ok(throttled.buildSeederArgs(target).includes('--max-upload-limit=50M'));
-
-  for (const unlimited of ['0', '', undefined]) {
-    const s = new TorrentSeeder({ osCacheRoot: 'C:/cache', aria2cPath: 'C:/aria2c.exe', seederMaxUploadLimit: unlimited });
-    assert.ok(!s.buildSeederArgs(target).some((a) => a.startsWith('--max-upload-limit')), `no throttle when ${JSON.stringify(unlimited)}`);
   }
 });
 
@@ -157,29 +130,72 @@ test('torrentServerConfig resolves a default seeder log path under the live root
     torrent: { enabled: true },
   });
   assert.equal(resolved.seederLogPath, 'C:\\OSDCloud\\logs\\torrent-seeder.log');
-  assert.equal(resolved.seederLogLevel, 'notice');
-  assert.equal(resolved.seederSummaryIntervalSeconds, 30);
+  assert.equal(resolved.expectedPeers, 4);
 });
 
-test('TorrentSeeder start is a no-op when disabled or aria2c is missing', async () => {
+test('NodeSuperSeeder partitions pieces across peers and gives full bitfield to overflow', () => {
+  const seeder = new NodeSuperSeeder({ expectedPeers: 4 });
+  seeder._totalPieces = 100;
+  // P = ceil(100/4) = 25
+  assert.deepEqual(seeder._assignedPieceRange(0), { firstPiece: 0,  lastPiece: 24, full: false });
+  assert.deepEqual(seeder._assignedPieceRange(1), { firstPiece: 25, lastPiece: 49, full: false });
+  assert.deepEqual(seeder._assignedPieceRange(2), { firstPiece: 50, lastPiece: 74, full: false });
+  assert.deepEqual(seeder._assignedPieceRange(3), { firstPiece: 75, lastPiece: 99, full: false });
+  assert.deepEqual(seeder._assignedPieceRange(4), { firstPiece: 0,  lastPiece: 99, full: true });
+  assert.deepEqual(seeder._assignedPieceRange(10), { firstPiece: 0, lastPiece: 99, full: true });
+});
+
+test('NodeSuperSeeder start is a no-op when disabled', async () => {
   const { dir, cacheRoot, fileName, config } = makeFixture();
   try {
     await createOsImageTorrent(config, { fileName });
     const logs = [];
-
-    const disabled = new TorrentSeeder({ enabled: false, osCacheRoot: cacheRoot, aria2cPath: 'C:/nope/aria2c.exe' });
+    const disabled = new NodeSuperSeeder({ enabled: false, osCacheRoot: cacheRoot });
     disabled.on('log', (l) => logs.push(l));
     await disabled.start();
     assert.equal(disabled.running, false);
-
-    const missing = new TorrentSeeder({ enabled: true, osCacheRoot: cacheRoot, aria2cPath: 'C:/definitely/missing/aria2c.exe' });
-    missing.on('log', (l) => logs.push(l));
-    await missing.start();
-    assert.equal(missing.running, false);
-    await missing.stop();
-
     assert.ok(logs.some((l) => /disabled/i.test(l)));
-    assert.ok(logs.some((l) => /aria2c not found/i.test(l)));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('NodeSuperSeeder start logs and skips when no torrent manifest exists', async () => {
+  const { dir, cacheRoot } = makeFixture();
+  try {
+    const logs = [];
+    const seeder = new NodeSuperSeeder({ enabled: true, osCacheRoot: cacheRoot });
+    seeder.on('log', (l) => logs.push(l));
+    await seeder.start();
+    assert.equal(seeder.running, false);
+    assert.ok(logs.some((l) => /no published/i.test(l)));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('NodeSuperSeeder starts TCP server and stops cleanly', async () => {
+  const { dir, cacheRoot, fileName, config } = makeFixture();
+  try {
+    await createOsImageTorrent(config, { fileName });
+    const logs = [];
+    // Use port 0 for ephemeral binding; disable tracker announce (no tracker running)
+    const seeder = new NodeSuperSeeder({
+      enabled: true,
+      osCacheRoot: cacheRoot,
+      seederListenPort: 0,
+      serverIp: '127.0.0.1',
+      trackerPort: 0,
+      expectedPeers: 4,
+    });
+    seeder.on('log', (l) => logs.push(l));
+    await seeder.start();
+    assert.equal(seeder.running, true);
+    assert.equal(seeder.seeding, fileName);
+    assert.ok(logs.some((l) => l.startsWith('START seeder')), 'logs the start line');
+    await seeder.stop();
+    assert.equal(seeder.running, false);
+    assert.equal(seeder.seeding, null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

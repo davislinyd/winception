@@ -150,17 +150,11 @@ export const defaultTorrentConfig = Object.freeze({
   seederListenPort: 6881,
   pieceLengthBytes: 4194304,
   seedMinutes: 30,
-  // 'notice' keeps periodic upload (UL + cumulative + ratio) and connection
-  // count (CN) without the per-16KB-block flood that 'info'/'debug' produce
-  // (info grows the log ~1 MB/s during transfer). Set to 'info' for per-peer
-  // piece-level detail when debugging.
-  seederLogLevel: 'notice',
-  seederSummaryIntervalSeconds: 30,
-  // aria2 --max-upload-limit for the host seeder (e.g. '50M', '0' = unlimited).
-  // Throttling the single seed below line rate forces simultaneous clients to
-  // trade pieces with each other instead of each pulling a full copy from the
-  // host, which is what actually distributes the transfer load.
-  seederMaxUploadLimit: '50M',
+  // How many simultaneous peers to partition pieces across. Each connecting
+  // peer gets 1/N of the torrent's pieces from the host seeder; peers then
+  // trade with each other to fill in the rest, so the host uploads ~1× total
+  // instead of N×. Peers beyond this count get a full bitfield (all pieces).
+  expectedPeers: 4,
 });
 
 // Resolve the host-side torrent/tracker settings, mirroring mediaHttpServerConfig.
@@ -184,10 +178,8 @@ export function torrentServerConfig(config = {}) {
     osCacheRoot: config.osImage?.cacheRoot ?? null,
     aria2cPath,
     logPath: config.http?.logPath ?? null,
+    expectedPeers: Number(torrent.expectedPeers ?? defaultTorrentConfig.expectedPeers),
     seederLogPath: torrent.seederLogPath ?? path.join(liveRoot, 'logs', 'torrent-seeder.log'),
-    seederLogLevel: torrent.seederLogLevel ?? defaultTorrentConfig.seederLogLevel,
-    seederSummaryIntervalSeconds: Number(torrent.seederSummaryIntervalSeconds ?? defaultTorrentConfig.seederSummaryIntervalSeconds),
-    seederMaxUploadLimit: torrent.seederMaxUploadLimit ?? defaultTorrentConfig.seederMaxUploadLimit,
     trackerLogPath: torrent.trackerLogPath ?? path.join(liveRoot, 'logs', 'torrent-tracker.log'),
   };
 }

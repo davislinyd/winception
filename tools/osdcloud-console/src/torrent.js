@@ -1,10 +1,12 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import bencode from 'bencode';
+import Wire from 'bittorrent-protocol';
 import createTorrent from 'create-torrent';
-import { Server as TrackerServer } from 'bittorrent-tracker';
+import { Server as TrackerServer, Client as TrackerClient } from 'bittorrent-tracker';
 import {
   torrentServerConfig,
   trackerAnnounceUrl,
@@ -201,24 +203,32 @@ export class TorrentTracker extends EventEmitter {
   }
 }
 
-// Host-side BitTorrent seeder. Reuses the same aria2c.exe that Prepare runtime
-// downloads, seeding the active OS .torrent against the on-disk WIM so the swarm
-// has an origin. With BitTorrent piece coordination the seeder uploads roughly
-// one copy and peers redistribute the rest — unlike the HTTP webseed, which
-// served one full copy per client. Mirrors the service lifecycle interface so
-// ServiceController can manage it (start/stop/running + 'log'/'error').
-export class TorrentSeeder extends EventEmitter {
+// Host-side BitTorrent seeder. Creates a Node.js TCP server that speaks the
+// BitTorrent peer wire protocol and assigns each connecting peer a distinct
+// slice of the torrent's pieces. Because every VM gets a unique piece range
+// from the host, peers can trade those pieces with each other — the host
+// uploads roughly one copy total while peers redistribute the rest.
+// Mirrors the service lifecycle interface so ServiceController can manage it
+// (start/stop/running + 'log'/'error').
+export class NodeSuperSeeder extends EventEmitter {
   constructor(config = {}) {
     super();
     this.config = config;
-    this.child = null;
+    this._server = null;
+    this._trackerClient = null;
     this._running = false;
     this._seeding = null;
     this._logStream = null;
+    this._peers = [];
+    this._peerIndex = 0;
+    this._totalPieces = 0;
+    this._infoHash = null;
+    this._peerId = null;
+    this._pieceLengthBytes = 0;
   }
 
   get running() {
-    return this._running && Boolean(this.child) && this.child.exitCode === null;
+    return this._running;
   }
 
   get seeding() {
@@ -227,40 +237,6 @@ export class TorrentSeeder extends EventEmitter {
 
   get logPath() {
     return this.config.seederLogPath ?? null;
-  }
-
-  // aria2 args for the seeder. console-log-level=info captures peer connections
-  // and announces; summary-interval emits periodic upload speed/ratio lines. The
-  // child's stdout/stderr are written to seederLogPath so the host has a detailed
-  // seeding log (peers + upload), since aria2 is reused as the seeder.
-  buildSeederArgs(target) {
-    const listenPort = this.config.seederListenPort ?? 6881;
-    const logLevel = this.config.seederLogLevel ?? 'info';
-    const summaryInterval = Number.isFinite(this.config.seederSummaryIntervalSeconds)
-      ? this.config.seederSummaryIntervalSeconds
-      : 30;
-    const args = [
-      `--dir=${target.cacheRoot}`,
-      '--enable-rpc=false',
-      '--bt-seed-unverified=true', // file came from this host; skip the multi-GB recheck
-      '--seed-ratio=0.0', // seed indefinitely (until stopped), regardless of ratio
-      `--listen-port=${listenPort}`,
-      '--enable-dht=false',
-      '--enable-dht6=false',
-      '--bt-enable-lpd=false',
-      `--console-log-level=${logLevel}`,
-      `--summary-interval=${summaryInterval}`,
-      `--bt-tracker-connect-timeout=10`,
-    ];
-    // Throttle the seed below line rate so simultaneous clients are forced to
-    // trade pieces with each other (real load distribution) instead of each
-    // pulling a full copy from the host. '0'/empty = unlimited.
-    const uploadLimit = String(this.config.seederMaxUploadLimit ?? '').trim();
-    if (uploadLimit && uploadLimit !== '0') {
-      args.push(`--max-upload-limit=${uploadLimit}`);
-    }
-    args.push(target.torrentPath);
-    return args;
   }
 
   // Locate the active OS torrent (and its complete WIM) to seed, via the sidecar
@@ -285,11 +261,143 @@ export class TorrentSeeder extends EventEmitter {
       if (!fs.existsSync(wimPath) || !fs.existsSync(torrentPath)) {
         return null;
       }
-      return { cacheRoot, fileName, wimPath, torrentPath };
+      return { cacheRoot, fileName, wimPath, torrentPath, manifest };
     } catch (error) {
       this.emit('log', `Torrent seeder: unable to resolve torrent (${error.message})`);
       return null;
     }
+  }
+
+  // Extract the 20-byte SHA1 infoHash from a raw .torrent Buffer by re-encoding
+  // only the 'info' dictionary (standard BT spec).
+  _extractInfoHash(torrentBuffer) {
+    const decoded = bencode.decode(torrentBuffer);
+    const infoEncoded = bencode.encode(decoded.info);
+    return createHash('sha1').update(infoEncoded).digest();
+  }
+
+  _generatePeerId() {
+    return Buffer.concat([Buffer.from('-WC0001-'), randomBytes(12)]);
+  }
+
+  // Return the piece range [firstPiece, lastPiece] assigned to the nth connecting
+  // peer (0-based). Peers beyond expectedPeers get full=true (all pieces).
+  _assignedPieceRange(peerIndex) {
+    const expectedPeers = Math.max(1, Number(this.config.expectedPeers ?? 4));
+    const total = this._totalPieces;
+    if (peerIndex >= expectedPeers) {
+      return { firstPiece: 0, lastPiece: total - 1, full: true };
+    }
+    const P = Math.ceil(total / expectedPeers);
+    return {
+      firstPiece: peerIndex * P,
+      lastPiece: Math.min((peerIndex + 1) * P - 1, total - 1),
+      full: false,
+    };
+  }
+
+  // Build a BT bitfield Buffer with bits set for pieces [firstPiece, lastPiece].
+  // BT bitfield encoding: bit i is in byte floor(i/8), position 7-(i%8) (MSB first).
+  _buildBitfield(firstPiece, lastPiece) {
+    const buf = Buffer.alloc(Math.ceil(this._totalPieces / 8), 0);
+    for (let i = firstPiece; i <= lastPiece; i++) {
+      buf[i >> 3] |= 0x80 >> (i & 7);
+    }
+    return buf;
+  }
+
+  _buildFullBitfield() {
+    const byteCount = Math.ceil(this._totalPieces / 8);
+    const buf = Buffer.alloc(byteCount, 0xff);
+    const rem = this._totalPieces % 8;
+    if (rem !== 0) {
+      buf[byteCount - 1] = (0xff << (8 - rem)) & 0xff;
+    }
+    return buf;
+  }
+
+  _seederLog(message) {
+    if (!this._logStream) return;
+    try { this._logStream.write(`${new Date().toISOString()} ${message}\n`); } catch {}
+  }
+
+  _handlePeer(socket, target) {
+    const wire = new Wire('tcpIncoming');
+    socket.pipe(wire).pipe(socket);
+
+    const remoteName = `${socket.remoteAddress ?? '?'}:${socket.remotePort ?? '?'}`;
+
+    let fd = null;
+    try {
+      fd = fs.openSync(target.wimPath, 'r');
+    } catch (err) {
+      this.emit('error', err);
+      socket.destroy();
+      return;
+    }
+
+    this._peers.push(wire);
+
+    // Piece range is assigned only after handshake succeeds. Brief probe
+    // connections (aria2c connectivity tests) that close before completing
+    // the handshake do not consume a partition slot.
+    let firstPiece = 0;
+    let lastPiece = this._totalPieces - 1;
+    let full = true;
+
+    const cleanup = () => {
+      try { if (fd !== null) { fs.closeSync(fd); fd = null; } } catch {}
+      const idx = this._peers.indexOf(wire);
+      if (idx !== -1) this._peers.splice(idx, 1);
+    };
+
+    wire.on('error', (err) => {
+      this._seederLog(`PEER-ERROR ${remoteName} ${err.message}`);
+      cleanup();
+    });
+
+    wire.on('close', () => {
+      this._seederLog(`PEER-DISCONNECT ${remoteName}`);
+      this.emit('log', `Torrent seeder: peer ${remoteName} disconnected`);
+      cleanup();
+    });
+
+    wire.on('handshake', (infoHashHex) => {
+      if (infoHashHex !== this._infoHash.toString('hex')) {
+        wire.destroy();
+        return;
+      }
+      // Assign the partition slot now that the peer is confirmed to be in the
+      // right swarm. This prevents probes from burning index slots.
+      const peerIndex = this._peerIndex++;
+      ({ firstPiece, lastPiece, full } = this._assignedPieceRange(peerIndex));
+      this._seederLog(`PEER-CONNECT ${remoteName} index=${peerIndex} pieces=${firstPiece}-${lastPiece}${full ? ' (full)' : ''}`);
+      this.emit('log', `Torrent seeder: peer ${remoteName} index=${peerIndex} pieces=${firstPiece}-${lastPiece}${full ? ' (full)' : ''}`);
+
+      wire.handshake(this._infoHash, this._peerId);
+      wire.bitfield(full ? this._buildFullBitfield() : this._buildBitfield(firstPiece, lastPiece));
+      wire.unchoke();
+    });
+
+    wire.on('interested', () => {
+      wire.unchoke();
+    });
+
+    wire.on('request', (pieceIndex, offset, length, respond) => {
+      if (pieceIndex < firstPiece || pieceIndex > lastPiece) {
+        respond(new Error('piece not held by this seeder slot'));
+        return;
+      }
+      const fileOffset = pieceIndex * this._pieceLengthBytes + offset;
+      const buf = Buffer.allocUnsafe(length);
+      fs.read(fd, buf, 0, length, fileOffset, (err, bytesRead) => {
+        if (err || bytesRead !== length) {
+          respond(err ?? new Error(`short read: expected ${length} got ${bytesRead}`));
+          return;
+        }
+        respond(null, buf);
+      });
+    });
   }
 
   async start() {
@@ -300,72 +408,107 @@ export class TorrentSeeder extends EventEmitter {
       this.emit('log', 'Torrent seeder disabled by config; not starting');
       return;
     }
-    const aria2 = this.config.aria2cPath;
-    if (!aria2 || !fs.existsSync(aria2)) {
-      this.emit('log', `Torrent seeder: aria2c not found at ${aria2 ?? '(unset)'}; not seeding`);
-      return;
-    }
+
     const target = this.resolveTorrentToSeed();
     if (!target) {
       this.emit('log', 'Torrent seeder: no published OS torrent to seed yet');
       return;
     }
 
-    const listenPort = this.config.seederListenPort ?? 6881;
-    const args = this.buildSeederArgs(target);
+    const torrentBuffer = fs.readFileSync(target.torrentPath);
+    this._infoHash = this._extractInfoHash(torrentBuffer);
 
-    // Open a detailed server-side seeding log (peer connections + upload summary).
-    let logStream = null;
+    const pieceLengthBytes = Number(target.manifest.pieceLengthBytes ?? this.config.pieceLengthBytes ?? 4194304);
+    this._pieceLengthBytes = pieceLengthBytes;
+    const wimStat = fs.statSync(target.wimPath);
+    this._totalPieces = Math.ceil(wimStat.size / pieceLengthBytes);
+    this._peerIndex = 0;
+    this._peerId = this._generatePeerId();
+
     const logPath = this.config.seederLogPath;
     if (logPath) {
       try {
         fs.mkdirSync(path.dirname(logPath), { recursive: true });
-        logStream = fs.createWriteStream(logPath, { flags: 'a' });
-        logStream.write(`\n===== seeder start ${new Date().toISOString()} ${target.fileName} (listen ${listenPort}) =====\n`);
-      } catch (error) {
-        this.emit('log', `Torrent seeder: unable to open log ${logPath} (${error.message})`);
-        logStream = null;
+        this._logStream = fs.createWriteStream(logPath, { flags: 'a' });
+        this._logStream.write(
+          `\n===== seeder start ${new Date().toISOString()} ${target.fileName}`
+          + ` pieces=${this._totalPieces} expectedPeers=${this.config.expectedPeers ?? 4}`
+          + ` port=${this.config.seederListenPort ?? 6881} =====\n`,
+        );
+      } catch (err) {
+        this.emit('log', `Torrent seeder: unable to open log ${logPath} (${err.message})`);
+        this._logStream = null;
       }
     }
-    this._logStream = logStream;
 
-    const child = spawn(aria2, args, { windowsHide: true });
-    child.on('error', (error) => this.emit('error', error));
-    child.stdout?.on('data', (chunk) => { logStream?.write(chunk); });
-    child.stderr?.on('data', (chunk) => { logStream?.write(chunk); });
-    child.on('exit', (code) => {
-      this._running = false;
-      this._seeding = null;
-      this.child = null;
-      try { this._logStream?.write(`===== seeder exited (code ${code}) ${new Date().toISOString()} =====\n`); } catch {}
-      try { this._logStream?.end(); } catch {}
-      this._logStream = null;
-      this.emit('log', `Torrent seeder exited (code ${code})`);
+    const listenPort = Number(this.config.seederListenPort ?? 6881);
+    const server = net.createServer((socket) => {
+      this._handlePeer(socket, target);
+    });
+    server.on('error', (err) => this.emit('error', err));
+
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(listenPort, this.config.serverIp, () => {
+        server.off('error', reject);
+        resolve();
+      });
     });
 
-    this.child = child;
+    this._server = server;
+
+    const announceUrl = trackerAnnounceUrl(this.config.serverIp, this.config.trackerPort);
+    try {
+      const trackerClient = new TrackerClient({
+        infoHash: this._infoHash,
+        peerId: this._peerId,
+        announce: [announceUrl],
+        port: listenPort,
+        wrtc: false,
+      });
+      trackerClient.on('error', (err) => this.emit('log', `Torrent seeder tracker error: ${err.message}`));
+      trackerClient.on('warning', (msg) => this.emit('log', `Torrent seeder tracker warning: ${msg}`));
+      trackerClient.start({ left: 0 });
+      this._trackerClient = trackerClient;
+    } catch (err) {
+      this.emit('log', `Torrent seeder: tracker announce failed (${err.message}); continuing without tracker presence`);
+    }
+
     this._running = true;
     this._seeding = target.fileName;
-    this.emit('log', `START seeder ${target.fileName} (port ${listenPort})${logPath ? ` log=${logPath}` : ''}`);
+    this.emit('log', `START seeder ${target.fileName} pieces=${this._totalPieces} port=${listenPort}${logPath ? ` log=${logPath}` : ''}`);
   }
 
   async stop() {
-    const child = this.child;
-    this.child = null;
     this._running = false;
     this._seeding = null;
+
+    if (this._trackerClient) {
+      try { this._trackerClient.stop(); } catch {}
+      try { this._trackerClient.destroy(); } catch {}
+      this._trackerClient = null;
+    }
+
+    for (const wire of [...this._peers]) {
+      try { wire.destroy(); } catch {}
+    }
+    this._peers = [];
+
+    if (this._server) {
+      const server = this._server;
+      this._server = null;
+      await new Promise((resolve) => server.close(() => resolve()));
+    }
+
     try { this._logStream?.end(); } catch {}
     this._logStream = null;
-    if (child && child.exitCode === null) {
-      await new Promise((resolve) => {
-        child.once('exit', () => resolve());
-        try {
-          child.kill();
-        } catch {
-          resolve();
-        }
-        setTimeout(resolve, 3000);
-      });
-    }
+    this._infoHash = null;
+    this._peerId = null;
+    this._totalPieces = 0;
+    this._peerIndex = 0;
+
+    this.emit('log', 'Torrent seeder stopped');
   }
 }
+
+export { NodeSuperSeeder as TorrentSeeder };

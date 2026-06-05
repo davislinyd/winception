@@ -11,6 +11,8 @@
     "reload": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/Reload-Console.ps1"
   },
   "dependencies": {
+    "bencode": "^4.0.1",
+    "bittorrent-protocol": "^5.0.6",
     "bittorrent-tracker": "^11.2.3",
     "create-torrent": "^6.1.2"
   }
