@@ -133,18 +133,20 @@ test('torrentServerConfig resolves a default seeder log path under the live root
   assert.equal(resolved.expectedPeers, 4);
 });
 
-test('NodeSuperSeeder partitions pieces across peers and wraps around for successive rounds', () => {
-  const seeder = new NodeSuperSeeder({ expectedPeers: 4 });
-  seeder._totalPieces = 100;
-  // P = ceil(100/4) = 25 — first round
-  assert.deepEqual(seeder._assignedPieceRange(0), { firstPiece: 0,  lastPiece: 24, full: false });
-  assert.deepEqual(seeder._assignedPieceRange(1), { firstPiece: 25, lastPiece: 49, full: false });
-  assert.deepEqual(seeder._assignedPieceRange(2), { firstPiece: 50, lastPiece: 74, full: false });
-  assert.deepEqual(seeder._assignedPieceRange(3), { firstPiece: 75, lastPiece: 99, full: false });
-  // Second round wraps around via modulo — no overflow / full-bitfield case
-  assert.deepEqual(seeder._assignedPieceRange(4),  { firstPiece: 0,  lastPiece: 24, full: false });
-  assert.deepEqual(seeder._assignedPieceRange(5),  { firstPiece: 25, lastPiece: 49, full: false });
-  assert.deepEqual(seeder._assignedPieceRange(11), { firstPiece: 75, lastPiece: 99, full: false });
+test('NodeSuperSeeder builds a full bitfield covering all pieces', () => {
+  const seeder = new NodeSuperSeeder({});
+  seeder._totalPieces = 24; // 24 pieces → 3 bytes
+  const bf = seeder._buildFullBitfield();
+  assert.equal(bf.length, 3);
+  assert.equal(bf[0], 0xff);
+  assert.equal(bf[1], 0xff);
+  assert.equal(bf[2], 0xff);
+
+  // Partial last byte: 25 pieces → 4 bytes, last byte = 0b10000000 = 0x80
+  seeder._totalPieces = 25;
+  const bf2 = seeder._buildFullBitfield();
+  assert.equal(bf2.length, 4);
+  assert.equal(bf2[3], 0x80);
 });
 
 test('NodeSuperSeeder start is a no-op when disabled', async () => {

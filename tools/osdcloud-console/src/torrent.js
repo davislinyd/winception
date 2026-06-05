@@ -280,32 +280,6 @@ export class NodeSuperSeeder extends EventEmitter {
     return Buffer.concat([Buffer.from('-WC0001-'), randomBytes(12)]);
   }
 
-  // Return the piece range [firstPiece, lastPiece] assigned to the nth connecting
-  // peer (0-based). Uses modular arithmetic so the partition cycles across
-  // successive deployment rounds without the seeder being restarted: peer 4
-  // gets the same slice as peer 0, peer 5 the same as peer 1, and so on.
-  _assignedPieceRange(peerIndex) {
-    const expectedPeers = Math.max(1, Number(this.config.expectedPeers ?? 4));
-    const total = this._totalPieces;
-    const effectiveIndex = peerIndex % expectedPeers;
-    const P = Math.ceil(total / expectedPeers);
-    return {
-      firstPiece: effectiveIndex * P,
-      lastPiece: Math.min((effectiveIndex + 1) * P - 1, total - 1),
-      full: false,
-    };
-  }
-
-  // Build a BT bitfield Buffer with bits set for pieces [firstPiece, lastPiece].
-  // BT bitfield encoding: bit i is in byte floor(i/8), position 7-(i%8) (MSB first).
-  _buildBitfield(firstPiece, lastPiece) {
-    const buf = Buffer.alloc(Math.ceil(this._totalPieces / 8), 0);
-    for (let i = firstPiece; i <= lastPiece; i++) {
-      buf[i >> 3] |= 0x80 >> (i & 7);
-    }
-    return buf;
-  }
-
   _buildFullBitfield() {
     const byteCount = Math.ceil(this._totalPieces / 8);
     const buf = Buffer.alloc(byteCount, 0xff);
@@ -338,13 +312,6 @@ export class NodeSuperSeeder extends EventEmitter {
 
     this._peers.push(wire);
 
-    // Piece range is assigned only after handshake succeeds. Brief probe
-    // connections (aria2c connectivity tests) that close before completing
-    // the handshake do not consume a partition slot.
-    let firstPiece = 0;
-    let lastPiece = this._totalPieces - 1;
-    let full = true;
-
     const cleanup = () => {
       try { if (fd !== null) { fs.closeSync(fd); fd = null; } } catch {}
       const idx = this._peers.indexOf(wire);
@@ -367,15 +334,12 @@ export class NodeSuperSeeder extends EventEmitter {
         wire.destroy();
         return;
       }
-      // Assign the partition slot now that the peer is confirmed to be in the
-      // right swarm. This prevents probes from burning index slots.
       const peerIndex = this._peerIndex++;
-      ({ firstPiece, lastPiece, full } = this._assignedPieceRange(peerIndex));
-      this._seederLog(`PEER-CONNECT ${remoteName} index=${peerIndex} pieces=${firstPiece}-${lastPiece}${full ? ' (full)' : ''}`);
-      this.emit('log', `Torrent seeder: peer ${remoteName} index=${peerIndex} pieces=${firstPiece}-${lastPiece}${full ? ' (full)' : ''}`);
+      this._seederLog(`PEER-CONNECT ${remoteName} index=${peerIndex}`);
+      this.emit('log', `Torrent seeder: peer ${remoteName} connected (index=${peerIndex})`);
 
       wire.handshake(this._infoHash, this._peerId);
-      wire.bitfield(full ? this._buildFullBitfield() : this._buildBitfield(firstPiece, lastPiece));
+      wire.bitfield(this._buildFullBitfield());
       wire.unchoke();
     });
 
@@ -384,10 +348,6 @@ export class NodeSuperSeeder extends EventEmitter {
     });
 
     wire.on('request', (pieceIndex, offset, length, respond) => {
-      if (pieceIndex < firstPiece || pieceIndex > lastPiece) {
-        respond(new Error('piece not held by this seeder slot'));
-        return;
-      }
       const fileOffset = pieceIndex * this._pieceLengthBytes + offset;
       const buf = Buffer.allocUnsafe(length);
       fs.read(fd, buf, 0, length, fileOffset, (err, bytesRead) => {
