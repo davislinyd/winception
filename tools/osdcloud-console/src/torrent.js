@@ -281,17 +281,17 @@ export class NodeSuperSeeder extends EventEmitter {
   }
 
   // Return the piece range [firstPiece, lastPiece] assigned to the nth connecting
-  // peer (0-based). Peers beyond expectedPeers get full=true (all pieces).
+  // peer (0-based). Uses modular arithmetic so the partition cycles across
+  // successive deployment rounds without the seeder being restarted: peer 4
+  // gets the same slice as peer 0, peer 5 the same as peer 1, and so on.
   _assignedPieceRange(peerIndex) {
     const expectedPeers = Math.max(1, Number(this.config.expectedPeers ?? 4));
     const total = this._totalPieces;
-    if (peerIndex >= expectedPeers) {
-      return { firstPiece: 0, lastPiece: total - 1, full: true };
-    }
+    const effectiveIndex = peerIndex % expectedPeers;
     const P = Math.ceil(total / expectedPeers);
     return {
-      firstPiece: peerIndex * P,
-      lastPiece: Math.min((peerIndex + 1) * P - 1, total - 1),
+      firstPiece: effectiveIndex * P,
+      lastPiece: Math.min((effectiveIndex + 1) * P - 1, total - 1),
       full: false,
     };
   }
