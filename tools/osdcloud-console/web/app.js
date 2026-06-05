@@ -94,6 +94,18 @@ const elements = {
   tabGuided: $('#tab-guided'),
   tabDashboard: $('#tab-dashboard'),
   tabFleet: $('#tab-fleet'),
+  navServices: $('#nav-services'),
+  navLogs: $('#nav-logs'),
+  contextTitle: $('#context-title'),
+  ssRuntime: $('#ss-runtime'),
+  ssPreflight: $('#ss-preflight'),
+  ssServices: $('#ss-services'),
+  ssActive: $('#ss-active'),
+  ssDone: $('#ss-done'),
+  summaryEndpoint: $('#summary-endpoint'),
+  summaryServices: $('#summary-services'),
+  summaryAction: $('#summary-action'),
+  summaryStatus: $('#summary-status'),
   guidedStepDetail: $('#guided-step-detail'),
   pipelineSteps: $('#pipeline-steps'),
   topologyClients: $('#topology-clients'),
@@ -1342,6 +1354,16 @@ function renderInitialization(appState) {
   if (elements.tabFleet) {
     elements.tabFleet.classList.toggle('active', state.currentView === 'fleet');
   }
+  if (elements.navServices) {
+    elements.navServices.classList.toggle('active', state.currentView === 'services');
+  }
+  if (elements.navLogs) {
+    elements.navLogs.classList.toggle('active', state.currentView === 'logs');
+  }
+  if (elements.contextTitle) {
+    const titles = { dashboard: 'Overview', guided: 'Setup', fleet: 'Fleet', services: 'Services', logs: 'Logs' };
+    elements.contextTitle.textContent = titles[state.currentView] ?? 'Overview';
+  }
   if (elements.initializationDialog) {
     elements.initializationDialog.classList.toggle('active', state.currentView === 'guided');
   }
@@ -2011,7 +2033,14 @@ function openValidationEvidenceFromTarget(target) {
 
 function renderClients(appState) {
   const counts = appState.fleet?.counts ?? {};
-  elements.fleetCounts.textContent = `total=${appState.fleet?.total ?? 0} running=${counts.running ?? 0} completed=${counts.completed ?? 0} failed=${counts.failed ?? 0}`;
+  {
+    const total = appState.fleet?.total ?? 0;
+    const parts = [`${total} machine${total === 1 ? '' : 's'}`];
+    if ((counts.running ?? 0) > 0) parts.push(`${counts.running} deploying`);
+    if ((counts.completed ?? 0) > 0) parts.push(`${counts.completed} ready`);
+    if ((counts.failed ?? 0) > 0) parts.push(`${counts.failed} failed`);
+    elements.fleetCounts.textContent = parts.join(' · ');
+  }
   const runs = appState.fleet?.runs ?? [];
   const fleetSignature = JSON.stringify({
     selectedRunId: state.selectedRunId,
@@ -2976,8 +3005,95 @@ function render() {
   renderPipeline(appState);
   renderTopology(appState);
   renderLiveMetrics(appState);
+  renderStatusStrip(appState);
+  renderSummaryBar(appState);
   renderFleetCards(appState);
   setControlsDisabled(state.busy || appState.operation?.running === true);
+}
+
+// ---- v3: deploy summary bar (endpoint + service dots + state-aware action) ----
+function preflightState(appState) {
+  const pf = appState.preflight;
+  if (pf?.summary?.blocking > 0 || pf?.status === 'blocked') return ['Preflight blocked', 'warn'];
+  if (pf?.status === 'ready' || pf?.ok === true) return ['Preflight passed', 'ok'];
+  if (pf?.status === 'review' || (pf?.summary?.warnings ?? 0) > 0) return ['Preflight: review', 'warn'];
+  if (pf?.ranAt || pf?.checks?.length) return ['Preflight passed', 'ok'];
+  return ['Preflight not run', ''];
+}
+
+function renderSummaryBar(appState) {
+  if (elements.summaryEndpoint) {
+    elements.summaryEndpoint.textContent = endpointLabel(appState.config) || '—';
+  }
+  if (elements.summaryServices) {
+    const rows = [['HTTP', 'http'], ['TFTP', 'tftp'], ['DHCP', 'dhcp']];
+    elements.summaryServices.replaceChildren();
+    for (const [label, key] of rows) {
+      const running = appState.services?.[key]?.running === true;
+      const span = document.createElement('span');
+      span.className = `v3-svc ${running ? 'on' : 'off'}`;
+      const dot = document.createElement('span');
+      dot.className = 'd';
+      span.append(dot, document.createTextNode(label));
+      elements.summaryServices.append(span);
+    }
+  }
+  const [pfText, pfTone] = preflightState(appState);
+  const runtimeReady = appState.runtime?.ready === true;
+  const allRunning = ['http', 'tftp', 'dhcp'].every((n) => appState.services?.[n]?.running);
+  const preflightPassed = pfTone === 'ok';
+
+  if (elements.summaryStatus) {
+    if (!runtimeReady) {
+      elements.summaryStatus.textContent = 'Runtime not ready';
+      elements.summaryStatus.className = 'v3-summary-status warn';
+    } else {
+      elements.summaryStatus.textContent = pfText;
+      elements.summaryStatus.className = `v3-summary-status ${pfTone}`;
+    }
+  }
+  if (elements.summaryAction) {
+    let label = 'Run preflight';
+    let action = 'preflight';
+    if (allRunning) { label = 'Stop services'; action = 'all-services-toggle'; }
+    else if (preflightPassed) { label = 'Start services'; action = 'all-services-toggle'; }
+    elements.summaryAction.textContent = label;
+    elements.summaryAction.dataset.action = action;
+  }
+}
+
+// ---- v2: Overview status strip ----
+function setStrip(el, text, tone) {
+  if (!el) return;
+  el.className = `ss-value${tone ? ' ' + tone : ''}`;
+  el.replaceChildren();
+  if (tone === 'ok' || tone === 'warn' || tone === 'err' || tone === 'neutral') {
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    el.append(dot);
+  }
+  el.append(document.createTextNode(text));
+}
+
+function renderStatusStrip(appState) {
+  const runtimeReady = appState.runtime?.ready === true;
+  setStrip(elements.ssRuntime, runtimeReady ? 'Ready' : 'Not ready', runtimeReady ? 'ok' : 'warn');
+
+  const pf = appState.preflight;
+  let pfText = 'Not run';
+  let pfTone = 'neutral';
+  if (pf?.summary?.blocking > 0 || pf?.status === 'blocked') { pfText = 'Blocked'; pfTone = 'err'; }
+  else if (pf?.status === 'ready' || pf?.ok === true) { pfText = 'Ready'; pfTone = 'ok'; }
+  else if (pf?.status === 'review' || (pf?.summary?.warnings ?? 0) > 0) { pfText = 'Review'; pfTone = 'warn'; }
+  else if (pf?.ranAt || pf?.checks?.length) { pfText = 'Ready'; pfTone = 'ok'; }
+  setStrip(elements.ssPreflight, pfText, pfTone);
+
+  const running = ['http', 'tftp', 'dhcp'].filter((n) => appState.services?.[n]?.running).length;
+  setStrip(elements.ssServices, `${running} / 3 running`, running === 3 ? 'ok' : running === 0 ? 'neutral' : 'warn');
+
+  const counts = appState.fleet?.counts ?? {};
+  setStrip(elements.ssActive, String(counts.running ?? 0), (counts.running ?? 0) > 0 ? 'ok' : 'neutral');
+  setStrip(elements.ssDone, String(counts.completed ?? 0), 'neutral');
 }
 
 // ---- Aurora: Live Metrics bento card (Overview) ----
@@ -5074,6 +5190,18 @@ if (elements.tabGuided && elements.tabDashboard) {
   elements.tabDashboard.addEventListener('click', () => switchToView('dashboard'));
   if (elements.tabFleet) {
     elements.tabFleet.addEventListener('click', () => switchToView('fleet'));
+  }
+  if (elements.navServices) {
+    elements.navServices.addEventListener('click', () => {
+      switchToView('dashboard');
+      document.querySelector('#services-grid')?.closest('.bento-card, section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+  if (elements.navLogs) {
+    elements.navLogs.addEventListener('click', () => {
+      switchToView('dashboard');
+      document.querySelector('#logs')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
   }
   if (elements.fleetSearch) {
     elements.fleetSearch.addEventListener('input', () => {

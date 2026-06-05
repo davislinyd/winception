@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OSDCloud Host Console</title>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script id="tailwind-config">
     tailwind.config = {
@@ -59,13 +59,13 @@
             "table-cell-padding": "6px 8px"
           },
           fontFamily: {
-            "body-sm": ["Geist", "Inter", "sans-serif"],
-            "ui-label": ["Geist", "Inter", "sans-serif"],
-            "data-tabular": ["Geist", "Inter", "sans-serif"],
+            "body-sm": ["Inter", "sans-serif"],
+            "ui-label": ["Space Grotesk", "Inter", "sans-serif"],
+            "data-tabular": ["Inter", "sans-serif"],
             "technical-string": ["JetBrains Mono", "monospace"],
             "log-entry": ["JetBrains Mono", "monospace"],
-            "h1": ["Geist", "Inter", "sans-serif"],
-            "h2": ["Geist", "Inter", "sans-serif"]
+            "h1": ["Space Grotesk", "Inter", "sans-serif"],
+            "h2": ["Space Grotesk", "Inter", "sans-serif"]
           },
           fontSize: {
             "body-sm": ["13px", { lineHeight: "18px", fontWeight: "400" }],
@@ -83,42 +83,27 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body class="bg-surface text-on-surface min-h-screen flex flex-col font-body-sm">
-  <header class="app-topbar">
-    <div class="topbar-left">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <span id="product-title" class="brand-name">Winception</span>
-        <span id="app-version" class="brand-version"></span>
+  <div class="v3-app">
+    <header class="v3-topbar">
+      <div class="v3-brand">
+        <span class="v3-logo"></span>
+        <span class="v3-name">Winception</span>
+        <span id="app-version" class="v3-version"></span>
       </div>
-      <nav class="segmented-nav" aria-label="Views">
-        <button id="tab-dashboard" class="seg-tab active" type="button">
-          <span class="material-symbols-outlined text-[18px]">dashboard</span>Overview
-        </button>
-        <button id="tab-guided" class="seg-tab" type="button">
-          <span class="material-symbols-outlined text-[18px]">auto_awesome</span>Setup
-        </button>
-        <button id="tab-fleet" class="seg-tab" type="button">
-          <span class="material-symbols-outlined text-[18px]">devices</span>Fleet
-        </button>
+      <nav class="v3-nav">
+        <button id="tab-dashboard" class="v3-navlink active" type="button">Deploy</button>
+        <button id="tab-guided" class="v3-navlink" type="button">Setup</button>
+        <button id="tab-fleet" class="v3-navlink" type="button">Activity</button>
       </nav>
-    </div>
-    <div class="topbar-right">
-      <span id="endpoint-line" class="font-technical-string text-technical-string endpoint-chip">Loading endpoint...</span>
-      <button class="command-pill" type="button" aria-label="Command palette">
-        <span class="material-symbols-outlined text-[16px]">search</span>
-        <span class="cmd-key">⌘K</span>
-      </button>
-      <span id="operation-badge" class="badge neutral live-chip">Idle</span>
-      <span id="updated-at" class="font-data-tabular text-data-tabular text-on-surface-variant updated-chip"></span>
-      <button id="refresh-button" class="topbar-icon-btn" type="button" aria-label="Refresh">
-        <span class="material-symbols-outlined text-[20px]">refresh</span>
-      </button>
-      <span class="topbar-avatar" aria-hidden="true">D</span>
-    </div>
-  </header>
-
-  <div class="flex flex-1 overflow-hidden">
-    <main class="flex-1 overflow-y-auto p-container-padding flex flex-col gap-sm bg-surface">
+      <div class="v3-topright">
+        <span id="endpoint-line" class="font-technical-string text-technical-string endpoint-chip">Loading endpoint...</span>
+        <span id="operation-badge" class="badge neutral live-chip">Idle</span>
+        <span id="updated-at" class="font-data-tabular text-data-tabular updated-chip"></span>
+        <button id="refresh-button" class="ctx-icon-btn" type="button" aria-label="Refresh"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
+        <span class="v3-avatar" aria-hidden="true">D</span>
+      </div>
+    </header>
+    <main class="v3-main flex-1 overflow-y-auto flex flex-col">
       <section id="warning-banner" class="hidden" role="alert">
         <div class="flex items-center gap-sm">
           <span class="material-symbols-outlined text-[24px]">warning</span>
@@ -128,99 +113,49 @@
       </section>
 
       <section id="view-dashboard" class="view active flex-col gap-sm" aria-labelledby="dashboard-title">
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-sm">
-          <div class="topology-hero xl:col-span-2">
-            <div class="topology-head">
-              <div>
-                <div class="topology-title">Deployment Flow</div>
-                <div class="topology-sub">Live PXE network topology and stream status</div>
-              </div>
-              <div class="flex flex-col items-end gap-sm">
-                <span class="throughput-chip"><span class="dot"></span><span id="topology-throughput">idle · no active stream</span></span>
-                <div class="topo-legend"><span><span class="lg-live"></span>live packets</span><span><span class="lg-idle"></span>idle</span></div>
-              </div>
-            </div>
-            <div class="topology-stage">
-              <div class="topo-node">
-                <div class="topo-tile"><span class="material-symbols-outlined">dns</span><span class="topo-online"></span></div>
-                <div class="topo-label">Deployment Host</div>
-                <div class="topo-ip" id="topology-host-ip">192.168.88.1</div>
-              </div>
-              <div class="topo-node">
-                <div class="topo-wire" style="width:100%"><span class="packet"></span><span class="packet" style="animation-delay:1.2s"></span></div>
-                <div class="topo-tile"><span class="material-symbols-outlined">lan</span></div>
-                <div class="topo-label">LAN Switch</div>
-                <div class="topo-ip" id="topology-ports">ready</div>
-              </div>
-              <div class="topo-clients" id="topology-clients">
-                <div class="topo-client"><div class="ring idle" data-label="—"></div><div class="topo-client-meta"><span class="topo-client-name">Waiting for clients</span><span class="topo-client-stage">No PXE boot yet</span></div></div>
-              </div>
-            </div>
+        <!-- v3 Deploy: one summary bar + the fleet list -->
+        <div class="v3-summary">
+          <button class="v3-seg" data-action="profiles" type="button"><span class="v3-seg-label">Profile</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="v3-seg-value"></div></button>
+          <button class="v3-seg" data-action="os-images" type="button"><span class="v3-seg-label">OS Image</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="v3-seg-value"></div></button>
+          <button class="v3-seg" data-action="interfaces" type="button"><span class="v3-seg-label">Endpoint</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="v3-seg-value mono"></div></button>
+          <div class="v3-seg v3-seg-static"><span class="v3-seg-label">Services</span><div id="summary-services" class="v3-seg-value v3-svc-dots"></div></div>
+          <div class="v3-summary-action">
+            <span id="summary-status" class="v3-summary-status"></span>
+            <button id="summary-action" data-action="preflight" class="v3-primary" type="button">Run preflight</button>
           </div>
-          <div class="pipeline-panel">
-            <div class="pipeline-title">Deployment Pipeline</div>
-            <div id="pipeline-steps" class="flex flex-col"></div>
-          </div>
-        </div>
-        <!-- Bento status row (Stitch Overview) -->
-        <div class="overview-bento grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-sm">
-          <section class="bento-card">
-            <div class="bento-head">
-              <h3>Services</h3>
-              <button data-action="all-services-toggle" data-icon="play_arrow" class="bento-mini danger all-services-toggle" type="button">Start all</button>
-            </div>
-            <div id="services-grid" class="status-services-grid flex flex-col gap-sm" aria-label="Services"></div>
-          </section>
-          <section class="bento-card">
-            <div class="bento-head">
-              <h3>Active Profile</h3>
-              <button data-action="profiles" data-icon="tune" class="bento-mini ghost" type="button">Manage</button>
-            </div>
-            <div id="active-profile-details" class="flex flex-col gap-sm"></div>
-          </section>
-          <section class="bento-card">
-            <div class="bento-head">
-              <h3>OS Image</h3>
-              <button data-action="os-images" data-icon="storage" class="bento-mini ghost" type="button">Manage</button>
-            </div>
-            <div id="active-os-details" class="flex flex-col gap-sm"></div>
-          </section>
-          <section class="bento-card">
-            <div class="bento-head">
-              <h3>Live Metrics</h3>
-              <button data-action="interfaces" data-icon="settings_ethernet" class="bento-mini ghost" type="button">Endpoint</button>
-            </div>
-            <div id="live-metrics" class="live-metrics"></div>
-          </section>
         </div>
 
-        <!-- Live Activity stream -->
-        <section class="system-log-panel live-activity-card flex flex-col">
-          <div class="bento-head live-activity-head">
-            <div>
-              <h3>Live Activity</h3>
-              <span class="live-activity-sub">System and deployment log stream</span>
-            </div>
-            <div class="live-activity-actions">
-              <button data-action="preflight" data-icon="fact_check" class="bento-mini ghost" type="button">Run preflight</button>
-              <button data-action="endpoint-sync" data-icon="sync" class="bento-mini warning" type="button">Sync endpoint</button>
-              <button data-action="clear-status" data-icon="delete_sweep" class="bento-mini ghost danger-text" type="button">Clear status</button>
+        <section class="v3-fleet client-fleet-panel">
+          <div class="v3-fleet-head">
+            <div class="v3-fleet-title">Deployments <span id="fleet-counts" class="v3-fleet-counts"></span></div>
+            <div class="v3-fleet-tools">
+              <button id="fleet-expand-toggle" data-action="fleet-expand-toggle" data-icon="open_in_full" class="v3-ghost" type="button" aria-expanded="false">Expand</button>
             </div>
           </div>
-          <pre id="logs" class="system-log-output font-log-entry text-log-entry text-on-surface-variant p-sm overflow-auto"></pre>
+          <div class="overflow-x-auto">
+            <table class="v3-fleet-table w-full text-left">
+              <thead>
+                <tr>
+                  <th>Status</th><th>Client</th><th>Run ID</th><th>Stage</th><th>Progress</th><th>Last Seen</th><th>Elapsed</th>
+                </tr>
+              </thead>
+              <tbody id="clients-body"></tbody>
+            </table>
+          </div>
         </section>
 
-        <!-- Advanced diagnostics & controls (full operational detail, kept functional) -->
-        <details class="overview-diagnostics">
-          <summary><span class="material-symbols-outlined text-[18px]">tune</span>Advanced diagnostics &amp; controls</summary>
-          <div class="overview-diagnostics-body flex flex-col gap-sm">
-            <section id="endpoint-summary" class="bg-surface-container-lowest border border-outline-variant rounded p-sm flex flex-wrap gap-md items-center font-technical-string text-technical-string" aria-label="Endpoint summary"></section>
-
-            <section class="runtime-readiness-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
-              <div class="panel-title-row">
-                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3>
-                <span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span>
-              </div>
+        <details class="v3-more">
+          <summary><span class="material-symbols-outlined text-[18px]">tune</span>Details &amp; diagnostics</summary>
+          <div class="v3-more-body flex flex-col gap-sm">
+            <section id="endpoint-summary" class="endpoint-summary-grid flex flex-wrap gap-md p-md" aria-label="Endpoint summary"></section>
+            <section class="v2-card">
+              <div class="v2-card-head"><span>Services</span><button data-action="all-services-toggle" data-icon="play_arrow" class="bento-mini danger all-services-toggle" type="button">Start all</button></div>
+              <div id="services-grid" class="status-services-grid flex flex-col gap-sm p-md" aria-label="Services"></div>
+            </section>
+            <section class="v2-card"><div class="v2-card-head"><span>Pipeline</span></div><div id="pipeline-steps" class="pipeline-horizontal"></div></section>
+            <section class="v2-card"><div class="v2-card-head"><span>Metrics</span></div><div id="live-metrics" class="live-metrics p-md"></div></section>
+            <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
+              <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span></div>
               <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
               <div class="runtime-readiness-actions flex flex-wrap gap-sm">
                 <button data-action="prepare-runtime" data-icon="deployed_code_update" class="warning" type="button">Prepare runtime</button>
@@ -228,75 +163,21 @@
                 <button data-action="initialization" data-icon="checklist" type="button">Initialization</button>
               </div>
             </section>
-
-            <section class="sync-progress-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
-              <div class="panel-title-row">
-                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Endpoint Sync Progress</h3>
-                <span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span>
-              </div>
+            <section class="sync-progress-panel p-md flex flex-col gap-sm">
+              <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Endpoint Sync Progress</h3><span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span></div>
               <div id="sync-action-items" class="sync-action-summary font-log-entry text-log-entry"></div>
-              <details class="sync-output-details">
-                <summary>Sequence and process output</summary>
-                <div class="sync-progress-grid">
-                  <section>
-                    <h4>Target</h4>
-                    <dl id="sync-progress-target" class="stitch-details"></dl>
-                  </section>
-                  <section>
-                    <h4>Sequence</h4>
-                    <div id="sync-progress-steps" class="flex flex-col gap-sm"></div>
-                  </section>
-                </div>
+              <details class="sync-output-details"><summary>Sequence and process output</summary>
+                <div class="sync-progress-grid"><section><h4>Target</h4><dl id="sync-progress-target" class="stitch-details"></dl></section><section><h4>Sequence</h4><div id="sync-progress-steps" class="flex flex-col gap-sm"></div></section></div>
                 <pre id="sync-output" class="font-log-entry text-log-entry text-on-surface-variant"></pre>
               </details>
             </section>
-
             <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm">
-              <section class="driver-cache-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
-                <div class="panel-title-row">
-                  <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Driver Cache</h3>
-                  <span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span>
-                </div>
-                <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
-              </section>
-
-              <section class="preflight-summary-panel bg-surface-container-lowest border border-outline-variant rounded p-md flex flex-col gap-sm">
-                <div class="panel-title-row">
-                  <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3>
-                  <span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span>
-                </div>
-                <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
-              </section>
+              <section class="driver-cache-panel p-md flex flex-col gap-sm"><div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Driver Cache</h3><span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span></div><div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div></section>
+              <section class="preflight-summary-panel p-md flex flex-col gap-sm"><div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span></div><div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div></section>
             </div>
-
-            <section class="client-fleet-panel bg-surface-container-lowest border border-outline-variant rounded flex flex-col">
-              <div class="client-fleet-header px-md py-sm border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
-                <h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Client Fleet</h3>
-                <div class="client-fleet-header-actions">
-                  <span id="fleet-counts" class="font-technical-string text-technical-string text-on-surface-variant"></span>
-                  <button id="fleet-expand-toggle" data-action="fleet-expand-toggle" data-icon="open_in_full" type="button" aria-expanded="false">Expand fleet</button>
-                </div>
-              </div>
-              <div class="overflow-x-auto">
-                <table class="w-full text-left font-data-tabular text-data-tabular">
-                  <thead class="bg-surface-container-low text-on-surface-variant uppercase border-b border-outline-variant">
-                    <tr>
-                      <th class="p-table-cell-padding font-medium">Status</th>
-                      <th class="p-table-cell-padding font-medium">Client</th>
-                      <th class="p-table-cell-padding font-medium">Run ID</th>
-                      <th class="p-table-cell-padding font-medium">Stage</th>
-                      <th class="p-table-cell-padding font-medium">Progress</th>
-                      <th class="p-table-cell-padding font-medium">Last Seen</th>
-                      <th class="p-table-cell-padding font-medium">Elapsed</th>
-                    </tr>
-                  </thead>
-                  <tbody id="clients-body" class="divide-y divide-outline-variant"></tbody>
-                </table>
-              </div>
-            </section>
+            <section class="v3-log-panel"><div class="v3-log-head"><span>Activity log</span></div><pre id="logs" class="system-log-output font-log-entry text-log-entry p-sm overflow-auto"></pre></section>
           </div>
-        </details>
-      </section>
+        </details>      </section>
       <!-- Guided Setup View Container -->
       <section id="initialization-dialog" class="view flex-col gap-sm" aria-labelledby="guided-setup-title">
         <div class="guided-layout grid grid-cols-12 gap-sm flex-1 min-h-0">
@@ -357,7 +238,7 @@
       </section>
 
     </main>
-  </div>
+    </div>
 
   <div id="fleet-backdrop" class="fleet-backdrop" hidden></div>
 

@@ -13,18 +13,22 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="tailwind-config"/);
   assert.match(html, /cdn\.tailwindcss\.com\?plugins=forms,container-queries/);
   assert.match(html, /bg-surface text-on-surface min-h-screen flex flex-col font-body-sm/);
-  // Aurora top bar + three-view segmented nav (Stitch parity)
-  assert.match(html, /class="app-topbar"/);
-  assert.match(html, /class="segmented-nav"/);
+  // v3 minimal deploy console: top bar + quiet nav (Stitch v3 parity)
+  assert.match(html, /class="v3-app"/);
+  assert.match(html, /class="v3-topbar"/);
+  assert.match(html, /class="v3-nav"/);
   assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-guided"[\s\S]*id="tab-fleet"/);
-  // Overview = topology hero + vertical pipeline + bento + live activity
-  assert.match(html, /class="topology-hero/);
+  // Deploy = one summary bar + the fleet list (no redundant cards)
+  assert.match(html, /class="v3-summary"/);
+  assert.match(html, /id="summary-action"/);
+  assert.match(html, /id="summary-services"/);
+  assert.match(html, /class="v3-fleet/);
+  assert.match(html, /id="clients-body"/);
+  // Secondary panels live in a collapsed details block (kept functional)
+  assert.match(html, /class="v3-more"/);
   assert.match(html, /id="pipeline-steps"/);
-  assert.match(html, /class="overview-bento/);
   assert.match(html, /id="live-metrics"/);
-  assert.match(html, /class="system-log-panel live-activity-card/);
-  // Detailed operational panels remain (kept functional) inside diagnostics
-  assert.match(html, /class="overview-diagnostics"/);
+  assert.match(html, /id="endpoint-summary"/);
   assert.match(html, /dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm/);
   assert.match(html, /client-fleet-panel/);
   assert.match(html, /id="view-dashboard"/);
@@ -399,7 +403,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /Material\+Symbols\+Outlined/);
   assert.match(html, /Inter:wght@400;500;600/);
   assert.match(html, />Services</);
-  assert.match(html, />Live Activity</);
+  assert.match(html, />Deployments /);
   assert.doesNotMatch(html, /Quick Actions/);
   assert.doesNotMatch(html, /quick-actions-panel/);
   assert.doesNotMatch(html, /```html/);
@@ -555,8 +559,8 @@ test('web UI keeps local component layer', () => {
   const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
   const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
 
-  assert.match(styles, /--primary: #4648d4/);
-  assert.match(styles, /--aurora-grad:/);
+  assert.match(styles, /--primary: #111827/);
+  assert.match(styles, /--hairline:/);
   assert.match(styles, /\.view\.active/);
   assert.match(styles, /\.service-switch/);
   assert.match(styles, /\.preflight-summary-list/);
