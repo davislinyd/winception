@@ -777,6 +777,56 @@ function renderServices(appState) {
     elements.servicesGrid.append(row);
   }
 
+  // Read-only status for the BitTorrent tracker. It is started/stopped together
+  // with the core services (Start/Stop all services) and accelerates the OS image
+  // transfer via P2P, so it is surfaced for visibility rather than as a toggle.
+  const torrent = appState.services.torrent;
+  if (torrent) {
+    const torrentEnabled = torrent.enabled !== false;
+    const row = document.createElement('div');
+    row.className = 'service-card service-row';
+    row.dataset.serviceState = torrent.running ? 'running' : 'stopped';
+    const head = document.createElement('div');
+    head.className = 'service-row-head';
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'service-title';
+    titleWrap.append(makeIcon('hub', 'service-icon'));
+    const title = document.createElement('strong');
+    title.textContent = 'Torrent Tracker';
+    titleWrap.append(title);
+    const pill = torrentEnabled
+      ? makeStatusPill(torrent.running ? 'Running' : 'Stopped', torrent.running ? 'ok' : 'neutral')
+      : makeStatusPill('Disabled', 'neutral');
+    head.append(titleWrap, pill);
+    const address = document.createElement('code');
+    address.className = 'service-address';
+    const seedText = torrent.seederRunning
+      ? (torrent.seeding ? `seeding ${torrent.seeding}` : 'seeding')
+      : 'no seed';
+    address.textContent = torrent.serverIp
+      ? `${torrent.serverIp}:${torrent.trackerPort ?? 6969} · ${seedText}`
+      : 'P2P OS image distribution';
+    row.append(head, address);
+
+    const peers = torrent.swarmPeers ?? [];
+    if (peers.length > 0) {
+      const peerList = document.createElement('div');
+      peerList.className = 'torrent-swarm-peers';
+      for (const peer of peers) {
+        const item = document.createElement('div');
+        item.className = 'torrent-peer-row';
+        const total = peer.left + peer.downloaded;
+        const pct = total > 0 ? Math.round((peer.downloaded / total) * 100) : (peer.complete ? 100 : 0);
+        const status = peer.complete ? 'seeding ✓' : `${pct}%`;
+        item.textContent = `${peer.ip}  ${status}`;
+        peerList.append(item);
+      }
+      row.append(peerList);
+    }
+
+    elements.servicesGrid.append(row);
+  }
+
   setActionLabel('http-toggle', `${appState.services.http.running ? 'Stop' : 'Start'} HTTP`);
   setActionLabel('tftp-toggle', `${appState.services.tftp.running ? 'Stop' : 'Start'} TFTP`);
   setActionLabel('dhcp-toggle', `${appState.services.dhcp.running ? 'Stop' : 'Start'} DHCP`);
@@ -2826,7 +2876,33 @@ function renderTimeline(appState) {
     const when = document.createElement('strong');
     when.textContent = event.receivedAt ?? event.timestamp ?? '-';
     const detail = document.createElement('span');
-    detail.textContent = `[${text(event.stage, 'event')}] ${text(event.message, '')}`;
+
+    if (event.stage === 'torrent-peers') {
+      const msg = event.message ?? '';
+      const match = msg.match(/peers=(\d+)(?:\s+ips=([\d.,]+))?/);
+      if (match) {
+        const count = match[1];
+        const ips = match[2] ? match[2].split(',') : [];
+        detail.textContent = `[torrent-peers] ${count} peer(s)`;
+        if (ips.length) {
+          const ipList = document.createElement('ul');
+          ipList.className = 'torrent-peer-ips';
+          for (const ip of ips) {
+            const li = document.createElement('li');
+            li.textContent = ip;
+            ipList.append(li);
+          }
+          row.append(when, detail, ipList);
+          elements.eventTimeline.append(row);
+          continue;
+        }
+      } else {
+        detail.textContent = `[torrent-peers] ${msg}`;
+      }
+    } else {
+      detail.textContent = `[${text(event.stage, 'event')}] ${text(event.message, '')}`;
+    }
+
     row.append(when, detail);
     elements.eventTimeline.append(row);
   }

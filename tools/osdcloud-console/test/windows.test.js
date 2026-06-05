@@ -419,7 +419,7 @@ test('desktop-ready reporter returns success only after status upload', () => {
 
   const sendStatus = setupComplete.slice(sendStatusStart, sendStatusEnd);
   assert.match(sendStatus, /Invoke-WebRequest[\s\S]*return \$true/);
-  assert.match(sendStatus, /UploadString[\s\S]*return \$true/);
+  assert.match(sendStatus, /HttpWebRequest[\s\S]*return \$true/);
   assert.match(sendStatus, /return \$false/);
 });
 

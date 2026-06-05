@@ -460,6 +460,184 @@ function Save-DeploymentStatusMetadata {
     }
 }
 
+function Invoke-TorrentOsImageDownload {
+    <#
+        Attempt to acquire the OS WIM over BitTorrent so the transfer load is
+        shared across the client fleet instead of every client streaming the WIM
+        from the host SMB share. Returns a FileInfo for a locally staged, hash-
+        verified WIM on a freshly partitioned target disk, or $null to fall back
+        to the unchanged SMB-direct apply path.
+
+        Because the multi-GB WIM must land on a volume that survives OSDCloud's
+        disk wipe, we partition the target disk here (New-OSDisk) and download to
+        C:\OSDCloud\OS. The caller then sets $StartOSDCloud.SkipAllDiskSteps so
+        Invoke-OSDCloud reuses this disk instead of re-partitioning.
+    #>
+    param(
+        [object] $BootConfig,
+        [string] $ExpectedFileName
+    )
+
+    if (-not $BootConfig -or -not $BootConfig.torrentEnabled) {
+        return $null
+    }
+
+    $aria2 = Join-Path $PSScriptRoot 'aria2c.exe'
+    if (-not (Test-Path -LiteralPath $aria2 -PathType Leaf)) {
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message 'aria2c.exe not present in WinPE; using SMB-direct apply.'
+        return $null
+    }
+
+    $fileName = [string] $BootConfig.osWimFileName
+    if ([string]::IsNullOrWhiteSpace($fileName) -or ($ExpectedFileName -and $fileName -ne $ExpectedFileName)) {
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message "Torrent image name mismatch ('$fileName' vs '$ExpectedFileName'); using SMB-direct apply."
+        return $null
+    }
+    if ([string]::IsNullOrWhiteSpace([string] $BootConfig.torrentUrl) -or [string]::IsNullOrWhiteSpace([string] $BootConfig.osWimSha256)) {
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message 'Torrent metadata incomplete in boot-config; using SMB-direct apply.'
+        return $null
+    }
+
+    try {
+        Send-DeploymentStatus -Stage 'partition-target' -Message 'Partitioning target disk for P2P image staging.'
+        Send-Screenshot -Stage 'partition-target'
+        Write-Host ''
+        Write-Host 'WARNING: Disk will be wiped and repartitioned. Press Ctrl+C to abort.' -ForegroundColor Yellow
+        for ($secs = 5; $secs -gt 0; $secs--) {
+            Write-Host "  Proceeding in $secs..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 1
+        }
+        $Global:ConfirmPreference = 'None'
+        New-OSDisk -PartitionStyle GPT -Force -ErrorAction Stop
+        Start-Sleep -Seconds 5
+        if (-not (Get-PSDrive -Name 'C' -ErrorAction SilentlyContinue)) {
+            throw 'New-OSDisk did not produce a C: volume.'
+        }
+
+        $osDir = 'C:\OSDCloud\OS'
+        New-Item -ItemType Directory -Path $osDir -Force | Out-Null
+        $torrentPath = Join-Path $osDir "$fileName.torrent"
+        Invoke-WebRequest -Uri ([string] $BootConfig.torrentUrl) -OutFile $torrentPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+
+        $targetWim = Join-Path $osDir $fileName
+        $controlFile = "$targetWim.aria2"
+        Remove-Item -LiteralPath $targetWim -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $controlFile -Force -ErrorAction SilentlyContinue
+
+        $seedMinutes = 30
+        if ($BootConfig.PSObject.Properties['seedMinutes'] -and [int] $BootConfig.seedMinutes -ge 0) {
+            $seedMinutes = [int] $BootConfig.seedMinutes
+        }
+
+        # Peers MUST accept INBOUND BitTorrent connections for P2P to offload the
+        # host: VM<->VM peering needs each VM to accept inbound TCP on the aria2
+        # listen range. (VM->host works because the host accepts; if every VM
+        # blocks inbound, no VM<->VM link forms and each pulls a full copy from
+        # the seeder -> ~Nx, no offload.) Disable the firewall by every available
+        # method, add an explicit allow rule, then report the resulting state so
+        # the host can confirm inbound is actually open.
+        $fwReport = @()
+        try { $null = & netsh advfirewall set allprofiles state off 2>&1; $fwReport += 'advfirewall=off' } catch { $fwReport += "advfirewall-err=$($_.Exception.Message)" }
+        try { $null = & netsh advfirewall firewall add rule name='aria2-in' dir=in action=allow protocol=TCP localport=6881-6999 2>&1; $fwReport += 'rule=added' } catch {}
+        try { $null = & netsh firewall set opmode mode=disable 2>&1; $fwReport += 'legacy=disabled' } catch {}
+        try {
+            $svc = Get-Service -Name MpsSvc -ErrorAction SilentlyContinue
+            $fwReport += "MpsSvc=$(if ($svc) { $svc.Status } else { 'absent' })"
+        } catch {}
+        try {
+            $state = (& netsh advfirewall show allprofiles state 2>&1 | Where-Object { $_ -match 'State|ON|OFF' }) -join ' '
+            if ($state) { $fwReport += "state: $state" }
+        } catch {}
+        Send-DeploymentStatus -Stage 'torrent-firewall' -Message ($fwReport -join ' | ')
+
+        Send-DeploymentStatus -Stage 'torrent-download' -Message "Starting BitTorrent download of $fileName (tracker + peers + host seed)." -Extra @{ torrentUrl = [string] $BootConfig.torrentUrl }
+        Send-Screenshot -Stage 'torrent-download'
+
+        # No HTTP webseed is embedded in the torrent on purpose; the data comes
+        # from the host BitTorrent seeder and from peers, so the host uploads
+        # roughly one copy while clients redistribute pieces to each other.
+        $aria2Args = @(
+            "--dir=$osDir",
+            '--check-integrity=true',
+            "--seed-time=$seedMinutes",
+            '--seed-ratio=0.0',
+            '--file-allocation=falloc',
+            '--bt-save-metadata=false',
+            '--enable-dht=false',
+            '--enable-dht6=false',
+            '--listen-port=6881-6999',
+            '--console-log-level=warn',
+            '--summary-interval=0',
+            "--log=$logRoot\aria2.log",
+            '--log-level=info',
+            $torrentPath
+        )
+        $downloadStartTime = Get-Date
+        $proc = Start-Process -FilePath $aria2 -ArgumentList $aria2Args -WindowStyle Hidden -PassThru
+
+        # aria2 removes the .aria2 control file once the download completes, then
+        # keeps running to seed to peers. Poll for completion; do not block on the
+        # seeding window (the apply proceeds while this client keeps seeding).
+        # No intermediate stall check: file-size and file-mtime are both unreliable
+        # for BT (falloc pre-fills to full size; rarest-first writes are non-sequential;
+        # Windows delays LastWriteTime until file close). aria2 has its own retry/
+        # reconnect logic; a 30-min outer deadline covers genuine hung downloads.
+        $deadline = (Get-Date).AddMinutes(30)
+        while ($true) {
+            Start-Sleep -Seconds 5
+            $downloadComplete = (Test-Path -LiteralPath $targetWim) -and (-not (Test-Path -LiteralPath $controlFile))
+            if ($downloadComplete) {
+                break
+            }
+            if ($proc.HasExited) {
+                throw "aria2c exited (code $($proc.ExitCode)) before completing the download."
+            }
+            if ((Get-Date) -gt $deadline) {
+                throw 'BitTorrent download timed out (30 min).'
+            }
+        }
+
+        Send-DeploymentStatus -Stage 'torrent-verify' -Message 'Verifying downloaded image SHA-256.'
+        $actual = (Get-FileHash -LiteralPath $targetWim -Algorithm SHA256).Hash.ToUpperInvariant()
+        $expected = ([string] $BootConfig.osWimSha256).ToUpperInvariant()
+        if ($actual -ne $expected) {
+            throw "SHA-256 mismatch (actual=$actual expected=$expected)."
+        }
+
+        # Count VM peer IPs in the aria2 log (info-level records peer IP:port).
+        # Filters to the same /24 as the host seeder ($server) and excludes the
+        # host itself — remaining IPs are other VMs that this client exchanged
+        # pieces with, confirming VM<->VM BT links formed (firewall is open).
+        $peerDiag = 'peers=0'
+        try {
+            $subnet = $server -replace '\.\d+$', '.'
+            $logLines = Get-Content "$logRoot\aria2.log" -ErrorAction SilentlyContinue -TotalCount 100000
+            if ($logLines) {
+                $vmPeerIps = $logLines |
+                    Select-String -Pattern '(\b(?:\d{1,3}\.){3}\d{1,3}\b)' -AllMatches |
+                    ForEach-Object { $_.Matches | ForEach-Object { $_.Groups[1].Value } } |
+                    Where-Object { $_.StartsWith($subnet) -and $_ -ne $server } |
+                    Sort-Object -Unique
+                $n = @($vmPeerIps).Count
+                $peerDiag = "peers=$n$(if ($n -gt 0) { " ips=$(($vmPeerIps | Select-Object -First 8) -join ',')" })"
+            }
+        } catch {}
+        Send-DeploymentStatus -Stage 'torrent-peers' -Message $peerDiag
+
+        $item = Get-Item -LiteralPath $targetWim
+        $durationSeconds = [math]::Round(((Get-Date) - $downloadStartTime).TotalSeconds, 1)
+        $avgSpeedMiBps   = if ($durationSeconds -gt 0) { [math]::Round($item.Length / 1MB / $durationSeconds, 1) } else { 0 }
+        Send-DeploymentStatus -Stage 'torrent-download' -Message "P2P download complete; seeding to peers (up to $seedMinutes min)." -Percent 100 -Extra @{ fileName = $fileName; bytes = $item.Length; durationSeconds = $durationSeconds; avgSpeedMiBps = $avgSpeedMiBps }
+        Send-Screenshot -Stage 'torrent-download'
+        return $item
+    }
+    catch {
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message "Torrent path failed; falling back to SMB-direct apply. $($_.Exception.Message)"
+        Send-Screenshot -Stage 'torrent-fallback'
+        return $null
+    }
+}
+
 Remove-Item -LiteralPath $stopProgressPath -Force -ErrorAction SilentlyContinue
 Send-DeploymentStatus -Stage 'winpe-start' -Message 'Start-OSDCloud iPXE custom image deployment started.'
 Send-Screenshot -Stage 'winpe-start'
@@ -528,10 +706,22 @@ if (-not (Test-Path -LiteralPath $imagePath)) {
     exit 1
 }
 
-$imageFile = Get-Item -LiteralPath $imagePath
-Write-Host "[$(Get-Date -Format G)] Using mapped SMB image: $($imageFile.FullName)"
-Send-DeploymentStatus -Stage 'smb-mounted' -Message "Using mapped SMB image: $($imageFile.FullName)" -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
+$smbImageFile = Get-Item -LiteralPath $imagePath
+Write-Host "[$(Get-Date -Format G)] Mapped SMB image available: $($smbImageFile.FullName)"
+Send-DeploymentStatus -Stage 'smb-mounted' -Message "Using mapped SMB image: $($smbImageFile.FullName)" -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $smbImageFile)
 Send-Screenshot -Stage 'smb-mounted'
+
+# Default-enabled BitTorrent P2P acceleration. On success the WIM is staged
+# locally on a freshly partitioned disk and disk steps are skipped; on any
+# failure we transparently fall back to the proven SMB-direct apply.
+$imageFile = $smbImageFile
+$skipDiskSteps = $false
+$torrentImageFile = Invoke-TorrentOsImageDownload -BootConfig $bootConfig -ExpectedFileName ([string] $SelectedOs.fileName)
+if ($torrentImageFile) {
+    $imageFile = $torrentImageFile
+    $skipDiskSteps = $true
+    Write-Host "[$(Get-Date -Format G)] Using P2P-staged local image: $($imageFile.FullName)"
+}
 
 $Global:StartOSDCloud = [ordered]@{
     LaunchMethod         = 'OSDCloudCLI'
@@ -544,10 +734,24 @@ $Global:StartOSDCloud = [ordered]@{
     OSLanguage           = [string] $SelectedOs.language
     OSActivation         = [string] $SelectedOs.activation
     ZTI                  = $true
+    SkipAllDiskSteps     = $skipDiskSteps
     SkipAutopilot        = $true
     SkipODT              = $true
     Restart              = $false
     Shutdown             = $false
+}
+
+# When the torrent path already partitioned the disk, Invoke-OSDCloud skips the
+# wipe. When it hasn't (non-torrent path), show a countdown so the operator can
+# abort, then suppress the Clear-Disk confirmation dialog that would otherwise block.
+if (-not $skipDiskSteps) {
+    Write-Host ''
+    Write-Host 'WARNING: Disk will be wiped and repartitioned. Press Ctrl+C to abort.' -ForegroundColor Yellow
+    for ($secs = 5; $secs -gt 0; $secs--) {
+        Write-Host "  Proceeding in $secs..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 1
+    }
+    $Global:ConfirmPreference = 'None'
 }
 
 $deploymentSucceeded = $false

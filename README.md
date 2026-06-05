@@ -79,6 +79,31 @@
 - 時區為 `Taipei Standard Time`
 - 停用 OOBE 更新檢查
 
+## Torrent P2P 映像分發（預設啟用）
+
+數十台 client 同時部署時，過去每台都直接從 host SMB 串流套用 OS WIM，host 磁碟/網卡是單點瓶頸。現在預設啟用 BitTorrent P2P：每台 client 邊下載 WIM 邊把 piece 分享給其他 peer，傳檔壓力分散到整個 fleet。
+
+- **技術**：WinPE 端用單一靜態執行檔 `aria2c.exe`（開源，邊下載邊做種）當 BT leecher/seeder；host 端在既有 Node console 內跑兩個服務：`TorrentTracker`（HTTP tracker，`bittorrent-tracker` MIT）當 announce server，以及 `NodeSuperSeeder`（Node.js 原生 BT wire protocol 實作）當 swarm 來源種子。Host seeder 不再依賴 `aria2c.exe`，直接以 Node.js TCP server 對 VM 提供 piece。
+- **不使用 HTTP webseed**：`.torrent` 刻意不嵌 BEP19 webseed —— aria2 會把 webseed 當主來源，導致每台 client 都從 host 整檔拉、完全不分擔。改走純 BitTorrent（tracker + peers + host 種子）。
+- **offload 機制**：host seeder 對所有 client 提供完整 bitfield（所有 piece 皆可取得），BT 的 tit-for-tat 與 rarest-first 演算法會自然產生 peer 間 piece 交換，實測 4 台同時部署時 host 上傳量 ≈ 1.8–2× WIM（而非 4×）。
+- **host 服務**：啟動服務後多兩個元件（`TorrentTracker` :6969、`NodeSuperSeeder` :6881），隨 `Start all services` 一起啟停。Dashboard 卡片顯示 `… · seeding <檔名>`，部署期間即時列出各 VM IP 與下載進度（%）；完成後顯示 `seeding ✓`。
+- **種子 log**：`NodeSuperSeeder` 輸出寫到 `C:\OSDCloud\logs\torrent-seeder.log`，記錄每條 peer 連線（`PEER-CONNECT ip:port index=N`）與斷線事件。Tracker announce 記錄在 `C:\OSDCloud\logs\torrent-tracker.log`，含每次 announce 的 IP、`left`（剩餘 bytes）與 swarm 大小。
+- **WIM 落地**：WinPE 先用 `New-OSDisk` 分割目標磁碟，把 WIM 下載到本機 OS 分割區並驗證 SHA-256，再以本機檔案套用（`SkipAllDiskSteps`，不重複分割）。任一環節失敗（缺 `aria2c.exe`、torrent metadata 不全、下載/雜湊失敗、或無 peer/種子可連）會自動回退到既有的 SMB 直接套用路徑。
+- **runtime 需求**：`aria2c.exe`（僅 WinPE client 用，host seeder 已改 Node.js）由 `Prepare runtime` 下載並由 endpoint sync 注入 `boot.wim`。`.torrent` 與 sidecar `os-torrent.json` 在 profile publish / endpoint sync 時重新產生，種子隨之重啟。
+- **設定**：`config\osdcloud-console.json` 的 `torrent` 區塊可調整。停用時設 `"torrent": { "enabled": false }`，client 會直接走 SMB 路徑。
+
+```json
+"torrent": {
+  "enabled": true,
+  "trackerPort": 6969,
+  "seederListenPort": 6881,
+  "pieceLengthBytes": 4194304,
+  "seedMinutes": 30
+}
+```
+
+> 注意：P2P 落地路徑會在套用前重新分割目標磁碟，屬於部署關鍵路徑變更。請先以 VM regression 路徑驗證再用於大量實體部署；SMB 直接套用回退完整保留。
+
 ## 本機 Deployment Secrets
 
 Repo 不提交真實密碼。新 host 預設做法是在 Web 第一次進入時，由初始化精靈的 `Deployment Secrets` 步驟輸入自訂的 Windows 本機管理員帳號 `windowsUsername` 與 `windowsPassword`；Web 後端會自動產生僅含英數字的 24 碼隨機密碼作為 `pxeinstallPassword`，並寫入 `C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json`，API 回應與 log 都不回傳密碼明文。

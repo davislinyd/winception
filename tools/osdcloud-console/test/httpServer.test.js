@@ -380,3 +380,90 @@ test('writes RFC 5424 syslog and duplicates screenshots under logs directory', a
   }
 });
 
+
+async function setupTorrentServer(overrides = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-torrent-http-'));
+  const statusRoot = path.join(root, 'status');
+  const cacheRoot = path.join(root, 'OS');
+  fs.mkdirSync(cacheRoot, { recursive: true });
+  const fileName = 'Win11.wim';
+  fs.writeFileSync(path.join(cacheRoot, fileName), Buffer.alloc(512 * 1024, 5));
+  const config = {
+    http: { host: '127.0.0.1', port: 80 },
+    osImage: { cacheRoot },
+    torrent: { enabled: true, trackerPort: 6969, pieceLengthBytes: 262144, seedMinutes: 20 },
+  };
+  const { createOsImageTorrent } = await import('../src/torrent.js');
+  const meta = await createOsImageTorrent(config, { fileName, cacheRoot });
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+    paths: { stateRoot: root },
+    smb: { share: '\\127.0.0.1\OSDCloudiPXE' },
+    osCacheRoot: cacheRoot,
+    torrent: { enabled: true, serverIp: '127.0.0.1', httpPort: 80, trackerPort: 6969, seedMinutes: 20 },
+    ...overrides,
+  });
+  return { root, server, fileName, meta, cacheRoot };
+}
+
+test('boot-config advertises torrent details when a torrent is published', async () => {
+  const { root, server, fileName, meta } = await setupTorrentServer();
+  try {
+    await server.start();
+    const port = server.address.port;
+    const body = await (await fetch(`http://127.0.0.1:${port}/osdcloud/boot-config`)).json();
+    assert.equal(body.torrentEnabled, true);
+    assert.equal(body.osWimFileName, fileName);
+    assert.equal(body.osWimSha256, meta.wimSha256);
+    assert.equal(body.trackerUrl, 'http://127.0.0.1:6969/announce');
+    assert.equal(body.seedMinutes, 20);
+    assert.match(body.torrentUrl, /\/osdcloud\/os\/Win11\.wim\.torrent$/);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('boot-config reports torrentEnabled:false when torrent is disabled', async () => {
+  const { root, server } = await setupTorrentServer({ torrent: { enabled: false } });
+  try {
+    await server.start();
+    const port = server.address.port;
+    const body = await (await fetch(`http://127.0.0.1:${port}/osdcloud/boot-config`)).json();
+    assert.equal(body.torrentEnabled, false);
+    assert.equal(body.torrentUrl, undefined);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('OS route serves the WIM and .torrent with range support and blocks traversal', async () => {
+  const { root, server, fileName } = await setupTorrentServer();
+  try {
+    await server.start();
+    const port = server.address.port;
+    const base = `http://127.0.0.1:${port}`;
+
+    const torrentRes = await fetch(`${base}/osdcloud/os/${fileName}.torrent`);
+    assert.equal(torrentRes.status, 200);
+
+    const rangeRes = await fetch(`${base}/osdcloud/os/${fileName}`, { headers: { Range: 'bytes=0-99' } });
+    assert.equal(rangeRes.status, 206);
+    assert.equal(rangeRes.headers.get('content-range'), `bytes 0-99/${512 * 1024}`);
+    assert.equal((await rangeRes.arrayBuffer()).byteLength, 100);
+
+    const traversalRes = await fetch(`${base}/osdcloud/os/..%2F..%2Fsecret`);
+    assert.equal(traversalRes.status, 403);
+
+    const typeRes = await fetch(`${base}/osdcloud/os/os-torrent.json`);
+    assert.equal(typeRes.status, 403);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

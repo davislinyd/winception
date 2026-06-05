@@ -111,11 +111,76 @@ export function mediaHttpServerConfig(config) {
     ...config.http,
     driverPackCache: config.driverPackCache,
     smb: config.smb,
+    torrent: torrentServerConfig(config),
+    osCacheRoot: config.osImage?.cacheRoot ?? null,
     // Forward the resolved state root so the media server's loadSecrets() reads
     // the live deployment secrets (e.g. the auto-generated pxeinstallPassword)
     // instead of falling back to defaultAppRoot and serving stale committed
     // secrets via /osdcloud/boot-config.
     paths: { stateRoot: stateRootForConfig(config) },
+  };
+}
+
+// Sidecar manifest written next to the OS WIM so cheap consumers (the boot-config
+// endpoint) can advertise torrent details without re-hashing the multi-GB image.
+export const osTorrentManifestName = 'os-torrent.json';
+
+// HTTP tracker announce endpoint. bittorrent-tracker serves announce/scrape on
+// its own HTTP listener bound to the service IP and tracker port.
+export function trackerAnnounceUrl(serverIp, trackerPort) {
+  return `http://${serverIp}:${trackerPort}/announce`;
+}
+
+// BEP19 (GetRight) webseed URL for a single-file torrent: the direct HTTP URL to
+// the WIM, served by MediaHttpServer's /osdcloud/os/<file> route.
+export function osWebSeedUrl(serverIp, httpPort, fileName) {
+  const port = Number(httpPort);
+  const portPart = !Number.isFinite(port) || port === 80 ? '' : `:${port}`;
+  return `http://${serverIp}${portPart}/osdcloud/os/${encodeURIComponent(fileName)}`;
+}
+
+// URL clients use to fetch the .torrent metainfo (served next to the WIM).
+export function osTorrentUrl(serverIp, httpPort, fileName) {
+  return `${osWebSeedUrl(serverIp, httpPort, fileName)}.torrent`;
+}
+
+export const defaultTorrentConfig = Object.freeze({
+  enabled: true,
+  trackerPort: 6969,
+  seederListenPort: 6881,
+  pieceLengthBytes: 4194304,
+  seedMinutes: 30,
+  // How many simultaneous peers to partition pieces across. Each connecting
+  // peer gets 1/N of the torrent's pieces from the host seeder; peers then
+  // trade with each other to fill in the rest, so the host uploads ~1× total
+  // instead of N×. Peers beyond this count get a full bitfield (all pieces).
+  expectedPeers: 4,
+});
+
+// Resolve the host-side torrent/tracker settings, mirroring mediaHttpServerConfig.
+// The tracker binds to the same service IP as the HTTP server, and the webseed/
+// announce URLs are derived from the HTTP host + port so a single endpoint sync
+// keeps everything aligned.
+export function torrentServerConfig(config = {}) {
+  const torrent = config.torrent ?? {};
+  const serverIp = config.http?.host ?? config.adapter?.serverIp ?? '127.0.0.1';
+  const httpPort = Number(config.http?.port ?? 80);
+  const liveRoot = config.runtimeArtifacts?.liveRoot ?? config.paths?.osdCloudRoot ?? 'C:\\OSDCloud';
+  const aria2cPath = torrent.aria2cPath ?? path.join(liveRoot, 'Tools', 'aria2c.exe');
+  return {
+    enabled: torrent.enabled !== false,
+    serverIp,
+    httpPort,
+    trackerPort: Number(torrent.trackerPort ?? defaultTorrentConfig.trackerPort),
+    seederListenPort: Number(torrent.seederListenPort ?? defaultTorrentConfig.seederListenPort),
+    pieceLengthBytes: Number(torrent.pieceLengthBytes ?? defaultTorrentConfig.pieceLengthBytes),
+    seedMinutes: Number(torrent.seedMinutes ?? defaultTorrentConfig.seedMinutes),
+    osCacheRoot: config.osImage?.cacheRoot ?? null,
+    aria2cPath,
+    logPath: config.http?.logPath ?? null,
+    expectedPeers: Number(torrent.expectedPeers ?? defaultTorrentConfig.expectedPeers),
+    seederLogPath: torrent.seederLogPath ?? path.join(liveRoot, 'logs', 'torrent-seeder.log'),
+    trackerLogPath: torrent.trackerLogPath ?? path.join(liveRoot, 'logs', 'torrent-tracker.log'),
   };
 }
 
@@ -396,6 +461,33 @@ export function validateConfig(config) {
     throw new Error(`Invalid web.port: ${config.web.port}`);
   }
   config.web.port = webPort;
+
+  config.torrent ??= {};
+  config.torrent.enabled = config.torrent.enabled !== false;
+  config.torrent.trackerPort ??= defaultTorrentConfig.trackerPort;
+  config.torrent.seederListenPort ??= defaultTorrentConfig.seederListenPort;
+  config.torrent.pieceLengthBytes ??= defaultTorrentConfig.pieceLengthBytes;
+  config.torrent.seedMinutes ??= defaultTorrentConfig.seedMinutes;
+  const trackerPort = Number(config.torrent.trackerPort);
+  if (!Number.isInteger(trackerPort) || trackerPort < 1 || trackerPort > 65535) {
+    throw new Error(`Invalid torrent.trackerPort: ${config.torrent.trackerPort}`);
+  }
+  config.torrent.trackerPort = trackerPort;
+  const seederListenPort = Number(config.torrent.seederListenPort);
+  if (!Number.isInteger(seederListenPort) || seederListenPort < 1 || seederListenPort > 65535) {
+    throw new Error(`Invalid torrent.seederListenPort: ${config.torrent.seederListenPort}`);
+  }
+  config.torrent.seederListenPort = seederListenPort;
+  const pieceLengthBytes = Number(config.torrent.pieceLengthBytes);
+  if (!Number.isInteger(pieceLengthBytes) || pieceLengthBytes < 16384) {
+    throw new Error(`torrent.pieceLengthBytes must be an integer >= 16384: ${config.torrent.pieceLengthBytes}`);
+  }
+  config.torrent.pieceLengthBytes = pieceLengthBytes;
+  const seedMinutes = Number(config.torrent.seedMinutes);
+  if (!Number.isFinite(seedMinutes) || seedMinutes < 0) {
+    throw new Error(`torrent.seedMinutes must be a non-negative number: ${config.torrent.seedMinutes}`);
+  }
+  config.torrent.seedMinutes = seedMinutes;
 
   if (config.dhcp.reservations !== undefined) {
     if (!Array.isArray(config.dhcp.reservations)) {

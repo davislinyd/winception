@@ -39,7 +39,7 @@ $UserName = Get-DeploymentSecret -JsonName 'windowsUsername' -EnvironmentName 'O
 $PlainPassword = Get-DeploymentSecret -JsonName 'windowsPassword' -EnvironmentName 'OSDCLOUD_WINDOWS_PASSWORD'
 $SecurePassword = ConvertTo-SecureString $PlainPassword -AsPlainText -Force
 $DeploymentMetadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
-$DefaultStatusUrl = 'http://192.168.100.1/osdcloud/status'
+$DefaultStatusUrl = 'http://192.168.88.1/osdcloud/status'
 function Get-DeploymentMetadata {
     if (Test-Path -LiteralPath $DeploymentMetadataPath -PathType Leaf) {
         try {
@@ -112,17 +112,19 @@ function Send-DeploymentStatus {
     }
 
     try {
-        $client = [System.Net.WebClient]::new()
-        $client.Headers['Content-Type'] = 'application/json'
-        [void] $client.UploadString($statusUrl, 'POST', $json)
+        $req = [System.Net.HttpWebRequest]::Create($statusUrl)
+        $req.Method = 'POST'
+        $req.ContentType = 'application/json'
+        $req.Timeout = 5000
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+        $req.ContentLength = $bytes.Length
+        $stream = $req.GetRequestStream()
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Close()
+        $req.GetResponse().Close()
         return $true
     }
     catch {
-    }
-    finally {
-        if ($client) {
-            $client.Dispose()
-        }
     }
 
     return $false
@@ -397,7 +399,7 @@ function Install-DesktopReadyReporter {
     $reporter = @'
 $ErrorActionPreference = 'Continue'
 $metadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
-$defaultStatusUrl = 'http://192.168.100.1/osdcloud/status'
+$defaultStatusUrl = 'http://192.168.88.1/osdcloud/status'
 $taskName = 'OSDCloudDesktopReadyReport'
 $targetUser = 'TARGET_USER_PLACEHOLDER'
 $logDir = 'C:\Windows\Temp\osdcloud-logs'
@@ -460,17 +462,19 @@ function Send-Status {
     }
 
     try {
-        $client = [System.Net.WebClient]::new()
-        $client.Headers['Content-Type'] = 'application/json'
-        [void] $client.UploadString($statusUrl, 'POST', $json)
+        $req = [System.Net.HttpWebRequest]::Create($statusUrl)
+        $req.Method = 'POST'
+        $req.ContentType = 'application/json'
+        $req.Timeout = 5000
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+        $req.ContentLength = $bytes.Length
+        $stream = $req.GetRequestStream()
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Close()
+        $req.GetResponse().Close()
         return $true
     }
     catch {
-    }
-    finally {
-        if ($client) {
-            $client.Dispose()
-        }
     }
 
     return $false

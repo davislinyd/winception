@@ -100,6 +100,25 @@
       "target": "PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi",
       "length": 288256,
       "sha256": "A1B728ED4A8F60B34EFEF13457FE661AACD928A863376A77CB88C6A9AF89EC4A"
+    },
+    {
+      "id": "aria2c",
+      "kind": "torrent",
+      "name": "aria2 BitTorrent client (WinPE)",
+      "sourceType": "download",
+      "required": true,
+      "url": "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip",
+      "prepareGroup": "ipxe-downloads",
+      "prepareReason": "WinPE BitTorrent client for P2P OS image distribution (injected into boot.wim during endpoint sync)",
+      "target": "Tools\\aria2c.exe",
+      "length": 5649408,
+      "sha256": "BE2099C214F63A3CB4954B09A0BECD6E2E34660B886D4C898D260FEBFE9D70C2",
+      "archive": {
+        "format": "zip",
+        "member": "aria2-1.37.0-win-64bit-build1/aria2c.exe",
+        "length": 2475379,
+        "sha256": "67D015301EEF0B612191212D564C5BB0A14B5B9C4796B76454276A4D28D9B288"
+      }
     }
   ]
 }

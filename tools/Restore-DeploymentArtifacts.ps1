@@ -325,6 +325,48 @@ function Save-DownloadArtifact {
 
     Write-Host "Downloading $($Artifact.id)"
     Invoke-DownloadFile -Url ([string] $Artifact.url) -Destination $stagingFile
+
+    if ($Artifact.archive) {
+        # Archive artifacts ship as a zip: verify the downloaded zip against
+        # archive.sha256/length, extract the named member, then verify and place
+        # the member using the artifact's own (member) length/sha256.
+        $archiveSpec = [pscustomobject]@{ length = $Artifact.archive.length; sha256 = $Artifact.archive.sha256 }
+        Assert-ArtifactMatches -Path $stagingFile -Artifact $archiveSpec -Label "Downloaded archive $($Artifact.id)"
+
+        $member = ([string] $Artifact.archive.member).Replace('/', '\')
+        if ([string]::IsNullOrWhiteSpace($member) -or ($member -split '\\') -contains '..') {
+            throw "Invalid archive member for $($Artifact.id): $($Artifact.archive.member)"
+        }
+
+        # Expand-Archive only accepts a .zip extension, but the staging file is
+        # named "<id>.download"; copy it to a .zip path before extracting.
+        $zipFile = Join-ChildPath -Root $stagingRoot -RelativePath "$($Artifact.id).zip" -Label 'archive zip path'
+        Remove-Item -LiteralPath $zipFile -Force -ErrorAction SilentlyContinue
+        Copy-Item -LiteralPath $stagingFile -Destination $zipFile -Force
+
+        $extractRoot = Join-ChildPath -Root $stagingRoot -RelativePath "$($Artifact.id).extract" -Label 'archive extract path'
+        if (Test-Path -LiteralPath $extractRoot) {
+            Remove-Item -LiteralPath $extractRoot -Recurse -Force
+        }
+        New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+        Expand-Archive -LiteralPath $zipFile -DestinationPath $extractRoot -Force
+
+        $memberPath = Join-Path $extractRoot $member
+        if (-not (Test-Path -LiteralPath $memberPath -PathType Leaf)) {
+            throw "Archive member not found in $($Artifact.id): $($Artifact.archive.member)"
+        }
+        Assert-ArtifactMatches -Path $memberPath -Artifact $Artifact -Label "Extracted artifact $($Artifact.id)"
+        foreach ($target in $targets) {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+            Copy-Item -LiteralPath $memberPath -Destination $target -Force
+            Assert-ArtifactMatches -Path $target -Artifact $Artifact -Label "Restored artifact $($Artifact.id)"
+        }
+        Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $zipFile -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $stagingFile -Force -ErrorAction SilentlyContinue
+        return
+    }
+
     Assert-ArtifactMatches -Path $stagingFile -Artifact $Artifact -Label "Downloaded artifact $($Artifact.id)"
     foreach ($target in $targets) {
         New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
@@ -694,8 +736,16 @@ function Invoke-ExternalCommand {
     }
 }
 
+function Get-OsdCloudTemplatePsMarkerPath {
+    param([Parameter(Mandatory)][string] $TemplatePath)
+    Join-Path $TemplatePath '.winpe-ps-built'
+}
+
 function Test-OsdCloudTemplateReady {
-    param([string] $TemplatePath)
+    param(
+        [string] $TemplatePath,
+        [switch] $SkipPsMarkerCheck
+    )
 
     if ([string]::IsNullOrWhiteSpace($TemplatePath)) {
         return $false
@@ -716,6 +766,18 @@ function Test-OsdCloudTemplateReady {
             return $false
         }
     }
+
+    # Require a build marker written by our controlled New-OSDCloudTemplate call.
+    # Templates built outside this pipeline (e.g. a previous OSDCloud install that predates
+    # this check) won't have the marker, so they are treated as incomplete and rebuilt.
+    # This ensures WinPE-PowerShell is always present in the template's boot.wim.
+    if (-not $SkipPsMarkerCheck) {
+        $psMarker = Get-OsdCloudTemplatePsMarkerPath -TemplatePath $TemplatePath
+        if (-not (Test-Path -LiteralPath $psMarker -PathType Leaf)) {
+            return $false
+        }
+    }
+
     $true
 }
 
@@ -813,16 +875,21 @@ function Ensure-OsdCloudTemplate {
         Write-Host "No usable OSDCloud Template found. Creating the default template from ADK WinPE media."
     }
     else {
-        Write-Host "OSDCloud Template is incomplete: $templatePath"
-        Write-Host "Rebuilding the default template from ADK WinPE media."
+        Write-Host "OSDCloud Template is missing WinPE-PowerShell build marker or required files: $templatePath"
+        Write-Host "Rebuilding the default template from ADK WinPE media to ensure WinPE-PowerShell is present."
     }
 
     New-OSDCloudTemplate -Name 'default' | Out-Null
     $templatePath = Get-CurrentOsdCloudTemplatePath
-    if (-not (Test-OsdCloudTemplateReady -TemplatePath $templatePath)) {
+    if (-not (Test-OsdCloudTemplateReady -TemplatePath $templatePath -SkipPsMarkerCheck)) {
         throw "OSDCloud Template build did not produce required WinPE media: $templatePath"
     }
-    Write-Host "Created OSDCloud Template: $templatePath"
+    # Write build marker — signals that this template was built by our controlled pipeline
+    # and has WinPE-PowerShell. The marker causes Test-OsdCloudTemplateReady to accept the
+    # template on future runs, rather than forcing a rebuild every time.
+    $psMarker = Get-OsdCloudTemplatePsMarkerPath -TemplatePath $templatePath
+    [System.IO.File]::WriteAllText($psMarker, (Get-Date).ToUniversalTime().ToString('o') + [Environment]::NewLine)
+    Write-Host "Created OSDCloud Template with WinPE-PowerShell: $templatePath"
     $templatePath
 }
 

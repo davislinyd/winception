@@ -878,6 +878,12 @@ if ($CommitWinPe) {
             Copy-IfPresent `
                 -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') `
                 -Destination (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1') | Out-Null
+            # aria2c.exe is downloaded to the live runtime (Tools\aria2c.exe) during
+            # Prepare runtime, not committed to the repo. Inject it for the WinPE
+            # BitTorrent P2P download path; when absent the client falls back to SMB.
+            Copy-IfPresent `
+                -Source (Join-Path $ipxeLab 'Tools\aria2c.exe') `
+                -Destination (Join-Path $mountDir 'OSDCloud\aria2c.exe') | Out-Null
             Copy-IfPresent `
                 -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') `
                 -Destination (Join-Path $mountDir 'OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') | Out-Null

@@ -1,6 +1,6 @@
 param(
     [string] $Root = 'C:\OSDCloud\Media',
-    [string] $Prefix = 'http://192.168.100.1:8088/',
+    [string] $Prefix = 'http://192.168.88.1:8088/',
     [string] $LogPath = 'C:\OSDCloud\PXE-HttpRoot\host-http.log'
 )
 

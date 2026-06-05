@@ -2,7 +2,13 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { stateRootForConfig } from './config.js';
+import {
+  stateRootForConfig,
+  trackerAnnounceUrl,
+  osWebSeedUrl,
+  osTorrentUrl,
+  osTorrentManifestName,
+} from './config.js';
 import { driverPackCacheStage, handleDriverPackCacheRequest } from './driverPackCache.js';
 import { appendLog, formatSyslog } from './logger.js';
 import { buildRunsIndex, updateRunSummary } from './runSummary.js';
@@ -481,8 +487,145 @@ export class MediaHttpServer extends EventEmitter {
       smbPassword: secrets.pxeinstallPassword,
       windowsUsername: secrets.windowsUsername,
       windowsPassword: secrets.windowsPassword,
+      ...this.torrentBootConfig(serverIp),
     });
     this.log(`${remote} GET ${requestUrl.pathname} 200`);
+  }
+
+  // Advertise P2P details to WinPE clients. Returns torrentEnabled:false unless
+  // the torrent feature is on AND a generated torrent + its sidecar manifest exist
+  // next to the active OS WIM (so an un-published or torrent-less image cleanly
+  // falls back to SMB-direct apply on the client).
+  torrentBootConfig(serverIp) {
+    const torrent = this.config.torrent ?? {};
+    if (torrent.enabled === false) {
+      return { torrentEnabled: false };
+    }
+    const cacheRoot = this.config.osCacheRoot;
+    if (!cacheRoot) {
+      return { torrentEnabled: false };
+    }
+    const httpPort = Number(torrent.httpPort ?? this.config.port ?? 80);
+    const trackerPort = Number(torrent.trackerPort ?? 6969);
+    const ip = torrent.serverIp || serverIp;
+    try {
+      const manifestPath = path.join(cacheRoot, osTorrentManifestName);
+      if (!fs.existsSync(manifestPath)) {
+        return { torrentEnabled: false };
+      }
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^﻿/u, ''));
+      const fileName = manifest.fileName;
+      if (!fileName) {
+        return { torrentEnabled: false };
+      }
+      const wimPath = path.join(cacheRoot, fileName);
+      const torrentPath = `${wimPath}.torrent`;
+      if (!fs.existsSync(wimPath) || !fs.existsSync(torrentPath)) {
+        return { torrentEnabled: false };
+      }
+      return {
+        torrentEnabled: true,
+        torrentUrl: osTorrentUrl(ip, httpPort, fileName),
+        webSeedUrl: osWebSeedUrl(ip, httpPort, fileName),
+        trackerUrl: trackerAnnounceUrl(ip, trackerPort),
+        osWimFileName: fileName,
+        osWimSha256: manifest.wimSha256 || '',
+        seedMinutes: Number(torrent.seedMinutes ?? 30),
+      };
+    } catch (error) {
+      this.log(`torrent boot-config unavailable: ${error.message}`);
+      return { torrentEnabled: false };
+    }
+  }
+
+  // Serve the OS WIM and its .torrent (BEP19 webseed origin). The OS cache lives
+  // outside http.root, so this route maps /osdcloud/os/<file> to osCacheRoot with
+  // path-traversal protection and HTTP range support (clients/webseed use ranges).
+  async handleOsImage(req, res, remote, requestUrl) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { Allow: 'GET, HEAD' });
+      res.end();
+      this.log(`${remote} ${req.method} ${requestUrl.pathname} 405 bytes=0`);
+      return;
+    }
+
+    const cacheRoot = this.config.osCacheRoot;
+    if (!cacheRoot) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('OS image cache is not configured');
+      this.log(`${remote} ${req.method} ${requestUrl.pathname} 404 no-os-cache-root`);
+      return;
+    }
+
+    const rel = decodeURIComponent(requestUrl.pathname.slice('/osdcloud/os/'.length));
+    const rootFull = path.resolve(cacheRoot);
+    const resolved = path.resolve(rootFull, rel);
+    const rootWithSeparator = rootFull.endsWith(path.sep) ? rootFull : `${rootFull}${path.sep}`;
+    if (!rel || (resolved !== rootFull && !resolved.startsWith(rootWithSeparator))) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      this.log(`${remote} ${req.method} ${requestUrl.pathname} 403 traversal`);
+      return;
+    }
+    const lower = resolved.toLowerCase();
+    if (!lower.endsWith('.wim') && !lower.endsWith('.torrent')) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      this.log(`${remote} ${req.method} ${requestUrl.pathname} 403 type`);
+      return;
+    }
+
+    this.sendFileRange(req, res, remote, resolved, `osdcloud/os/${rel}`);
+  }
+
+  sendFileRange(req, res, remote, filePath, label) {
+    fs.stat(filePath, (statError, stats) => {
+      if (statError || !stats.isFile()) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end(`Not found: ${label}`);
+        this.log(`${remote} ${req.method} /${label} 404 bytes=0`);
+        return;
+      }
+
+      const range = parseRange(req.headers.range, stats.size);
+      const headers = {
+        'Accept-Ranges': 'bytes',
+        'Content-Type': 'application/octet-stream',
+      };
+      let statusCode = 200;
+      let start = 0;
+      let end = stats.size - 1;
+      if (range) {
+        statusCode = 206;
+        start = range.start;
+        end = range.end;
+        headers['Content-Range'] = `bytes ${start}-${end}/${stats.size}`;
+      }
+      const contentLength = Math.max(0, end - start + 1);
+      headers['Content-Length'] = String(contentLength);
+      res.writeHead(statusCode, headers);
+
+      if (req.method === 'HEAD') {
+        res.end();
+        this.log(`${remote} HEAD /${label} ${statusCode} bytes=${contentLength}`);
+        return;
+      }
+
+      const stream = fs.createReadStream(filePath, { start, end });
+      stream.on('error', (error) => {
+        this.log(`${remote} ${req.method} /${label} 500 error=${error.message}`);
+        res.destroy(error);
+      });
+      res.on('finish', () => {
+        this.log(`${remote} ${req.method} /${label} ${statusCode} bytes=${contentLength}`);
+      });
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          this.log(`${remote} ${req.method} /${label} aborted bytes=${contentLength}`);
+        }
+      });
+      stream.pipe(res);
+    });
   }
 
   async handleRequest(req, res) {
@@ -503,6 +646,11 @@ export class MediaHttpServer extends EventEmitter {
 
     if (requestUrl.pathname === '/osdcloud/boot-config') {
       await this.handleBootConfig(req, res, remote, requestUrl);
+      return;
+    }
+
+    if (requestUrl.pathname.startsWith('/osdcloud/os/')) {
+      await this.handleOsImage(req, res, remote, requestUrl);
       return;
     }
 

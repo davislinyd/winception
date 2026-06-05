@@ -85,5 +85,12 @@
     "web":  {
                 "host":  "127.0.0.1",
                 "port":  8080
-            }
+            },
+    "torrent":  {
+                    "enabled":  true,
+                    "trackerPort":  6969,
+                    "seederListenPort":  6881,
+                    "pieceLengthBytes":  4194304,
+                    "seedMinutes":  30
+                }
 }

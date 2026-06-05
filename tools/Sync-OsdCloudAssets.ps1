@@ -3,7 +3,11 @@ param(
     [string] $SourceRoot = 'C:\OSDCloud',
     [string] $AssetsRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'osdcloud-assets'),
     [switch] $MountWinPe,
-    [switch] $HashLargeArtifacts
+    [switch] $HashLargeArtifacts,
+    # Installed Web console App root. WinPE endpoint templates are pushed here
+    # after every sync so endpoint sync picks up local edits automatically.
+    # Set to '' to skip the push (e.g. on a machine without an installed App).
+    [string] $AppRoot = 'C:\OSDCloud\HostTools\App'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -193,6 +197,19 @@ try {
         @{ Source = Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1'; SourceKind = 'boot.wim:index1' }
     )
 
+    # WIM-sourced exports require the boot.wim to be mounted. When it isn't and
+    # -MountWinPe was not requested, skip those entries with a warning rather than
+    # failing: the common case of "I just edited a WinPE template" still completes
+    # and pushes the updated file to the App copy so endpoint sync picks it up.
+    $wimAvailable = Test-Path -LiteralPath (Join-Path $winPeMount 'Windows\System32\Startnet.cmd') -PathType Leaf
+    if (-not $wimAvailable) {
+        $wimOnlyExports = @($exports | Where-Object { $_.ContainsKey('SourceKind') -and $_['SourceKind'] -eq 'boot.wim:index1' })
+        if ($wimOnlyExports.Count -gt 0) {
+            Write-Warning "boot.wim not mounted at $winPeMount; skipping $($wimOnlyExports.Count) WIM export(s). Run with -MountWinPe to include them."
+        }
+        $exports = @($exports | Where-Object { -not ($_.ContainsKey('SourceKind') -and $_['SourceKind'] -eq 'boot.wim:index1') })
+    }
+
     $copied = foreach ($entry in $exports) {
         $sourceKind = if ($entry.ContainsKey('SourceKind')) { $entry.SourceKind } else { 'filesystem' }
         Copy-VersionedAsset -Source $entry.Source -Target $entry.Target -SourceKind $sourceKind
@@ -239,6 +256,44 @@ try {
 
     Write-Host "Synced $($copied.Count) versioned assets to $AssetsRoot"
     Write-Host "Wrote manifest: $manifestPath"
+
+    # Push WinPE endpoint templates to the installed App copy so that endpoint
+    # sync (which reads from App\osdcloud-assets, not the source repo) picks up
+    # local edits without a manual copy step. Mirrors BOOT_WIM_TEMPLATE_SOURCES
+    # in tools/osdcloud-console/src/windows.js.
+    if (-not [string]::IsNullOrWhiteSpace($AppRoot)) {
+        $appAssets = Join-Path $AppRoot 'osdcloud-assets'
+        if (Test-Path -LiteralPath $appAssets -PathType Container) {
+            $templateRelPaths = @(
+                'OSDCloud\WinPE\Windows\System32\Startnet.cmd',
+                'OSDCloud\WinPE\OSDCloud\Maximize-Console.ps1',
+                'OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1',
+                'OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1',
+                'OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1',
+                'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd',
+                'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'
+            )
+            $pushed = 0; $alreadySynced = 0
+            foreach ($rel in $templateRelPaths) {
+                $src = Join-Path $AssetsRoot $rel
+                $dst = Join-Path $appAssets $rel
+                if (-not (Test-Path -LiteralPath $src -PathType Leaf)) { continue }
+                $srcHash = (Get-FileHash -LiteralPath $src -Algorithm SHA256).Hash
+                $dstHash = if (Test-Path -LiteralPath $dst -PathType Leaf) { (Get-FileHash -LiteralPath $dst -Algorithm SHA256).Hash } else { '' }
+                if ($srcHash -ne $dstHash) {
+                    New-Item -ItemType Directory -Path (Split-Path -Parent $dst) -Force | Out-Null
+                    Copy-Item -LiteralPath $src -Destination $dst -Force
+                    Write-Host "  app-push: $rel"
+                    $pushed++
+                } else {
+                    $alreadySynced++
+                }
+            }
+            Write-Host "Pushed $pushed WinPE template(s) to App copy ($alreadySynced already in sync)"
+        } else {
+            Write-Host "App copy not found at $appAssets; skipping WinPE template push."
+        }
+    }
 }
 finally {
     if ($mountedByScript) {
