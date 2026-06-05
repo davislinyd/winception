@@ -1,6 +1,6 @@
 param(
     [string] $Root = 'C:\OSDCloud\PXE-TFTP',
-    [string] $ListenIp = '192.168.100.1',
+    [string] $ListenIp = '192.168.88.1',
     [int] $Port = 69,
     [string] $LogPath = 'C:\OSDCloud\PXE-TFTP\pxe-tftp.log'
 )
