@@ -1452,9 +1452,9 @@ function renderInitialization(appState) {
     index++;
   }
 
-  // 2. Render Right Column Detail Panel
+  // 2. Render the focused detail panel (moved inline under the active step below)
   const selectedStep = (initialization.steps ?? []).find(s => s.id === state.selectedGuidedStepId) || initialization.steps?.[0];
-  const detailPanel = $('#guided-step-detail');
+  const detailPanel = elements.guidedStepDetail;
 
   if (selectedStep && detailPanel) {
     detailPanel.replaceChildren();
@@ -1532,6 +1532,17 @@ function renderInitialization(appState) {
 
     detailPanel.append(body);
     restoreInitializationDetailScrollPosition(step.id, detailList);
+  }
+
+  // v3 timeline: nest the focused detail panel inline directly under the active step
+  if (elements.guidedStepDetail) {
+    const activeRow = elements.initializationSteps.querySelector('.initialization-step.active');
+    if (activeRow) {
+      activeRow.after(elements.guidedStepDetail);
+    } else {
+      elements.initializationSteps.append(elements.guidedStepDetail);
+    }
+    elements.guidedStepDetail.hidden = !selectedStep;
   }
 
   if (nextStep?.action && nextStep.action !== 'setup') {

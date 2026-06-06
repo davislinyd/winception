@@ -180,36 +180,26 @@
         </details>      </section>
       <!-- Guided Setup View Container -->
       <section id="initialization-dialog" class="view flex-col gap-sm" aria-labelledby="guided-setup-title">
-        <div class="guided-layout grid grid-cols-12 gap-sm flex-1 min-h-0">
-          <!-- Left Stepper Column -->
-          <aside class="col-span-12 lg:col-span-4 flex flex-col gap-sm">
-            <div class="guided-card bento-card h-full">
-              <div class="guided-head">
-                <div class="guided-head-text">
-                  <h2 id="guided-setup-title" class="guided-welcome">Let's get you deploying</h2>
-                  <span id="initialization-summary" class="guided-sub">Checking initialization state...</span>
-                </div>
-                <span id="initialization-badge" class="status-pill neutral" aria-live="polite">Checking</span>
-              </div>
-              <div id="initialization-steps" class="initialization-step-list overflow-y-auto flex-1 pr-xs"></div>
-              <div class="guided-progress">
-                <div class="guided-progress-track"><div id="init-progress-fill" class="guided-progress-fill"></div></div>
-                <span id="init-progress-text" class="guided-progress-text"></span>
-              </div>
-              <div class="guided-foot">
-                <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="warning w-full justify-center" type="button">Next step</button>
-              </div>
+        <div class="guided-v3">
+          <div class="guided-v3-head">
+            <div class="guided-v3-head-text">
+              <h2 id="guided-setup-title" class="guided-v3-title">Set up deployment</h2>
+              <span id="initialization-summary" class="guided-v3-sub">Checking initialization state...</span>
             </div>
-          </aside>
-
-          <!-- Right Detail Column -->
-          <div class="col-span-12 lg:col-span-8 flex flex-col gap-sm min-h-0">
-            <section id="guided-step-detail" class="bg-surface-container-lowest border border-outline-variant rounded p-lg flex flex-col gap-md flex-1 overflow-y-auto">
-              <!-- Dynamically filled by app.js -->
-            </section>
-            
-            <!-- Live Operation Log Panel -->
-            <div id="initialization-operation" class="initialization-operation-panel" aria-live="polite" hidden></div>
+            <div class="guided-v3-progress">
+              <div class="guided-v3-progress-meta">
+                <span id="initialization-badge" class="status-pill neutral" aria-live="polite">Checking</span>
+                <span id="init-progress-text" class="guided-v3-progress-text"></span>
+              </div>
+              <div class="guided-progress-track"><div id="init-progress-fill" class="guided-progress-fill"></div></div>
+            </div>
+          </div>
+          <div id="initialization-steps" class="guided-timeline"></div>
+          <!-- detail panel: moved inline under the active step by app.js -->
+          <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by app.js --></section>
+          <div id="initialization-operation" class="initialization-operation-panel" aria-live="polite" hidden></div>
+          <div class="guided-v3-foot">
+            <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="v3-primary" type="button">Next step</button>
           </div>
         </div>
       </section>

@@ -3069,3 +3069,52 @@ body.bg-surface { overflow: hidden; background: var(--background); }
 
 /* Guided (Setup) + Fleet views inside v3 main: white cards, ink */
 #view-fleet, #initialization-dialog { padding-top: 4px; }
+
+/* ============================================================
+   v3 Setup — centered vertical timeline accordion (Stitch v3)
+   ============================================================ */
+#initialization-dialog.view { display: none; }
+#initialization-dialog.view.active { display: block; }
+.guided-v3 { max-width: 760px; width: 100%; margin: 0 auto; background: var(--surface-bright); border: 1px solid var(--hairline); border-radius: 12px; padding: 28px 32px 24px; }
+.guided-v3-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--hairline); margin-bottom: 8px; }
+.guided-v3-title { margin: 0; font: 700 22px/1.2 "Inter", sans-serif; letter-spacing: -0.02em; color: var(--ink); }
+.guided-v3-sub { display: block; margin-top: 5px; font: 400 13px/1.4 "Inter", sans-serif; color: var(--on-surface-variant); }
+.guided-v3-progress { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 180px; }
+.guided-v3-progress-meta { display: flex; align-items: center; gap: 8px; }
+.guided-v3-progress-text { font: 600 11px/1 "Inter", sans-serif; color: var(--on-surface-variant); white-space: nowrap; }
+.guided-v3-progress .guided-progress-track { width: 180px; height: 4px; border-radius: 999px; background: var(--surface-container-high); overflow: hidden; }
+.guided-v3-progress .guided-progress-fill { height: 100%; background: var(--ink); width: 0; transition: width 0.4s ease; }
+#initialization-dialog .status-pill { border-radius: 999px; padding: 2px 8px; font: 600 10px/1.4 "Inter", sans-serif; }
+
+/* Timeline */
+.guided-timeline { position: relative; padding: 12px 0 4px; }
+.guided-timeline::before { content: ""; position: absolute; left: 9px; top: 22px; bottom: 14px; width: 2px; background: var(--hairline); }
+.guided-timeline .initialization-step { position: relative; display: block; background: transparent !important; border: none !important; border-radius: 0 !important; padding: 11px 0 11px 38px !important; margin: 0 !important; }
+.guided-timeline .initialization-step::before { content: ""; position: absolute; left: 2px; top: 13px; width: 16px; height: 16px; border-radius: 999px; background: var(--surface-bright); border: 2px solid var(--outline-variant); z-index: 1; box-sizing: border-box; }
+.guided-timeline .initialization-step.done::before { background: var(--ink); border-color: var(--ink); }
+.guided-timeline .initialization-step.done::after { content: "check"; font-family: "Material Symbols Outlined"; position: absolute; left: 4px; top: 14px; font-size: 12px; line-height: 1; color: #fff; z-index: 2; }
+.guided-timeline .initialization-step.active::before { border-color: var(--ink); background: var(--surface-bright); box-shadow: 0 0 0 3px rgba(17,24,39,0.10); }
+.guided-timeline .initialization-step.working::before { border-color: var(--warn); box-shadow: 0 0 0 3px rgba(180,83,9,0.12); }
+.guided-timeline .status-pill { display: none !important; }
+.guided-timeline .initialization-step-body { display: flex; flex-direction: column; gap: 2px; }
+.guided-timeline .initialization-step-body strong { font: 600 14px/1.3 "Inter", sans-serif; color: var(--ink); }
+.guided-timeline .initialization-step-body span { font: 400 12px/1.4 "Inter", sans-serif; color: var(--on-surface-variant); }
+.guided-timeline .initialization-step:not(.done):not(.active) .initialization-step-body strong { color: var(--on-surface-variant); font-weight: 500; }
+.guided-timeline .initialization-step.active .initialization-step-body strong { font-weight: 700; }
+.guided-timeline .initialization-step { cursor: pointer; border-radius: 8px !important; transition: background 0.1s ease; }
+.guided-timeline .initialization-step:hover { background: var(--surface-container-low) !important; }
+
+/* Inline detail panel under the active step */
+.guided-timeline > #guided-step-detail, .guided-v3-detail {
+  margin: 2px 0 14px 38px !important; border: 1px solid var(--hairline) !important; border-radius: 10px !important;
+  padding: 18px !important; background: var(--surface-bright) !important; box-shadow: none !important;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.guided-v3-detail:empty, .guided-v3-detail[hidden] { display: none !important; }
+.guided-v3-detail .guided-detail-header { border-bottom: 1px solid var(--hairline); padding-bottom: 12px; }
+.guided-v3-detail .guided-detail-title { font: 600 16px/1.3 "Inter", sans-serif; color: var(--ink); }
+.guided-v3-detail .guided-detail-title .material-symbols-outlined { color: var(--on-surface-variant) !important; }
+.guided-v3-detail .guided-detail-desc { font: 400 13px/1.5 "Inter", sans-serif; color: var(--on-surface-variant); }
+
+.guided-v3-foot { display: flex; justify-content: flex-end; padding-top: 16px; margin-top: 6px; border-top: 1px solid var(--hairline); }
+.guided-v3-foot .v3-primary[hidden] { display: none; }

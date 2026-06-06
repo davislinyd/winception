@@ -154,7 +154,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="driver-cache-details"/);
   assert.match(html, /data-action="prepare-runtime"/);
   assert.match(html, /data-action="initialization" data-icon="checklist"/);
-  assert.match(html, /Let's get you deploying/);
+  assert.match(html, /Set up deployment/);
+  assert.match(html, /class="guided-timeline"/);
   assert.match(html, /id="init-progress-fill"/);
   assert.match(html, /id="initialization-dialog"/);
   assert.match(html, /id="initialization-operation" class="initialization-operation-panel"/);
