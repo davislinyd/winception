@@ -113,45 +113,34 @@
       </section>
 
       <section id="view-dashboard" class="view active flex-col gap-sm" aria-labelledby="dashboard-title">
-        <!-- v3 Deploy: one summary bar + the fleet list -->
+
+        <!-- v3 Deploy = dashboard: config + action, status tiles, inline services -->
         <div class="v3-summary">
           <button class="v3-seg" data-action="profiles" type="button"><span class="v3-seg-label">Profile</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="v3-seg-value"></div></button>
           <button class="v3-seg" data-action="os-images" type="button"><span class="v3-seg-label">OS Image</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="v3-seg-value"></div></button>
           <button class="v3-seg" data-action="interfaces" type="button"><span class="v3-seg-label">Endpoint</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="v3-seg-value mono"></div></button>
-          <div class="v3-seg v3-seg-static"><span class="v3-seg-label">Services</span><div id="summary-services" class="v3-seg-value v3-svc-dots"></div></div>
           <div class="v3-summary-action">
             <span id="summary-status" class="v3-summary-status"></span>
             <button id="summary-action" data-action="preflight" class="v3-primary" type="button">Run preflight</button>
           </div>
         </div>
 
-        <section class="v3-fleet client-fleet-panel">
-          <div class="v3-fleet-head">
-            <div class="v3-fleet-title">Deployments <span id="fleet-counts" class="v3-fleet-counts"></span></div>
-            <div class="v3-fleet-tools">
-              <button id="fleet-expand-toggle" data-action="fleet-expand-toggle" data-icon="open_in_full" class="v3-ghost" type="button" aria-expanded="false">Expand</button>
-            </div>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="v3-fleet-table w-full text-left">
-              <thead>
-                <tr>
-                  <th>Status</th><th>Client</th><th>Run ID</th><th>Stage</th><th>Progress</th><th>Last Seen</th><th>Elapsed</th>
-                </tr>
-              </thead>
-              <tbody id="clients-body"></tbody>
-            </table>
-          </div>
+        <!-- embedded config editor host (Profile / OS Image / Endpoint render here inline) -->
+        <div id="config-embed" class="config-embed" hidden></div>
+
+        <!-- status tiles (click to open Activity, pre-filtered) -->
+        <div id="dash-tiles" class="dash-tiles"></div>
+
+        <!-- inline service control -->
+        <section class="dash-card dash-services">
+          <div class="dash-card-head"><span>Services</span><button data-action="all-services-toggle" data-icon="play_arrow" class="bento-mini danger all-services-toggle" type="button">Start all</button></div>
+          <div id="services-grid" class="status-services-grid dash-services-grid" aria-label="Services"></div>
         </section>
 
         <details class="v3-more">
-          <summary><span class="material-symbols-outlined text-[18px]">tune</span>Details &amp; diagnostics</summary>
+          <summary><span class="material-symbols-outlined text-[18px]">tune</span>Diagnostics</summary>
           <div class="v3-more-body flex flex-col gap-sm">
             <section id="endpoint-summary" class="endpoint-summary-grid flex flex-wrap gap-md p-md" aria-label="Endpoint summary"></section>
-            <section class="v2-card">
-              <div class="v2-card-head"><span>Services</span><button data-action="all-services-toggle" data-icon="play_arrow" class="bento-mini danger all-services-toggle" type="button">Start all</button></div>
-              <div id="services-grid" class="status-services-grid flex flex-col gap-sm p-md" aria-label="Services"></div>
-            </section>
             <section class="v2-card"><div class="v2-card-head"><span>Pipeline</span></div><div id="pipeline-steps" class="pipeline-horizontal"></div></section>
             <section class="v2-card"><div class="v2-card-head"><span>Metrics</span></div><div id="live-metrics" class="live-metrics p-md"></div></section>
             <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
@@ -175,9 +164,9 @@
               <section class="driver-cache-panel p-md flex flex-col gap-sm"><div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Driver Cache</h3><span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span></div><div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div></section>
               <section class="preflight-summary-panel p-md flex flex-col gap-sm"><div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span></div><div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div></section>
             </div>
-            <section class="v3-log-panel"><div class="v3-log-head"><span>Activity log</span></div><pre id="logs" class="system-log-output font-log-entry text-log-entry p-sm overflow-auto"></pre></section>
           </div>
-        </details>      </section>
+        </details>
+            </section>
       <!-- Guided Setup View Container -->
       <section id="initialization-dialog" class="view flex-col gap-sm" aria-labelledby="guided-setup-title">
         <div class="guided-v3">
@@ -225,6 +214,7 @@
           <div class="fleet-cards" id="fleet-cards"></div>
           <aside class="fleet-detail" id="fleet-detail" aria-live="polite"></aside>
         </div>
+        <section class="v3-log-panel activity-log"><div class="v3-log-head"><span>Activity log</span></div><pre id="logs" class="system-log-output font-log-entry text-log-entry p-sm overflow-auto"></pre></section>
       </section>
 
     </main>

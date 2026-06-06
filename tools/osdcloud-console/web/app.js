@@ -106,6 +106,7 @@ const elements = {
   summaryServices: $('#summary-services'),
   summaryAction: $('#summary-action'),
   summaryStatus: $('#summary-status'),
+  dashTiles: $('#dash-tiles'),
   guidedStepDetail: $('#guided-step-detail'),
   pipelineSteps: $('#pipeline-steps'),
   topologyClients: $('#topology-clients'),
@@ -536,9 +537,80 @@ function isDialogOpen(dialog) {
   return Boolean(dialog.open || dialog.hasAttribute('open'));
 }
 
+function embeddedConfigDialogs() {
+  return [
+    elements.deploymentProfilesDialog,
+    elements.osImagesDialog,
+    elements.endpointSettingsDialog,
+  ].filter(Boolean);
+}
+
+function isEmbeddedConfigDialog(dialog) {
+  return embeddedConfigDialogs().includes(dialog);
+}
+
+function closeEmbeddedConfig(except = null) {
+  const host = document.getElementById('config-embed');
+  for (const dialog of embeddedConfigDialogs()) {
+    if (dialog === except || !dialog.classList.contains('embedded-open')) {
+      continue;
+    }
+    if (isDialogOpen(dialog)) {
+      closeDialog(dialog, 'cancel');
+    } else {
+      restoreEmbeddedDialog(dialog);
+    }
+  }
+  if (host && !host.querySelector('dialog.embedded-open')) {
+    host.hidden = true;
+  }
+}
+
+function restoreEmbeddedDialog(dialog) {
+  dialog.classList.remove('embedded-open');
+  dialog.removeAttribute('open');
+  if (dialog.parentElement && dialog.parentElement.id === 'config-embed') {
+    document.body.append(dialog);
+  }
+  const host = document.getElementById('config-embed');
+  if (host && !host.querySelector('dialog.embedded-open')) {
+    host.hidden = true;
+  }
+}
+
+function openEmbeddedConfig(dialog) {
+  const host = document.getElementById('config-embed');
+  if (!host) {
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    return;
+  }
+  // toggle: clicking the same segment again closes it
+  if (dialog.classList.contains('embedded-open')) {
+    closeEmbeddedConfig();
+    return;
+  }
+  closeEmbeddedConfig(dialog);
+  if (!dialog.dataset.embeddedCloseBound) {
+    dialog.dataset.embeddedCloseBound = '1';
+    dialog.addEventListener('close', () => restoreEmbeddedDialog(dialog));
+  }
+  switchToView('dashboard');
+  host.hidden = false;
+  host.append(dialog);
+  dialog.classList.add('embedded-open');
+  dialog.setAttribute('open', '');
+  requestAnimationFrame(() => {
+    host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 function openDialog(dialog) {
   if (dialog === elements.initializationDialog) {
     switchToView('guided');
+    return;
+  }
+  if (isEmbeddedConfigDialog(dialog)) {
+    openEmbeddedConfig(dialog);
     return;
   }
   if (isDialogOpen(dialog)) {
@@ -587,6 +659,9 @@ function cancelDialog(dialog) {
 function enableBackdropClose(dialog) {
   dialog.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) {
+      return;
+    }
+    if (dialog.classList.contains('embedded-open')) {
       return;
     }
     if (event.target !== dialog) {
@@ -1332,6 +1407,53 @@ function renderInitializationOperation(appState) {
   log.scrollTop = wasAtBottom ? log.scrollHeight : previousScrollTop;
 }
 
+// Setup steps that remain re-runnable after initial completion
+const RERUNNABLE_STEP_ACTIONS = new Set(['interfaces', 'prepare-runtime', 'os-images', 'profiles']);
+const RERUN_STEP_LABELS = {
+  interfaces: 'Re-sync endpoint',
+  'prepare-runtime': 'Re-prepare runtime',
+  'os-images': 'Manage OS images',
+  profiles: 'Edit / re-publish profile',
+};
+
+// Heuristic front-end dependency inference: which completed steps need a re-run
+// because an upstream change made their output stale. Maps existing preflight
+// failure signals to the step ids they affect (no backend dependency metadata).
+function computeStepStaleness(appState) {
+  const stale = new Set();
+  const steps = appState.initialization?.steps ?? [];
+  const doneIds = new Set(steps.filter((step) => step.done).map((step) => step.id));
+  const checks = Array.isArray(appState.preflight)
+    ? appState.preflight
+    : Array.isArray(appState.preflight?.checks) ? appState.preflight.checks : [];
+  const failed = checks.filter((check) => check && check.ok === false);
+  const flag = (id) => { if (doneIds.has(id)) stale.add(id); };
+  for (const check of failed) {
+    const text = `${check.name ?? ''} ${check.detail ?? ''}`.toLowerCase();
+    if (text.includes('manifest') || text.includes('selected-os') || text.includes('selected os')) {
+      flag('os-image');
+      flag('profile');
+    }
+    if (text.includes('profile') || text.includes('payload') || text.includes('apps')) {
+      flag('profile');
+    }
+    if (text.includes('boot.wim') || text.includes('ipxe') || text.includes('endpoint') || text.includes('smb') || text.includes('service ip')) {
+      flag('endpoint');
+    }
+    if (text.includes('runtime') || text.includes('artifact')) {
+      flag('runtime');
+    }
+    if ((text.includes('os image') || text.includes('wim')) && !text.includes('boot.wim')) {
+      flag('os-image');
+    }
+  }
+  // A done preflight with current failures must be re-run.
+  if (failed.length && doneIds.has('preflight')) {
+    stale.add('preflight');
+  }
+  return stale;
+}
+
 function renderInitialization(appState) {
   const initialization = appState.initialization;
   if (!initialization || !elements.initializationDialog) {
@@ -1414,6 +1536,9 @@ function renderInitialization(appState) {
     elements.initProgressText.textContent = `${doneSteps} of ${totalSteps} complete · ${progressPercent}%`;
   }
 
+  // Dependency staleness: steps whose completed output needs re-running
+  const staleSteps = computeStepStaleness(appState);
+
   // 1. Render Left Column Stepper List
   let index = 1;
   for (const step of initialization.steps ?? []) {
@@ -1432,6 +1557,10 @@ function renderInitialization(appState) {
     if (stepIsRunning) {
       row.classList.add('working');
     }
+    const stepNeedsUpdate = staleSteps.has(step.id) && !stepIsRunning;
+    if (stepNeedsUpdate) {
+      row.classList.add('needs-update');
+    }
 
     const status = document.createElement('span');
     status.className = `status-pill ${stepIsRunning ? 'working' : step.done ? 'ok' : step.required ? 'fail' : 'neutral'}`;
@@ -1443,6 +1572,12 @@ function renderInitialization(appState) {
     body.className = 'initialization-step-body';
     const title = document.createElement('strong');
     title.textContent = `${index.toString().padStart(2, '0')}. ${step.label}`;
+    if (stepNeedsUpdate) {
+      const badge = document.createElement('span');
+      badge.className = 'needs-update-badge';
+      badge.textContent = 'Needs update';
+      title.append(badge);
+    }
     const detail = document.createElement('span');
     detail.textContent = step.detail ?? '';
     body.append(title, detail);
@@ -1508,17 +1643,21 @@ function renderInitialization(appState) {
       appendInitializationProjectRootForm(body, selectedStep);
     }
 
-    // Action button
-    if (!selectedStep.done && selectedStep.action && selectedStep.action !== 'setup' && !hasInlineSecretsForm && !hasInlineProjectRootForm) {
+    // Action button — re-runnable steps stay editable after init
+    const stepRerunnable = RERUNNABLE_STEP_ACTIONS.has(selectedStep.action);
+    if (selectedStep.action && selectedStep.action !== 'setup' && !hasInlineSecretsForm && !hasInlineProjectRootForm
+      && (!selectedStep.done || stepRerunnable)) {
       const buttonContainer = document.createElement('div');
       buttonContainer.className = 'flex justify-start mt-md';
 
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = selectedStep.required ? 'warning px-lg py-md' : 'px-lg py-md';
+      button.className = (selectedStep.required && !selectedStep.done) ? 'warning px-lg py-md' : 'px-lg py-md';
       button.dataset.initAction = selectedStep.action;
       button.dataset.icon = initializationActionIcon(selectedStep.action);
-      button.textContent = selectedStep.nextActionText ?? initializationActionLabel(selectedStep.action);
+      button.textContent = selectedStep.done
+        ? (RERUN_STEP_LABELS[selectedStep.action] ?? `Update ${selectedStep.label}`)
+        : (selectedStep.nextActionText ?? initializationActionLabel(selectedStep.action));
       
       const runtime = appState.runtime;
       const requiresElevation = appState?.host?.elevated === false;
@@ -3003,7 +3142,6 @@ function render() {
   renderPreflightSummary(appState.preflight);
   renderDriverPackCache(appState);
   renderInitialization(appState);
-  renderClients(appState);
   renderInterfaces(appState);
   renderProfiles(appState);
   renderSoftwareCatalog(appState);
@@ -3018,6 +3156,7 @@ function render() {
   renderLiveMetrics(appState);
   renderStatusStrip(appState);
   renderSummaryBar(appState);
+  renderDashboardTiles(appState);
   renderFleetCards(appState);
   setControlsDisabled(state.busy || appState.operation?.running === true);
 }
@@ -3070,6 +3209,38 @@ function renderSummaryBar(appState) {
     else if (preflightPassed) { label = 'Start services'; action = 'all-services-toggle'; }
     elements.summaryAction.textContent = label;
     elements.summaryAction.dataset.action = action;
+  }
+}
+
+// ---- v3: dashboard status tiles (click -> Activity, pre-filtered) ----
+function renderDashboardTiles(appState) {
+  if (!elements.dashTiles) {
+    return;
+  }
+  const counts = appState.fleet?.counts ?? {};
+  const total = appState.fleet?.total ?? 0;
+  const failed = (counts.failed ?? 0) + (counts.stale ?? 0);
+  const tiles = [
+    { num: counts.running ?? 0, label: 'Deploying', tone: (counts.running ?? 0) > 0 ? 'live' : '', filter: 'active' },
+    { num: counts.completed ?? 0, label: 'Ready', tone: (counts.completed ?? 0) > 0 ? 'ok' : '', filter: 'done' },
+    { num: failed, label: 'Failed', tone: failed > 0 ? 'err' : '', filter: 'failed' },
+    { num: total, label: 'Total clients', tone: '', filter: 'all' },
+  ];
+  elements.dashTiles.replaceChildren();
+  for (const tile of tiles) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `dash-tile ${tile.tone}`.trim();
+    button.dataset.goto = 'activity';
+    button.dataset.fleetFilter = tile.filter;
+    const num = document.createElement('span');
+    num.className = 'dash-tile-num';
+    num.textContent = String(tile.num);
+    const label = document.createElement('span');
+    label.className = 'dash-tile-label';
+    label.textContent = tile.label;
+    button.append(num, label);
+    elements.dashTiles.append(button);
   }
 }
 
@@ -3263,7 +3434,7 @@ function renderFleetCards(appState) {
       [appState.fleet?.total ?? 0, 'Total', ''],
       [counts.running ?? 0, 'Deploying', ''],
       [counts.completed ?? 0, 'Ready', ''],
-      [counts.failed ?? 0, 'Failed', 'fail'],
+      [(counts.failed ?? 0) + (counts.stale ?? 0), 'Failed', 'fail'],
     ];
     elements.fleetStatStrip.replaceChildren();
     for (const [num, lbl, cls] of stats) {
@@ -3289,10 +3460,11 @@ function renderFleetCards(appState) {
   }
   const allRuns = appState.fleet?.runs ?? [];
   const query = state.fleetSearch.trim().toLowerCase();
+  const isFailed = (run) => run.status === 'failed' || run.status === 'stale';
   const runs = allRuns.filter((run) => {
-    if (state.fleetFilter === 'active' && !(run.status !== 'completed' && run.status !== 'failed')) return false;
+    if (state.fleetFilter === 'active' && (run.status === 'completed' || isFailed(run))) return false;
     if (state.fleetFilter === 'done' && run.status !== 'completed') return false;
-    if (state.fleetFilter === 'failed' && run.status !== 'failed') return false;
+    if (state.fleetFilter === 'failed' && !isFailed(run)) return false;
     if (query) {
       const hay = `${run.clientId ?? ''} ${run.runId ?? ''}`.toLowerCase();
       if (!hay.includes(query)) return false;
@@ -4968,6 +5140,18 @@ document.addEventListener('click', (event) => {
     elements.fleetExpandToggle?.focus();
     return;
   }
+  const gotoButton = target.closest('[data-goto]');
+  if (gotoButton) {
+    if (gotoButton.dataset.fleetFilter) {
+      state.fleetFilter = gotoButton.dataset.fleetFilter;
+    }
+    if (gotoButton.dataset.goto === 'activity') {
+      switchToView('fleet');
+    }
+    render();
+    return;
+  }
+
   const fleetFilterButton = target.closest('[data-fleet-filter]');
   if (fleetFilterButton) {
     state.fleetFilter = fleetFilterButton.dataset.fleetFilter;

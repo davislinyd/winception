@@ -18,21 +18,19 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /class="v3-topbar"/);
   assert.match(html, /class="v3-nav"/);
   assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-guided"[\s\S]*id="tab-fleet"/);
-  // Deploy = one summary bar + the fleet list (no redundant cards)
+  // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
   assert.match(html, /class="v3-summary"/);
   assert.match(html, /id="summary-action"/);
-  assert.match(html, /id="summary-services"/);
-  assert.match(html, /class="v3-fleet/);
-  assert.match(html, /id="clients-body"/);
+  assert.match(html, /id="dash-tiles"/);
+  assert.doesNotMatch(html, /id="clients-body"/);
   // Secondary panels live in a collapsed details block (kept functional)
   assert.match(html, /class="v3-more"/);
   assert.match(html, /id="pipeline-steps"/);
   assert.match(html, /id="live-metrics"/);
   assert.match(html, /id="endpoint-summary"/);
   assert.match(html, /dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm/);
-  assert.match(html, /client-fleet-panel/);
   assert.match(html, /id="view-dashboard"/);
-  // Fleet view = filter + search + card grid + detail drawer
+  // Fleet view = filter + search + card grid + detail drawer + activity log
   assert.match(html, /id="view-fleet"/);
   assert.match(html, /id="fleet-filter"/);
   assert.match(html, /id="fleet-detail"/);
@@ -404,7 +402,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /Material\+Symbols\+Outlined/);
   assert.match(html, /Inter:wght@400;500;600/);
   assert.match(html, />Services</);
-  assert.match(html, />Deployments /);
+  assert.match(html, />Activity log</);
   assert.doesNotMatch(html, /Quick Actions/);
   assert.doesNotMatch(html, /quick-actions-panel/);
   assert.doesNotMatch(html, /```html/);
