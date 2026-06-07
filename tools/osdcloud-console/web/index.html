@@ -142,35 +142,43 @@
         <!-- inline service control -->
         <section class="dash-card dash-services">
           <div class="dash-card-head"><span>Services</span><button data-action="all-services-toggle" data-icon="play_arrow" class="bento-mini danger all-services-toggle" type="button">Start all</button></div>
-          <div id="services-grid" class="status-services-grid dash-services-grid" aria-label="Services"></div>
+          <div id="services-grid" class="dash-services-grid" aria-label="Services"></div>
         </section>
 
         <details class="v3-more">
           <summary><span class="material-symbols-outlined text-[18px]">tune</span>Diagnostics</summary>
-          <div class="v3-more-body flex flex-col gap-sm">
-            <section id="endpoint-summary" class="endpoint-summary-grid flex flex-wrap gap-md p-md" aria-label="Endpoint summary"></section>
-            <section class="v2-card"><div class="v2-card-head"><span>Pipeline</span></div><div id="pipeline-steps" class="pipeline-horizontal"></div></section>
-            <section class="v2-card"><div class="v2-card-head"><span>Metrics</span></div><div id="live-metrics" class="live-metrics p-md"></div></section>
-            <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
-              <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span></div>
-              <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
-              <div class="runtime-readiness-actions flex flex-wrap gap-sm">
-                <button data-action="prepare-runtime" data-icon="deployed_code_update" class="warning" type="button">Prepare runtime</button>
-                <button data-action="interfaces" data-icon="settings_ethernet" type="button">Select interface</button>
-                <button data-action="initialization" data-icon="checklist" type="button">Initialization</button>
-              </div>
-            </section>
-            <section class="sync-progress-panel p-md flex flex-col gap-sm">
-              <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Endpoint Sync Progress</h3><span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span></div>
+          <div class="v3-more-body">
+            <!-- DOM-only: kept for JS, not rendered in diagnostics panel -->
+            <section id="endpoint-summary" class="endpoint-summary-grid" aria-label="Endpoint summary" hidden></section>
+            <div hidden><div id="pipeline-steps" class="pipeline-horizontal"></div></div>
+            <div hidden><div id="live-metrics" class="live-metrics"></div></div>
+            <section class="sync-progress-panel" hidden>
+              <div class="panel-title-row"><h3>Endpoint Sync Progress</h3><span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span></div>
               <div id="sync-action-items" class="sync-action-summary font-log-entry text-log-entry"></div>
               <details class="sync-output-details"><summary>Sequence and process output</summary>
                 <div class="sync-progress-grid"><section><h4>Target</h4><dl id="sync-progress-target" class="stitch-details"></dl></section><section><h4>Sequence</h4><div id="sync-progress-steps" class="flex flex-col gap-sm"></div></section></div>
                 <pre id="sync-output" class="font-log-entry text-log-entry text-on-surface-variant"></pre>
               </details>
             </section>
+            <section class="driver-cache-panel" hidden>
+              <div class="panel-title-row"><h3>Driver Cache</h3><span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span></div>
+              <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
+            </section>
+            <!-- Visible: 2-col diagnostics matching the design (CSS makes this 2-col at 1100px+) -->
             <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm">
-              <section class="driver-cache-panel p-md flex flex-col gap-sm"><div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Driver Cache</h3><span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span></div><div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div></section>
-              <section class="preflight-summary-panel p-md flex flex-col gap-sm"><div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span></div><div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div></section>
+              <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
+                <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span></div>
+                <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
+                <div class="runtime-readiness-actions flex flex-wrap gap-sm">
+                  <button data-action="prepare-runtime" data-icon="deployed_code_update" class="warning" type="button">Prepare runtime</button>
+                  <button data-action="interfaces" data-icon="settings_ethernet" type="button">Select interface</button>
+                  <button data-action="initialization" data-icon="checklist" type="button">Initialization</button>
+                </div>
+              </section>
+              <section class="preflight-summary-panel p-md flex flex-col gap-sm">
+                <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span></div>
+                <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
+              </section>
             </div>
           </div>
         </details>
