@@ -14,12 +14,22 @@ Copy-Item -Path (Join-Path $SourceRoot "tools") -Destination $AppRoot -Recurse -
 Copy-Item -Path (Join-Path $SourceRoot "package.json") -Destination $AppRoot -Force
 
 Write-Host "Finding and terminating active Web Console process..."
-$process = Get-CimInstance Win32_Process -Filter "Name = 'node.exe' and CommandLine like '%webServer.js%'"
-if ($process) {
-    Write-Host "Terminating Web Console process: $($process.ProcessId)"
-    $process | Invoke-CimMethod -MethodName Terminate | Out-Null
+# Kill the tray process first — it is the persistent parent that spawns node.
+# If only node is killed, Start-InstalledWebConsole.ps1 detects the still-running
+# tray and exits early ("already running"), leaving the web server dead.
+$trayProcess = Get-CimInstance Win32_Process -Filter "CommandLine like '%Start-WebConsoleTray.ps1%'"
+if ($trayProcess) {
+    Write-Host "Terminating Web Console Tray process: $($trayProcess.ProcessId)"
+    $trayProcess | Invoke-CimMethod -MethodName Terminate | Out-Null
     Start-Sleep -Seconds 1
-} else {
+}
+$nodeProcess = Get-CimInstance Win32_Process -Filter "Name = 'node.exe' and CommandLine like '%webServer.js%'"
+if ($nodeProcess) {
+    Write-Host "Terminating Web Console node process: $($nodeProcess.ProcessId)"
+    $nodeProcess | Invoke-CimMethod -MethodName Terminate | Out-Null
+    Start-Sleep -Seconds 1
+}
+if (-not $trayProcess -and -not $nodeProcess) {
     Write-Host "No running Web Console process detected."
 }
 
