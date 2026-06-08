@@ -3516,20 +3516,31 @@ function renderFleetCards(appState) {
 
 function makeFleetRing(run) {
   const pct = Math.max(0, Math.min(100, Math.round(run.latestPercent ?? 0)));
+  const isDone = run.status === 'completed' ||
+    (run.status === 'stale' && STALE_DONE_STAGES.has(run.latestStage));
   const ring = document.createElement('div');
-  ring.className = run.status === 'completed' ? 'ring done' : 'ring';
-  if (run.status !== 'completed' && run.status !== 'failed' && !pct) {
+  ring.className = isDone ? 'ring done' : 'ring';
+  if (!isDone && run.status !== 'failed' && !pct) {
     ring.classList.add('idle');
     ring.dataset.label = '—';
   } else {
-    ring.style.setProperty('--val', String(pct));
-    ring.dataset.label = run.status === 'completed' ? '✓' : `${pct}%`;
+    ring.style.setProperty('--val', String(isDone ? 100 : pct));
+    ring.dataset.label = isDone ? '✓' : `${pct}%`;
   }
   if (run.status === 'failed') {
     ring.style.setProperty('--ring-color', 'var(--error)');
   }
   return ring;
 }
+
+// Stale runs that stopped at these stages have effectively completed Windows
+// setup — SetupComplete finished and the desktop-ready reporter was installed.
+// Treat them as done in the UI (✓ ring, all flow steps green) rather than
+// showing a raw sub-100% percentage.
+const STALE_DONE_STAGES = new Set([
+  'windows-setupcomplete-finished',
+  'windows-logon-start',
+]);
 
 const FLEET_STAGE_FLOW = [
   ['winpe-start', 'winpe-start'],
@@ -3581,7 +3592,8 @@ function renderFleetDetail(run) {
   const reachedIndex = FLEET_STAGE_FLOW.findIndex(([key]) =>
     run.latestStage === key || run.latestStage?.startsWith(key + '-')
   );
-  const isDone = run.status === 'completed';
+  const isDone = run.status === 'completed' ||
+    (run.status === 'stale' && STALE_DONE_STAGES.has(run.latestStage));
   FLEET_STAGE_FLOW.forEach(([key, label], idx) => {
     const isReached = isDone || (reachedIndex >= 0 && idx < reachedIndex);
     const isCurrent = !isDone && reachedIndex === idx;
