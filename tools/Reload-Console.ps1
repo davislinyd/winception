@@ -23,7 +23,23 @@ if ($trayProcess) {
     $trayProcess | Invoke-CimMethod -MethodName Terminate | Out-Null
     Start-Sleep -Seconds 1
 }
-$nodeProcess = Get-CimInstance Win32_Process -Filter "Name = 'node.exe' and CommandLine like '%webServer.js%'"
+# Some node processes report an empty CommandLine in WMI (orphan after tray exit).
+# Fall back to finding any node.exe bound to the web console port.
+$webPort = 8080
+try {
+    $hostToolsRoot = Split-Path -Parent $AppRoot
+    $stateConfigPath = Join-Path $hostToolsRoot 'State\config\osdcloud-console.json'
+    if (Test-Path $stateConfigPath) {
+        $cfg = Get-Content $stateConfigPath -Raw | ConvertFrom-Json
+        if ($cfg.web.port) { $webPort = [int]$cfg.web.port }
+    }
+} catch {}
+$nodeByCommandLine = Get-CimInstance Win32_Process -Filter "Name = 'node.exe' and CommandLine like '%webServer.js%'"
+$nodeByPort = if (-not $nodeByCommandLine) {
+    $conn = Get-NetTCPConnection -LocalPort $webPort -State Listen -ErrorAction SilentlyContinue
+    if ($conn) { Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess) and Name = 'node.exe'" -ErrorAction SilentlyContinue }
+}
+$nodeProcess = if ($nodeByCommandLine) { $nodeByCommandLine } else { $nodeByPort }
 if ($nodeProcess) {
     Write-Host "Terminating Web Console node process: $($nodeProcess.ProcessId)"
     $nodeProcess | Invoke-CimMethod -MethodName Terminate | Out-Null

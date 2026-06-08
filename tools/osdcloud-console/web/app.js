@@ -1553,16 +1553,21 @@ function renderInitialization(appState) {
     if (stepIsRunning) {
       row.classList.add('working');
     }
+    // Step ran but has blocking failures — show orange warning state (distinct from "never run")
+    const stepHasFailures = step.ran === true && !step.done && !stepIsRunning;
+    if (stepHasFailures) {
+      row.classList.add('has-failures');
+    }
     const stepNeedsUpdate = staleSteps.has(step.id) && !stepIsRunning;
     if (stepNeedsUpdate) {
       row.classList.add('needs-update');
     }
 
     const status = document.createElement('span');
-    status.className = `status-pill ${stepIsRunning ? 'working' : step.done ? 'ok' : step.required ? 'fail' : 'neutral'}`;
+    status.className = `status-pill ${stepIsRunning ? 'working' : step.done ? 'ok' : stepHasFailures ? 'warn' : step.required ? 'fail' : 'neutral'}`;
     status.textContent = stepIsRunning && step.id === 'runtime'
       ? 'Preparing'
-      : stepIsRunning ? 'Running' : step.done ? 'Done' : step.required ? 'Required' : 'Optional';
+      : stepIsRunning ? 'Running' : step.done ? 'Done' : stepHasFailures ? 'Issues' : step.required ? 'Required' : 'Optional';
 
     const body = document.createElement('div');
     body.className = 'initialization-step-body';
@@ -1613,8 +1618,9 @@ function renderInitialization(appState) {
       || (selectedStep.id === 'endpoint' && activeOperation?.action === 'endpoint-sync' && initializationBusy)
       || (selectedStep.id === 'preflight' && activeOperation?.action === 'preflight' && initializationBusy)
       || (selectedStep.id === 'services' && activeOperation?.action === 'all-services-toggle' && initializationBusy);
-    badge.className = `status-pill ${stepIsRunning ? 'working' : selectedStep.done ? 'ok' : selectedStep.required ? 'fail' : 'neutral'}`;
-    badge.textContent = stepIsRunning ? 'Running' : selectedStep.done ? 'Ready' : selectedStep.required ? 'Required' : 'Optional';
+    const selectedStepHasFailures = selectedStep.ran === true && !selectedStep.done && !stepIsRunning;
+    badge.className = `status-pill ${stepIsRunning ? 'working' : selectedStep.done ? 'ok' : selectedStepHasFailures ? 'warn' : selectedStep.required ? 'fail' : 'neutral'}`;
+    badge.textContent = stepIsRunning ? 'Running' : selectedStep.done ? 'Ready' : selectedStepHasFailures ? 'Issues' : selectedStep.required ? 'Required' : 'Optional';
 
     header.append(titleRow, badge);
     detailPanel.append(header);

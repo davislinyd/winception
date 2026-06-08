@@ -926,6 +926,12 @@ button[data-icon]::before {
   color: var(--warn);
 }
 
+.status-pill.warn {
+  background: var(--warn-bg);
+  border: 1px solid #f3dca0;
+  color: var(--warn);
+}
+
 .badge.failed,
 .status-pill.fail {
   background: var(--error-container);
@@ -2508,6 +2514,10 @@ body > .flex.flex-1 > main { padding: 16px !important; gap: 16px !important; }
 .badge.running, .status-pill.working {
   background: var(--warn-bg) !important; color: var(--warn) !important;
 }
+.status-pill.warn {
+  background: var(--warn-bg) !important; color: var(--warn) !important;
+  border-color: #f3dca0 !important;
+}
 .badge.failed, .status-pill.fail {
   background: var(--error-container) !important; color: #991b1b !important;
 }
@@ -3193,6 +3203,11 @@ dialog.embedded-open::backdrop { display: none !important; }
 /* Activity log panel inside the Activity (#view-fleet) page */
 .activity-log { margin-top: 16px; }
 
+
+/* Setup timeline: "ran with failures" state — preflight ran but has blocking checks */
+.guided-timeline .initialization-step.has-failures::before { border-color: var(--warn) !important; background: var(--warn-bg) !important; box-shadow: 0 0 0 3px rgba(180,83,9,0.12); }
+.guided-timeline .initialization-step.has-failures::after { content: "warning"; font-family: "Material Symbols Outlined"; position: absolute; left: 3px; top: 14px; font-size: 11px; line-height: 1; color: var(--warn); z-index: 2; }
+.guided-timeline .initialization-step:not(.done):not(.active).has-failures .initialization-step-body strong { color: var(--ink); font-weight: 600; }
 
 /* Setup timeline: "needs update" state */
 .guided-timeline .initialization-step.needs-update::before { border-color: var(--warn) !important; background: var(--surface-bright) !important; box-shadow: 0 0 0 3px rgba(180,83,9,0.12); }
