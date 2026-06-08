@@ -1355,6 +1355,14 @@ tr.clickable {
   background: var(--warn);
 }
 
+.preflight-dot.warn {
+  background: var(--warn);
+}
+
+.preflight-row.warn strong {
+  color: var(--warn);
+}
+
 .preflight-summary-list .check-row {
   gap: 2px;
   min-width: 0;
@@ -1394,6 +1402,10 @@ tr.clickable {
 .check-row.unknown strong,
 .step-row.pending strong {
   color: var(--on-surface-variant);
+}
+
+.check-row.warn strong {
+  color: var(--warn);
 }
 
 .step-row {

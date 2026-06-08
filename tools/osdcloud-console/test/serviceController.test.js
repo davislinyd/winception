@@ -311,6 +311,32 @@ test('initialization state guides first deployment through preflight and service
   }
 });
 
+test('preflight warnings do not block deployment readiness or the Start services step', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-pf-warn-'));
+  try {
+    const { controller } = makeController(root, {
+      dependencies: {
+        // A non-blocking warning (ok:true + warn) — e.g. the service IP is
+        // configured and bindable but the LAN link is not up yet.
+        runPreflight: async () => [
+          { name: 'Administrator', ok: true, detail: 'running elevated' },
+          { name: 'Service IP 192.168.88.1', ok: true, warn: true, detail: 'LAN link is not up; IP is bindable.' },
+        ],
+      },
+    });
+
+    await controller.runPreflight();
+    const state = controller.getState();
+    assert.equal(state.initialization.deploymentReady, true);
+    const preflightStep = state.initialization.steps.find((step) => step.id === 'preflight');
+    assert.equal(preflightStep.done, true);
+    assert.equal(preflightStep.ran, true);
+    assert.match(preflightStep.detail, /warning/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('state includes selected run events from per-run history', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-selected-events-'));
   try {

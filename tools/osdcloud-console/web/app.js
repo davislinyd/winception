@@ -2275,10 +2275,11 @@ function renderChecks(element, checks, emptyText = 'No data observed yet.') {
   }
   for (const check of checks) {
     const row = document.createElement('div');
-    const status = check.ok === true ? 'ok' : check.ok === false ? 'fail' : 'unknown';
+    const status = check.ok === false ? 'fail' : check.warn === true ? 'warn' : check.ok === true ? 'ok' : 'unknown';
     row.className = `check-row ${status}`;
     const name = document.createElement('strong');
-    name.textContent = `${check.ok === true ? 'PASS' : check.ok === false ? 'FAIL' : 'UNKNOWN'} ${check.name}`;
+    const label = check.ok === false ? 'FAIL' : check.warn === true ? 'WARN' : check.ok === true ? 'PASS' : 'UNKNOWN';
+    name.textContent = `${label} ${check.name}`;
     const detail = document.createElement('span');
     const detailText = check.detail ?? '';
     detail.textContent = detailText;
@@ -2343,10 +2344,21 @@ function preflightStatus(checks) {
   if (checks.some((check) => check.ok === false)) {
     return ['Blocked', 'fail'];
   }
+  if (checks.some((check) => check.ok === true && check.warn === true)) {
+    return ['Ready · warnings', 'warn'];
+  }
   if (checks.every((check) => check.ok === true)) {
     return ['Ready', 'ok'];
   }
   return ['Review', 'working'];
+}
+
+// Ordering for the preflight issue list: blocking failures first, then
+// non-blocking warnings, then anything else needing review.
+function issueRank(check) {
+  if (check.ok === false) return 0;
+  if (check.warn === true) return 1;
+  return 2;
 }
 
 function renderPreflightSummary(checks) {
@@ -2362,27 +2374,21 @@ function renderPreflightSummary(checks) {
     return;
   }
 
+  // Surface failures, unknowns, and non-blocking warnings (ok:true + warn) so the
+  // operator sees degraded-but-bindable conditions like a link that is not up yet.
   const issues = checks
-    .filter((check) => check.ok !== true)
-    .sort((a, b) => {
-      if (a.ok === false && b.ok !== false) {
-        return -1;
-      }
-      if (a.ok !== false && b.ok === false) {
-        return 1;
-      }
-      return 0;
-    });
-  const passedCount = checks.filter((check) => check.ok === true).length;
+    .filter((check) => check.ok !== true || check.warn === true)
+    .sort((a, b) => issueRank(a) - issueRank(b));
+  const passedCount = checks.filter((check) => check.ok === true && check.warn !== true).length;
   const rows = issues.length ? issues : [];
 
   for (const check of rows) {
-    const statusName = check.ok === true ? 'ok' : check.ok === false ? 'fail' : 'unknown';
+    const statusName = check.ok === false ? 'fail' : check.warn === true ? 'warn' : check.ok === true ? 'ok' : 'unknown';
     const row = document.createElement('div');
     row.className = `preflight-row ${statusName}`;
     const dot = document.createElement('span');
     dot.className = `preflight-dot ${statusName}`;
-    dot.title = check.ok === true ? 'PASS' : check.ok === false ? 'FAIL' : 'REVIEW';
+    dot.title = check.ok === false ? 'FAIL' : check.warn === true ? 'WARN' : check.ok === true ? 'PASS' : 'REVIEW';
     const name = document.createElement('strong');
     name.textContent = text(check.name);
     const detail = document.createElement('span');

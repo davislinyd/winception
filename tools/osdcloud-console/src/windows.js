@@ -299,12 +299,31 @@ export function evaluateServiceIp(config, states, targetIp) {
     ? Number(config.adapter.prefixLength)
     : undefined;
   const matches = states.filter((state) => state.TargetIp === targetIp);
-  const good = matches.find((state) => (
+  const expected = expectedPrefix === undefined ? targetIp : `${targetIp}/${expectedPrefix}`;
+
+  // The address is not assigned to any IPv4 interface — a real misconfiguration.
+  if (matches.length === 0) {
+    return fail(`Service IP ${targetIp}`, `not assigned to any IPv4 interface; expected ${expected}`);
+  }
+
+  const prefixOk = (state) => expectedPrefix === undefined || Number(state.PrefixLength) === expectedPrefix;
+  const prefixMatches = matches.filter(prefixOk);
+
+  // The address exists but on the wrong prefix/interface — a real misconfiguration.
+  if (prefixMatches.length === 0) {
+    return fail(
+      `Service IP ${targetIp}`,
+      matches.map((state) => (
+        `${state.InterfaceAlias} status=${state.Status} actual=${state.IPAddress}/${state.PrefixLength} state=${state.AddressState || 'unknown'} expected=${expected}`
+      )).join('; '),
+    );
+  }
+
+  // Fully ready: link up and the address is Preferred.
+  const good = prefixMatches.find((state) => (
     state.Status === 'Up'
     && (!state.AddressState || state.AddressState === 'Preferred')
-    && (expectedPrefix === undefined || Number(state.PrefixLength) === expectedPrefix)
   ));
-
   if (good) {
     return pass(
       `Service IP ${targetIp}`,
@@ -312,16 +331,32 @@ export function evaluateServiceIp(config, states, targetIp) {
     );
   }
 
-  const expected = expectedPrefix === undefined ? targetIp : `${targetIp}/${expectedPrefix}`;
-  if (matches.length === 0) {
-    return fail(`Service IP ${targetIp}`, `not assigned to any IPv4 interface; expected ${expected}`);
+  // Hard blockers even with the right prefix: a duplicate address means another
+  // host already owns the IP, and a Disabled adapter means the IP is not usable.
+  const duplicate = prefixMatches.find((state) => state.AddressState === 'Duplicate');
+  if (duplicate) {
+    return fail(
+      `Service IP ${targetIp}`,
+      `${duplicate.InterfaceAlias} reports a DUPLICATE address ${duplicate.IPAddress}/${duplicate.PrefixLength}; another host already owns ${expected}`,
+    );
+  }
+  const disabled = prefixMatches.find((state) => state.Status === 'Disabled');
+  if (disabled) {
+    return fail(
+      `Service IP ${targetIp}`,
+      `${disabled.InterfaceAlias} is Disabled; enable the adapter so ${expected} becomes usable`,
+    );
   }
 
-  return fail(
+  // Correct IP + prefix on the expected interface, but the link is not up yet
+  // (Status=Disconnected) or the address is Deprecated/Tentative — e.g. the
+  // client or switch is not connected. Services can still bind to this address
+  // (the UDP/TCP port checks confirm bindability), so this is a non-blocking
+  // warning: the operator may legitimately start services before the link is up.
+  const degraded = prefixMatches[0];
+  return warn(
     `Service IP ${targetIp}`,
-    matches.map((state) => (
-      `${state.InterfaceAlias} status=${state.Status} actual=${state.IPAddress}/${state.PrefixLength} state=${state.AddressState || 'unknown'} expected=${expected}`
-    )).join('; '),
+    `${degraded.InterfaceAlias} link is not up (status=${degraded.Status} state=${degraded.AddressState || 'unknown'}); ${degraded.IPAddress}/${degraded.PrefixLength} is configured and bindable. Services can start but will not serve clients until the link is up.`,
   );
 }
 
@@ -594,6 +629,14 @@ function pass(name, detail = '') {
 
 function fail(name, detail = '') {
   return { name, ok: false, detail };
+}
+
+// A non-blocking caveat: the check is satisfied enough to start services, but
+// the operator should be aware of a degraded condition (e.g. the service link
+// is not up yet). `ok: true` keeps it out of the blocking set; `warn: true`
+// lets the UI surface it distinctly.
+function warn(name, detail = '') {
+  return { name, ok: true, warn: true, detail };
 }
 
 export async function evaluateSmbImage(config, options = {}) {

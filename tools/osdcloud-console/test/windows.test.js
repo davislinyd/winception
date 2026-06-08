@@ -338,6 +338,49 @@ test('service IP preflight rejects disabled or wrong-prefix matches', () => {
   }], '192.168.100.100').ok, false);
 });
 
+test('service IP preflight warns (does not block) when the IP is correct but the link is down', () => {
+  const config = {
+    adapter: { serverIp: '192.168.88.1', prefixLength: 24 },
+    dhcp: { listenIp: '192.168.88.1' },
+    tftp: { listenIp: '192.168.88.1' },
+    http: { host: '192.168.88.1' },
+  };
+
+  // Disconnected link + Deprecated address but correct IP/prefix on the expected
+  // interface: services can still bind, so this must not block service start.
+  const result = evaluateServiceIp(config, [{
+    TargetIp: '192.168.88.1',
+    IPAddress: '192.168.88.1',
+    PrefixLength: 24,
+    AddressState: 'Deprecated',
+    InterfaceAlias: 'LAN',
+    Status: 'Disconnected',
+  }], '192.168.88.1');
+  assert.equal(result.ok, true);
+  assert.equal(result.warn, true);
+  assert.match(result.detail, /link is not up/i);
+});
+
+test('service IP preflight still blocks on a duplicate address', () => {
+  const config = {
+    adapter: { serverIp: '192.168.88.1', prefixLength: 24 },
+    dhcp: { listenIp: '192.168.88.1' },
+    tftp: { listenIp: '192.168.88.1' },
+    http: { host: '192.168.88.1' },
+  };
+
+  const result = evaluateServiceIp(config, [{
+    TargetIp: '192.168.88.1',
+    IPAddress: '192.168.88.1',
+    PrefixLength: 24,
+    AddressState: 'Duplicate',
+    InterfaceAlias: 'LAN',
+    Status: 'Up',
+  }], '192.168.88.1');
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /duplicate/i);
+});
+
 test('normalizes enabled non-APIPA IPv4 service interfaces', () => {
   const rows = normalizeIpv4ServiceInterfaces([
     {

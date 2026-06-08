@@ -309,18 +309,26 @@ function profilePayloadStatus(profilePayload) {
 
 function preflightStatus(preflight) {
   if (!Array.isArray(preflight) || preflight.length === 0) {
-    return { ready: false, detail: 'Preflight has not been run in this Web session.' };
+    return { ready: false, warnings: 0, detail: 'Preflight has not been run in this Web session.' };
   }
   const failures = preflight.filter((check) => check.ok === false);
   if (failures.length > 0) {
-    return { ready: false, detail: `${failures.length} preflight check(s) are blocking service start.` };
+    return { ready: false, warnings: 0, detail: `${failures.length} preflight check(s) are blocking service start.` };
   }
+  // Warnings (ok:true, warn:true) are non-blocking caveats — e.g. the service IP
+  // is configured and bindable but the link is not up yet. They do not stop the
+  // operator from starting services.
+  const warnings = preflight.filter((check) => check.ok === true && check.warn === true);
   const unknown = preflight.filter((check) => check.ok !== true);
+  if (unknown.length > 0) {
+    return { ready: false, warnings: warnings.length, detail: `${unknown.length} preflight check(s) need review.` };
+  }
   return {
-    ready: unknown.length === 0,
-    detail: unknown.length === 0
-      ? `${preflight.length} preflight check(s) passed.`
-      : `${unknown.length} preflight check(s) need review.`,
+    ready: true,
+    warnings: warnings.length,
+    detail: warnings.length > 0
+      ? `${preflight.length} preflight check(s) passed, ${warnings.length} warning(s) — review before booting clients.`
+      : `${preflight.length} preflight check(s) passed.`,
   };
 }
 
