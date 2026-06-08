@@ -38,6 +38,8 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Do not add a Web `Configure physical NIC` action; keep Windows adapter IP assignment as an explicit script/manual step.
 - Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
 - Stopped service cards are neutral, not failures. Use red only for actual blocked/error states.
+- Fleet Execution Flow stage matching uses prefix logic: a `FLEET_STAGE_FLOW` key such as `windows-setupcomplete` matches any `latestStage` that equals the key exactly or starts with `key + '-'` (e.g. `windows-setupcomplete-start`, `windows-setupcomplete-finished`). Add new flow steps with the shared prefix key, not the full stage name.
+- Stale run status pills use the `neutral` CSS variant (muted gray), not `working` (blue). Both the fleet card pill and the detail panel pill must apply this distinction.
 - Read-only Web checks may fetch `/`, `styles.css`, `app.js`, `/api/state`, `/api/interfaces`, and `/api/profiles`; they must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
 
 ## OS Image And Profile Publish

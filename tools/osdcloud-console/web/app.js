@@ -1,4 +1,4 @@
-const RESERVED_WINDOWS_USERNAMES = new Set([
+﻿const RESERVED_WINDOWS_USERNAMES = new Set([
   'administrator', 'guest', 'defaultaccount', 'wdagutilityaccount', 'system',
 ]);
 const DEFAULT_WINDOWS_USERNAME = 'LabAdmin';
@@ -3500,7 +3500,7 @@ function renderFleetCards(appState) {
     runId.className = 'fc-run';
     runId.textContent = text(run.runId);
     nameWrap.append(name, runId);
-    head.append(nameWrap, makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : 'working'));
+    head.append(nameWrap, makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : run.status === 'stale' ? 'neutral' : 'working'));
     const ring = makeFleetRing(run);
     const stageLabel = document.createElement('div');
     stageLabel.className = 'fc-stage-label';
@@ -3561,7 +3561,7 @@ function renderFleetDetail(run) {
   const title = document.createElement('div');
   title.className = 'fd-name';
   title.textContent = text(run.clientId);
-  head.append(title, makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : 'working'));
+  head.append(title, makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : run.status === 'stale' ? 'neutral' : 'working'));
   elements.fleetDetail.append(head);
 
   const meta = document.createElement('div');
@@ -3578,7 +3578,9 @@ function renderFleetDetail(run) {
 
   const flow = document.createElement('div');
   flow.className = 'fd-flow';
-  const reachedIndex = FLEET_STAGE_FLOW.findIndex(([key]) => key === run.latestStage);
+  const reachedIndex = FLEET_STAGE_FLOW.findIndex(([key]) =>
+    run.latestStage === key || run.latestStage?.startsWith(key + '-')
+  );
   const isDone = run.status === 'completed';
   FLEET_STAGE_FLOW.forEach(([key, label], idx) => {
     const isReached = isDone || (reachedIndex >= 0 && idx < reachedIndex);
