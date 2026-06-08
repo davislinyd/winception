@@ -1447,10 +1447,6 @@ function computeStepStaleness(appState) {
       flag('os-image');
     }
   }
-  // A done preflight with current failures must be re-run.
-  if (failed.length && doneIds.has('preflight')) {
-    stale.add('preflight');
-  }
   return stale;
 }
 
