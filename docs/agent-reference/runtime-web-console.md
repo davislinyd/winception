@@ -19,6 +19,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 
 - Runtime restore and OS image helpers must merge the installed host-state base config with the ignored local overlay under `C:\OSDCloud\HostTools\State\config`. Do not pass a partial `.local.json` overlay as a full config.
 - Bootstrap/setup must not silently change Windows NIC IP settings. If preflight reports that the service IP is not assigned or cannot bind, tell the operator to identify/configure the PXE/client NIC or use `tools\Set-IpxePhysicalNic.ps1` explicitly.
+- Service IP preflight distinguishes real misconfiguration from a link that is merely down. It hard-fails only when the IP is unassigned, on the wrong prefix/interface, a `Duplicate` address (another host owns it), or on a `Disabled` adapter. When the IP/prefix are correct on the expected interface but the adapter is `Disconnected` / the address is `Deprecated`/`Tentative` (e.g. the client or switch is not connected yet), it returns a non-blocking warning — the address is still bindable (the UDP 67/69 + TCP 80 port checks confirm this), so the operator may legitimately start services before the link comes up.
 - Before physical-laptop validation, select the intended service interface in the Web console or deliberately run `tools\Set-OsdCloudIpxeEndpoint.ps1` with `-CommitWinPe -SyncAssets -HashLargeArtifacts`.
 - After changing deployment behavior that affects live runtime or WinPE, sync `osdcloud-assets` through the project workflow before committing.
 - Preflight `boot.wim` sync status is based on the published marker's WinPE input fingerprint (endpoint values, injected secrets fingerprint, and synced template hashes), not only file modification times for config or secrets.
@@ -33,7 +34,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Web mutating actions can modify live deployment state: endpoint sync, OS image cache, profile publish, clear status, and service start/stop.
 - The project root is fixed to `C:\OSDCloud`. Project root initialization applies `C:\OSDCloud`, stops running services, writes ignored local config, refreshes service paths, and clears preflight results.
 - Do not run Web console and headless services at the same time to control services. They can conflict on ports 67, 69, and 80.
-- Run preflight before starting services.
+- Run preflight before starting services. Preflight checks have three levels: pass, non-blocking warning (`ok: true` + `warn: true`), and blocking failure (`ok: false`). Only blocking failures keep `deploymentReady` false and disable the Start services control. Warnings are surfaced in the preflight summary and the Setup step detail but do not gate service start. The Setup step shows ✓ only when preflight passes with no blocking failures; a run that still has blocking failures shows a warning state, not a blank/empty indicator.
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
 - Do not add a Web `Configure physical NIC` action; keep Windows adapter IP assignment as an explicit script/manual step.
 - Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
