@@ -212,8 +212,12 @@ export class TorrentTracker extends EventEmitter {
 
   // Return current swarm peers sorted by IP, for the dashboard UI.
   // Each entry: { ip, port, left, downloaded, uploaded, complete, updatedAt }
-  getSwarmPeers() {
-    return [...this._swarmPeers.values()].sort((a, b) => a.ip.localeCompare(b.ip));
+  // Peers that haven't announced in 10 minutes are considered gone and filtered out.
+  getSwarmPeers(staleMs = 10 * 60 * 1000) {
+    const cutoff = Date.now() - staleMs;
+    return [...this._swarmPeers.values()]
+      .filter(p => new Date(p.updatedAt).getTime() >= cutoff)
+      .sort((a, b) => a.ip.localeCompare(b.ip));
   }
 
   async stop() {

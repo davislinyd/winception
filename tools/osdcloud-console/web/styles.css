@@ -1422,11 +1422,6 @@ pre, .system-log-output, .initialization-operation-log, #sync-output {
 }
 
 @media (min-width: 1100px) {
-  #view-dashboard.active {
-    flex: 1 1 auto;
-    min-height: 0;
-  }
-
   #view-dashboard.active .dashboard-grid {
     align-items: start;
     grid-template-columns: clamp(168px, 10vw, 190px) minmax(0, 1fr) minmax(280px, 24vw);
