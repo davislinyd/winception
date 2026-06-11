@@ -13,7 +13,8 @@ deployment-server-bundle/
 *.deployment-server.zip
 node_modules/
 .osdcloud-console/
-.claude/
+.claude/*
+!.claude/launch.json
 config/osdcloud-secrets.json
 config/osdcloud-console.local.json
 config/deployment-server-setup.local.json

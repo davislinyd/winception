@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "OSDCloud Web Console",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\OSDCloud\\HostTools\\App\\src\\webServer.js"],
+      "port": 8080
+    }
+  ]
+}

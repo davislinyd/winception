@@ -1347,9 +1347,25 @@ function renderInitializationOperation(appState) {
   }
   const activeOperation = activeInitializationOperation(appState);
   if (!activeOperation) {
-    panel.hidden = true;
-    panel.replaceChildren();
+    // Persistent idle console: the right-hand pane always shows a console so the
+    // two-column layout (steps left, console right) stays stable between runs.
     state.initializationOperationLogText = '';
+    panel.hidden = false;
+    panel.className = 'initialization-operation-panel idle';
+    panel.replaceChildren();
+    const header = document.createElement('div');
+    header.className = 'initialization-operation-header';
+    const title = document.createElement('strong');
+    title.className = 'initialization-operation-title';
+    title.textContent = 'Console';
+    const badge = document.createElement('span');
+    badge.className = 'status-pill neutral';
+    badge.textContent = 'Idle';
+    header.append(title, badge);
+    const log = document.createElement('pre');
+    log.className = 'initialization-operation-log';
+    log.textContent = 'No active operation.\nLogs from runtime preparation and preflight appear here.';
+    panel.append(header, log);
     return;
   }
 
@@ -1448,6 +1464,32 @@ function computeStepStaleness(appState) {
     }
   }
   return stale;
+}
+
+function renderSidebarSteps(steps, selectedId, activeOperation, busy) {
+  if (!steps) return;
+  for (const step of steps) {
+    const row = document.getElementById(`sidebar-step-${step.id}`);
+    if (!row) continue;
+    const dot = row.querySelector('.sidebar-step-dot');
+    if (!dot) continue;
+    const stepIsRunning = busy && (
+      (step.id === 'runtime'       && activeOperation?.action === 'prepare-runtime') ||
+      (step.id === 'project-root'  && activeOperation?.action === 'project-root') ||
+      (step.id === 'endpoint'      && activeOperation?.action === 'endpoint-sync') ||
+      (step.id === 'preflight'     && activeOperation?.action === 'preflight') ||
+      (step.id === 'services'      && activeOperation?.action === 'all-services-toggle')
+    );
+    const hasIssues = step.ran === true && !step.done && !stepIsRunning;
+    const isSelected = step.id === selectedId;
+    dot.className = 'sidebar-step-dot ' + (
+      step.done     ? 'done' :
+      stepIsRunning ? 'active' :
+      hasIssues     ? 'warn' :
+      step.required ? 'error' : ''
+    );
+    row.classList.toggle('active', isSelected);
+  }
 }
 
 function renderInitialization(appState) {
@@ -1587,6 +1629,7 @@ function renderInitialization(appState) {
     elements.initializationSteps.append(row);
     index++;
   }
+  renderSidebarSteps(initialization.steps, state.selectedGuidedStepId, activeOperation, initializationBusy);
 
   // 2. Render the focused detail panel (moved inline under the active step below)
   const selectedStep = (initialization.steps ?? []).find(s => s.id === state.selectedGuidedStepId) || initialization.steps?.[0];
@@ -5401,6 +5444,12 @@ $$('[data-os-catalog-filter]').forEach((input) => {
 
 enableBackdropCloseForDialogs();
 
+// Log rail toggle
+const logRailEl = document.getElementById('log-rail');
+if (logRailEl) {
+  logRailEl.addEventListener('click', () => logRailEl.classList.toggle('open'));
+}
+
 // Header view switcher tabs
 if (elements.tabGuided && elements.tabDashboard) {
   elements.tabGuided.addEventListener('click', () => switchToView('guided'));
@@ -5435,6 +5484,18 @@ if (elements.initializationSteps) {
     if (stepEl && stepEl.dataset.stepId) {
       state.selectedGuidedStepId = stepEl.dataset.stepId;
       render();
+    }
+  });
+}
+
+// Sidebar step rows: click to jump to that step in Setup view
+const sidebarStepsList = document.getElementById('sidebar-steps');
+if (sidebarStepsList) {
+  sidebarStepsList.addEventListener('click', (event) => {
+    const rowEl = event.target.closest('.sidebar-step-row');
+    if (rowEl && rowEl.dataset.stepId) {
+      state.selectedGuidedStepId = rowEl.dataset.stepId;
+      switchToView('guided');
     }
   });
 }

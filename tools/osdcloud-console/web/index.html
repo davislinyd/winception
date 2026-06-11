@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OSDCloud Host Console</title>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Noto+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script id="tailwind-config">
     tailwind.config = {
@@ -13,39 +13,31 @@
       theme: {
         extend: {
           colors: {
-            "surface": "var(--surface)",
+            paper:    "#F4F1EA",
+            ink:      "#33312C",
+            muted:    "#8A857B",
+            hairline: "#DAD4C8",
+            clay:     "#8C6A52",
+            surface:  "#FBF9F4",
+            sage:     "#6E7B5B",
+            ochre:    "#B08A3E",
+            brick:    "#A2554A",
+            "on-surface": "var(--on-surface)",
+            "on-surface-variant": "var(--on-surface-variant)",
+            "outline-variant": "var(--outline-variant)",
             "surface-dim": "var(--surface-dim)",
             "surface-bright": "var(--surface-bright)",
             "surface-container-lowest": "var(--surface-container-lowest)",
             "surface-container-low": "var(--surface-container-low)",
             "surface-container": "var(--surface-container)",
             "surface-container-high": "var(--surface-container-high)",
-            "surface-container-highest": "var(--surface-container-highest)",
-            "on-surface": "var(--on-surface)",
-            "on-surface-variant": "var(--on-surface-variant)",
-            "inverse-surface": "var(--inverse-surface)",
-            "inverse-on-surface": "var(--inverse-on-surface)",
-            "outline": "var(--outline)",
-            "outline-variant": "var(--outline-variant)",
-            "surface-tint": "var(--surface-tint)",
-            "primary": "var(--primary)",
-            "on-primary": "var(--on-primary)",
-            "primary-container": "var(--primary-container)",
-            "on-primary-container": "var(--on-primary-container)",
-            "primary-fixed": "var(--primary-fixed)",
-            "primary-fixed-dim": "var(--primary-fixed-dim)",
-            "secondary": "var(--secondary)",
-            "secondary-container": "var(--secondary-container)",
-            "error": "var(--error)",
-            "error-container": "var(--error-container)",
-            "background": "var(--background)",
-            "surface-variant": "var(--surface-variant)"
+            "surface-container-highest": "var(--surface-container-highest)"
           },
           borderRadius: {
-            "DEFAULT": "0.75rem",
-            "lg": "1rem",
-            "xl": "1.25rem",
-            "card": "24px",
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "card": "0.125rem",
             "full": "9999px"
           },
           spacing: {
@@ -59,13 +51,16 @@
             "table-cell-padding": "6px 8px"
           },
           fontFamily: {
-            "body-sm": ["Inter", "sans-serif"],
-            "ui-label": ["Space Grotesk", "Inter", "sans-serif"],
-            "data-tabular": ["Inter", "sans-serif"],
+            headline:  ["Arimo", "sans-serif"],
+            body:      ["Noto Sans", "sans-serif"],
+            mono:      ["JetBrains Mono", "monospace"],
+            "body-sm": ["Noto Sans", "sans-serif"],
+            "ui-label": ["Arimo", "sans-serif"],
+            "data-tabular": ["Noto Sans", "sans-serif"],
             "technical-string": ["JetBrains Mono", "monospace"],
             "log-entry": ["JetBrains Mono", "monospace"],
-            "h1": ["Space Grotesk", "Inter", "sans-serif"],
-            "h2": ["Space Grotesk", "Inter", "sans-serif"]
+            "h1": ["Arimo", "sans-serif"],
+            "h2": ["Arimo", "sans-serif"]
           },
           fontSize: {
             "body-sm": ["13px", { lineHeight: "18px", fontWeight: "400" }],
@@ -82,27 +77,92 @@
   </script>
   <link rel="stylesheet" href="./styles.css">
 </head>
-<body class="bg-surface text-on-surface min-h-screen flex flex-col font-body-sm">
+<body class="bg-paper text-ink h-screen overflow-hidden flex font-body">
+
+  <!-- Left Sidebar -->
+  <aside id="sidebar">
+    <div class="sidebar-brand">
+      <svg class="v3-logo" width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="2" y="2" width="28" height="28" rx="7" fill="var(--clay)"/>
+        <rect x="6.5" y="8.5" width="19" height="15.5" rx="2.6" fill="#fff"/>
+        <line x1="6.5" y1="13.2" x2="25.5" y2="13.2" stroke="#e5e7eb" stroke-width="1"/>
+        <circle cx="9.4" cy="10.85" r="1.05" fill="var(--clay)"/>
+        <circle cx="12.7" cy="10.85" r="1.05" fill="var(--ochre)"/>
+        <circle cx="16" cy="10.85" r="1.05" fill="var(--brick)"/>
+        <rect x="14.5" y="16.5" width="8" height="5.6" rx="1.3" fill="var(--clay)" opacity="0.16"/>
+      </svg>
+      <div class="sidebar-brand-text">
+        <span class="sidebar-name">Winception</span>
+        <span id="app-version" class="sidebar-version"></span>
+      </div>
+    </div>
+    <nav class="sidebar-nav-primary">
+      <button id="tab-dashboard" class="v3-navlink active" type="button">
+        <span class="material-symbols-outlined">rocket_launch</span>
+        <span>Deploy</span>
+      </button>
+      <button id="tab-guided" class="v3-navlink" type="button">
+        <span class="material-symbols-outlined">settings</span>
+        <span>Setup</span>
+      </button>
+      <button id="tab-fleet" class="v3-navlink" type="button">
+        <span class="material-symbols-outlined">analytics</span>
+        <span>Activity</span>
+      </button>
+    </nav>
+    <div class="sidebar-steps-header">Setup</div>
+    <div class="sidebar-steps-list" id="sidebar-steps">
+      <div id="sidebar-step-project-root" class="sidebar-step-row" data-step-id="project-root">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">01</span><span class="sidebar-step-lbl">Project root</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-web" class="sidebar-step-row" data-step-id="web">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">02</span><span class="sidebar-step-lbl">Web service IP</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-secrets" class="sidebar-step-row" data-step-id="secrets">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">03</span><span class="sidebar-step-lbl">Deployment secrets</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-runtime" class="sidebar-step-row" data-step-id="runtime">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">04</span><span class="sidebar-step-lbl">Prepare runtime</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-endpoint" class="sidebar-step-row" data-step-id="endpoint">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">05</span><span class="sidebar-step-lbl">PXE endpoint</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-os-image" class="sidebar-step-row" data-step-id="os-image">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">06</span><span class="sidebar-step-lbl">OS Image Cache</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-profile" class="sidebar-step-row" data-step-id="profile">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">07</span><span class="sidebar-step-lbl">Publish profile</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-preflight" class="sidebar-step-row" data-step-id="preflight">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">08</span><span class="sidebar-step-lbl">Run preflight</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-services" class="sidebar-step-row" data-step-id="services">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">09</span><span class="sidebar-step-lbl">Start services</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+      <div id="sidebar-step-client" class="sidebar-step-row" data-step-id="client">
+        <div class="sidebar-step-inner"><span class="sidebar-step-num">10</span><span class="sidebar-step-lbl">Boot client</span></div>
+        <span class="sidebar-step-dot"></span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <span class="sb-status-dot"></span>
+      <span class="sidebar-status-label">Elevated · admin</span>
+    </div>
+  </aside>
+
+  <!-- Main Column -->
   <div class="v3-app">
     <header class="v3-topbar">
-      <div class="v3-brand">
-        <svg class="v3-logo" width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-          <rect x="2" y="2" width="28" height="28" rx="7" fill="var(--brand-blue)"/>
-          <rect x="6.5" y="8.5" width="19" height="15.5" rx="2.6" fill="#fff"/>
-          <line x1="6.5" y1="13.2" x2="25.5" y2="13.2" stroke="#e5e7eb" stroke-width="1"/>
-          <circle cx="9.4" cy="10.85" r="1.05" fill="var(--brand-blue)"/>
-          <circle cx="12.7" cy="10.85" r="1.05" fill="var(--brand-orange)"/>
-          <circle cx="16" cy="10.85" r="1.05" fill="var(--brand-red)"/>
-          <rect x="14.5" y="16.5" width="8" height="5.6" rx="1.3" fill="var(--brand-blue)" opacity="0.16"/>
-        </svg>
-        <span class="v3-name">Winception</span>
-        <span id="app-version" class="v3-version"></span>
-      </div>
-      <nav class="v3-nav">
-        <button id="tab-dashboard" class="v3-navlink active" type="button">Deploy</button>
-        <button id="tab-guided" class="v3-navlink" type="button">Setup</button>
-        <button id="tab-fleet" class="v3-navlink" type="button">Activity</button>
-      </nav>
+      <div class="v3-topbar-left"></div>
       <div class="v3-topright">
         <span id="endpoint-line" class="font-technical-string text-technical-string endpoint-chip">Loading endpoint...</span>
         <span id="operation-badge" class="badge neutral live-chip">Idle</span>
@@ -199,10 +259,14 @@
               <div class="guided-progress-track"><div id="init-progress-fill" class="guided-progress-fill"></div></div>
             </div>
           </div>
-          <div id="initialization-steps" class="guided-timeline"></div>
-          <!-- detail panel: moved inline under the active step by app.js -->
-          <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by app.js --></section>
-          <div id="initialization-operation" class="initialization-operation-panel" aria-live="polite" hidden></div>
+          <div class="guided-v3-body">
+            <div class="guided-v3-main">
+              <div id="initialization-steps" class="guided-timeline"></div>
+              <!-- detail panel: moved inline under the active step by app.js -->
+              <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by app.js --></section>
+            </div>
+            <div id="initialization-operation" class="initialization-operation-panel" aria-live="polite" hidden></div>
+          </div>
           <div class="guided-v3-foot">
             <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="v3-primary" type="button">Next step</button>
           </div>
@@ -234,7 +298,14 @@
       </section>
 
     </main>
-    </div>
+  </div><!-- /v3-app -->
+
+  <!-- Right Log Rail -->
+  <aside id="log-rail" aria-label="Console log">
+    <span class="material-symbols-outlined log-rail-icon">terminal</span>
+    <span class="log-rail-label">Console log</span>
+    <span class="material-symbols-outlined log-rail-icon">unfold_more</span>
+  </aside>
 
   <div id="fleet-backdrop" class="fleet-backdrop" hidden></div>
 
