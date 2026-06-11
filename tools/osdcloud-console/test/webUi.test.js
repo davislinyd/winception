@@ -13,16 +13,16 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="tailwind-config"/);
   assert.match(html, /cdn\.tailwindcss\.com\?plugins=forms,container-queries/);
   assert.match(html, /bg-paper text-ink h-screen overflow-hidden flex font-body/);
-  // Single-column layout: top nav bar + main content + bottom console dock (no sidebar)
-  assert.match(html, /class="v3-app"/);
-  assert.match(html, /class="v3-topbar"/);
-  assert.match(html, /class="v3-nav"/);
+  // 暖紙墨 shell: full-height left sidebar + measured content column + bottom console dock
+  assert.match(html, /class="shell"/);
+  assert.match(html, /class="shell-sidebar"/);
+  assert.match(html, /class="shell-nav"/);
   assert.match(html, /id="setup-progress-chip"/);
   assert.doesNotMatch(html, /id="sidebar"/);
   assert.doesNotMatch(html, /sidebar-step-row/);
   assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-guided"[\s\S]*id="tab-fleet"/);
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
-  assert.match(html, /class="v3-summary"/);
+  assert.match(html, /class="deploy-summary"/);
   assert.match(html, /id="summary-action"/);
   assert.match(html, /id="dash-tiles"/);
   assert.doesNotMatch(html, /id="clients-body"/);
@@ -408,7 +408,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(styles, /body\.fleet-expanded \.dashboard-log-column/);
   assert.match(html, /Material\+Symbols\+Outlined/);
   assert.match(html, /Inter:wght@400;500;600;700/);
-  assert.match(html, /Space\+Grotesk:wght@500;600;700/);
+  assert.match(html, /Source\+Serif\+4/);
   assert.match(html, />Services</);
   assert.doesNotMatch(html, /Quick Actions/);
   assert.doesNotMatch(html, /quick-actions-panel/);
@@ -565,28 +565,23 @@ test('web UI keeps local component layer', () => {
   const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
   const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
 
-  assert.match(styles, /--clay:\s+#059669/);
-  assert.match(styles, /--term-bg:\s+#1E293B/);
+  assert.match(styles, /--clay:\s+#9C4221/);
+  assert.match(styles, /--term-bg:\s+#2A2520/);
   assert.match(styles, /--hairline:/);
   assert.match(styles, /\.view\.active/);
   assert.match(styles, /\.service-switch/);
   assert.match(styles, /\.preflight-summary-list/);
   assert.match(styles, /-webkit-line-clamp: 2/);
   assert.match(styles, /\.dashboard-diagnostics-grid \{\s*display: grid;[\s\S]*grid-template-columns: minmax\(0, 1fr\);/);
-  assert.match(styles, /#view-dashboard\.active \.dashboard-grid \{[\s\S]*grid-template-columns: clamp\(168px, 10vw, 190px\) minmax\(0, 1fr\) minmax\(280px, 24vw\);/);
-  assert.match(styles, /#view-dashboard\.active \.dashboard-operations-column \{[\s\S]*grid-column: 1;[\s\S]*position: sticky;[\s\S]*top: 0;/);
-  assert.match(styles, /#view-dashboard\.active \.dashboard-status-column \{\s*grid-column: 2;/);
-  assert.match(styles, /#view-dashboard\.active \.dashboard-log-column \{[\s\S]*grid-column: 3;[\s\S]*position: sticky;[\s\S]*top: 0;/);
-  assert.match(styles, /#view-dashboard\.active \.dashboard-diagnostics-grid \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
-  assert.match(styles, /#view-dashboard\.active \.dashboard-log-column \.system-log-panel \{[\s\S]*flex: 0 0 calc\(\(100vh - 56px\) \* 0\.9\);[\s\S]*height: calc\(\(100vh - 56px\) \* 0\.9\);[\s\S]*min-height: 420px;/);
+  // 暖紙墨 shell pins: sidebar + measured content column
+  assert.match(styles, /\.shell \{\s*display: grid;[\s\S]*grid-template-columns: var\(--sidebar-w\) minmax\(0, 1fr\);/);
+  assert.match(styles, /\.shell-sidebar \{/);
+  assert.match(styles, /\.shell-main > \* \{[\s\S]*max-width: var\(--content-max\);/);
+  assert.match(styles, /--sidebar-w:\s+240px/);
+  assert.match(styles, /--content-max:\s+1100px/);
   assert.doesNotMatch(styles, /grid-template-areas:\s*"operations endpoint log"/);
-  assert.doesNotMatch(styles, /#view-dashboard\.active \.dashboard-status-column \{\s*display: contents;/);
-  assert.doesNotMatch(styles, /#view-dashboard\.active \.dashboard-grid \{[\s\S]*max-height: calc\(100vh - 124px\);/);
   assert.doesNotMatch(styles, /\.preflight-summary-panel \{[\s\S]*max-height: 220px;/);
   assert.doesNotMatch(styles, /#view-dashboard\.active \.operations-panel \{\s*min-height:/);
-  assert.match(styles, /\.dashboard-operations-column/);
-  assert.match(styles, /\.dashboard-status-column/);
-  assert.match(styles, /\.dashboard-log-column/);
   assert.match(script, /makeIcon/);
   assert.match(script, /service-card/);
   assert.match(script, /card-icon/);

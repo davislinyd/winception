@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OSDCloud Host Console</title>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script id="tailwind-config">
     tailwind.config = {
@@ -13,15 +13,15 @@
       theme: {
         extend: {
           colors: {
-            paper:    "#F8F9FF",
-            ink:      "#0B1C30",
-            muted:    "#6D7A72",
-            hairline: "#BCCAC0",
-            clay:     "#059669",
-            surface:  "#EFF4FF",
-            sage:     "#059669",
-            ochre:    "#B45309",
-            brick:    "#BA1A1A",
+            paper:    "#FAF7F2",
+            ink:      "#332E29",
+            muted:    "#6E655B",
+            hairline: "#E8E0D3",
+            clay:     "#9C4221",
+            surface:  "#F6F1E8",
+            sage:     "#38684A",
+            ochre:    "#8F5A1F",
+            brick:    "#9E3B32",
             "on-surface": "var(--on-surface)",
             "on-surface-variant": "var(--on-surface-variant)",
             "outline-variant": "var(--outline-variant)",
@@ -51,7 +51,7 @@
             "table-cell-padding": "6px 8px"
           },
           fontFamily: {
-            headline:  ["Space Grotesk", "sans-serif"],
+            headline:  ["Source Serif 4", "Georgia", "serif"],
             body:      ["Inter", "sans-serif"],
             mono:      ["JetBrains Mono", "monospace"],
             "body-sm": ["Inter", "sans-serif"],
@@ -59,8 +59,8 @@
             "data-tabular": ["Inter", "sans-serif"],
             "technical-string": ["JetBrains Mono", "monospace"],
             "log-entry": ["JetBrains Mono", "monospace"],
-            "h1": ["Space Grotesk", "sans-serif"],
-            "h2": ["Space Grotesk", "sans-serif"]
+            "h1": ["Source Serif 4", "Georgia", "serif"],
+            "h2": ["Source Serif 4", "Georgia", "serif"]
           },
           fontSize: {
             "body-sm": ["13px", { lineHeight: "18px", fontWeight: "400" }],
@@ -79,45 +79,47 @@
 </head>
 <body class="bg-paper text-ink h-screen overflow-hidden flex font-body">
 
-  <!-- Single column: top nav bar / content / console dock -->
-  <div class="v3-app">
-    <header class="v3-topbar">
-      <div class="v3-topbar-left">
-        <div class="v3-brand">
-          <div class="v3-logo-block" aria-hidden="true">W</div>
-          <div class="v3-brand-text">
-            <span class="v3-brand-name">Winception</span>
-            <span id="app-version" class="v3-brand-version"></span>
-          </div>
+  <!-- 暖紙墨 shell: left sidebar rail / measured content column / console dock -->
+  <div class="shell">
+    <aside class="shell-sidebar">
+      <div class="shell-brand">
+        <div class="shell-logo" aria-hidden="true">W</div>
+        <div class="shell-brand-text">
+          <span class="shell-brand-name">Winception</span>
+          <span id="app-version" class="shell-brand-version"></span>
         </div>
-        <nav class="v3-nav" aria-label="Views">
-          <button id="tab-dashboard" class="v3-navlink active" type="button">
-            <span class="material-symbols-outlined">rocket_launch</span>
-            <span>Deploy</span>
-          </button>
-          <button id="tab-guided" class="v3-navlink" type="button">
-            <span class="material-symbols-outlined">settings</span>
-            <span>Setup</span>
-          </button>
-          <button id="tab-fleet" class="v3-navlink" type="button">
-            <span class="material-symbols-outlined">analytics</span>
-            <span>Activity</span>
-          </button>
-        </nav>
       </div>
-      <div class="v3-topright">
-        <button id="setup-progress-chip" class="setup-chip" type="button" title="Open guided setup" hidden>
-          <span class="material-symbols-outlined text-[15px]">checklist</span>
-          <span id="setup-progress-text">Setup</span>
+      <nav class="shell-nav" aria-label="Views">
+        <button id="tab-dashboard" class="shell-navlink active" type="button" title="Deploy">
+          <span class="material-symbols-outlined">rocket_launch</span>
+          <span>Deploy</span>
         </button>
+        <button id="tab-guided" class="shell-navlink" type="button" title="Setup">
+          <span class="material-symbols-outlined">settings</span>
+          <span>Setup</span>
+        </button>
+        <button id="tab-fleet" class="shell-navlink" type="button" title="Activity">
+          <span class="material-symbols-outlined">analytics</span>
+          <span>Activity</span>
+        </button>
+      </nav>
+      <button id="setup-progress-chip" class="setup-chip" type="button" title="Open guided setup" hidden>
+        <span class="material-symbols-outlined text-[15px]">checklist</span>
+        <span id="setup-progress-text">Setup</span>
+      </button>
+      <div class="shell-side-status">
         <span id="endpoint-line" class="font-technical-string text-technical-string endpoint-chip">Loading endpoint...</span>
-        <span id="operation-badge" class="badge neutral live-chip">Idle</span>
-        <span id="updated-at" class="font-data-tabular text-data-tabular updated-chip"></span>
-        <button id="refresh-button" class="ctx-icon-btn" type="button" aria-label="Refresh"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
-        <span class="host-chip" title="Console session"><span class="host-chip-dot"></span>admin</span>
+        <div class="shell-side-row">
+          <span id="operation-badge" class="badge neutral live-chip">Idle</span>
+          <span id="updated-at" class="font-data-tabular text-data-tabular updated-chip"></span>
+        </div>
+        <div class="shell-side-row">
+          <span class="host-chip" title="Console session"><span class="host-chip-dot"></span>admin</span>
+          <button id="refresh-button" class="ctx-icon-btn" type="button" aria-label="Refresh"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
+        </div>
       </div>
-    </header>
-    <main class="v3-main flex-1 overflow-y-auto flex flex-col">
+    </aside>
+    <main class="shell-main flex-1 overflow-y-auto flex flex-col">
       <section id="warning-banner" class="hidden" role="alert">
         <div class="flex items-center gap-sm">
           <span class="material-symbols-outlined text-[24px]">warning</span>
@@ -128,14 +130,14 @@
 
       <section id="view-dashboard" class="view active flex-col gap-sm" aria-labelledby="dashboard-title">
 
-        <!-- v3 Deploy = dashboard: config + action, status tiles, inline services -->
-        <div class="v3-summary">
-          <button class="v3-seg" data-action="profiles" type="button"><span class="v3-seg-label">Profile</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="v3-seg-value"></div></button>
-          <button class="v3-seg" data-action="os-images" type="button"><span class="v3-seg-label">OS Image</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="v3-seg-value"></div></button>
-          <button class="v3-seg" data-action="interfaces" type="button"><span class="v3-seg-label">Endpoint</span><span class="v3-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="v3-seg-value mono"></div></button>
-          <div class="v3-summary-action">
+        <!-- Deploy = dashboard: config + action, status tiles, inline services -->
+        <div class="deploy-summary">
+          <button class="deploy-seg" data-action="profiles" type="button"><span class="deploy-seg-label">Profile</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="deploy-seg-value"></div></button>
+          <button class="deploy-seg" data-action="os-images" type="button"><span class="deploy-seg-label">OS Image</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="deploy-seg-value"></div></button>
+          <button class="deploy-seg" data-action="interfaces" type="button"><span class="deploy-seg-label">Endpoint</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="deploy-seg-value mono"></div></button>
+          <div class="deploy-summary-action">
             <span id="summary-status" class="v3-summary-status"></span>
-            <button id="summary-action" data-action="preflight" class="v3-primary" type="button">Run preflight</button>
+            <button id="summary-action" data-action="preflight" class="btn-primary" type="button">Run preflight</button>
           </div>
         </div>
 
@@ -209,7 +211,7 @@
             <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by app.js --></section>
           </div>
           <div class="guided-v3-foot">
-            <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="v3-primary" type="button">Next step</button>
+            <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="btn-primary" type="button">Next step</button>
           </div>
         </div>
       </section>
@@ -253,7 +255,7 @@
       </div>
       <pre id="logs" class="console-dock-log font-log-entry text-log-entry"></pre>
     </section>
-  </div><!-- /v3-app -->
+  </div><!-- /shell -->
 
   <div id="fleet-backdrop" class="fleet-backdrop" hidden></div>
 

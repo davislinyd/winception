@@ -1,122 +1,108 @@
-# Winception Console — "Console v2" Design System
+# Winception Console — 暖紙墨 Design System (Warm Paper + Ink)
 
-> 視覺規格 (從 Stitch 專案 16205288903656654918「Winception Console v2」提取)
-> 原則：乾淨的 ops console —— 白色卡片、高對比墨色文字、翡翠綠 accent、底部深色 terminal
+A reading-first ops console. The entire UI sits on a warm paper field with warm
+soot ink; a single terracotta accent does all the pointing. Hierarchy comes from
+borders and spacing — never shadows, never extra hues.
 
----
+整體是「暖紙墨」閱讀優先設計:暖米白紙面 + 暖墨文字,唯一的陶土紅強調色如紙上朱印。
+層次靠邊線與留白,不靠陰影、不加多餘色相。
 
-## Color Tokens
+## Color tokens 色彩
 
-| Token      | Hex        | 用途                                  |
-|------------|------------|--------------------------------------|
-| `paper`    | `#F8F9FF`  | 主背景（冷調近白）                     |
-| `ink`      | `#0B1C30`  | 主文字（深海軍墨）                     |
-| `muted`    | `#6D7A72`  | 次要文字、標籤（outline）              |
-| `hairline` | `#BCCAC0`  | 結構分隔線（sidebar/topbar 邊框）      |
-| `clay`*    | `#059669`  | 主要 Accent（翡翠綠）、CTA、active nav |
-| `surface`  | `#EFF4FF`  | 淺容器、hover、表頭底色                |
-| `sage`     | `#059669`  | 完成/ok 狀態（同 accent）              |
-| `ochre`    | `#B45309`  | 進行中/警告文字（琥珀深）              |
-| `brick`    | `#BA1A1A`  | 錯誤/danger（紅）                      |
+All neutrals share one warm hue band (~35–45°, very low chroma) so paper, ink and
+borders harmonize (analogous scheme). Status colors are desaturated and warm-shifted.
+60-30-10: ~60% paper surfaces / ~30% ink & borders / ~10% terracotta + status tints.
 
-\* `--clay` 變數名稱保留以維持相容，值已改為翡翠綠。
+| Token | Hex | Contrast vs paper | 用途 |
+|---|---|---|---|
+| `--paper` | `#FAF7F2` | — | 暖紙底色(頁面背景) |
+| `--ink` | `#332E29` | 12.6:1 | 主文字(暖墨,非純黑) |
+| `--muted` | `#6E655B` | 5.3:1 | 次要文字 |
+| `--hairline` | `#E8E0D3` | — | 分隔線、卡片邊框 |
+| `--clay` / `--accent` | `#9C4221` | 6.1:1 | 陶土紅 — 唯一強調色(CTA、選取、進度) |
+| `--surface-bright` | `#FFFDF8` | — | 卡片底(暖白) |
+| `--surface-container-low` | `#F6F1E8` | — | 側欄、嵌入面板底 |
+| `--ok` / `--sage` | `#38684A` | 5.6:1 | 完成/運行(鼠尾草綠) |
+| `--warn` / `--ochre` | `#8F5A1F` | 5.5:1 | 進行中/提醒(赭黃) |
+| `--error` / `--brick` | `#9E3B32` | 6.3:1 | 錯誤/破壞性(茜紅) |
+| `--secondary-container` | `#E8A93B` | (text `#4A2D00` 6:1) | 注意型按鈕(`button.warning`)琥珀底 |
 
-次要 accent（attention 按鈕）：`--secondary-container: #FEA619`（琥珀實底，深棕文字 `#4A2D00`），
-用於 `button.warning`（Sync endpoint / Prepare runtime / Add software 等）。
+### Terminal 終端機(console dock)
 
-Terminal（console dock）專用：
+The only dark element. Warm charcoal, cream text — like ink on a chalkboard,
+not a blue IDE panel.
 
-```css
---term-bg:      #1E293B;   /* log 區背景（slate）*/
---term-surface: #213145;   /* dock header 背景 */
---term-text:    #C7D3E4;   /* log 文字 */
---term-muted:   #7C8BA3;   /* header 次要文字 */
---term-ok:      #68DBA9;   /* terminal 圖示/成功 */
---term-err:     #FFB3AD;   /* 錯誤訊息 */
-```
+| Token | Hex | 用途 |
+|---|---|---|
+| `--term-bg` | `#2A2520` | 日誌底(暖炭) |
+| `--term-surface` | `#353028` | dock 標頭底 |
+| `--term-text` | `#EFE7D8` | 日誌文字(米色,11.9:1) |
+| `--term-ok` / `--term-err` | `#9CBF93` / `#E5A294` | 成功/錯誤行 |
 
-CSS variables mapping (`:root`)：card 背景 `--surface-bright: #FFFFFF`，卡片邊框
-`--outline-variant: #D5DEDA`，sidebar 底 `--sidebar-bg: #F2F5F3`。
+## Typography 字型
 
----
+Google Fonts: `Inter:wght@400;500;600;700`,
+`Source+Serif+4:opsz,wght@8..60,500..700`, `JetBrains+Mono:wght@400;500`.
 
-## Typography
+- **Source Serif 4**(serif): 標題 ≥14px 與大數字(頁標 22px、對話框標題 17px、
+  tile/統計數字 24–26px)。紙感編輯排版的關鍵。
+- **Inter**: 內文 13px/1.5、UI 標籤、按鈕(基礎 `button` 規則 `500 12px/16px Inter`)、
+  9–11px 大寫小標(serif 在小字級不可讀,一律 Inter 600 + 字距)。
+- **JetBrains Mono**: 技術字串(IP、路徑、run ID)與日誌(11px)。
 
-| Role        | Font              | Size / Weight                |
-|-------------|-------------------|------------------------------|
-| `headline`  | Space Grotesk     | 500–700, 標題/數字           |
-| `body`      | Inter             | 400/500, 12–14px             |
-| `mono`      | JetBrains Mono    | 400/500, 11–13px（資料/log） |
-| Section labels | Inter          | 10–11px, 600–700, tracking 0.05–0.14em, UPPERCASE |
+Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
 
-Google Fonts:
-```
-Inter:wght@400;500;600;700
-Space+Grotesk:wght@500;600;700
-JetBrains+Mono:wght@400;500
-```
-
----
-
-## Layout（單欄、無 sidebar）
+## Layout 版面
 
 ```
-┌───────────────────────────────────────────────────────┐
-│ Topbar h-16：brand + tabs ─── setup chip + 狀態 chips │
-├───────────────────────────────────────────────────────┤
-│ Main content（scroll，max-width 1360 置中）            │
-├───────────────────────────────────────────────────────┤
-│ Console dock（深色 terminal，全 view 共用）            │
-└───────────────────────────────────────────────────────┘
+┌──────────────┬──────────────────────────────────────────┐
+│ .shell-sidebar │  .shell-main(scroll)                   │
+│ 240px 整高     │  內容限寬 var(--content-max)=1100px 置中  │
+│  brand        │  #view-dashboard / #initialization-dialog │
+│  3 nav links  │  / #view-fleet                           │
+│  setup chip   ├──────────────────────────────────────────┤
+│  ── 釘底 ──    │  #console-dock(只佔內容欄,可收合)        │
+│  endpoint 等   │                                          │
+└──────────────┴──────────────────────────────────────────┘
 ```
 
-### Topbar（`.v3-topbar`）
+- `.shell`: grid `var(--sidebar-w) minmax(0,1fr)` × `minmax(0,1fr) auto`,100vh。
+- 1100px 的閱讀 measure 讓行長落在舒適範圍;側欄底色 `--surface-container-low`
+  與紙面區隔,右側 hairline。
+- Active nav: 亮底 + 左側 3px 陶土紅 inset bar。
+- `@media (max-width: 1024px)`: 側欄縮為 `--rail-w`=64px icon rail(文字隱藏,
+  nav 按鈕靠 `title` 提示)。
+- z-index: sidebar 20 / dock 25 / `.fleet-backdrop` 40 / `.client-fleet-panel` 45 /
+  fallback dialog 60。
 
-- 左：30px 綠色方塊 `W`（`.v3-logo-block`）+ WINCEPTION + 版本號，
-  之後是水平 tabs（Deploy / Setup / Activity）— active = 綠字 + 2px 底線
-- 右：`#setup-progress-chip`（「Setup n/10」，未完成=琥珀、完成=綠，點擊進 Setup）、
-  endpoint chip（mono）、operation badge、updated 時間（tabular-nums）、refresh、admin chip
-- Setup 進度只在這個 chip 與 Setup 頁呈現，**不重複列出步驟清單**
+## Components 元件
 
-### Console Dock（底部深色 terminal，全 view 共用）
+- **Cards**: `--surface-bright` 底 + 1px `--hairline` 邊 + 6px 圓角,無陰影、無
+  hover 浮起。`--card-shadow` 恆為 none。
+- **Buttons**: 基礎中性;`.btn-primary` 陶土紅實底(CTA);`button.warning` 琥珀底
+  (注意型動作:sync/prepare);`button.danger`/紅只用於破壞性與錯誤。
+- **Status pills**: 999px 膠囊,tint 底 + 同色深字(`.ok`/`.working`/`.fail`)。
+- **Focus ring**: `0 0 0 3px rgba(156,66,33,.18)`(陶土紅 18%)。
+- **Dialog backdrop**: `rgba(43,38,33,.45)` 暖色遮罩。
 
-- header：`--term-surface`，terminal 圖示（綠）、CONSOLE 標籤、operation 名稱（mono）、
-  狀態 pill、copy 按鈕、收合 chevron
-- log 區：`--term-bg`，淺色 mono 文字，`clamp(160px, 28vh, 320px)` 高
-- operation 開始時自動展開一次；手動收合在該次 operation 內被尊重
+## Rules 設計規則
 
----
+1. 陶土紅是唯一強調色 — CTA、active nav、選取框、進度條。不得引入藍/紫/青。
+2. 琥珀 = 提醒(需要使用者注意的次要動作);紅 = 僅錯誤與破壞性動作。
+3. 終端機永遠是暖炭色,是頁面上唯一的深色塊。
+4. serif 只用於標題與數字;小字級大寫標籤一律 Inter。
+5. 層次 = 邊線 + 留白;禁止陰影與漸層。
+6. 文字對比 ≥ WCAG AA(內文 ≥ 4.5:1)。
 
-## Components
+## Compatibility notes 相容性附註
 
-### Buttons
+These legacy class names are intentionally kept because app.js references them
+(query or template-emit) — restyle them, never rename:
 
-```css
-/* Primary CTA（Run preflight / Start services）*/
-.v3-primary { background: var(--accent); color: #fff; border-radius: 4px; }
+- `.guided-v3-main`(app.js querySelector)與整組 `guided-v3-*` 結構類別。
+- `.v3-svc on|off`(app.js 動態輸出的服務小點)。
+- `.v3-summary-status warn|ok`(app.js 直接覆寫 `#summary-status` 的 className)。
+- `body.fleet-expanded .client-fleet-panel` 規則為測試釘死的遺留契約,勿清除。
 
-/* Attention / secondary action（Sync endpoint 等）*/
-button.warning { background: #FEA619; color: #4A2D00; font-weight: 600; }
-
-/* Destructive */
-button.danger { color: var(--tertiary); }
-```
-
-### Cards
-
-白底（`--surface-bright`）、`1px solid var(--outline-variant)`、圓角 4–8px、無陰影。
-
-### Status pills
-
-ok=綠 / working·warn=琥珀 / fail=紅，淺色 tint 背景，UPPERCASE 10px。
-
----
-
-## Design Rules
-
-1. **白卡片 + 細邊框** — 無陰影或極輕，靠邊框與留白分層
-2. **翡翠綠是唯一主 accent** — CTA、active nav、完成狀態、進度
-3. **琥珀為 attention** — 警示按鈕、進行中狀態；紅只給錯誤
-4. **底部 terminal 永遠深色** — 與淺色 app 形成明確的「console」對比
-5. **Space Grotesk 標題/數字，Inter 內文，JetBrains Mono 資料與 log**
-6. **Section labels** — 小號大寫、寬字距、`muted` 色
+Chrome/structural classes use the `.shell-*` prefix; the Deploy summary bar uses
+`.deploy-*`; the primary CTA is `.btn-primary`.
