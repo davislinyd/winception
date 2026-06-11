@@ -25,7 +25,8 @@ const state = {
   initializationAutoOpened: false,
   initializationPendingAction: null,
   initializationOperationAction: null,
-  initializationOperationLogText: '',
+  consoleDockCollapsed: true,
+  consoleDockOperationKey: '',
   initializationDetailScrollPositions: {},
   endpointSyncReturnToInitialization: false,
   initializationRootDraft: '',
@@ -86,8 +87,15 @@ const elements = {
   initializationDialog: $('#initialization-dialog'),
   initializationSummary: $('#initialization-summary'),
   initializationBadge: $('#initialization-badge'),
-  initializationOperation: $('#initialization-operation'),
   initializationSteps: $('#initialization-steps'),
+  setupProgressChip: $('#setup-progress-chip'),
+  setupProgressText: $('#setup-progress-text'),
+  consoleDock: $('#console-dock'),
+  consoleDockHead: $('#console-dock-head'),
+  consoleDockCopy: $('#console-dock-copy'),
+  consoleOpLabel: $('#console-op-label'),
+  consoleOpBadge: $('#console-op-badge'),
+  consoleOpError: $('#console-op-error'),
   initializationNext: $('#initialization-next'),
   initProgressFill: $('#init-progress-fill'),
   initProgressText: $('#init-progress-text'),
@@ -96,7 +104,6 @@ const elements = {
   tabFleet: $('#tab-fleet'),
   navServices: $('#nav-services'),
   navLogs: $('#nav-logs'),
-  contextTitle: $('#context-title'),
   ssRuntime: $('#ss-runtime'),
   ssPreflight: $('#ss-preflight'),
   ssServices: $('#ss-services'),
@@ -483,9 +490,6 @@ async function mutate(path, body = null, options = {}) {
 function setControlsDisabled(disabled) {
   $$('button[data-action], dialog button, dialog input, dialog select, dialog textarea').forEach((control) => {
     if (control instanceof HTMLButtonElement && control.value === 'cancel') {
-      return;
-    }
-    if (control instanceof HTMLButtonElement && control.dataset.operationAction === 'copy-log') {
       return;
     }
     if (disabled) {
@@ -1090,7 +1094,7 @@ function restoreInitializationDetailScrollPosition(stepId, list) {
 }
 
 function initializationDialogBody() {
-  return elements.initializationDialog?.querySelector('.drawer-body') ?? null;
+  return elements.initializationDialog?.querySelector('.guided-v3-main') ?? null;
 }
 
 function captureInitializationDialogScrollPosition() {
@@ -1189,20 +1193,25 @@ async function copyText(text) {
   fallbackCopyText(text);
 }
 
-async function copyInitializationOperationLog(button) {
-  const logText = state.initializationOperationLogText;
+async function copyConsoleLog(button) {
+  const logText = elements.logs?.textContent ?? '';
   if (!logText) {
     return;
   }
   await copyText(logText);
-  button.dataset.icon = 'done';
+  const icon = button.querySelector('.material-symbols-outlined');
+  if (icon) {
+    icon.textContent = 'done';
+  }
   button.title = 'Copied';
   button.setAttribute('aria-label', 'Copied');
   window.setTimeout(() => {
     if (!button.isConnected) {
       return;
     }
-    button.dataset.icon = 'content_copy';
+    if (icon) {
+      icon.textContent = 'content_copy';
+    }
     button.title = 'Copy log';
     button.setAttribute('aria-label', 'Copy log');
   }, 1200);
@@ -1340,87 +1349,58 @@ function activeInitializationOperation(appState) {
   return null;
 }
 
-function renderInitializationOperation(appState) {
-  const panel = elements.initializationOperation;
-  if (!panel) {
+function setConsoleDockCollapsed(collapsed) {
+  state.consoleDockCollapsed = collapsed;
+  if (elements.consoleDock) {
+    elements.consoleDock.classList.toggle('collapsed', collapsed);
+  }
+  elements.consoleDockHead?.setAttribute('aria-expanded', String(!collapsed));
+  if (!collapsed && elements.logs) {
+    elements.logs.scrollTop = elements.logs.scrollHeight;
+  }
+}
+
+function renderConsoleDock(appState) {
+  if (!elements.consoleDock) {
     return;
   }
-  const activeOperation = activeInitializationOperation(appState);
-  if (!activeOperation) {
-    // Persistent idle console: the right-hand pane always shows a console so the
-    // two-column layout (steps left, console right) stays stable between runs.
-    state.initializationOperationLogText = '';
-    panel.hidden = false;
-    panel.className = 'initialization-operation-panel idle';
-    panel.replaceChildren();
-    const header = document.createElement('div');
-    header.className = 'initialization-operation-header';
-    const title = document.createElement('strong');
-    title.className = 'initialization-operation-title';
-    title.textContent = 'Console';
-    const badge = document.createElement('span');
-    badge.className = 'status-pill neutral';
-    badge.textContent = 'Idle';
-    header.append(title, badge);
-    const log = document.createElement('pre');
-    log.className = 'initialization-operation-log';
-    log.textContent = 'No active operation.\nLogs from runtime preparation and preflight appear here.';
-    panel.append(header, log);
+  const operation = appState.operation ?? null;
+  const pending = state.initializationPendingAction;
+  const running = operation?.running === true || Boolean(pending);
+  const label = operation?.label ?? (pending ? 'Starting operation...' : '');
+  elements.consoleOpLabel.textContent = label;
+  let statusText = 'Idle';
+  let statusClass = 'neutral';
+  if (running) {
+    statusText = 'Running';
+    statusClass = 'working';
+  } else if (operation?.status === 'failed') {
+    statusText = 'Failed';
+    statusClass = 'fail';
+  } else if (operation?.status === 'completed') {
+    statusText = 'Completed';
+    statusClass = 'ok';
+  }
+  elements.consoleOpBadge.textContent = statusText;
+  elements.consoleOpBadge.className = `status-pill ${statusClass}`;
+  if (elements.consoleOpError) {
+    const showError = Boolean(operation?.error) && !running;
+    elements.consoleOpError.hidden = !showError;
+    elements.consoleOpError.textContent = showError ? operation.error : '';
+  }
+  // Auto-expand once per operation so output is visible without leaving the view;
+  // a manual collapse during the run is respected until the next operation starts.
+  const operationKey = operation
+    ? `${operation.label}|${operation.startedAt ?? ''}`
+    : pending ? `pending:${pending}` : '';
+  if (running && operationKey !== state.consoleDockOperationKey) {
+    state.consoleDockOperationKey = operationKey;
+    setConsoleDockCollapsed(false);
     return;
   }
-
-  const existingLog = panel.querySelector('.initialization-operation-log');
-  const previousScrollTop = existingLog?.scrollTop ?? 0;
-  const wasAtBottom = existingLog ? isScrolledToBottom(existingLog) : true;
-  const { action, operation } = activeOperation;
-  const running = Boolean(operation?.running || state.initializationPendingAction === action);
-  const status = running ? 'running' : operation?.status ?? 'running';
-  const statusText = status === 'completed' ? 'Completed' : status === 'failed' ? 'Failed' : 'Running';
-  const titleText = operation?.label ?? (action === 'prepare-runtime' ? 'Preparing runtime artifacts' : 'Running preflight');
-  const lines = (operation?.lines ?? []).filter((line) => String(line).trim());
-  const operationLogText = lines.join('\n');
-  state.initializationOperationLogText = operationLogText;
-
-  panel.hidden = false;
-  panel.className = `initialization-operation-panel ${status}`;
-  panel.replaceChildren();
-
-  const header = document.createElement('div');
-  header.className = 'initialization-operation-header';
-  const title = document.createElement('strong');
-  title.className = 'initialization-operation-title';
-  title.textContent = titleText;
-  const actions = document.createElement('div');
-  actions.className = 'initialization-operation-header-actions';
-  const copyButton = document.createElement('button');
-  copyButton.type = 'button';
-  copyButton.className = 'initialization-operation-copy';
-  copyButton.dataset.operationAction = 'copy-log';
-  copyButton.dataset.icon = 'content_copy';
-  copyButton.title = 'Copy log';
-  copyButton.setAttribute('aria-label', 'Copy log');
-  copyButton.disabled = !operationLogText;
-  const badge = document.createElement('span');
-  badge.className = `status-pill ${status === 'completed' ? 'ok' : status === 'failed' ? 'fail' : 'working'}`;
-  badge.textContent = statusText;
-  actions.append(copyButton, badge);
-  header.append(title, actions);
-  panel.append(header);
-
-  if (operation?.error) {
-    const error = document.createElement('div');
-    error.className = 'initialization-operation-error';
-    error.textContent = operation.error;
-    panel.append(error);
-  }
-
-  const log = document.createElement('pre');
-  log.className = 'initialization-operation-log';
-  log.textContent = operationLogText
-    ? operationLogText
-    : running ? 'Starting operation...' : 'No operation output captured.';
-  panel.append(log);
-  log.scrollTop = wasAtBottom ? log.scrollHeight : previousScrollTop;
+  state.consoleDockOperationKey = operationKey;
+  elements.consoleDock.classList.toggle('collapsed', state.consoleDockCollapsed);
+  elements.consoleDockHead?.setAttribute('aria-expanded', String(!state.consoleDockCollapsed));
 }
 
 // Setup steps that remain re-runnable after initial completion
@@ -1466,29 +1446,18 @@ function computeStepStaleness(appState) {
   return stale;
 }
 
-function renderSidebarSteps(steps, selectedId, activeOperation, busy) {
-  if (!steps) return;
-  for (const step of steps) {
-    const row = document.getElementById(`sidebar-step-${step.id}`);
-    if (!row) continue;
-    const dot = row.querySelector('.sidebar-step-dot');
-    if (!dot) continue;
-    const stepIsRunning = busy && (
-      (step.id === 'runtime'       && activeOperation?.action === 'prepare-runtime') ||
-      (step.id === 'project-root'  && activeOperation?.action === 'project-root') ||
-      (step.id === 'endpoint'      && activeOperation?.action === 'endpoint-sync') ||
-      (step.id === 'preflight'     && activeOperation?.action === 'preflight') ||
-      (step.id === 'services'      && activeOperation?.action === 'all-services-toggle')
-    );
-    const hasIssues = step.ran === true && !step.done && !stepIsRunning;
-    const isSelected = step.id === selectedId;
-    dot.className = 'sidebar-step-dot ' + (
-      step.done     ? 'done' :
-      stepIsRunning ? 'active' :
-      hasIssues     ? 'warn' :
-      step.required ? 'error' : ''
-    );
-    row.classList.toggle('active', isSelected);
+function renderSetupProgressChip(initialization, doneSteps, totalSteps) {
+  const chip = elements.setupProgressChip;
+  if (!chip) {
+    return;
+  }
+  chip.hidden = false;
+  const complete = totalSteps > 0 && doneSteps >= totalSteps;
+  const live = initialization.deploymentLive === true;
+  chip.classList.toggle('ok', complete || live);
+  chip.classList.toggle('warn', !complete && !live);
+  if (elements.setupProgressText) {
+    elements.setupProgressText.textContent = complete || live ? 'Setup complete' : `Setup ${doneSteps}/${totalSteps}`;
   }
 }
 
@@ -1520,10 +1489,6 @@ function renderInitialization(appState) {
   if (elements.navLogs) {
     elements.navLogs.classList.toggle('active', state.currentView === 'logs');
   }
-  if (elements.contextTitle) {
-    const titles = { dashboard: 'Overview', guided: 'Setup', fleet: 'Fleet', services: 'Services', logs: 'Logs' };
-    elements.contextTitle.textContent = titles[state.currentView] ?? 'Overview';
-  }
   if (elements.initializationDialog) {
     elements.initializationDialog.classList.toggle('active', state.currentView === 'guided');
   }
@@ -1551,7 +1516,6 @@ function renderInitialization(appState) {
       : initialized
         ? 'Base setup is complete. Run preflight before starting services.'
         : `Next: ${nextStep?.label ?? 'Run preflight'}`;
-  renderInitializationOperation(appState);
   const dialogScrollPosition = captureInitializationDialogScrollPosition();
   state.initializationDetailScrollPositions = captureInitializationDetailScrollPositions();
   
@@ -1629,7 +1593,7 @@ function renderInitialization(appState) {
     elements.initializationSteps.append(row);
     index++;
   }
-  renderSidebarSteps(initialization.steps, state.selectedGuidedStepId, activeOperation, initializationBusy);
+  renderSetupProgressChip(initialization, doneSteps, totalSteps);
 
   // 2. Render the focused detail panel (moved inline under the active step below)
   const selectedStep = (initialization.steps ?? []).find(s => s.id === state.selectedGuidedStepId) || initialization.steps?.[0];
@@ -1718,14 +1682,8 @@ function renderInitialization(appState) {
     restoreInitializationDetailScrollPosition(step.id, detailList);
   }
 
-  // v3 timeline: nest the focused detail panel inline directly under the active step
+  // Two-column body: the detail panel lives in the sticky right column, never inline
   if (elements.guidedStepDetail) {
-    const activeRow = elements.initializationSteps.querySelector('.initialization-step.active');
-    if (activeRow) {
-      activeRow.after(elements.guidedStepDetail);
-    } else {
-      elements.initializationSteps.append(elements.guidedStepDetail);
-    }
     elements.guidedStepDetail.hidden = !selectedStep;
   }
 
@@ -3202,6 +3160,7 @@ function render() {
   renderSync(appState);
   renderValidation(appState);
   renderLogs(appState);
+  renderConsoleDock(appState);
   renderPipeline(appState);
   renderTopology(appState);
   renderLiveMetrics(appState);
@@ -5236,15 +5195,6 @@ document.addEventListener('click', (event) => {
     return;
   }
 
-  const operationButton = target.closest('[data-operation-action]');
-  if (operationButton) {
-    event.preventDefault();
-    if (operationButton.dataset.operationAction === 'copy-log') {
-      copyInitializationOperationLog(operationButton).catch((error) => window.alert(error.message));
-    }
-    return;
-  }
-
   const initButton = target.closest('[data-init-action]');
   if (initButton) {
     event.preventDefault();
@@ -5444,11 +5394,29 @@ $$('[data-os-catalog-filter]').forEach((input) => {
 
 enableBackdropCloseForDialogs();
 
-// Log rail toggle
-const logRailEl = document.getElementById('log-rail');
-if (logRailEl) {
-  logRailEl.addEventListener('click', () => logRailEl.classList.toggle('open'));
+// Console dock: header toggles collapse, copy button copies the visible log
+if (elements.consoleDockHead) {
+  elements.consoleDockHead.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('#console-dock-copy')) {
+      return;
+    }
+    setConsoleDockCollapsed(!state.consoleDockCollapsed);
+  });
+  elements.consoleDockHead.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest('#console-dock-copy')) {
+      return;
+    }
+    event.preventDefault();
+    setConsoleDockCollapsed(!state.consoleDockCollapsed);
+  });
 }
+elements.consoleDockCopy?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  copyConsoleLog(elements.consoleDockCopy).catch((error) => window.alert(error.message));
+});
 
 // Header view switcher tabs
 if (elements.tabGuided && elements.tabDashboard) {
@@ -5488,17 +5456,10 @@ if (elements.initializationSteps) {
   });
 }
 
-// Sidebar step rows: click to jump to that step in Setup view
-const sidebarStepsList = document.getElementById('sidebar-steps');
-if (sidebarStepsList) {
-  sidebarStepsList.addEventListener('click', (event) => {
-    const rowEl = event.target.closest('.sidebar-step-row');
-    if (rowEl && rowEl.dataset.stepId) {
-      state.selectedGuidedStepId = rowEl.dataset.stepId;
-      switchToView('guided');
-    }
-  });
-}
+// Topbar setup progress chip: jump to guided setup
+elements.setupProgressChip?.addEventListener('click', () => {
+  switchToView('guided');
+});
 
 refresh().catch((error) => window.alert(error.message));
 setInterval(() => {

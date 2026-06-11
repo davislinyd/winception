@@ -12,19 +12,29 @@ test('web UI exposes dashboard view topology', () => {
 
   assert.match(html, /id="tailwind-config"/);
   assert.match(html, /cdn\.tailwindcss\.com\?plugins=forms,container-queries/);
-  assert.match(html, /bg-surface text-on-surface min-h-screen flex flex-col font-body-sm/);
-  // v3 minimal deploy console: top bar + quiet nav (Stitch v3 parity)
+  assert.match(html, /bg-paper text-ink h-screen overflow-hidden flex font-body/);
+  // Single-column layout: top nav bar + main content + bottom console dock (no sidebar)
   assert.match(html, /class="v3-app"/);
   assert.match(html, /class="v3-topbar"/);
   assert.match(html, /class="v3-nav"/);
+  assert.match(html, /id="setup-progress-chip"/);
+  assert.doesNotMatch(html, /id="sidebar"/);
+  assert.doesNotMatch(html, /sidebar-step-row/);
   assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-guided"[\s\S]*id="tab-fleet"/);
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
   assert.match(html, /class="v3-summary"/);
   assert.match(html, /id="summary-action"/);
   assert.match(html, /id="dash-tiles"/);
   assert.doesNotMatch(html, /id="clients-body"/);
-  // Secondary panels live in a collapsed details block (kept functional)
-  assert.match(html, /class="v3-more"/);
+  // Global console dock hosts the system log; no collapsed rail or details block
+  assert.match(html, /id="console-dock"/);
+  assert.match(html, /id="console-dock-head"/);
+  assert.match(html, /id="console-op-badge"/);
+  assert.match(html, /id="console-dock-copy"/);
+  assert.match(html, /<pre id="logs" class="console-dock-log/);
+  assert.doesNotMatch(html, /id="log-rail"/);
+  assert.doesNotMatch(html, /class="v3-more"/);
+  // Hidden JS-only render targets stay in the DOM
   assert.match(html, /id="pipeline-steps"/);
   assert.match(html, /id="live-metrics"/);
   assert.match(html, /id="endpoint-summary"/);
@@ -151,12 +161,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /Driver Cache/);
   assert.match(html, /id="driver-cache-details"/);
   assert.match(html, /data-action="prepare-runtime"/);
-  assert.match(html, /data-action="initialization" data-icon="checklist"/);
   assert.match(html, /Set up deployment/);
   assert.match(html, /class="guided-timeline"/);
   assert.match(html, /id="init-progress-fill"/);
   assert.match(html, /id="initialization-dialog"/);
-  assert.match(html, /id="initialization-operation" class="initialization-operation-panel"/);
+  assert.doesNotMatch(html, /id="initialization-operation"/);
   assert.match(html, /id="initialization-steps"/);
   assert.doesNotMatch(html, /<h4>Deployment Secrets<\/h4>/);
   assert.doesNotMatch(html, /id="init-secrets-form"/);
@@ -201,16 +210,13 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /restoreInitializationDialogScrollPosition\(dialogScrollPosition\);/);
   assert.match(script, /restoreInitializationTextControlFocus\(focusedTextControl\);/);
   assert.match(script, /clearInitializationSecretsDraft\(\);[\s\S]*controls\.windowsPassword\.value = ''/);
-  assert.match(script, /function renderInitializationOperation\(appState\)/);
-  assert.doesNotMatch(script, /operation\?\.lines[\s\S]{0,160}\.slice\(-8\)/);
-  assert.match(script, /const lines = \(operation\?\.lines \?\? \[\]\)\.filter/);
-  assert.match(script, /const operationLogText = lines\.join\('\\n'\)/);
-  assert.match(script, /state\.initializationOperationLogText = operationLogText/);
-  assert.match(script, /copyButton\.dataset\.operationAction = 'copy-log'/);
-  assert.match(script, /copyButton\.dataset\.icon = 'content_copy'/);
+  assert.match(script, /function renderConsoleDock\(appState\)/);
+  assert.match(script, /function setConsoleDockCollapsed\(collapsed\)/);
+  assert.match(script, /consoleDockCollapsed: true/);
+  assert.match(script, /consoleDockOperationKey: ''/);
+  assert.match(script, /function copyConsoleLog\(button\)/);
   assert.match(script, /navigator\.clipboard\?\.writeText/);
   assert.match(script, /fallbackCopyText\(text\)/);
-  assert.match(script, /log\.scrollTop = wasAtBottom \? log\.scrollHeight : previousScrollTop/);
   assert.match(script, /initializationDetailScrollPositions: \{\}/);
   assert.match(script, /function renderInitialization\(appState\)/);
   assert.match(script, /function captureInitializationDetailScrollPositions\(\)/);
@@ -248,11 +254,12 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /elements\.endpointSettingsDialog\?\.addEventListener\('close', \(\) => \{[\s\S]*state\.endpointSyncReturnToInitialization = false;/);
   assert.match(script, /Prepare runtime/);
   assert.match(styles, /\.runtime-readiness-panel/);
-  assert.match(styles, /\.initialization-dialog \{\s*width: min\(1180px, calc\(100vw - 32px\)\);/);
-  assert.match(styles, /\.initialization-operation-panel/);
-  assert.match(styles, /\.initialization-operation-header-actions/);
-  assert.match(styles, /\.initialization-operation-copy/);
-  assert.match(styles, /\.initialization-operation-log/);
+  assert.match(styles, /\.console-dock \{/);
+  assert.match(styles, /\.console-dock-head/);
+  assert.match(styles, /\.console-dock-log/);
+  assert.match(styles, /\.console-dock\.collapsed \.console-dock-log \{ display: none; \}/);
+  assert.doesNotMatch(styles, /\.initialization-operation-panel/);
+  assert.doesNotMatch(styles, /#log-rail/);
   assert.match(styles, /\.guided-step-overview/);
   assert.match(styles, /\.guided-step-overview-row/);
   assert.match(styles, /\.initialization-step-list/);
@@ -400,9 +407,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(styles, /body\.fleet-expanded \.dashboard-status-column/);
   assert.doesNotMatch(styles, /body\.fleet-expanded \.dashboard-log-column/);
   assert.match(html, /Material\+Symbols\+Outlined/);
-  assert.match(html, /Inter:wght@400;500;600/);
+  assert.match(html, /Inter:wght@400;500;600;700/);
+  assert.match(html, /Space\+Grotesk:wght@500;600;700/);
   assert.match(html, />Services</);
-  assert.match(html, />Activity log</);
   assert.doesNotMatch(html, /Quick Actions/);
   assert.doesNotMatch(html, /quick-actions-panel/);
   assert.doesNotMatch(html, /```html/);
@@ -558,7 +565,8 @@ test('web UI keeps local component layer', () => {
   const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
   const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
 
-  assert.match(styles, /--primary: #111827/);
+  assert.match(styles, /--clay:\s+#059669/);
+  assert.match(styles, /--term-bg:\s+#1E293B/);
   assert.match(styles, /--hairline:/);
   assert.match(styles, /\.view\.active/);
   assert.match(styles, /\.service-switch/);

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OSDCloud Host Console</title>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Noto+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script id="tailwind-config">
     tailwind.config = {
@@ -13,15 +13,15 @@
       theme: {
         extend: {
           colors: {
-            paper:    "#F4F1EA",
-            ink:      "#33312C",
-            muted:    "#8A857B",
-            hairline: "#DAD4C8",
-            clay:     "#8C6A52",
-            surface:  "#FBF9F4",
-            sage:     "#6E7B5B",
-            ochre:    "#B08A3E",
-            brick:    "#A2554A",
+            paper:    "#F8F9FF",
+            ink:      "#0B1C30",
+            muted:    "#6D7A72",
+            hairline: "#BCCAC0",
+            clay:     "#059669",
+            surface:  "#EFF4FF",
+            sage:     "#059669",
+            ochre:    "#B45309",
+            brick:    "#BA1A1A",
             "on-surface": "var(--on-surface)",
             "on-surface-variant": "var(--on-surface-variant)",
             "outline-variant": "var(--outline-variant)",
@@ -34,10 +34,10 @@
             "surface-container-highest": "var(--surface-container-highest)"
           },
           borderRadius: {
-            "DEFAULT": "0.125rem",
-            "lg": "0.25rem",
+            "DEFAULT": "0.25rem",
+            "lg": "0.375rem",
             "xl": "0.5rem",
-            "card": "0.125rem",
+            "card": "0.25rem",
             "full": "9999px"
           },
           spacing: {
@@ -51,16 +51,16 @@
             "table-cell-padding": "6px 8px"
           },
           fontFamily: {
-            headline:  ["Arimo", "sans-serif"],
-            body:      ["Noto Sans", "sans-serif"],
+            headline:  ["Space Grotesk", "sans-serif"],
+            body:      ["Inter", "sans-serif"],
             mono:      ["JetBrains Mono", "monospace"],
-            "body-sm": ["Noto Sans", "sans-serif"],
-            "ui-label": ["Arimo", "sans-serif"],
-            "data-tabular": ["Noto Sans", "sans-serif"],
+            "body-sm": ["Inter", "sans-serif"],
+            "ui-label": ["Inter", "sans-serif"],
+            "data-tabular": ["Inter", "sans-serif"],
             "technical-string": ["JetBrains Mono", "monospace"],
             "log-entry": ["JetBrains Mono", "monospace"],
-            "h1": ["Arimo", "sans-serif"],
-            "h2": ["Arimo", "sans-serif"]
+            "h1": ["Space Grotesk", "sans-serif"],
+            "h2": ["Space Grotesk", "sans-serif"]
           },
           fontSize: {
             "body-sm": ["13px", { lineHeight: "18px", fontWeight: "400" }],
@@ -79,96 +79,42 @@
 </head>
 <body class="bg-paper text-ink h-screen overflow-hidden flex font-body">
 
-  <!-- Left Sidebar -->
-  <aside id="sidebar">
-    <div class="sidebar-brand">
-      <svg class="v3-logo" width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <rect x="2" y="2" width="28" height="28" rx="7" fill="var(--clay)"/>
-        <rect x="6.5" y="8.5" width="19" height="15.5" rx="2.6" fill="#fff"/>
-        <line x1="6.5" y1="13.2" x2="25.5" y2="13.2" stroke="#e5e7eb" stroke-width="1"/>
-        <circle cx="9.4" cy="10.85" r="1.05" fill="var(--clay)"/>
-        <circle cx="12.7" cy="10.85" r="1.05" fill="var(--ochre)"/>
-        <circle cx="16" cy="10.85" r="1.05" fill="var(--brick)"/>
-        <rect x="14.5" y="16.5" width="8" height="5.6" rx="1.3" fill="var(--clay)" opacity="0.16"/>
-      </svg>
-      <div class="sidebar-brand-text">
-        <span class="sidebar-name">Winception</span>
-        <span id="app-version" class="sidebar-version"></span>
-      </div>
-    </div>
-    <nav class="sidebar-nav-primary">
-      <button id="tab-dashboard" class="v3-navlink active" type="button">
-        <span class="material-symbols-outlined">rocket_launch</span>
-        <span>Deploy</span>
-      </button>
-      <button id="tab-guided" class="v3-navlink" type="button">
-        <span class="material-symbols-outlined">settings</span>
-        <span>Setup</span>
-      </button>
-      <button id="tab-fleet" class="v3-navlink" type="button">
-        <span class="material-symbols-outlined">analytics</span>
-        <span>Activity</span>
-      </button>
-    </nav>
-    <div class="sidebar-steps-header">Setup</div>
-    <div class="sidebar-steps-list" id="sidebar-steps">
-      <div id="sidebar-step-project-root" class="sidebar-step-row" data-step-id="project-root">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">01</span><span class="sidebar-step-lbl">Project root</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-web" class="sidebar-step-row" data-step-id="web">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">02</span><span class="sidebar-step-lbl">Web service IP</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-secrets" class="sidebar-step-row" data-step-id="secrets">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">03</span><span class="sidebar-step-lbl">Deployment secrets</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-runtime" class="sidebar-step-row" data-step-id="runtime">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">04</span><span class="sidebar-step-lbl">Prepare runtime</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-endpoint" class="sidebar-step-row" data-step-id="endpoint">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">05</span><span class="sidebar-step-lbl">PXE endpoint</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-os-image" class="sidebar-step-row" data-step-id="os-image">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">06</span><span class="sidebar-step-lbl">OS Image Cache</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-profile" class="sidebar-step-row" data-step-id="profile">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">07</span><span class="sidebar-step-lbl">Publish profile</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-preflight" class="sidebar-step-row" data-step-id="preflight">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">08</span><span class="sidebar-step-lbl">Run preflight</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-services" class="sidebar-step-row" data-step-id="services">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">09</span><span class="sidebar-step-lbl">Start services</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-      <div id="sidebar-step-client" class="sidebar-step-row" data-step-id="client">
-        <div class="sidebar-step-inner"><span class="sidebar-step-num">10</span><span class="sidebar-step-lbl">Boot client</span></div>
-        <span class="sidebar-step-dot"></span>
-      </div>
-    </div>
-    <div class="sidebar-foot">
-      <span class="sb-status-dot"></span>
-      <span class="sidebar-status-label">Elevated · admin</span>
-    </div>
-  </aside>
-
-  <!-- Main Column -->
+  <!-- Single column: top nav bar / content / console dock -->
   <div class="v3-app">
     <header class="v3-topbar">
-      <div class="v3-topbar-left"></div>
+      <div class="v3-topbar-left">
+        <div class="v3-brand">
+          <div class="v3-logo-block" aria-hidden="true">W</div>
+          <div class="v3-brand-text">
+            <span class="v3-brand-name">Winception</span>
+            <span id="app-version" class="v3-brand-version"></span>
+          </div>
+        </div>
+        <nav class="v3-nav" aria-label="Views">
+          <button id="tab-dashboard" class="v3-navlink active" type="button">
+            <span class="material-symbols-outlined">rocket_launch</span>
+            <span>Deploy</span>
+          </button>
+          <button id="tab-guided" class="v3-navlink" type="button">
+            <span class="material-symbols-outlined">settings</span>
+            <span>Setup</span>
+          </button>
+          <button id="tab-fleet" class="v3-navlink" type="button">
+            <span class="material-symbols-outlined">analytics</span>
+            <span>Activity</span>
+          </button>
+        </nav>
+      </div>
       <div class="v3-topright">
+        <button id="setup-progress-chip" class="setup-chip" type="button" title="Open guided setup" hidden>
+          <span class="material-symbols-outlined text-[15px]">checklist</span>
+          <span id="setup-progress-text">Setup</span>
+        </button>
         <span id="endpoint-line" class="font-technical-string text-technical-string endpoint-chip">Loading endpoint...</span>
         <span id="operation-badge" class="badge neutral live-chip">Idle</span>
         <span id="updated-at" class="font-data-tabular text-data-tabular updated-chip"></span>
         <button id="refresh-button" class="ctx-icon-btn" type="button" aria-label="Refresh"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
-        <span class="v3-avatar" aria-hidden="true">D</span>
+        <span class="host-chip" title="Console session"><span class="host-chip-dot"></span>admin</span>
       </div>
     </header>
     <main class="v3-main flex-1 overflow-y-auto flex flex-col">
@@ -205,44 +151,40 @@
           <div id="services-grid" class="dash-services-grid" aria-label="Services"></div>
         </section>
 
-        <details class="v3-more">
-          <summary><span class="material-symbols-outlined text-[18px]">tune</span>Diagnostics</summary>
-          <div class="v3-more-body">
-            <!-- DOM-only: kept for JS, not rendered in diagnostics panel -->
-            <section id="endpoint-summary" class="endpoint-summary-grid" aria-label="Endpoint summary" hidden></section>
-            <div hidden><div id="pipeline-steps" class="pipeline-horizontal"></div></div>
-            <div hidden><div id="live-metrics" class="live-metrics"></div></div>
-            <section class="sync-progress-panel" hidden>
-              <div class="panel-title-row"><h3>Endpoint Sync Progress</h3><span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span></div>
-              <div id="sync-action-items" class="sync-action-summary font-log-entry text-log-entry"></div>
-              <details class="sync-output-details"><summary>Sequence and process output</summary>
-                <div class="sync-progress-grid"><section><h4>Target</h4><dl id="sync-progress-target" class="stitch-details"></dl></section><section><h4>Sequence</h4><div id="sync-progress-steps" class="flex flex-col gap-sm"></div></section></div>
-                <pre id="sync-output" class="font-log-entry text-log-entry text-on-surface-variant"></pre>
-              </details>
-            </section>
-            <section class="driver-cache-panel" hidden>
-              <div class="panel-title-row"><h3>Driver Cache</h3><span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span></div>
-              <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
-            </section>
-            <!-- Visible: 2-col diagnostics matching the design (CSS makes this 2-col at 1100px+) -->
-            <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm">
-              <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
-                <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span></div>
-                <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
-                <div class="runtime-readiness-actions flex flex-wrap gap-sm">
-                  <button data-action="prepare-runtime" data-icon="deployed_code_update" class="warning" type="button">Prepare runtime</button>
-                  <button data-action="interfaces" data-icon="settings_ethernet" type="button">Select interface</button>
-                  <button data-action="initialization" data-icon="checklist" type="button">Initialization</button>
-                </div>
-              </section>
-              <section class="preflight-summary-panel p-md flex flex-col gap-sm">
-                <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span></div>
-                <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
-              </section>
+        <!-- DOM-only: kept for JS render targets, never displayed -->
+        <div hidden aria-hidden="true">
+          <section id="endpoint-summary" class="endpoint-summary-grid" aria-label="Endpoint summary" hidden></section>
+          <div id="pipeline-steps" class="pipeline-horizontal"></div>
+          <div id="live-metrics" class="live-metrics"></div>
+          <section class="sync-progress-panel" hidden>
+            <div class="panel-title-row"><h3>Endpoint Sync Progress</h3><span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span></div>
+            <div id="sync-action-items" class="sync-action-summary font-log-entry text-log-entry"></div>
+            <details class="sync-output-details"><summary>Sequence and process output</summary>
+              <div class="sync-progress-grid"><section><h4>Target</h4><dl id="sync-progress-target" class="stitch-details"></dl></section><section><h4>Sequence</h4><div id="sync-progress-steps" class="flex flex-col gap-sm"></div></section></div>
+              <pre id="sync-output" class="font-log-entry text-log-entry text-on-surface-variant"></pre>
+            </details>
+          </section>
+          <section class="driver-cache-panel" hidden>
+            <div class="panel-title-row"><h3>Driver Cache</h3><span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span></div>
+            <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
+          </section>
+        </div>
+
+        <!-- Always-visible readiness: runtime + preflight side by side, no toggle to hunt for -->
+        <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm">
+          <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
+            <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span></div>
+            <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
+            <div class="runtime-readiness-actions flex flex-wrap gap-sm">
+              <button data-action="prepare-runtime" data-icon="deployed_code_update" class="warning" type="button">Prepare runtime</button>
             </div>
-          </div>
-        </details>
-            </section>
+          </section>
+          <section class="preflight-summary-panel p-md flex flex-col gap-sm">
+            <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span></div>
+            <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
+          </section>
+        </div>
+      </section>
       <!-- Guided Setup View Container -->
       <section id="initialization-dialog" class="view flex-col gap-sm" aria-labelledby="guided-setup-title">
         <div class="guided-v3">
@@ -262,10 +204,9 @@
           <div class="guided-v3-body">
             <div class="guided-v3-main">
               <div id="initialization-steps" class="guided-timeline"></div>
-              <!-- detail panel: moved inline under the active step by app.js -->
-              <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by app.js --></section>
             </div>
-            <div id="initialization-operation" class="initialization-operation-panel" aria-live="polite" hidden></div>
+            <!-- right column: full detail of the selected step, sticky so no scrolling is needed -->
+            <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by app.js --></section>
           </div>
           <div class="guided-v3-foot">
             <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="v3-primary" type="button">Next step</button>
@@ -294,18 +235,25 @@
           <div class="fleet-cards" id="fleet-cards"></div>
           <aside class="fleet-detail" id="fleet-detail" aria-live="polite"></aside>
         </div>
-        <section class="v3-log-panel activity-log"><div class="v3-log-head"><span>Activity log</span></div><pre id="logs" class="system-log-output font-log-entry text-log-entry p-sm overflow-auto"></pre></section>
       </section>
 
     </main>
-  </div><!-- /v3-app -->
 
-  <!-- Right Log Rail -->
-  <aside id="log-rail" aria-label="Console log">
-    <span class="material-symbols-outlined log-rail-icon">terminal</span>
-    <span class="log-rail-label">Console log</span>
-    <span class="material-symbols-outlined log-rail-icon">unfold_more</span>
-  </aside>
+    <!-- Global console dock: live operation output visible from every view -->
+    <section id="console-dock" class="console-dock collapsed" aria-label="Console output">
+      <div id="console-dock-head" class="console-dock-head" role="button" tabindex="0" aria-expanded="false" aria-controls="logs">
+        <span class="material-symbols-outlined console-dock-icon">terminal</span>
+        <span class="console-dock-title">Console</span>
+        <span id="console-op-label" class="console-dock-op font-technical-string"></span>
+        <span id="console-op-badge" class="status-pill neutral" aria-live="polite">Idle</span>
+        <span id="console-op-error" class="console-dock-error" hidden></span>
+        <span class="console-dock-spacer"></span>
+        <button id="console-dock-copy" class="ctx-icon-btn console-dock-btn" type="button" aria-label="Copy log" title="Copy log"><span class="material-symbols-outlined text-[16px]">content_copy</span></button>
+        <span class="material-symbols-outlined console-dock-chevron">expand_less</span>
+      </div>
+      <pre id="logs" class="console-dock-log font-log-entry text-log-entry"></pre>
+    </section>
+  </div><!-- /v3-app -->
 
   <div id="fleet-backdrop" class="fleet-backdrop" hidden></div>
 

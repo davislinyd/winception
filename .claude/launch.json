@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["C:\\OSDCloud\\HostTools\\App\\src\\webServer.js"],
       "port": 8080
+    },
+    {
+      "name": "Winception Repo Console",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [".claude/preview-server.mjs"],
+      "port": 8090
     }
   ]
 }
