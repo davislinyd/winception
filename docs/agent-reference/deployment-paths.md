@@ -53,6 +53,8 @@ TimeZone         : Taipei Standard Time
 FinalStatusStage : windows-desktop-ready
 ```
 
+**Validated hardware (2026-06-12)**: Dell physical laptop (Latitude series), `secureboot` mode, Secure Boot ON — deployed to `windows-desktop-ready`, `Confirm-SecureBootUEFI` returned `True`. See `TEST-RESULT.md` for the no-AI operator runbook and full evidence record.
+
 ## VM Regression Path
 
 Use VM regression only when the user explicitly asks for VM or regression validation.

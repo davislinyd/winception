@@ -561,6 +561,18 @@ DnsMicrosoft     : True
 HttpConnectTest  : True
 ```
 
+Secure Boot 實體筆電驗證結果（2026-06-12，secureboot 模式，Secure Boot 開啟）：
+
+```text
+DisplayVersion   : 25H2
+CurrentBuild     : 26200
+EditionID        : Professional
+Culture          : zh-TW
+TimeZone         : Taipei Standard Time
+FinalStatusStage : windows-desktop-ready
+Confirm-SecureBootUEFI : True
+```
+
 ## 主要檔案
 
 測試報告：
