@@ -311,7 +311,10 @@ setup 選擇的 NIC/IP 會寫入 ignored `config\osdcloud-console.local.json`，
 - `WAN` 是 host 上網介面，保留 default route。
 - `LAN` 是接實體 client / PXE switch 的介面，預期為 `192.168.88.1/24`。
 - 要做 PXE 測試的實體 LAN 上，不應同時有另一台 DHCP server 回答同一台 client。
-- Client 使用 UEFI IPv4 PXE 開機；目前已驗證路徑使用 `snponly.efi`，signed shim Secure Boot PXE 還不是已驗證路徑。
+- Client 使用 UEFI IPv4 PXE 開機。開機鏈由 `dhcp.bootMode` 決定，共兩種模式：
+  - `secureboot`（預設）：DHCP 發 Microsoft 簽章的 `bootmgfw.efi`，bootmgr 經 TFTP 載入 `Boot\BCD`、`Boot\boot.sdi` 與 `sources\boot.wim` 直接進 WinPE。整條鏈都是 Microsoft 簽章，client 的 Secure Boot 可保持**開啟**（Dell Latitude 5420–5450、Dell Pro 14、Hyper-V Gen2 `MicrosoftWindows` template 出廠即信任）；Secure Boot 關閉也能開機。
+  - `ipxe`（fallback）：DHCP 發未簽章的 `ipxeboot/x86_64-sb/snponly.efi`，iPXE 經 HTTP wimboot 載入 WinPE。boot.wim 傳輸較快，但 client 必須**關閉** Secure Boot。
+  - 模式切換：Web console「Endpoint Settings → Client Boot Mode」，或編輯 local overlay 的 `dhcp.bootMode` 後重啟服務。
 - 不需要在 client 插 USB 或掛 ISO。
 
 若 `LAN` IP 還沒有設定，先執行：
@@ -484,7 +487,8 @@ iPXE no-redownload 還要確認：
 | 現象 | 優先檢查 |
 | --- | --- |
 | Client 沒拿到 IP | DHCP service 是否 running、真實 LAN DHCP 是否衝突、client 是否接到 `LAN` |
-| Client 拿到 IP 但沒有下載 `boot.ipxe` | TFTP `snponly.efi` 是否成功、DHCP 是否在 iPXE 階段回傳 boot URL |
+| secureboot 模式 client 拿到 IP 但卡在 PXE | 看 `pxe-tftp.log`：`bootmgfw.efi`、`Boot/BCD`、`Boot/boot.sdi`、`sources/boot.wim` 應依序 `RRQ`/`SENT`；任何 `MISS` 行表示 bootmgr 要的檔案沒 staged，重跑 Endpoint Sync 或 `tools\Publish-SecureBootTftp.ps1` |
+| ipxe 模式 client 拿到 IP 但沒有下載 `boot.ipxe` | TFTP `snponly.efi` 是否成功、DHCP 是否在 iPXE 階段回傳 boot URL、client Secure Boot 是否已關閉（iPXE 鏈未簽章，SB 開啟會被韌體拒絕） |
 | Client 拿到 LAN IP 但 HTTP 跑去 WAN | live `boot.ipxe` 的 `set base` 是否仍是舊 IP；在 Web console 重新 `Select service interface` |
 | 有 `boot.ipxe` / `boot.wim` 但不套用 Windows | WinPE 是否掛到 `\\<service-ip>\OSDCloudiPXE`，deployable WIM 與 `selected-os.json` 是否存在，SMB firewall 是否允許 |
 | HTTP log 出現 OS WIM `HEAD` / `GET` | 可能誤用 `-ImageFileUrl` 或沒有走 SMB direct image |
@@ -609,11 +613,12 @@ C:\OSDCloud\PXE-HttpRoot\osdcloud
 1. 確認真實環境 DHCP server 已暫時關閉，避免和本機 PXE DHCP responder 衝突。
 2. Host service IP 必須存在於一張已啟用的 IPv4 介面上；介面名稱和 IP 每次以 Web console 選取結果為準。
 3. Host 啟動 PXE helper：PowerShell DHCP、PowerShell TFTP、Node HTTP server。
-4. 實體筆電從 UEFI IPv4 PXE 開機，不使用 USB/ISO。
-5. UEFI PXE client 透過 DHCP 拿到目前 Web config 範圍內的 lease、設定中的 gateway/router、DNS 與第一階段 boot file `ipxeboot/x86_64-sb/snponly.efi`。若測試目標需要走 upstream gateway，先在 endpoint/config 中設定清楚並重新同步。
-6. UEFI PXE client 透過 TFTP 下載 `snponly.efi`，進入 iPXE。
-7. iPXE 再次 DHCP，DHCP helper 偵測到 iPXE client 後改回傳 `http://<service-ip>/osdcloud/boot.ipxe`。
-8. iPXE 透過 HTTP 下載 `boot.ipxe`，再載入 `wimboot`、`bootmgr`、`bootx64.efi`、`BCD`、`boot.sdi`、`boot.wim`。
+4. 實體筆電從 UEFI IPv4 PXE 開機，不使用 USB/ISO。`secureboot` 模式（預設）下 Secure Boot 可保持開啟；`ipxe` 模式必須先在 BIOS 關閉 Secure Boot。
+5. UEFI PXE client 透過 DHCP 拿到目前 Web config 範圍內的 lease、設定中的 gateway/router、DNS 與第一階段 boot file：`secureboot` 模式為 `bootmgfw.efi`，`ipxe` 模式為 `ipxeboot/x86_64-sb/snponly.efi`。若測試目標需要走 upstream gateway，先在 endpoint/config 中設定清楚並重新同步。
+6. `secureboot` 模式：client 透過 TFTP 下載 Microsoft 簽章的 `bootmgfw.efi`，bootmgr 再經 TFTP 載入 `Boot\BCD`（網路 BCD，含 `ramdisktftpblocksize=1456`、`ramdisktftpwindowsize=16` 傳輸調校）、`Boot\boot.sdi`、字型與 `sources\boot.wim`（published boot.wim 的 hardlink），ramdisk 開進 WinPE，**跳過步驟 7–8**。
+   `ipxe` 模式：client 透過 TFTP 下載 `snponly.efi`，進入 iPXE。
+7.（僅 `ipxe` 模式）iPXE 再次 DHCP，DHCP helper 偵測到 iPXE client 後改回傳 `http://<service-ip>/osdcloud/boot.ipxe`。
+8.（僅 `ipxe` 模式）iPXE 透過 HTTP 下載 `boot.ipxe`，再載入 `wimboot`、`bootmgr`、`bootx64.efi`、`BCD`、`boot.sdi`、`boot.wim`。
 9. OSDCloud WinPE 啟動，`Startnet.cmd` 執行 `Initialize-OSDCloudStartnet`，再呼叫 iPXE 專用 `Start-OSDCloud-iPXE.ps1`。
 10. `Start-OSDCloud-iPXE.ps1` 啟動 `Report-OSDCloudProgress.ps1`，定期 POST 部署狀態到 `http://<service-ip>/osdcloud/status`，並在關鍵階段 best-effort 上傳 PNG 截圖到 `/osdcloud/screenshot`。
 11. `Start-OSDCloud-iPXE.ps1` 用 `net use Z: \\<service-ip>\OSDCloudiPXE` 掛載 read-only SMB share。
@@ -1045,15 +1050,15 @@ VM 結果只能作為 regression evidence。要宣告實體筆電 path 可用，
 
 目前 caveat：
 
-- 完整 iPXE 安裝驗證時，PXE 階段可先暫時關閉 Secure Boot 完成排障。
-- signed shim PXE 尚未成為已驗證路徑；目前先沿用 `snponly.efi`。
+- `secureboot` 模式（Microsoft 簽章 `bootmgfw.efi` PXE 鏈）為預設，Secure Boot 開/關都能開機；`ipxe` 模式保留為 fallback，使用時 client 必須關閉 Secure Boot。
+- signed shim + iPXE 方案已放棄：shim 只信任 MOK/發行版簽章的下一階段，對未簽章的 iPXE/wimboot 需要逐台 MOK enrollment，違反 zero-touch。Secure Boot 改由 Microsoft 簽章開機鏈（`bootmgfw.efi` → 網路 BCD → `winload.efi`）支援。
+- `secureboot` 模式的 boot.wim 走 TFTP（windowsize=16），傳輸比 `ipxe` 模式的 HTTP 慢；若 boot 時間過長可將 `tools\Publish-SecureBootTftp.ps1` 內 BCD 的 `ramdisktftpwindowsize` 往 64（server 上限）調整。
 
 ## 後續方向
 
-下一步若要完成實體筆電驗證 / signed shim PXE：
+下一步：
 
-- 將目前已驗證的 iPXE HTTP boot 來源與 SMB image share 搬到正式 PXE server
-- 繼續排查 signed shim PXE
+- 將目前已驗證的 boot 來源與 SMB image share 搬到正式 PXE server
 - 依硬體型號分流 driver pack
 - Dell Latitude 5430 等機型可加入 Dell driver pack 與 Dell Command Update
 - Firmware / BIOS 更新應放在 Windows 階段，並檢查 AC 電源、電池與 BitLocker 狀態

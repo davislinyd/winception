@@ -1359,3 +1359,34 @@ test('torrent tracker is not started by startAll when disabled', async () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('changeBootMode persists the mode, refreshes services, and reruns preflight', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-boot-mode-'));
+  try {
+    const saved = [];
+    const { controller, config } = makeController(root, {
+      dependencies: {
+        saveConfig: (nextConfig) => {
+          saved.push(nextConfig.dhcp.bootMode);
+          return path.join(root, 'config.json');
+        },
+      },
+    });
+
+    const result = await controller.changeBootMode('ipxe');
+    assert.equal(result.bootMode, 'ipxe');
+    assert.equal(config.dhcp.bootMode, 'ipxe');
+    assert.equal(config.dhcp.secureBootFile, 'bootmgfw.efi');
+    assert.deepEqual(saved, ['ipxe']);
+    assert.equal(controller.servicesState().dhcp.bootMode, 'ipxe');
+    assert.ok(Array.isArray(result.preflight));
+
+    await controller.changeBootMode('secureboot');
+    assert.equal(config.dhcp.bootMode, 'secureboot');
+    assert.equal(controller.getState().config.dhcp.bootMode, 'secureboot');
+
+    await assert.rejects(() => controller.changeBootMode('bogus'), /Invalid boot mode/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

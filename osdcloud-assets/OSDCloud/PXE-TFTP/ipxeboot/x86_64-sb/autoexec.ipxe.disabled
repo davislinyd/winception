@@ -1,2 +1,2 @@
 #!ipxe
-chain http://192.168.88.1/osdcloud/boot.ipxe
+chain http://192.168.77.1/osdcloud/boot.ipxe

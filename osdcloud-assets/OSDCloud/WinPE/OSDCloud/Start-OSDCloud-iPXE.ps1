@@ -66,7 +66,7 @@ try {
 $candidates.Add('192.168.100.1')
 $candidates.Add('192.168.88.1')
 
-$server = '192.168.100.1' # Default fallback
+$server = '192.168.77.1' # Default fallback
 foreach ($ip in ($candidates | Select-Object -Unique)) {
     if ([string]::IsNullOrWhiteSpace($ip) -or $ip -eq '0.0.0.0') { continue }
     try {

@@ -442,6 +442,31 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       status: 'blocked',
     }, ...(runtimeInitializationDetailItems(runtime) ?? [])]
     : runtimeInitializationDetailItems(runtime);
+  const bootMode = config.dhcp?.bootMode ?? 'secureboot';
+  const bootModeLabel = bootMode === 'secureboot'
+    ? 'secureboot (signed Windows Boot Manager over TFTP)'
+    : 'ipxe (unsigned iPXE + HTTP wimboot)';
+  const clientBootDetail = bootMode === 'secureboot'
+    ? 'Boot the target computer from UEFI IPv4 PXE — Secure Boot can stay ON. Monitor Client Fleet and Validation Evidence.'
+    : 'Boot the target computer from UEFI IPv4 PXE with Secure Boot turned OFF (the iPXE chain is unsigned), then monitor Client Fleet and Validation Evidence.';
+  const clientBootDetailItems = [
+    {
+      title: 'Dell Latitude 5420-5450 / Dell Pro 14',
+      meta: 'BIOS setup (F2)',
+      detail: bootMode === 'secureboot'
+        ? 'Secure Boot: Enabled (Microsoft Windows mode). Integrated NIC: Enabled w/PXE (UEFI Network Stack). Boot mode: UEFI only, no Legacy/CSM. Then F12 one-time boot -> UEFI IPv4 (NIC). Secure Boot stays ON for the whole deployment.'
+        : 'Secure Boot: Disabled (required by the unsigned iPXE chain). Integrated NIC: Enabled w/PXE (UEFI Network Stack). Boot mode: UEFI only, no Legacy/CSM. Then F12 one-time boot -> UEFI IPv4 (NIC).',
+      status: 'ready',
+    },
+    {
+      title: 'Hyper-V Generation 2 VM',
+      meta: 'firmware settings',
+      detail: bootMode === 'secureboot'
+        ? "Set-VMFirmware -VMName <vm> -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows; Set-VMFirmware -VMName <vm> -FirstBootDevice (Get-VMNetworkAdapter -VMName <vm>)"
+        : "Set-VMFirmware -VMName <vm> -EnableSecureBoot Off; Set-VMFirmware -VMName <vm> -FirstBootDevice (Get-VMNetworkAdapter -VMName <vm>)",
+      status: 'ready',
+    },
+  ];
   const steps = [
     {
       id: 'project-root',
@@ -522,7 +547,7 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       required: true,
       done: endpoint.ready,
       action: 'interfaces',
-      detail: endpoint.detail,
+      detail: `${endpoint.detail} | boot mode: ${bootModeLabel}`,
       objective: '選擇本次服務 PXE client 的 NIC/IP，並把 endpoint 同步到 live boot.ipxe、boot.wim 與 SMB/firewall。',
       doneWhen: 'Local endpoint overlay 已寫入，endpoint summary 與本次測試網段一致。',
       safetyNote: '每次部署前確認服務 IP 與 endpoint 設定一致。',
@@ -594,12 +619,13 @@ function buildInitializationState({ config, secrets, runtime, endpoint, osImage,
       action: 'dashboard',
       detail: hasDeploymentRun
         ? `${fleet?.total ?? fleet?.runs?.length ?? 0} deployment run(s) are visible in Client Fleet.`
-        : 'Boot the target computer from UEFI IPv4 PXE, then monitor Client Fleet and Validation Evidence.',
+        : clientBootDetail,
       objective: '讓目標電腦從 UEFI IPv4 PXE 開機，並用 Client Fleet / Validation Evidence 監看部署。',
       doneWhen: 'Client Fleet 出現本次 run，最後狀態到 windows-desktop-ready。',
       safetyNote: '實體部署驗證須以實際裝置為準。',
       nextActionText: hasDeploymentRun ? '查看部署證據' : '前往儀表板監看',
       phase: 'deploy',
+      detailItems: clientBootDetailItems,
     },
   ];
   const requiredSteps = steps.filter((step) => step.required);
@@ -964,7 +990,9 @@ export class ServiceController extends EventEmitter {
         leaseStartIp: this.config.dhcp.leaseStartIp,
         leaseEndIp: this.config.dhcp.leaseEndIp,
         router: this.config.dhcp.router,
+        bootMode: this.config.dhcp.bootMode ?? 'secureboot',
         bootFile: this.config.dhcp.bootFile,
+        secureBootFile: this.config.dhcp.secureBootFile ?? 'bootmgfw.efi',
         ipxeBootUrl: this.config.dhcp.ipxeBootUrl,
       }),
       torrent: serviceSummary(this.services.torrent, {
@@ -1076,7 +1104,9 @@ export class ServiceController extends EventEmitter {
           subnetMask: this.config.dhcp.subnetMask,
           router: this.config.dhcp.router,
           dnsServers: this.config.dhcp.dnsServers ?? [],
+          bootMode: this.config.dhcp.bootMode ?? 'secureboot',
           bootFile: this.config.dhcp.bootFile,
+          secureBootFile: this.config.dhcp.secureBootFile ?? 'bootmgfw.efi',
           ipxeBootUrl: this.config.dhcp.ipxeBootUrl,
         },
         http: {
@@ -1338,6 +1368,27 @@ export class ServiceController extends EventEmitter {
     const line = `[${status}] ${message}`;
     this.endpointUpdateStatus.push(line);
     this.addLog(`[endpoint] ${message}`);
+  }
+
+  async changeBootMode(mode) {
+    if (!['secureboot', 'ipxe'].includes(mode)) {
+      throw errorWithStatus(`Invalid boot mode: ${mode}. Expected secureboot or ipxe.`, 400);
+    }
+    return this.runOperation('Changing client boot mode', async () => {
+      await this.stopAllServices();
+      const previousMode = this.config.dhcp.bootMode ?? 'secureboot';
+      this.config.dhcp.bootMode = mode;
+      this.config.dhcp.secureBootFile ??= 'bootmgfw.efi';
+      const savedPath = this.dependencies.saveConfig(this.config);
+      this.refreshServiceConfigs();
+      this.addLog(`Client boot mode ${previousMode} -> ${mode} (saved ${savedPath})`);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      return {
+        configPath: savedPath,
+        bootMode: mode,
+        preflight: this.preflightResults,
+      };
+    });
   }
 
   async changeDeploymentProfile(profileId) {

@@ -235,6 +235,12 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/boot-mode') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.changeBootMode(body.mode ?? body.bootMode);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/profile') {
       const body = await readJsonBody(req);
       const result = await this.controller.changeDeploymentProfile(body.profileId ?? body.id);

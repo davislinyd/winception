@@ -1012,6 +1012,9 @@ function Ensure-RuntimeSkeletonAndShare {
         (Join-Path $mediaRoot 'OSDCloud\DriverPacks'),
         (Join-Path $LiveRoot 'PXE-HttpRoot\osdcloud'),
         (Join-Path $LiveRoot 'PXE-TFTP\ipxeboot\x86_64-sb'),
+        (Join-Path $LiveRoot 'PXE-TFTP\Boot\Fonts'),
+        (Join-Path $LiveRoot 'PXE-TFTP\Boot\Resources'),
+        (Join-Path $LiveRoot 'PXE-TFTP\sources'),
         (Join-Path $LiveRoot 'Config\Scripts\Shutdown'),
         (Join-Path $LiveRoot 'Config\Scripts\SetupComplete'),
         (Join-Path $LiveRoot 'Tools'),
@@ -1136,7 +1139,9 @@ try {
     Ensure-RuntimeSkeletonAndShare
 
     Write-Step "Preparing OSDCloud iPXE workspace"
-    $generated = @($artifacts | Where-Object { $_.sourceType -in @('generated', 'generated-winpe') })
+    # secureboot-tftp artifacts are staged by Publish-SecureBootTftp.ps1 below; their
+    # absence alone must not trigger a full workspace rebuild.
+    $generated = @($artifacts | Where-Object { $_.sourceType -in @('generated', 'generated-winpe') -and $_.prepareGroup -ne 'secureboot-tftp' })
     $generatedMissing = $false
     foreach ($artifact in $generated) {
         foreach ($target in @(Get-ArtifactTargets -Artifact $artifact)) {
@@ -1153,6 +1158,13 @@ try {
         Write-Host "Generated WinPE and boot binaries already match catalog."
     }
     Restore-VersionedAssets
+
+    # Idempotent: also repairs installs upgraded from versions without the secureboot tree.
+    Write-Step "Publishing Secure Boot TFTP tree"
+    & (Join-Path $PSScriptRoot 'Publish-SecureBootTftp.ps1') -LiveRoot $LiveRoot -DryRun:$DryRun
+    if ($LASTEXITCODE -ne 0) {
+        throw "Publish-SecureBootTftp.ps1 failed with exit code $LASTEXITCODE"
+    }
 
     Write-Step "Restoring repo-managed artifacts"
     foreach ($artifact in @($artifacts | Where-Object { $_.sourceType -eq 'repo-file' })) {

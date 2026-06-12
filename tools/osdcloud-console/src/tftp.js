@@ -119,6 +119,28 @@ function negotiateBlockSize(options) {
   return Math.max(8, Math.min(requested, 1468));
 }
 
+export function negotiateWindowSize(options) {
+  if (!Object.hasOwn(options, 'windowsize')) {
+    return 1;
+  }
+  const requested = Number.parseInt(options.windowsize, 10);
+  if (!Number.isInteger(requested)) {
+    return 1;
+  }
+  return Math.max(1, Math.min(requested, 64));
+}
+
+// ACK block numbers wrap at 65536; files larger than blockSize*65535 (boot.wim) make
+// the wrap a live concern. Map a wrapped ACK back to an absolute block number within
+// [lowestUnacked - 1, windowEnd]; lowestUnacked - 1 is a duplicate ACK of the previous
+// window's tail, which requests a resend.
+export function resolveAbsoluteAck(wrappedAck, lowestUnacked, windowEnd) {
+  const base = (lowestUnacked - 1) & 0xffff;
+  const delta = (wrappedAck - base) & 0xffff;
+  const absolute = lowestUnacked - 1 + delta;
+  return absolute <= windowEnd ? absolute : null;
+}
+
 async function sendPacketWithRetry(socket, packet, endpoint, expectedAckBlock, maxAttempts = 8) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     socket.send(packet, endpoint.port, endpoint.address);
@@ -130,11 +152,79 @@ async function sendPacketWithRetry(socket, packet, endpoint, expectedAckBlock, m
   return false;
 }
 
+function waitForWindowAck(socket, endpoint, lowestUnacked, windowEnd, timeoutMs) {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      socket.off('message', onMessage);
+      resolve(null);
+    }, timeoutMs);
+
+    function onMessage(packet, remote) {
+      if (remote.address !== endpoint.address || remote.port !== endpoint.port) {
+        return;
+      }
+      const block = parseAck(packet);
+      if (block === null) {
+        return;
+      }
+      const absolute = resolveAbsoluteAck(block, lowestUnacked, windowEnd);
+      if (absolute === null) {
+        return;
+      }
+      clearTimeout(timeout);
+      socket.off('message', onMessage);
+      resolve(absolute);
+    }
+
+    socket.on('message', onMessage);
+  });
+}
+
+function dataPacket(file, blockSize, absoluteBlock) {
+  const chunk = Buffer.alloc(blockSize);
+  const read = fs.readSync(file, chunk, 0, blockSize, (absoluteBlock - 1) * blockSize);
+  const wrapped = absoluteBlock & 0xffff;
+  const payload = Buffer.alloc(2 + read);
+  payload[0] = (wrapped >>> 8) & 0xff;
+  payload[1] = wrapped & 0xff;
+  chunk.copy(payload, 2, 0, read);
+  return newTftpPacket(3, payload);
+}
+
+// RFC 7440: send windowSize DATA blocks per round trip. The client ACKs the last
+// in-order block it received; an ACK before the window tail (or a duplicate ACK of
+// the previous tail) rolls the window back to the first unacknowledged block.
+async function sendWindowedBlocks({ file, fileSize, blockSize, windowSize, socket, endpoint, fileLabel, onLog }) {
+  const totalBlocks = Math.floor(fileSize / blockSize) + 1;
+  let lowestUnacked = 1;
+  let consecutiveTimeouts = 0;
+
+  while (lowestUnacked <= totalBlocks) {
+    const windowEnd = Math.min(lowestUnacked + windowSize - 1, totalBlocks);
+    for (let block = lowestUnacked; block <= windowEnd; block += 1) {
+      socket.send(dataPacket(file, blockSize, block), endpoint.port, endpoint.address);
+    }
+    const acked = await waitForWindowAck(socket, endpoint, lowestUnacked, windowEnd, 3000);
+    if (acked === null) {
+      consecutiveTimeouts += 1;
+      if (consecutiveTimeouts >= 8) {
+        onLog(`DATA window at block ${lowestUnacked} not acknowledged by ${endpoint.address}:${endpoint.port} for ${fileLabel}`);
+        return false;
+      }
+      continue;
+    }
+    consecutiveTimeouts = 0;
+    lowestUnacked = Math.max(lowestUnacked, acked + 1);
+  }
+  return true;
+}
+
 async function sendFile({ filePath, request, endpoint, listenIp, onLog }) {
   const stats = fs.statSync(filePath);
   const transferSocket = dgram.createSocket('udp4');
   const options = path.extname(filePath).toLowerCase() === '.ipxe' ? {} : request.options;
   const blockSize = negotiateBlockSize(options);
+  const windowSize = negotiateWindowSize(options);
 
   await new Promise((resolve) => transferSocket.bind(0, listenIp, resolve));
 
@@ -145,6 +235,9 @@ async function sendFile({ filePath, request, endpoint, listenIp, onLog }) {
     }
     if (Object.hasOwn(options, 'blksize')) {
       oackParts.push('blksize', String(blockSize));
+    }
+    if (Object.hasOwn(options, 'windowsize')) {
+      oackParts.push('windowsize', String(windowSize));
     }
 
     if (oackParts.length > 0) {
@@ -158,30 +251,46 @@ async function sendFile({ filePath, request, endpoint, listenIp, onLog }) {
 
     const file = fs.openSync(filePath, 'r');
     try {
-      let block = 1;
-      let position = 0;
-      let read = 0;
-      do {
-        const chunk = Buffer.alloc(blockSize);
-        read = fs.readSync(file, chunk, 0, blockSize, position);
-        position += read;
-        const payload = Buffer.alloc(2 + read);
-        payload[0] = (block >>> 8) & 0xff;
-        payload[1] = block & 0xff;
-        chunk.copy(payload, 2, 0, read);
-        const data = newTftpPacket(3, payload);
-        const acked = await sendPacketWithRetry(transferSocket, data, endpoint, block);
-        if (!acked) {
-          onLog(`DATA block ${block} not acknowledged by ${endpoint.address}:${endpoint.port} for ${path.basename(filePath)}`);
+      if (windowSize > 1) {
+        const completed = await sendWindowedBlocks({
+          file,
+          fileSize: stats.size,
+          blockSize,
+          windowSize,
+          socket: transferSocket,
+          endpoint,
+          fileLabel: path.basename(filePath),
+          onLog,
+        });
+        if (!completed) {
           return;
         }
-        block = (block + 1) & 0xffff;
-      } while (read === blockSize);
+      } else {
+        let block = 1;
+        let position = 0;
+        let read = 0;
+        do {
+          const chunk = Buffer.alloc(blockSize);
+          read = fs.readSync(file, chunk, 0, blockSize, position);
+          position += read;
+          const payload = Buffer.alloc(2 + read);
+          payload[0] = (block >>> 8) & 0xff;
+          payload[1] = block & 0xff;
+          chunk.copy(payload, 2, 0, read);
+          const data = newTftpPacket(3, payload);
+          const acked = await sendPacketWithRetry(transferSocket, data, endpoint, block);
+          if (!acked) {
+            onLog(`DATA block ${block} not acknowledged by ${endpoint.address}:${endpoint.port} for ${path.basename(filePath)}`);
+            return;
+          }
+          block = (block + 1) & 0xffff;
+        } while (read === blockSize);
+      }
     } finally {
       fs.closeSync(file);
     }
 
-    onLog(`SENT ${path.basename(filePath)} bytes=${stats.size} blockSize=${blockSize} to ${endpoint.address}:${endpoint.port}`);
+    onLog(`SENT ${path.basename(filePath)} bytes=${stats.size} blockSize=${blockSize} windowSize=${windowSize} to ${endpoint.address}:${endpoint.port}`);
   } finally {
     transferSocket.close();
   }

@@ -235,10 +235,10 @@ try {
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\bootmgr') -Reason 'generated Windows boot binary'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\bootx64.efi') -Reason 'generated Windows boot binary'
         Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-HttpRoot\osdcloud\wimboot') -Reason 'upstream iPXE wimboot binary'
-        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\snponly-shim.efi') -Reason 'upstream iPXE Secure Boot binary'
-        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\ipxe-shim.efi') -Reason 'upstream iPXE Secure Boot binary'
-        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\shimx64.efi') -Reason 'upstream shim binary'
-        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\ipxeboot\x86_64-sb\ipxe.efi') -Reason 'upstream iPXE binary'
+        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\bootmgfw.efi') -Reason 'generated Windows boot binary (secureboot PXE)'
+        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\Boot\BCD') -Reason 'generated network BCD store (secureboot PXE)'
+        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\Boot\boot.sdi') -Reason 'generated Windows boot binary (secureboot PXE)'
+        Add-ExcludedArtifact -Path (Join-Path $ipxeLab 'PXE-TFTP\sources\boot.wim') -Reason 'published WinPE boot image hardlink (secureboot PXE)'
     )
 
     $manifest = [ordered]@{

@@ -4,7 +4,7 @@ Read this file when a task mentions deployment paths, physical laptop, VM regres
 
 ## Live Endpoint Rule
 
-Do not assume committed endpoint settings are current. Before physical-laptop validation, read the active service interface/IP, DHCP lease range, router, HTTP base, SMB share, live `boot.ipxe`, host adapter state, and Web/API state immediately before acting.
+Do not assume committed endpoint settings are current. Before physical-laptop validation, read the active service interface/IP, DHCP lease range, router, HTTP base, SMB share, client boot mode (`dhcp.bootMode`), live `boot.ipxe`, host adapter state, and Web/API state immediately before acting.
 
 If the live endpoint is on a non-production subnet, switch deliberately before physical-laptop validation. The service IP and adapter are path-specific values, not universal truth.
 
@@ -15,7 +15,8 @@ This is the active production-like validation path.
 - Use the Web-console-selected service interface and service IP.
 - Use `npm run web` as the host console.
 - Do not use VM-based (VMConnect, PowerShell Direct) evidence for this path.
-- A valid physical-laptop iPXE test must use UEFI IPv4 PXE with no USB media, no attached ISO, and no manual OOBE clicks on the laptop.
+- A valid physical-laptop PXE test must use UEFI IPv4 PXE with no USB media, no attached ISO, and no manual OOBE clicks on the laptop.
+- The client boot chain is selected by `dhcp.bootMode`: `secureboot` (default; Microsoft-signed `bootmgfw.efi` over TFTP, client Secure Boot may stay ON) or `ipxe` (unsigned `snponly.efi` + HTTP wimboot, client Secure Boot must be OFF). Confirm the live mode before validation; evidence is mode-specific.
 
 Physical validation checklist:
 
@@ -23,15 +24,15 @@ Physical validation checklist:
 2. Confirm the real network DHCP server is disabled for the test window.
 3. Confirm the selected service IP exists on an enabled IPv4 adapter with the intended prefix.
 4. Run endpoint sync through Web or the explicit endpoint script with WinPE commit and asset sync.
-5. Confirm HTTP root includes `boot.ipxe`, `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim`.
+5. Confirm HTTP root includes `boot.ipxe`, `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim`. In `secureboot` mode also confirm the TFTP root includes `bootmgfw.efi`, `Boot\BCD`, `Boot\boot.sdi`, `Boot\Fonts`, and `sources\boot.wim` (hardlinked to the published boot.wim).
 6. Run preflight and resolve blocked items before starting services.
 7. Start HTTP/TFTP/DHCP from the Web console service controls.
-8. Boot the physical laptop from UEFI IPv4 PXE with no USB or ISO media.
-9. Confirm DHCP returns the intended lease range, router, DNS, `snponly.efi`, and the iPXE boot URL for the selected endpoint.
+8. Boot the physical laptop from UEFI IPv4 PXE with no USB or ISO media. In `secureboot` mode leave Secure Boot enabled (Dell F2: Secure Boot Enabled, Integrated NIC Enabled w/PXE, UEFI-only boot); in `ipxe` mode Secure Boot must be disabled first.
+9. Confirm DHCP returns the intended lease range, router, DNS, and the mode-specific boot file: `bootmgfw.efi` (`secureboot`) or `snponly.efi` plus the iPXE boot URL (`ipxe`).
 10. Confirm WinPE maps the SMB share, reads `selected-os.json`, applies the selected exported WIM from SMB, posts progress, and reboots.
 11. Confirm Windows SetupComplete, app/custom script phases if selected, logon reporting, and final `windows-desktop-ready`.
 12. Inspect OSDCloud logs for empty `ImageFileUrl`, `ImageFileDestination` on `Z:\OSDCloud\OS\...`, `ImageFileDestination.PSDrive.DisplayRoot` pointing to `\\<service-ip>\OSDCloudiPXE`, and `OSImageIndex = 1`.
-13. Inspect HTTP logs for `boot.ipxe`, `wimboot`, and `boot.wim`; no OS WIM `HEAD` or `GET` should occur in the no-redownload path.
+13. Inspect the boot transfer logs for the active mode: in `ipxe` mode the HTTP log must show `boot.ipxe`, `wimboot`, and `boot.wim`; in `secureboot` mode the TFTP log (`pxe-tftp.log`) must show `SENT bootmgfw.efi`, `BCD`, `boot.sdi`, and `boot.wim` (windowed), and `MISS` lines for optional probes such as `SiPolicy.p7b`, `boot.stl`, or locale fonts are normal. In both modes no OS WIM `HEAD` or `GET` should occur in the no-redownload path.
 
 Final physical validation should include:
 

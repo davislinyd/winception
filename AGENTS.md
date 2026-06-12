@@ -47,7 +47,7 @@ Do not treat committed endpoint settings, historical run evidence, or host snaps
 Before starting services, endpoint sync, preflight, runtime validation, or deployment validation:
 
 - Read the active deployment project root / working directory, service interface, service IP, DHCP lease range, router, HTTP base, SMB share, active OS image, driver cache summary, and active deployment profile from live Web/API/config state.
-- Inspect `config\osdcloud-console.json`, any ignored local overlay, live `boot.ipxe`, host adapter state, and relevant Web state immediately before acting.
+- Inspect `config\osdcloud-console.json`, any ignored local overlay, the active client boot mode (`dhcp.bootMode`: `secureboot` or `ipxe`), live `boot.ipxe`, host adapter state, and relevant Web state immediately before acting.
 - Treat `config\osdcloud-console.json` as the last synced lab snapshot, not guaranteed production truth.
 - If the repo or runtime appears to be on a non-production endpoint, switch deliberately before physical-laptop validation.
 

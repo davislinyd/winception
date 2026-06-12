@@ -6,6 +6,7 @@ import {
   DhcpResponder,
   LeasePool,
   broadcastAddress,
+  effectiveBootFile,
   getDhcpMessageType,
   getRequestedIp,
   isIpxeClient,
@@ -52,6 +53,26 @@ test('parses DHCP message type, requested IP, and iPXE markers', () => {
   assert.equal(getDhcpMessageType(packet), 1);
   assert.equal(getRequestedIp(packet), '192.168.100.222');
   assert.equal(isIpxeClient(packet), true);
+});
+
+test('selects the boot file per boot mode and client class', () => {
+  const config = {
+    bootFile: 'ipxeboot/x86_64-sb/snponly.efi',
+    secureBootFile: 'bootmgfw.efi',
+    ipxeBootUrl: 'http://192.168.100.1/osdcloud/boot.ipxe',
+  };
+
+  // secureboot mode always hands out the signed boot manager, even to iPXE clients
+  assert.equal(effectiveBootFile({ ...config, bootMode: 'secureboot' }, false), 'bootmgfw.efi');
+  assert.equal(effectiveBootFile({ ...config, bootMode: 'secureboot' }, true), 'bootmgfw.efi');
+
+  // ipxe mode keeps the historical two-stage behavior
+  assert.equal(effectiveBootFile({ ...config, bootMode: 'ipxe' }, false), 'ipxeboot/x86_64-sb/snponly.efi');
+  assert.equal(effectiveBootFile({ ...config, bootMode: 'ipxe' }, true), 'http://192.168.100.1/osdcloud/boot.ipxe');
+
+  // absent bootMode defaults to secureboot; absent secureBootFile falls back to bootmgfw.efi
+  assert.equal(effectiveBootFile(config, false), 'bootmgfw.efi');
+  assert.equal(effectiveBootFile({ bootMode: 'secureboot' }, false), 'bootmgfw.efi');
 });
 
 test('allocates requested IPs only inside the lease pool', () => {

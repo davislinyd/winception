@@ -945,6 +945,14 @@ else {
     Write-Host "Skipped boot.wim mount/commit; run with -CommitWinPe before deployment"
 }
 
+# Refresh the Secure Boot TFTP tree after every endpoint sync: the publish above may
+# have replaced PXE-HttpRoot\osdcloud\boot.wim, and PXE-TFTP\sources\boot.wim must
+# stay hardlinked to (or copied from) the published image.
+& (Join-Path $repoRoot 'tools\Publish-SecureBootTftp.ps1') -LiveRoot $ipxeLab
+if ($LASTEXITCODE -ne 0) {
+    throw "Publish-SecureBootTftp.ps1 failed with exit code $LASTEXITCODE"
+}
+
 if ($SyncAssets) {
     $syncScript = Join-Path $repoRoot 'tools\Sync-OsdCloudAssets.ps1'
     $syncArgs = @{

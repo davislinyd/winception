@@ -79,6 +79,8 @@ const elements = {
   payloadChecks: $('#payload-checks'),
   syncTarget: $('#sync-target'),
   syncChecklist: $('#sync-checklist'),
+  bootModeLabel: $('#boot-mode-label'),
+  bootModeOptions: $('#boot-mode-options'),
   syncProgressSubtitle: $('#sync-progress-subtitle'),
   syncProgressTarget: $('#sync-progress-target'),
   syncProgressSteps: $('#sync-progress-steps'),
@@ -735,6 +737,7 @@ function renderEndpointSummary(appState) {
   const cards = [
     ['folder_managed', 'Working Dir', config.workspace?.runtimeRoot],
     ['lan', 'LAN', endpointLabel(config)],
+    ['verified_user', 'Boot Mode', activeBootMode(config)],
     ['http', 'HTTP', `http://${text(config.http.host)}${Number(config.http.port) === 80 ? '' : `:${config.http.port}`}/osdcloud`],
     ['folder_shared', 'SMB', config.smb?.share],
     ['router', 'DHCP Pool', dhcpRange(config)],
@@ -2828,11 +2831,76 @@ function renderStepList(element, appState) {
   }
 }
 
+const bootModes = [
+  {
+    id: 'secureboot',
+    title: 'Secure Boot (recommended)',
+    description: 'Microsoft-signed Windows Boot Manager over TFTP. Works with Secure Boot ON or OFF — Dell Latitude/Pro firmware and Hyper-V Gen2 default template trust it as-is.',
+  },
+  {
+    id: 'ipxe',
+    title: 'iPXE (legacy)',
+    description: 'Unsigned iPXE + HTTP wimboot chain. Faster boot.wim transfer, but every client must have Secure Boot turned OFF.',
+  },
+];
+
+function activeBootMode(config) {
+  return config.dhcp?.bootMode === 'ipxe' ? 'ipxe' : 'secureboot';
+}
+
+async function handleBootModeChange(mode) {
+  const target = bootModes.find((candidate) => candidate.id === mode);
+  const ok = await confirmAction({
+    title: 'Change client boot mode',
+    message: 'This stops services, persists the boot mode, and reruns preflight. Clients PXE-booting afterwards receive the new boot chain.',
+    details: [`New mode: ${target.title}`, target.description],
+    confirmLabel: 'Change boot mode',
+    severity: 'warning',
+  });
+  if (ok) {
+    await mutate('/api/boot-mode', { mode });
+  }
+}
+
+function renderBootMode(appState) {
+  if (!elements.bootModeOptions) {
+    return;
+  }
+  const current = activeBootMode(appState.config);
+  elements.bootModeLabel.textContent = `active: ${current}`;
+  elements.bootModeOptions.replaceChildren();
+  for (const mode of bootModes) {
+    const row = document.createElement('div');
+    row.className = `step-row ${mode.id === current ? 'done' : 'pending'}`;
+    const body = document.createElement('div');
+    body.className = 'flex flex-col gap-xs';
+    const title = document.createElement('strong');
+    title.textContent = mode.title;
+    const description = document.createElement('span');
+    description.className = 'text-on-surface-variant';
+    description.textContent = mode.description;
+    body.append(title, description);
+    row.append(body);
+    if (mode.id === current) {
+      row.append(makeStatusPill('Active', 'ok'));
+    } else {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.icon = 'swap_horiz';
+      button.textContent = 'Switch';
+      button.addEventListener('click', () => handleBootModeChange(mode.id));
+      row.append(button);
+    }
+    elements.bootModeOptions.append(row);
+  }
+}
+
 function renderSync(appState) {
   const config = appState.config;
   const targetRows = [
     ['Interface', config.adapter.interfaceAlias],
     ['Service IP', `${config.adapter.serverIp}/${config.adapter.prefixLength}`],
+    ['Boot Mode', activeBootMode(config)],
     ['DHCP Pool', dhcpRange(config)],
     ['HTTP Base', `http://${config.http.host}${Number(config.http.port) === 80 ? '' : `:${config.http.port}`}/osdcloud`],
     ['SMB', config.smb?.share],
@@ -3158,6 +3226,7 @@ function render() {
   renderOsImages(appState);
   renderPayload(appState);
   renderSync(appState);
+  renderBootMode(appState);
   renderValidation(appState);
   renderLogs(appState);
   renderConsoleDock(appState);

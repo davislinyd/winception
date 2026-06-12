@@ -450,6 +450,12 @@ export function validateConfig(config) {
     throw new Error('paths.expectedHttpFiles must be a non-empty array');
   }
 
+  // Optional for back-compat: configs written before the secureboot mode existed
+  // omit both keys and default to secureboot/bootmgfw.efi in code.
+  if (config.dhcp.bootMode !== undefined && !['secureboot', 'ipxe'].includes(config.dhcp.bootMode)) {
+    throw new Error(`Invalid dhcp.bootMode: ${config.dhcp.bootMode}. Expected secureboot or ipxe.`);
+  }
+
   config.web ??= {};
   config.web.host ??= '127.0.0.1';
   config.web.port ??= 8080;

@@ -7,8 +7,12 @@ import crypto from 'node:crypto';
 import {
   buildBootWimSyncInputs,
   checkBootWimSyncState,
+  evaluateBootModeConfig,
   evaluateBootWimCustomization,
   evaluateDhcpSubnet,
+  evaluateSecureBootSignature,
+  evaluateSecureBootTftpTree,
+  evaluateSecureBootWimIdentity,
   evaluateServiceIp,
   evaluateSmbImage,
   getServiceBindIps,
@@ -676,3 +680,128 @@ test('WinPE boot.wim customization check uses the sync marker', async () => {
   }
 });
 
+
+function createSecureBootFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-secureboot-'));
+  const tftpRoot = path.join(root, 'PXE-TFTP');
+  const publishedBootWim = path.join(root, 'PXE-HttpRoot', 'osdcloud', 'boot.wim');
+  writeText(path.join(tftpRoot, 'bootmgfw.efi'), 'bootmgr');
+  writeText(path.join(tftpRoot, 'Boot', 'BCD'), 'bcd');
+  writeText(path.join(tftpRoot, 'Boot', 'boot.sdi'), 'sdi');
+  writeText(path.join(tftpRoot, 'Boot', 'Fonts', 'wgl4_boot.ttf'), 'font');
+  writeText(publishedBootWim, 'wim-content');
+  fs.mkdirSync(path.join(tftpRoot, 'sources'), { recursive: true });
+  fs.linkSync(publishedBootWim, path.join(tftpRoot, 'sources', 'boot.wim'));
+  const config = {
+    dhcp: { bootMode: 'secureboot', bootFile: 'ipxeboot/x86_64-sb/snponly.efi', secureBootFile: 'bootmgfw.efi' },
+    tftp: { root: tftpRoot },
+  };
+  return { root, tftpRoot, publishedBootWim, config };
+}
+
+test('boot mode config check validates mode and boot file location', () => {
+  const { root, tftpRoot, config } = createSecureBootFixture();
+  try {
+    assert.equal(evaluateBootModeConfig(config).ok, true);
+
+    // absent bootMode defaults to secureboot
+    assert.equal(evaluateBootModeConfig({ dhcp: { secureBootFile: 'bootmgfw.efi' }, tftp: { root: tftpRoot } }).ok, true);
+
+    const invalid = evaluateBootModeConfig({ dhcp: { bootMode: 'bogus' }, tftp: { root: tftpRoot } });
+    assert.equal(invalid.ok, false);
+    assert.match(invalid.detail, /expected secureboot or ipxe/);
+
+    const escaping = evaluateBootModeConfig({ dhcp: { bootMode: 'secureboot', secureBootFile: '../escape.efi' }, tftp: { root: tftpRoot } });
+    assert.equal(escaping.ok, false);
+    assert.match(escaping.detail, /escapes/);
+
+    // ipxe mode requires its NBP to exist under the TFTP root
+    const ipxeMissing = evaluateBootModeConfig({ dhcp: { bootMode: 'ipxe', bootFile: 'ipxeboot/x86_64-sb/snponly.efi' }, tftp: { root: tftpRoot } });
+    assert.equal(ipxeMissing.ok, false);
+    writeText(path.join(tftpRoot, 'ipxeboot', 'x86_64-sb', 'snponly.efi'), 'ipxe');
+    const ipxePresent = evaluateBootModeConfig({ dhcp: { bootMode: 'ipxe', bootFile: 'ipxeboot/x86_64-sb/snponly.efi' }, tftp: { root: tftpRoot } });
+    assert.equal(ipxePresent.ok, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('secure boot TFTP tree check reports each staged file', () => {
+  const { root, tftpRoot, config } = createSecureBootFixture();
+  try {
+    const allPresent = evaluateSecureBootTftpTree(config);
+    assert.equal(allPresent.length, 5);
+    assert.ok(allPresent.every((check) => check.ok));
+
+    fs.rmSync(path.join(tftpRoot, 'Boot', 'BCD'));
+    const withMissing = evaluateSecureBootTftpTree(config);
+    const bcdCheck = withMissing.find((check) => check.name === 'TFTP file Boot/BCD');
+    assert.equal(bcdCheck.ok, false);
+    assert.match(bcdCheck.detail, /Publish-SecureBootTftp/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('secure boot wim identity accepts hardlink, copy, and rejects divergence', () => {
+  const { root, tftpRoot, publishedBootWim, config } = createSecureBootFixture();
+  try {
+    const hardlinked = evaluateSecureBootWimIdentity(config, publishedBootWim);
+    assert.equal(hardlinked.ok, true);
+    assert.match(hardlinked.detail, /hardlinked/);
+
+    // Replace the hardlink with an identical copy (same size, same mtime).
+    // Set both timestamps explicitly: utimesSync has millisecond precision while
+    // NTFS stores 100ns, so copying the source's stat times would not round-trip.
+    const tftpWim = path.join(tftpRoot, 'sources', 'boot.wim');
+    fs.rmSync(tftpWim);
+    fs.copyFileSync(publishedBootWim, tftpWim);
+    const when = new Date('2026-06-12T00:00:00Z');
+    fs.utimesSync(publishedBootWim, when, when);
+    fs.utimesSync(tftpWim, when, when);
+    const copied = evaluateSecureBootWimIdentity(config, publishedBootWim);
+    assert.equal(copied.ok, true);
+    assert.match(copied.detail, /size and mtime/);
+
+    // Diverged content
+    fs.writeFileSync(tftpWim, 'stale-different-content');
+    const diverged = evaluateSecureBootWimIdentity(config, publishedBootWim);
+    assert.equal(diverged.ok, false);
+    assert.match(diverged.detail, /Endpoint Sync/);
+
+    fs.rmSync(tftpWim);
+    const missing = evaluateSecureBootWimIdentity(config, publishedBootWim);
+    assert.equal(missing.ok, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('secure boot signature check parses PowerShell output and degrades to warn', async () => {
+  const { root, config } = createSecureBootFixture();
+  try {
+    const valid = await evaluateSecureBootSignature(config, {
+      runPowerShell: async () => ({ stdout: '{"status":"Valid","subject":"CN=Microsoft Windows, O=Microsoft Corporation"}' }),
+    });
+    assert.equal(valid.ok, true);
+    assert.match(valid.detail, /Microsoft Windows/);
+
+    const notSigned = await evaluateSecureBootSignature(config, {
+      runPowerShell: async () => ({ stdout: '{"status":"NotSigned","subject":""}' }),
+    });
+    assert.equal(notSigned.ok, false);
+
+    const wrongSigner = await evaluateSecureBootSignature(config, {
+      runPowerShell: async () => ({ stdout: '{"status":"Valid","subject":"CN=Contoso"}' }),
+    });
+    assert.equal(wrongSigner.ok, false);
+
+    const unavailable = await evaluateSecureBootSignature(config, {
+      runPowerShell: async () => { throw new Error('constrained language mode'); },
+    });
+    assert.equal(unavailable.ok, true);
+    assert.equal(unavailable.warn, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

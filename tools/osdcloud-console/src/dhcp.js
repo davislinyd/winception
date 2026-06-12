@@ -107,6 +107,15 @@ export function isIpxeClient(packet) {
   return false;
 }
 
+export function effectiveBootFile(config, ipxeClient) {
+  if ((config.bootMode ?? 'secureboot') === 'secureboot') {
+    // Microsoft-signed boot chain: always hand out the signed boot manager, even to
+    // clients claiming to be iPXE — the secureboot path never chains through HTTP.
+    return config.secureBootFile ?? 'bootmgfw.efi';
+  }
+  return ipxeClient ? config.ipxeBootUrl : config.bootFile;
+}
+
 function addOption(options, code, value) {
   if (value.length > 255) {
     throw new Error(`DHCP option ${code} is too long: ${value.length} bytes`);
@@ -287,7 +296,7 @@ export class DhcpResponder extends EventEmitter {
       this.socket.bind(this.config.listenPort ?? 67, this.config.listenIp, () => {
         this.socket.off('error', reject);
         this.socket.setBroadcast(true);
-        this.log(`DHCP responder starting on ${this.config.listenIp} leases=${this.config.leaseStartIp}-${this.config.leaseEndIp} router=${this.config.router} dns=${(this.config.dnsServers ?? []).join(',')} boot=${this.config.bootFile} ipxe=${this.config.ipxeBootUrl}`);
+        this.log(`DHCP responder starting on ${this.config.listenIp} leases=${this.config.leaseStartIp}-${this.config.leaseEndIp} router=${this.config.router} dns=${(this.config.dnsServers ?? []).join(',')} mode=${this.config.bootMode ?? 'secureboot'} boot=${effectiveBootFile(this.config, false)} ipxe=${this.config.ipxeBootUrl}`);
         resolve();
       });
     });
@@ -312,7 +321,7 @@ export class DhcpResponder extends EventEmitter {
     const mac = getClientMac(packet);
     const requestedIp = getRequestedIp(packet);
     const ipxeClient = isIpxeClient(packet);
-    const effectiveBootFile = ipxeClient ? this.config.ipxeBootUrl : this.config.bootFile;
+    const bootFile = effectiveBootFile(this.config, ipxeClient);
 
     if (messageType !== 1 && messageType !== 3) {
       this.log(`IGNORE type=${messageType} from ${mac} requested=${requestedIp}`);
@@ -322,7 +331,7 @@ export class DhcpResponder extends EventEmitter {
     try {
       const assignedIp = this.leasePool.getLease(mac, requestedIp);
       const replyType = messageType === 1 ? 2 : 5;
-      const reply = newDhcpReply(packet, replyType, assignedIp, effectiveBootFile, ipxeClient, this.config);
+      const reply = newDhcpReply(packet, replyType, assignedIp, bootFile, ipxeClient, this.config);
       const targets = [
         broadcastAddress(this.config.listenIp, this.config.subnetMask),
         '255.255.255.255',
@@ -332,7 +341,7 @@ export class DhcpResponder extends EventEmitter {
         this.socket.send(reply, this.config.replyPort ?? 68, target);
       }
 
-      this.log(`${messageType === 1 ? 'OFFER' : 'ACK'} ${assignedIp} to ${mac} requested=${requestedIp} boot=${effectiveBootFile}`);
+      this.log(`${messageType === 1 ? 'OFFER' : 'ACK'} ${assignedIp} to ${mac} requested=${requestedIp} boot=${bootFile}`);
     } catch (error) {
       this.log(`ERROR type=${messageType === 1 ? 'DISCOVER' : 'REQUEST'} from ${mac} requested=${requestedIp} message=${error.message}`);
     }
