@@ -474,8 +474,16 @@ try {
     Ensure-Command -Name 'git'
     Ensure-NodeAndNpm
     Ensure-HostPowerShellModules
-    # Check if OSDCloud Web Console tray application or node server is running
-    $runningTray = Get-CimInstance Win32_Process -Filter "CommandLine like '%Start-WebConsoleTray.ps1%'" -ErrorAction SilentlyContinue
+    # Check if OSDCloud Web Console tray application or node server is running from
+    # the AppRoot this setup is about to overwrite. Consoles running from any other
+    # root (e.g. another install, or the live host console while tests run setup
+    # against a fixture root) hold no locks under this AppRoot and must be ignored —
+    # the interactive stop prompt would otherwise hang non-interactive callers.
+    $belongsToAppRoot = {
+        $_.CommandLine -and $_.CommandLine.IndexOf($AppRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    }
+    $runningTray = Get-CimInstance Win32_Process -Filter "CommandLine like '%Start-WebConsoleTray.ps1%'" -ErrorAction SilentlyContinue |
+        Where-Object $belongsToAppRoot
     if ($runningTray) {
         if ($DryRun) {
             Write-Host "[dry-run] Would stop running Web Console tray application."
@@ -497,7 +505,8 @@ try {
                 Write-Host "Stopping running OSDCloud Web Console tray application..."
                 Stop-Process -Id $runningTray.ProcessId -Force -ErrorAction SilentlyContinue
                 # Also stop any node process running the web server
-                $runningNode = Get-CimInstance Win32_Process -Filter "CommandLine like '%webServer.js%'" -ErrorAction SilentlyContinue
+                $runningNode = Get-CimInstance Win32_Process -Filter "CommandLine like '%webServer.js%'" -ErrorAction SilentlyContinue |
+                    Where-Object $belongsToAppRoot
                 if ($runningNode) {
                     Stop-Process -Id $runningNode.ProcessId -Force -ErrorAction SilentlyContinue
                 }
@@ -507,7 +516,8 @@ try {
             }
         }
     } else {
-        $runningNode = Get-CimInstance Win32_Process -Filter "CommandLine like '%webServer.js%'" -ErrorAction SilentlyContinue
+        $runningNode = Get-CimInstance Win32_Process -Filter "CommandLine like '%webServer.js%'" -ErrorAction SilentlyContinue |
+            Where-Object $belongsToAppRoot
         if ($runningNode) {
             if ($DryRun) {
                 Write-Host "[dry-run] Would stop running Web Console node process."
