@@ -427,7 +427,14 @@ export class ServiceController extends EventEmitter {
 
   async runPreflight() {
     return this.runOperation('Running preflight', async () => {
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+        onCheck: (result) => {
+          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+        },
+      });
+      const passed = this.preflightResults.filter((r) => r.ok).length;
+      const failed = this.preflightResults.filter((r) => !r.ok).length;
+      this.addLog(`[PREFLIGHT] ${passed} passed, ${failed} failed`);
       return this.preflightResults;
     });
   }
@@ -463,7 +470,11 @@ export class ServiceController extends EventEmitter {
   async saveDeploymentSecrets(input) {
     return this.runOperation('Saving deployment secrets', async () => {
       const result = await this.dependencies.writeDeploymentSecrets(this.config, input);
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+        onCheck: (result) => {
+          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+        },
+      });
       return result;
     });
   }
@@ -553,6 +564,7 @@ export class ServiceController extends EventEmitter {
       return null;
     }
     try {
+      this.addLog(`Generating OS image torrent for ${fileName} (hashing WIM, may take a few minutes)...`);
       const meta = await this.dependencies.createOsImageTorrent(this.config, { fileName });
       this.addLog(`Generated OS image torrent ${meta.fileName} (piece=${meta.pieceLengthBytes}B sha256=${meta.wimSha256.slice(0, 12)}...)`);
       // If the seeder was already running, restart it so it seeds the new torrent.
@@ -611,7 +623,11 @@ export class ServiceController extends EventEmitter {
       await this.regenerateOsTorrent();
 
       this.addEndpointStatus('Running preflight against the new endpoint', 'run');
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+        onCheck: (result) => {
+          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+        },
+      });
       const failures = this.preflightResults.filter((item) => !item.ok).length;
       this.addEndpointStatus(failures === 0 ? 'Preflight passed' : `Preflight completed with ${failures} failure(s)`, failures === 0 ? 'ok' : 'fail');
       return {
@@ -640,7 +656,11 @@ export class ServiceController extends EventEmitter {
       const savedPath = this.dependencies.saveConfig(this.config);
       this.refreshServiceConfigs();
       this.addLog(`Client boot mode ${previousMode} -> ${mode} (saved ${savedPath})`);
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+        onCheck: (result) => {
+          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+        },
+      });
       return {
         configPath: savedPath,
         bootMode: mode,
@@ -667,7 +687,11 @@ export class ServiceController extends EventEmitter {
         this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
       }
       await this.regenerateOsTorrent();
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+        onCheck: (result) => {
+          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+        },
+      });
       return {
         configPath: savedPath,
         profile: result.profile,
@@ -730,6 +754,7 @@ export class ServiceController extends EventEmitter {
 
     const promise = Promise.resolve().then(() => this.dependencies.downloadOsImageFromCatalog(this.config, catalogId, {
       onProgress: (progress) => {
+        const prevPhase = this.osDownloadStatus.phase;
         this.osDownloadStatus = {
           ...this.osDownloadStatus,
           ...progress,
@@ -738,6 +763,9 @@ export class ServiceController extends EventEmitter {
           running: true,
           error: null,
         };
+        if (progress.phase && progress.phase !== prevPhase) {
+          this.addLog(`[DOWNLOAD] ${progress.message ?? progress.phase}`);
+        }
         this.emit('operation', this.operation);
       },
     })).then((result) => {
@@ -969,7 +997,11 @@ export class ServiceController extends EventEmitter {
         this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
       }
       await this.regenerateOsTorrent();
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+        onCheck: (result) => {
+          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+        },
+      });
       return {
         profile: updated.profile,
         selectedSoftware: result.selectedSoftware,

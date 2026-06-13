@@ -1,7 +1,7 @@
 import { webServerConfig, workspaceInfo } from '../config.js';
 import { formatOsImageLabel } from '../osimages/catalog.js';
 import { formatSoftwareList } from '../profiles/software.js';
-import { deploymentServicesRunning, fleetHasDeploymentRun, preflightStatus, profilePayloadStatus } from './helpers.js';
+import { deploymentServicesRunning, fleetHasDeploymentRun, osImageDeployableStatus, preflightStatus, profilePayloadStatus } from './helpers.js';
 
 export function runtimeInitializationDetailItems(runtime) {
   if (!runtime || runtime.ready === true || runtime.error || !Array.isArray(runtime.missing)) {
@@ -87,6 +87,7 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
     ? `${cachedWims.length} deployable OS WIM image(s) cached.`
     : 'No cached deployable WIM images found. Download or import one.';
   const profileStatus = profilePayloadStatus(profilePayload);
+  const osDeployableStatus = osImageDeployableStatus(osImage);
   const finalPreflight = preflightStatus(preflight);
   const deploymentReady = finalPreflight.ready === true;
   const deploymentLive = deploymentServicesRunning(services);
@@ -234,9 +235,9 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
       id: 'profile',
       label: 'Publish profile',
       required: true,
-      done: profileStatus.ready,
+      done: profileStatus.ready && osDeployableStatus.ready,
       action: 'profiles',
-      detail: profileStatus.detail,
+      detail: !profileStatus.ready ? profileStatus.detail : !osDeployableStatus.ready ? `OS image: ${osDeployableStatus.detail}` : profileStatus.detail,
       objective: '選擇要部署的 profile，發佈 selected-os.json、selected-profile.json 與被選中的 client software/script payload。',
       doneWhen: 'Active profile payload 通過檢查，live Apps/Scripts 與 profile 內容一致。',
       safetyNote: 'Profile publish 只發佈被選中的 software；Minimal profile 不會下載 client installer。',

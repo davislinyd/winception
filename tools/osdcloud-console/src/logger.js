@@ -43,7 +43,7 @@ export function inferAppNameAndSeverity(message, logPath) {
   }
 
   const upperMsg = msgText.toUpperCase();
-  if (upperMsg.includes('ERROR') || upperMsg.includes('FAILED') || upperMsg.includes('FAIL')) {
+  if (!msgText.startsWith('[PREFLIGHT]') && (upperMsg.includes('ERROR') || upperMsg.includes('FAILED') || upperMsg.includes('FAIL'))) {
     severity = 3;
   } else if (upperMsg.includes('WARN') || upperMsg.includes('WARNING')) {
     severity = 4;

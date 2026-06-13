@@ -155,6 +155,9 @@ export function inferEdition(name) {
   if (text.includes('education')) {
     return 'Education';
   }
+  if (text.includes('home')) {
+    return 'Home';
+  }
   return 'Pro';
 }
 
@@ -234,7 +237,7 @@ export async function exportImageToWim(sourcePath, destinationPath, sourceIndex,
     '/CheckIntegrity',
   ];
   const child = spawn(options.dismPath ?? 'dism.exe', args, { windowsHide: true });
-  const result = await collectProcessOutput(child);
+  const result = await collectProcessOutput(child, { onStdout: options.onStdout });
   if (result.code === 0) {
     return { ok: true, stdout: result.stdout, stderr: result.stderr };
   }

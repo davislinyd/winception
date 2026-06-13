@@ -124,32 +124,42 @@ export async function evaluateSmbImage(config, options = {}) {
   return pass('SMB image', `${imagePath} (backing=${backingPath}; ${accessUser} read access)`);
 }
 
-export async function runPreflight(config, services = {}) {
+export async function runPreflight(config, services = {}, options = {}) {
   const checks = [];
 
+  const report = (result) => {
+    if (Array.isArray(result)) {
+      result.forEach(report);
+    } else {
+      checks.push(result);
+      options.onCheck?.(result);
+    }
+    return result;
+  };
+
   try {
-    checks.push((await isElevated()) ? pass('Administrator', 'running elevated') : fail('Administrator', 'run elevated before binding ports 67/69/80'));
+    report((await isElevated()) ? pass('Administrator', 'running elevated') : fail('Administrator', 'run elevated before binding ports 67/69/80'));
   } catch (error) {
-    checks.push(fail('Administrator', error.message));
+    report(fail('Administrator', error.message));
   }
 
   try {
     const serviceIpStates = await getServiceIpStates(config);
     const bindIps = getServiceBindIps(config);
     if (bindIps.length === 0) {
-      checks.push(pass('Service IP', 'services bind all IPv4 interfaces'));
+      report(pass('Service IP', 'services bind all IPv4 interfaces'));
     } else {
-      checks.push(...bindIps.map((targetIp) => evaluateServiceIp(config, serviceIpStates, targetIp)));
+      bindIps.forEach((targetIp) => report(evaluateServiceIp(config, serviceIpStates, targetIp)));
     }
   } catch (error) {
-    checks.push(fail('Service IP', error.message));
+    report(fail('Service IP', error.message));
   }
 
-  checks.push(evaluateDhcpSubnet(config));
+  report(evaluateDhcpSubnet(config));
 
   for (const relativePath of config.paths.expectedHttpFiles) {
     const filePath = resolveHttpFile(config.http.root, relativePath);
-    checks.push(fs.existsSync(filePath) ? pass(`HTTP file ${relativePath}`, filePath) : fail(`HTTP file ${relativePath}`, filePath));
+    report(fs.existsSync(filePath) ? pass(`HTTP file ${relativePath}`, filePath) : fail(`HTTP file ${relativePath}`, filePath));
   }
 
   // Check whether the published boot.wim has been customized by Endpoint Sync.
@@ -160,52 +170,52 @@ export async function runPreflight(config, services = {}) {
   // validate the published wim against that marker.
   const runtimeRoot = config.paths?.osdCloudRoot || 'C:\\OSDCloud';
   const publishedBootWim = path.join(runtimeRoot, 'PXE-HttpRoot', 'osdcloud', 'boot.wim');
-  checks.push(await evaluateBootWimCustomization(publishedBootWim));
+  report(await evaluateBootWimCustomization(publishedBootWim));
 
   // Check if published boot.wim is newer than config and secrets files (Option 1)
-  checks.push(checkBootWimSyncState(config, publishedBootWim));
+  report(checkBootWimSyncState(config, publishedBootWim));
 
-  checks.push(evaluateBootModeConfig(config));
+  report(evaluateBootModeConfig(config));
   if ((config.dhcp?.bootMode ?? 'secureboot') === 'secureboot') {
-    checks.push(...evaluateSecureBootTftpTree(config));
-    checks.push(evaluateSecureBootWimIdentity(config, publishedBootWim));
-    checks.push(await evaluateSecureBootSignature(config));
+    report(evaluateSecureBootTftpTree(config));
+    report(evaluateSecureBootWimIdentity(config, publishedBootWim));
+    report(await evaluateSecureBootSignature(config));
   }
 
-  checks.push(fs.existsSync(config.tftp.root) ? pass('TFTP root', config.tftp.root) : fail('TFTP root', config.tftp.root));
-  checks.push(fs.existsSync(config.http.root) ? pass('HTTP root', config.http.root) : fail('HTTP root', config.http.root));
+  report(fs.existsSync(config.tftp.root) ? pass('TFTP root', config.tftp.root) : fail('TFTP root', config.tftp.root));
+  report(fs.existsSync(config.http.root) ? pass('HTTP root', config.http.root) : fail('HTTP root', config.http.root));
 
   try {
-    checks.push(await evaluateSmbImage(config));
+    report(await evaluateSmbImage(config));
   } catch (error) {
-    checks.push(fail('SMB image', error.message));
+    report(fail('SMB image', error.message));
   }
 
   if (!services.dhcp?.running) {
     const udp67 = await checkUdpPortAvailable(config.dhcp.listenIp, config.dhcp.listenPort);
-    checks.push(udp67.ok ? pass('UDP 67', udp67.message) : fail('UDP 67', udp67.message));
+    report(udp67.ok ? pass('UDP 67', udp67.message) : fail('UDP 67', udp67.message));
   } else {
-    checks.push(pass('UDP 67', 'owned by console DHCP responder'));
+    report(pass('UDP 67', 'owned by console DHCP responder'));
   }
 
   if (!services.tftp?.running) {
     const udp69 = await checkUdpPortAvailable(config.tftp.listenIp, config.tftp.port);
-    checks.push(udp69.ok ? pass('UDP 69', udp69.message) : fail('UDP 69', udp69.message));
+    report(udp69.ok ? pass('UDP 69', udp69.message) : fail('UDP 69', udp69.message));
   } else {
-    checks.push(pass('UDP 69', 'owned by console TFTP responder'));
+    report(pass('UDP 69', 'owned by console TFTP responder'));
   }
 
   if (!services.http?.running) {
     const tcp80 = await checkTcpPortAvailable(config.http.host, config.http.port);
-    checks.push(tcp80.ok ? pass('TCP 80', tcp80.message) : fail('TCP 80', tcp80.message));
+    report(tcp80.ok ? pass('TCP 80', tcp80.message) : fail('TCP 80', tcp80.message));
   } else {
-    checks.push(pass('TCP 80', 'owned by console HTTP server'));
+    report(pass('TCP 80', 'owned by console HTTP server'));
   }
 
   fs.mkdirSync(config.http.statusRoot, { recursive: true });
-  checks.push(pass('Status root', config.http.statusRoot));
-  checks.push(await evaluateOsImageCache(config));
-  checks.push(evaluateDeploymentProfilePayload(config));
+  report(pass('Status root', config.http.statusRoot));
+  report(await evaluateOsImageCache(config));
+  report(evaluateDeploymentProfilePayload(config));
 
   checks.sort((a, b) => Number(a.ok) - Number(b.ok));
   return checks;

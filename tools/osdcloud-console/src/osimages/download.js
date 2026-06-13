@@ -285,7 +285,26 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
       totalBytes: sourceImage.size || stat.size,
       fileName: image.fileName,
     });
-    await exportImageToWim(sourceStagingPath, exportStagingPath, sourceImage.imageIndex, options);
+    let lastDismPercent = -1;
+    await exportImageToWim(sourceStagingPath, exportStagingPath, sourceImage.imageIndex, {
+      ...options,
+      onStdout: (text) => {
+        const match = /(\d+\.?\d*)%/u.exec(text);
+        if (!match) return;
+        const percent = parseFloat(match[1]);
+        if (percent - lastDismPercent < 5) return;
+        lastDismPercent = percent;
+        options.onProgress?.({
+          status: 'downloading',
+          phase: 'exporting-wim',
+          message: `Exporting deployable WIM with DISM (${percent.toFixed(0)}%)`,
+          bytes: stat.size,
+          totalBytes: sourceImage.size || stat.size,
+          fileName: image.fileName,
+          dismPercent: percent,
+        });
+      },
+    });
     const exportStat = fs.statSync(exportStagingPath);
     options.onProgress?.({
       status: 'downloading',
