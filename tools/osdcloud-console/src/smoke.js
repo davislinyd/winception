@@ -4,12 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { mediaHttpServerConfig } from './config.js';
-import {
-  createDeploymentProfile,
-  deleteDeploymentProfile,
-  publishDeploymentProfile,
-  updateDeploymentProfileSoftware,
-} from './deploymentProfiles.js';
+import { createDeploymentProfile, deleteDeploymentProfile, updateDeploymentProfileSoftware } from './profiles/profiles.js';
+import { publishDeploymentProfile } from './profiles/publish.js';
 import { MediaHttpServer } from './httpServer.js';
 import { publishSelectedOsImage } from './osImages.js';
 import { ServiceController } from './serviceController.js';

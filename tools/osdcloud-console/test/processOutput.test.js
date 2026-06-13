@@ -30,12 +30,14 @@ test('PowerShell command prelude sets UTF-8 console input and output', () => {
 });
 
 test('external process output collection does not use ad hoc chunk.toString paths', () => {
-  for (const relativePath of [
-    'tools/osdcloud-console/src/windows.js',
-    'tools/osdcloud-console/src/osImages.js',
-    'tools/osdcloud-console/src/deploymentProfiles.js',
-  ]) {
-    const source = fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
-    assert.doesNotMatch(source, /chunk\.toString\(\)/, relativePath);
+  const srcRoot = path.join(process.cwd(), 'tools/osdcloud-console/src');
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return walk(full);
+    return entry.name.endsWith('.js') ? [full] : [];
+  });
+  for (const file of walk(srcRoot)) {
+    const source = fs.readFileSync(file, 'utf8');
+    assert.doesNotMatch(source, /chunk\.toString\(\)/, path.relative(srcRoot, file));
   }
 });

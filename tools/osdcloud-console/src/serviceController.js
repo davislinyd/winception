@@ -17,24 +17,10 @@ import { DhcpResponder } from './dhcp.js';
 import { TftpResponder } from './tftp.js';
 import { MediaHttpServer } from './httpServer.js';
 import { TorrentTracker, TorrentSeeder, createOsImageTorrent } from './torrent.js';
-import {
-  createSoftwarePackage,
-  createDeploymentProfile,
-  createCustomScript,
-  deleteDeploymentProfile,
-  deleteSoftwarePackage,
-  deleteCustomScript,
-  evaluateDeploymentProfilePayload,
-  formatSoftwareList,
-  openSoftwareInstallScript,
-  publishDeploymentProfile,
-  readCustomScriptContent,
-  readSoftwareInstallScript,
-  resolveDeploymentProfileState,
-  updateDeploymentProfile,
-  uploadCustomScript,
-  uploadSoftwareInstaller,
-} from './deploymentProfiles.js';
+import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, resolveDeploymentProfileState, updateDeploymentProfile } from './profiles/profiles.js';
+import { publishDeploymentProfile } from './profiles/publish.js';
+import { createCustomScript, deleteCustomScript, readCustomScriptContent, uploadCustomScript } from './profiles/scripts.js';
+import { createSoftwarePackage, deleteSoftwarePackage, formatSoftwareList, openSoftwareInstallScript, readSoftwareInstallScript, uploadSoftwareInstaller } from './profiles/software.js';
 import {
   deleteCachedOsImage,
   downloadOsImageFromCatalog,

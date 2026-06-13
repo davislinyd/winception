@@ -5,31 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  createCustomScript,
-  createSoftwarePackage,
-  createDeploymentProfile,
-  deleteCustomScript,
-  deleteDeploymentProfile,
-  deleteSoftwarePackage,
-  deploymentProfileOptions,
-  evaluateDeploymentProfilePayload,
-  generateCustomScriptId,
-  generateDeploymentProfileId,
-  generateSoftwareId,
-  loadCustomScriptCatalog,
-  loadDeploymentProfiles,
-  loadSoftwareCatalog,
-  publishDeploymentProfile,
-  openSoftwareInstallScript,
-  readCustomScriptContent,
-  readSoftwareInstallScript,
-  resolveDeploymentProfileState,
-  updateDeploymentProfile,
-  updateDeploymentProfileSoftware,
-  uploadCustomScript,
-  uploadSoftwareInstaller,
-} from '../src/deploymentProfiles.js';
+import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, loadDeploymentProfiles, resolveDeploymentProfileState, updateDeploymentProfile, updateDeploymentProfileSoftware } from '../src/profiles/profiles.js';
+import { publishDeploymentProfile } from '../src/profiles/publish.js';
+import { createCustomScript, deleteCustomScript, loadCustomScriptCatalog, readCustomScriptContent, uploadCustomScript } from '../src/profiles/scripts.js';
+import { deploymentProfileOptions, generateCustomScriptId, generateDeploymentProfileId, generateSoftwareId } from '../src/profiles/shared.js';
+import { createSoftwarePackage, deleteSoftwarePackage, loadSoftwareCatalog, openSoftwareInstallScript, readSoftwareInstallScript, uploadSoftwareInstaller } from '../src/profiles/software.js';
 
 function makeRoot(prefix = 'osdcloud-profile-test-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));

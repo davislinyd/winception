@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { appRootForConfig, stateRootForConfig, resolveHttpFile } from './config.js';
 import { ipv4ToUInt32 } from './dhcp.js';
 import { resolveTftpPath } from './tftp.js';
-import { evaluateDeploymentProfilePayload } from './deploymentProfiles.js';
+import { evaluateDeploymentProfilePayload } from './profiles/profiles.js';
 import { evaluateOsImageCache } from './osImages.js';
 import {
   collectProcessOutput,
