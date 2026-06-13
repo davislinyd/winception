@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { cachedImagePath, catalogFilters, matchesCatalogFilters, normalizeOsImage, osImageOptions, upsertCatalogImage } from './catalog.js';
-import { exportImageToWim, exportedImageMetadata, findEditionIndex, inspectWimInfo, validateImageIndex } from './inspect.js';
+import { exportImageToWim, exportedImageMetadata, findEditionIndex, inferEdition, inspectWimInfo, validateImageIndex } from './inspect.js';
 import { appendCacheLog, assertInside, assertMicrosoftDownloadUrl, isMicrosoftDownloadUrl, microsoftDownloadHosts, normalizeId, powershellExe, sha1File, sha256File } from './shared.js';
 
 export async function runPowerShellJson(script, options = {}) {
@@ -348,6 +348,14 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
     }
     if (options.validateImage !== false) {
       await validateImageIndex(exportStagingPath, 1, options);
+      const exportedRows = await inspectWimInfo(exportStagingPath, options);
+      const exportedEdition = exportedRows[0] ? inferEdition(exportedRows[0].name) : null;
+      if (exportedEdition && exportedEdition.toLowerCase() !== (sourceImage.edition ?? '').toLowerCase()) {
+        throw new Error(
+          `Exported WIM edition mismatch: got "${exportedRows[0].name}" (${exportedEdition}), ` +
+          `expected ${sourceImage.edition} (resolved source index ${resolvedImageIndex})`,
+        );
+      }
     }
     const finalImage = {
       ...image,
