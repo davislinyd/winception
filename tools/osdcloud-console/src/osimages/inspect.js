@@ -164,18 +164,24 @@ export function inferEdition(name) {
 export function findEditionIndex(wimRows, edition) {
   const target = String(edition ?? '').toLowerCase().trim();
 
+  // Only consider rows that are actual OS editions (e.g. "Windows 11 Pro").
+  // ESDs may include non-OS entries like "Windows Setup Media" or
+  // "Microsoft Windows PE" whose names don't contain edition keywords and
+  // would otherwise match the 'Pro' default from inferEdition.
+  const isOsEditionRow = (row) => /\bwindows\s+\d/iu.test(row.name);
+
   const isBaseVariant = (row) => {
     const lname = row.name.toLowerCase();
     return !/ n\b/u.test(lname) && !lname.includes('single language') && !lname.includes('workstation');
   };
 
   for (const row of wimRows) {
-    if (inferEdition(row.name).toLowerCase() === target && isBaseVariant(row)) {
+    if (isOsEditionRow(row) && inferEdition(row.name).toLowerCase() === target && isBaseVariant(row)) {
       return row.imageIndex;
     }
   }
   for (const row of wimRows) {
-    if (inferEdition(row.name).toLowerCase() === target) {
+    if (isOsEditionRow(row) && inferEdition(row.name).toLowerCase() === target) {
       return row.imageIndex;
     }
   }
