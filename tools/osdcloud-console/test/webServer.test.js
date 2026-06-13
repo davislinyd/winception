@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { ServiceController } from '../src/serviceController.js';
+import { ServiceController } from '../src/controller/index.js';
 import { WebManagementServer } from '../src/webServer.js';
 import { appVersion } from '../src/version.js';
 

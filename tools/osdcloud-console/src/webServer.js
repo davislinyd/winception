@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { webServerConfig } from './config.js';
-import { ServiceController } from './serviceController.js';
+import { ServiceController } from './controller/index.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultStaticRoot = path.resolve(moduleDir, '..', 'web');

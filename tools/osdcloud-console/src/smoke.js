@@ -8,7 +8,7 @@ import { createDeploymentProfile, deleteDeploymentProfile, updateDeploymentProfi
 import { publishDeploymentProfile } from './profiles/publish.js';
 import { MediaHttpServer } from './httpServer.js';
 import { publishSelectedOsImage } from './osimages/catalog.js';
-import { ServiceController } from './serviceController.js';
+import { ServiceController } from './controller/index.js';
 import { TftpResponder } from './tftp.js';
 import { WebManagementServer } from './webServer.js';
 
