@@ -1,5 +1,5 @@
 import { loadConfig } from './config.js';
-import { runPreflight } from './windows.js';
+import { runPreflight } from './windows/preflight.js';
 
 function parseArgs(argv) {
   const result = { configPath: undefined, json: false };

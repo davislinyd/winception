@@ -4,28 +4,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import {
-  buildBootWimSyncInputs,
-  checkBootWimSyncState,
-  evaluateBootModeConfig,
-  evaluateBootWimCustomization,
-  evaluateDhcpSubnet,
-  evaluateSecureBootSignature,
-  evaluateSecureBootTftpTree,
-  evaluateSecureBootWimIdentity,
-  evaluateServiceIp,
-  evaluateSmbImage,
-  getServiceBindIps,
-  normalizeIpv4ServiceInterfaces,
-  parseUncPath,
-  preparePowerShellArgs,
-  removeStatusFiles,
-  resolveEndpointSyncScript,
-  resolveRepoRoot,
-  hashBootWimSyncInputs,
-  smbAccessAllowsRead,
-  smbBackingImagePath,
-} from '../src/windows.js';
+import { buildBootWimSyncInputs, hashBootWimSyncInputs, resolveEndpointSyncScript, resolveRepoRoot } from '../src/windows/bootArtifacts.js';
+import { checkBootWimSyncState, evaluateBootModeConfig, evaluateBootWimCustomization, evaluateSecureBootSignature, evaluateSecureBootTftpTree, evaluateSecureBootWimIdentity } from '../src/windows/bootValidation.js';
+import { evaluateDhcpSubnet, evaluateServiceIp, getServiceBindIps, normalizeIpv4ServiceInterfaces, parseUncPath, smbAccessAllowsRead, smbBackingImagePath } from '../src/windows/network.js';
+import { preparePowerShellArgs } from '../src/windows/powershell.js';
+import { evaluateSmbImage, removeStatusFiles } from '../src/windows/preflight.js';
+
+// windows.js is split into src/windows/*.js; concat for source-text assertions.
+function readWindowsSource() {
+  const dir = path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows');
+  return fs.readdirSync(dir).filter((f) => f.endsWith('.js')).sort()
+    .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+}
 
 const templateFixtureFiles = {
   'osdcloud-assets/OSDCloud/WinPE/Windows/System32/Startnet.cmd': 'startnet-template',
@@ -98,14 +88,14 @@ test('prepends UTF-8 output settings to PowerShell command calls', () => {
 });
 
 test('PowerShell output uses shared UTF-8 process decoder', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
+  const source = readWindowsSource();
 
   assert.match(source, /collectProcessOutput/);
   assert.doesNotMatch(source, /chunk\.toString\(\)/);
 });
 
 test('endpoint sync adds -SyncAssets only when explicitly requested', () => {
-  const source = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
+  const source = readWindowsSource();
 
   assert.match(source, /if \(options\.syncAssets === true\) \{\s*args\.push\('-SyncAssets'\);/);
 });

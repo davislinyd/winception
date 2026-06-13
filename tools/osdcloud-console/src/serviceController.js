@@ -26,14 +26,10 @@ import { downloadOsImageFromCatalog, listOsDownloadCatalog } from './osimages/do
 import { deleteCachedOsImage } from './osimages/maintenance.js';
 import { importUploadedOsImage, uploadOsImageFile } from './osimages/transfer.js';
 import { formatLogLine, RingBuffer, tailFile, appendLog } from './logger.js';
-import {
-  isElevatedSync,
-  listIpv4ServiceInterfaces,
-  removeStatusFiles,
-  runPreflight,
-  prepareRuntimeArtifacts,
-  syncIpxeEndpoint,
-} from './windows.js';
+import { syncIpxeEndpoint } from './windows/bootArtifacts.js';
+import { listIpv4ServiceInterfaces } from './windows/network.js';
+import { isElevatedSync } from './windows/powershell.js';
+import { prepareRuntimeArtifacts, removeStatusFiles, runPreflight } from './windows/preflight.js';
 import {
   getRuntimeReadiness,
 } from './runtimeArtifacts.js';

@@ -635,7 +635,9 @@ test('setup rejects a WebHost that is not a local enabled IPv4 address', () => {
 
 test('runtime restore uses the base Web config path while preserving local overlay merge', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
-  const windows = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows.js'), 'utf8');
+  const windowsDir = path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows');
+  const windows = fs.readdirSync(windowsDir).filter((f) => f.endsWith('.js')).sort()
+    .map((f) => fs.readFileSync(path.join(windowsDir, f), 'utf8')).join('\n');
 
   assert.match(script, /\[string\] \$ConfigPath/);
   assert.match(script, /InstalledStateConfigPath/);
