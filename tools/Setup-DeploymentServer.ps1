@@ -11,6 +11,8 @@ param(
     [switch] $DryRun
 )
 
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
 $ErrorActionPreference = 'Stop'
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
@@ -58,12 +60,6 @@ $StateRoot = [System.IO.Path]::GetFullPath($StateRoot)
 $StateConfigPath = Join-Path $StateRoot 'config\osdcloud-console.json'
 $LocalConfigPath = Join-Path $StateRoot 'config\osdcloud-console.local.json'
 $WebPort = 8080
-
-function Write-Step {
-    param([Parameter(Mandatory)][string] $Message)
-    Write-Host ''
-    Write-Host "== $Message =="
-}
 
 function Test-CommandAvailable {
     param([Parameter(Mandatory)][string] $Name)
@@ -199,12 +195,6 @@ function Ensure-Command {
     if (-not (Test-CommandAvailable -Name $Name)) {
         throw "Required command not found: $Name"
     }
-}
-
-function Test-IsAdministrator {
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-    $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 }
 
 function Install-HostManagementBundle {

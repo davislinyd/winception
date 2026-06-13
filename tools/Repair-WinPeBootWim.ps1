@@ -32,15 +32,11 @@ param(
     [string] $LiveRoot = 'C:\OSDCloud'
 )
 
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
 $ErrorActionPreference = 'Stop'
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
-
-function Write-Step {
-    param([Parameter(Mandatory)][string] $Message)
-    Write-Host ''
-    Write-Host "== $Message ==" -ForegroundColor Cyan
-}
 
 function Write-Ok   { param([string]$m) Write-Host "  OK  $m" -ForegroundColor Green }
 function Write-Fail { param([string]$m) Write-Host "  FAIL $m" -ForegroundColor Red }

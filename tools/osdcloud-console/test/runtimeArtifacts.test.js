@@ -13,6 +13,10 @@ import {
   verifyArtifactFile,
 } from '../src/runtimeArtifacts.js';
 
+// Helpers shared by the tools/*.ps1 scripts now live in tools/lib/Common.ps1
+// (dot-sourced by each script); assert their bodies there.
+const commonPs1 = fs.readFileSync(path.join(process.cwd(), 'tools', 'lib', 'Common.ps1'), 'utf8');
+
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
@@ -48,6 +52,12 @@ function createSetupSourceFixture(root) {
   fs.copyFileSync(
     path.join(process.cwd(), 'tools', 'Start-InstalledWebConsole.ps1'),
     path.join(root, 'tools', 'Start-InstalledWebConsole.ps1'),
+  );
+  // Scripts dot-source tools/lib/Common.ps1; stage it alongside them.
+  fs.mkdirSync(path.join(root, 'tools', 'lib'), { recursive: true });
+  fs.copyFileSync(
+    path.join(process.cwd(), 'tools', 'lib', 'Common.ps1'),
+    path.join(root, 'tools', 'lib', 'Common.ps1'),
   );
   fs.writeFileSync(path.join(root, 'tools', 'osdcloud-console', 'src', 'webServer.js'), 'export {};\n', 'utf8');
   fs.writeFileSync(path.join(root, 'Softwares', 'Install-Apps.ps1'), "Write-Host 'fixture'\n", 'utf8');
@@ -453,7 +463,8 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /Install-PackageProvider -Name NuGet/);
   assert.match(script, /Set-PSRepository -Name PSGallery -InstallationPolicy Trusted/);
   assert.match(script, /Install-Module \$moduleName -Scope AllUsers -Force -AllowClobber/);
-  assert.match(script, /function Test-IsAdministrator/);
+  assert.match(commonPs1, /function Test-IsAdministrator/);
+  assert.match(script, /lib\\Common\.ps1/);
   assert.match(script, /Start-Process -FilePath 'powershell\.exe'/);
   assert.match(script, /'RunAs'/);
   assert.match(script, /administrator rights\./i);
@@ -729,8 +740,9 @@ test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft in
   assert.match(script, /WinVerifyTrust/);
   assert.match(script, /validated with WinVerifyTrust fallback after Get-AuthenticodeSignature could not complete/);
   assert.match(script, /CreateFromSignedFile/);
-  assert.match(script, /Get-Command -Name Get-FileHash/);
-  assert.match(script, /System\.Security\.Cryptography\.SHA256/);
+  assert.match(commonPs1, /Get-Command -Name Get-FileHash/);
+  assert.match(commonPs1, /System\.Security\.Cryptography\.SHA256/);
+  assert.match(script, /lib\\Common\.ps1/);
   assert.match(script, /OptionId\.DeploymentTools/);
   assert.match(script, /OptionId\.WindowsPreinstallationEnvironment/);
   assert.match(script, /NoAdkAutoInstall/);

@@ -10,6 +10,8 @@ param(
     [string] $AppRoot = 'C:\OSDCloud\HostTools\App'
 )
 
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
 $ErrorActionPreference = 'Stop'
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
@@ -18,31 +20,6 @@ $OutputEncoding = $Utf8NoBom
 
 function ConvertTo-RepoPath([string] $Path) {
     $Path.Replace('\', '/')
-}
-
-function Get-Sha256Hash {
-    param([Parameter(Mandatory)][string] $LiteralPath)
-
-    $resolvedPath = (Resolve-Path -LiteralPath $LiteralPath -ErrorAction Stop).ProviderPath
-    $hashCommand = Get-Command -Name Get-FileHash -ErrorAction SilentlyContinue
-    if ($hashCommand) {
-        return (& $hashCommand -LiteralPath $resolvedPath -Algorithm SHA256).Hash
-    }
-
-    $stream = [System.IO.File]::OpenRead($resolvedPath)
-    try {
-        $sha256 = [System.Security.Cryptography.SHA256]::Create()
-        try {
-            $hashBytes = $sha256.ComputeHash($stream)
-            return (-join ($hashBytes | ForEach-Object { $_.ToString('x2') })).ToUpperInvariant()
-        }
-        finally {
-            $sha256.Dispose()
-        }
-    }
-    finally {
-        $stream.Dispose()
-    }
 }
 
 function Get-FileMetadata {

@@ -26,6 +26,8 @@ param(
     [switch] $SkipUserCreation
 )
 
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
 $ErrorActionPreference = 'Stop'
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
@@ -43,52 +45,6 @@ if ([string]::IsNullOrWhiteSpace($ClientGateway)) {
     $ClientGateway = $ServerIp
 }
 
-function Write-Step {
-    param([Parameter(Mandatory)][string] $Message)
-    Write-Host ""
-    Write-Host "== $Message =="
-}
-
-function Test-IsAdministrator {
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-    $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
-}
-
-function Get-FullPath {
-    param([Parameter(Mandatory)][string] $Path)
-    [System.IO.Path]::GetFullPath($Path)
-}
-
-function Assert-ChildPath {
-    param(
-        [Parameter(Mandatory)][string] $Root,
-        [Parameter(Mandatory)][string] $Path,
-        [string] $Label = 'path'
-    )
-
-    $rootFull = (Get-FullPath $Root).TrimEnd('\')
-    $candidate = Get-FullPath $Path
-    $rootWithSlash = "$rootFull\"
-    if ($candidate -ne $rootFull -and -not $candidate.StartsWith($rootWithSlash, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "$Label escapes expected root. Root=$rootFull Path=$candidate"
-    }
-    $candidate
-}
-
-function Join-ChildPath {
-    param(
-        [Parameter(Mandatory)][string] $Root,
-        [Parameter(Mandatory)][string] $RelativePath,
-        [string] $Label = 'path'
-    )
-
-    if ([System.IO.Path]::IsPathRooted($RelativePath)) {
-        throw "$Label must be relative: $RelativePath"
-    }
-    Assert-ChildPath -Root $Root -Path (Join-Path $Root $RelativePath) -Label $Label
-}
-
 function Get-RelativePathUnderRoot {
     param(
         [Parameter(Mandatory)][string] $Root,
@@ -102,30 +58,6 @@ function Get-RelativePathUnderRoot {
         throw "Artifact source is outside manifest sourceRoot. Root=$rootFull Source=$pathFull"
     }
     $pathFull.Substring($rootWithSlash.Length)
-}
-
-function Get-Sha256Hash {
-    param([Parameter(Mandatory)][string] $LiteralPath)
-
-    $resolvedPath = (Resolve-Path -LiteralPath $LiteralPath -ErrorAction Stop).ProviderPath
-    $hashCommand = Get-Command -Name Get-FileHash -ErrorAction SilentlyContinue
-    if ($hashCommand) {
-        return (& $hashCommand -LiteralPath $resolvedPath -Algorithm SHA256).Hash.ToUpperInvariant()
-    }
-
-    $stream = [System.IO.File]::OpenRead($resolvedPath)
-    try {
-        $sha256 = [System.Security.Cryptography.SHA256]::Create()
-        try {
-            return (-join ($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString('x2') })).ToUpperInvariant()
-        }
-        finally {
-            $sha256.Dispose()
-        }
-    }
-    finally {
-        $stream.Dispose()
-    }
 }
 
 function Assert-ArtifactMatches {

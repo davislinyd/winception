@@ -3,17 +3,13 @@ param(
     [switch] $NoBrowser
 )
 
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
 $ErrorActionPreference = 'Stop'
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
 [Console]::InputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
-
-function Test-IsAdministrator {
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-    $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
-}
 
 $AppRoot = Split-Path -Parent $PSScriptRoot
 $HostToolsRoot = Split-Path -Parent $AppRoot

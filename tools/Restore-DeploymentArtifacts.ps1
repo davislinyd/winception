@@ -11,6 +11,8 @@ param(
     [switch] $NoAdkAutoInstall
 )
 
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
 [Console]::InputEncoding = $Utf8NoBom
@@ -37,17 +39,6 @@ $AdkVersion = '10.1.26100.2454'
 $AdkSetupUrl = 'https://go.microsoft.com/fwlink/?linkid=2289980'
 $WinPeSetupUrl = 'https://go.microsoft.com/fwlink/?linkid=2289981'
 
-function Write-Step {
-    param([Parameter(Mandatory)][string] $Message)
-    Write-Host ""
-    Write-Host "== $Message =="
-}
-
-function Get-FullPath {
-    param([Parameter(Mandatory)][string] $Path)
-    [System.IO.Path]::GetFullPath($Path)
-}
-
 function Resolve-BaseConfigPath {
     param([Parameter(Mandatory)][string] $Path)
 
@@ -67,59 +58,6 @@ function Get-StateRootFromConfigPath {
 
     $baseConfigPath = Resolve-BaseConfigPath -Path $Path
     Split-Path -Parent (Split-Path -Parent $baseConfigPath)
-}
-
-function Assert-ChildPath {
-    param(
-        [Parameter(Mandatory)][string] $Root,
-        [Parameter(Mandatory)][string] $Path,
-        [string] $Label = 'path'
-    )
-
-    $rootFull = (Get-FullPath $Root).TrimEnd('\')
-    $candidate = Get-FullPath $Path
-    $rootWithSlash = "$rootFull\"
-    if ($candidate -ne $rootFull -and -not $candidate.StartsWith($rootWithSlash, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "$Label escapes expected root. Root=$rootFull Path=$candidate"
-    }
-    $candidate
-}
-
-function Join-ChildPath {
-    param(
-        [Parameter(Mandatory)][string] $Root,
-        [Parameter(Mandatory)][string] $RelativePath,
-        [string] $Label = 'path'
-    )
-
-    if ([System.IO.Path]::IsPathRooted($RelativePath) -or $RelativePath -match '^[A-Za-z]:') {
-        throw "$Label must be relative: $RelativePath"
-    }
-    Assert-ChildPath -Root $Root -Path (Join-Path $Root $RelativePath) -Label $Label
-}
-
-function Get-Sha256Hash {
-    param([Parameter(Mandatory)][string] $LiteralPath)
-
-    $resolvedPath = (Resolve-Path -LiteralPath $LiteralPath -ErrorAction Stop).ProviderPath
-    $hashCommand = Get-Command -Name Get-FileHash -ErrorAction SilentlyContinue
-    if ($hashCommand) {
-        return (& $hashCommand -LiteralPath $resolvedPath -Algorithm SHA256).Hash.ToUpperInvariant()
-    }
-
-    $stream = [System.IO.File]::OpenRead($resolvedPath)
-    try {
-        $sha256 = [System.Security.Cryptography.SHA256]::Create()
-        try {
-            return (-join ($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString('x2') })).ToUpperInvariant()
-        }
-        finally {
-            $sha256.Dispose()
-        }
-    }
-    finally {
-        $stream.Dispose()
-    }
 }
 
 function New-PlainTextSecureString {
@@ -407,12 +345,6 @@ function Restore-RepoFileArtifact {
         Copy-Item -LiteralPath $source -Destination $target -Force
         Assert-ArtifactMatches -Path $target -Artifact $Artifact -Label "Restored repo artifact $($Artifact.id)"
     }
-}
-
-function Test-IsAdministrator {
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-    $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 }
 
 function Get-AdkPrerequisiteState {

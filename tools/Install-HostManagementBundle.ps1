@@ -7,6 +7,8 @@ param(
     [switch] $DryRun
 )
 
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
 $ErrorActionPreference = 'Stop'
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
@@ -15,11 +17,6 @@ $OutputEncoding = $Utf8NoBom
 
 if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
     $SourceRoot = Split-Path -Parent $PSScriptRoot
-}
-
-function Get-FullPath {
-    param([Parameter(Mandatory)][string] $Path)
-    [System.IO.Path]::GetFullPath($Path)
 }
 
 function Assert-SafeRemoveRoot {
