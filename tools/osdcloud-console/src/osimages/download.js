@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { cachedImagePath, catalogFilters, matchesCatalogFilters, normalizeOsImage, osImageOptions, upsertCatalogImage } from './catalog.js';
-import { exportImageToWim, exportedImageMetadata, validateImageIndex } from './inspect.js';
+import { exportImageToWim, exportedImageMetadata, findEditionIndex, inspectWimInfo, validateImageIndex } from './inspect.js';
 import { appendCacheLog, assertInside, assertMicrosoftDownloadUrl, isMicrosoftDownloadUrl, microsoftDownloadHosts, normalizeId, powershellExe, sha1File, sha256File } from './shared.js';
 
 export async function runPowerShellJson(script, options = {}) {
@@ -218,27 +218,45 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
     return { status: 'cache-hit', image: cached, filePath: destination, bytes: cached.size };
   }
 
+  const sourcesDir = path.join(imageOptions.cacheRoot, 'sources');
+  const sourceArchivePath = assertInside(sourcesDir, path.join(sourcesDir, sourceImage.fileName), 'OS image source path');
+  const sourceAlreadyCached = fs.existsSync(sourceArchivePath) && fs.statSync(sourceArchivePath).size > 0;
   const jobId = `${sourceImage.id}-${Date.now()}`.replace(/[^A-Za-z0-9._-]/gu, '_');
   const sourceStagingPath = assertInside(imageOptions.downloadStagingRoot, path.join(imageOptions.downloadStagingRoot, `${jobId}.source`), 'OS image download staging path');
   const exportStagingPath = assertInside(imageOptions.downloadStagingRoot, path.join(imageOptions.downloadStagingRoot, `${jobId}.wim`), 'OS image export staging path');
+  const sourceFilePath = sourceAlreadyCached ? sourceArchivePath : sourceStagingPath;
 
   try {
-    await downloadToFile(sourceImage.url, sourceStagingPath, {
-      config,
-      fetchImpl: options.fetchImpl,
-      fileName: sourceImage.fileName,
-      microsoftDownloadHosts: options.microsoftDownloadHosts,
-      onProgress: options.onProgress,
-    });
-    const stat = fs.statSync(sourceStagingPath);
-    options.onProgress?.({
-      status: 'downloading',
-      phase: 'download-complete',
-      message: 'Download complete; preparing image...',
-      bytes: stat.size,
-      totalBytes: sourceImage.size || stat.size,
-      fileName: sourceImage.fileName,
-    });
+    fs.mkdirSync(sourcesDir, { recursive: true });
+    if (sourceAlreadyCached) {
+      const cachedStat = fs.statSync(sourceArchivePath);
+      options.onProgress?.({
+        status: 'downloading',
+        phase: 'source-cached',
+        message: `Using cached source (${sourceImage.fileName})`,
+        bytes: cachedStat.size,
+        totalBytes: sourceImage.size || cachedStat.size,
+        fileName: sourceImage.fileName,
+      });
+    } else {
+      await downloadToFile(sourceImage.url, sourceStagingPath, {
+        config,
+        fetchImpl: options.fetchImpl,
+        fileName: sourceImage.fileName,
+        microsoftDownloadHosts: options.microsoftDownloadHosts,
+        onProgress: options.onProgress,
+      });
+      const downloadStat = fs.statSync(sourceStagingPath);
+      options.onProgress?.({
+        status: 'downloading',
+        phase: 'download-complete',
+        message: 'Download complete; preparing image...',
+        bytes: downloadStat.size,
+        totalBytes: sourceImage.size || downloadStat.size,
+        fileName: sourceImage.fileName,
+      });
+    }
+    const stat = fs.statSync(sourceFilePath);
     options.onProgress?.({
       status: 'downloading',
       phase: 'verifying-source',
@@ -255,16 +273,21 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
     }
     let sourceSha256 = '';
     if (sourceImage.sha256) {
-      sourceSha256 = await sha256File(sourceStagingPath);
+      sourceSha256 = await sha256File(sourceFilePath);
       if (sourceSha256 !== sourceImage.sha256) {
         throw new Error(`OS image SHA256 mismatch: ${sourceSha256} expected ${sourceImage.sha256}`);
       }
     } else if (sourceImage.sha1) {
-      const actual = await sha1File(sourceStagingPath);
+      const actual = await sha1File(sourceFilePath);
       if (actual !== sourceImage.sha1) {
         throw new Error(`OS image SHA1 mismatch: ${actual} expected ${sourceImage.sha1}`);
       }
     }
+
+    // ESD index layout varies: inspect indexes to find the actual edition rather than
+    // trusting the catalog-supplied index (some ESDs include Setup/PE images that
+    // shift OS edition indexes relative to what the OSD module expects)
+    let resolvedImageIndex = sourceImage.imageIndex;
     if (options.validateImage !== false) {
       options.onProgress?.({
         status: 'downloading',
@@ -274,7 +297,13 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
         totalBytes: sourceImage.size || stat.size,
         fileName: sourceImage.fileName,
       });
-      await validateImageIndex(sourceStagingPath, sourceImage.imageIndex, options);
+      const wimRows = await inspectWimInfo(sourceFilePath, options);
+      const found = findEditionIndex(wimRows, sourceImage.edition);
+      if (found !== null) {
+        resolvedImageIndex = found;
+      } else {
+        await validateImageIndex(sourceFilePath, resolvedImageIndex, options);
+      }
     }
 
     options.onProgress?.({
@@ -286,7 +315,7 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
       fileName: image.fileName,
     });
     let lastDismPercent = -1;
-    await exportImageToWim(sourceStagingPath, exportStagingPath, sourceImage.imageIndex, {
+    await exportImageToWim(sourceFilePath, exportStagingPath, resolvedImageIndex, {
       ...options,
       onStdout: (text) => {
         const match = /(\d+\.?\d*)%/u.exec(text);
@@ -326,6 +355,7 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
       sha256: await sha256File(exportStagingPath),
       sourceSize: stat.size,
       sourceSha256: sourceSha256 || sourceImage.sha256,
+      sourceImageIndex: resolvedImageIndex,
     };
     options.onProgress?.({
       status: 'downloading',
@@ -338,13 +368,12 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
     });
     fs.renameSync(exportStagingPath, destination);
 
-    const sourcesDir = path.join(imageOptions.cacheRoot, 'sources');
-    fs.mkdirSync(sourcesDir, { recursive: true });
-    const sourceDestination = assertInside(sourcesDir, path.join(sourcesDir, sourceImage.fileName), 'OS image source path');
-    if (fs.existsSync(sourceDestination)) {
-      fs.rmSync(sourceDestination, { force: true });
+    if (!sourceAlreadyCached) {
+      if (fs.existsSync(sourceArchivePath)) {
+        fs.rmSync(sourceArchivePath, { force: true });
+      }
+      fs.renameSync(sourceStagingPath, sourceArchivePath);
     }
-    fs.renameSync(sourceStagingPath, sourceDestination);
 
     upsertCatalogImage(config, finalImage, options);
     appendCacheLog(config, { status: 'downloaded', imageId: finalImage.id, fileName: finalImage.fileName, bytes: finalImage.size }, options);
@@ -353,10 +382,11 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
     appendCacheLog(config, { status: 'failed', imageId: sourceImage.id, fileName: sourceImage.fileName, reason: error.message }, options);
     throw error;
   } finally {
-    for (const stagingPath of [sourceStagingPath, exportStagingPath]) {
-      if (fs.existsSync(stagingPath)) {
-        fs.rmSync(stagingPath, { force: true });
-      }
+    if (!sourceAlreadyCached && fs.existsSync(sourceStagingPath)) {
+      fs.rmSync(sourceStagingPath, { force: true });
+    }
+    if (fs.existsSync(exportStagingPath)) {
+      fs.rmSync(exportStagingPath, { force: true });
     }
   }
 }

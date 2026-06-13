@@ -161,6 +161,27 @@ export function inferEdition(name) {
   return 'Pro';
 }
 
+export function findEditionIndex(wimRows, edition) {
+  const target = String(edition ?? '').toLowerCase().trim();
+
+  const isBaseVariant = (row) => {
+    const lname = row.name.toLowerCase();
+    return !/ n\b/u.test(lname) && !lname.includes('single language') && !lname.includes('workstation');
+  };
+
+  for (const row of wimRows) {
+    if (inferEdition(row.name).toLowerCase() === target && isBaseVariant(row)) {
+      return row.imageIndex;
+    }
+  }
+  for (const row of wimRows) {
+    if (inferEdition(row.name).toLowerCase() === target) {
+      return row.imageIndex;
+    }
+  }
+  return null;
+}
+
 export function suggestedFileName(sourcePath, imageFilePath, imageIndex, metadata = {}) {
   if (metadata.fileName) {
     return cleanWimFileName(path.basename(metadata.fileName, path.extname(metadata.fileName)) + '.wim');
