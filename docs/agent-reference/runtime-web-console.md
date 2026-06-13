@@ -41,8 +41,8 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Stopped service cards are neutral, not failures. Use red only for actual blocked/error states.
 - Fleet Execution Flow stage matching uses prefix logic: a `FLEET_STAGE_FLOW` key such as `windows-setupcomplete` matches any `latestStage` that equals the key exactly or starts with `key + '-'` (e.g. `windows-setupcomplete-start`, `windows-setupcomplete-finished`). Add new flow steps with the shared prefix key, not the full stage name.
 - Stale run status pills use the `neutral` CSS variant (muted gray), not `working` (blue). Both the fleet card pill and the detail panel pill must apply this distinction.
-- Stale runs that stopped at `windows-setupcomplete-finished` or `windows-logon-start` are treated as effectively done in the UI (`STALE_DONE_STAGES` set in `app.js`): the progress ring shows ✓ and all Execution Flow steps are green. These stages confirm SetupComplete finished and the desktop-ready reporter was installed; the only missing event is the final desktop-ready heartbeat.
-- Read-only Web checks may fetch `/`, `styles.css`, `app.js`, `/api/state`, `/api/interfaces`, and `/api/profiles`; they must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
+- Stale runs that stopped at `windows-setupcomplete-finished` or `windows-logon-start` are treated as effectively done in the UI (`STALE_DONE_STAGES` set in `web/js/fleet.js`): the progress ring shows ✓ and all Execution Flow steps are green. These stages confirm SetupComplete finished and the desktop-ready reporter was installed; the only missing event is the final desktop-ready heartbeat.
+- Read-only Web checks may fetch `/`, `css/*.css`, `js/*.js` (entry `js/main.js`), `/api/state`, `/api/interfaces`, and `/api/profiles`; they must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
 
 ## OS Image And Profile Publish
 

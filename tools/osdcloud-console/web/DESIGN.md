@@ -96,12 +96,12 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
 
 ## Compatibility notes 相容性附註
 
-These legacy class names are intentionally kept because app.js references them
-(query or template-emit) — restyle them, never rename:
+These legacy class names are intentionally kept because the `web/js/` modules
+reference them (query or template-emit) — restyle them, never rename:
 
-- `.guided-v3-main`(app.js querySelector)與整組 `guided-v3-*` 結構類別。
-- `.v3-svc on|off`(app.js 動態輸出的服務小點)。
-- `.v3-summary-status warn|ok`(app.js 直接覆寫 `#summary-status` 的 className)。
+- `.guided-v3-main`(`web/js/setup.js` querySelector)與整組 `guided-v3-*` 結構類別。
+- `.v3-svc on|off`(`web/js/deploy.js` 動態輸出的服務小點)。
+- `.v3-summary-status warn|ok`(`web/js/deploy.js` 直接覆寫 `#summary-status` 的 className)。
 - `body.fleet-expanded .client-fleet-panel` 規則為測試釘死的遺留契約,勿清除。
 
 Chrome/structural classes use the `.shell-*` prefix; the Deploy summary bar uses
