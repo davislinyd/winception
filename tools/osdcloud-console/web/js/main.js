@@ -1,4 +1,4 @@
-import { handleAction, handleOsImageDelete, handleOsImageDownload, handleOsImageImport, handleProfileDelete, handleProfileSelect, handleSoftwareDelete, setFleetExpanded, switchToView } from './actions.js';
+import { handleAction, handleOsImageDelete, handleOsImageDownload, handleOsImageImport, handleOsImageReexport, handleProfileDelete, handleProfileSelect, handleSoftwareDelete, setFleetExpanded, switchToView } from './actions.js';
 import { api, refresh } from './api.js';
 import { clearRefineFilters, openValidationEvidenceFromTarget } from './deploy.js';
 import { closeDialog, confirmEndpointSync, enableBackdropCloseForDialogs, handleScriptDelete, showScriptContentViewer, showSoftwareDetails, showSoftwareScriptViewer, suppressBackdropCloseClickThrough } from './dialogs.js';
@@ -122,6 +122,8 @@ document.addEventListener('click', (event) => {
     const image = state.current?.osImage?.images?.find((item) => item.id === osImageButton.dataset.osImageId);
     if (image && osImageButton.dataset.osImageAction === 'delete') {
       handleOsImageDelete(image).catch((error) => window.alert(error.message));
+    } else if (image && osImageButton.dataset.osImageAction === 'reexport') {
+      handleOsImageReexport(image).catch((error) => window.alert(error.message));
     }
     return;
   }

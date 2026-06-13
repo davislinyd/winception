@@ -259,6 +259,12 @@ export class WebManagementServer {
       sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/os-image-reexport') {
+      const body = await readJsonBody(req);
+      const { promise: _promise, ...result } = this.controller.startReexportOsImage(body.imageId ?? body.id);
+      sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/os-image-upload') {
       const fileName = requestUrl.searchParams.get('fileName')
         ?? headerValue(req.headers, 'x-os-image-file-name');

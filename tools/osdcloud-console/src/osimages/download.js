@@ -5,7 +5,7 @@ import { collectProcessOutput, preparePowerShellArgs } from '../processOutput.js
 import { spawn } from 'node:child_process';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { cachedImagePath, catalogFilters, matchesCatalogFilters, normalizeOsImage, osImageOptions, upsertCatalogImage } from './catalog.js';
+import { cachedImagePath, catalogFilters, loadOsImageCatalog, matchesCatalogFilters, normalizeOsImage, osImageOptions, upsertCatalogImage } from './catalog.js';
 import { exportImageToWim, exportedImageMetadata, findEditionIndex, inferEdition, inspectWimInfo, validateImageIndex } from './inspect.js';
 import { appendCacheLog, assertInside, assertMicrosoftDownloadUrl, isMicrosoftDownloadUrl, microsoftDownloadHosts, normalizeId, powershellExe, sha1File, sha256File } from './shared.js';
 
@@ -393,6 +393,104 @@ export async function downloadOsImageFromCatalogItem(config = {}, catalogItem, o
     if (!sourceAlreadyCached && fs.existsSync(sourceStagingPath)) {
       fs.rmSync(sourceStagingPath, { force: true });
     }
+    if (fs.existsSync(exportStagingPath)) {
+      fs.rmSync(exportStagingPath, { force: true });
+    }
+  }
+}
+
+export async function reexportOsImageFromSource(config = {}, imageId, options = {}) {
+  const id = normalizeId(imageId, 'OS image');
+  const imageOptions = osImageOptions(config, options);
+  const catalog = loadOsImageCatalog(config, options);
+  const image = catalog.images.find((candidate) => candidate.id === id);
+  if (!image) {
+    throw new Error(`OS image not found: ${id}`);
+  }
+
+  const sourcesDir = path.join(imageOptions.cacheRoot, 'sources');
+  const sourceBaseName = image.sourceFileName ?? path.basename(image.fileName, path.extname(image.fileName));
+  let sourceFilePath = null;
+  for (const candidate of [
+    path.join(sourcesDir, sourceBaseName),
+    path.join(sourcesDir, `${sourceBaseName}.esd`),
+    path.join(sourcesDir, `${sourceBaseName}.wim`),
+  ]) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).size > 0) {
+      sourceFilePath = candidate;
+      break;
+    }
+  }
+  if (!sourceFilePath) {
+    throw new Error('Source ESD not found on disk. Re-download from the catalog to fetch a fresh source before re-exporting.');
+  }
+
+  const wimRows = await inspectWimInfo(sourceFilePath, options);
+  const resolvedImageIndex = findEditionIndex(wimRows, image.edition) ?? image.sourceImageIndex ?? 1;
+
+  fs.mkdirSync(imageOptions.downloadStagingRoot, { recursive: true });
+  const jobId = `${id}-reexport-${Date.now()}`.replace(/[^A-Za-z0-9._-]/gu, '_');
+  const exportStagingPath = assertInside(
+    imageOptions.downloadStagingRoot,
+    path.join(imageOptions.downloadStagingRoot, `${jobId}.wim`),
+    'OS image export staging path',
+  );
+  const destination = cachedImagePath(imageOptions, image);
+
+  options.onProgress?.({
+    status: 'reexporting',
+    phase: 'exporting-wim',
+    message: `Re-exporting ${image.edition} from ESD index ${resolvedImageIndex}. This can take several minutes.`,
+    fileName: image.fileName,
+  });
+
+  try {
+    let lastDismPercent = -1;
+    await exportImageToWim(sourceFilePath, exportStagingPath, resolvedImageIndex, {
+      ...options,
+      onStdout: (text) => {
+        const match = /(\d+\.?\d*)%/u.exec(text);
+        if (!match) return;
+        const percent = parseFloat(match[1]);
+        if (percent - lastDismPercent < 5) return;
+        lastDismPercent = percent;
+        options.onProgress?.({
+          status: 'reexporting',
+          phase: 'exporting-wim',
+          message: `Re-exporting deployable WIM with DISM (${percent.toFixed(0)}%)`,
+          fileName: image.fileName,
+          dismPercent: percent,
+        });
+      },
+    });
+
+    if (options.validateImage !== false) {
+      await validateImageIndex(exportStagingPath, 1, options);
+      const exportedRows = await inspectWimInfo(exportStagingPath, options);
+      const exportedEdition = exportedRows[0] ? inferEdition(exportedRows[0].name) : null;
+      if (exportedEdition && exportedEdition.toLowerCase() !== (image.edition ?? '').toLowerCase()) {
+        throw new Error(
+          `Re-exported WIM edition mismatch: got "${exportedRows[0]?.name}" (${exportedEdition}), expected ${image.edition}`,
+        );
+      }
+    }
+
+    const exportStat = fs.statSync(exportStagingPath);
+    const newSha256 = await sha256File(exportStagingPath);
+
+    if (fs.existsSync(destination)) {
+      fs.rmSync(destination, { force: true });
+    }
+    fs.renameSync(exportStagingPath, destination);
+
+    const updatedImage = { ...image, size: exportStat.size, sha256: newSha256, sourceImageIndex: resolvedImageIndex };
+    upsertCatalogImage(config, updatedImage, options);
+    appendCacheLog(config, { status: 're-exported', imageId: id, fileName: image.fileName, bytes: exportStat.size }, options);
+    return { status: 're-exported', image: updatedImage, filePath: destination, bytes: exportStat.size };
+  } catch (error) {
+    appendCacheLog(config, { status: 'reexport-failed', imageId: id, fileName: image.fileName, reason: error.message }, options);
+    throw error;
+  } finally {
     if (fs.existsSync(exportStagingPath)) {
       fs.rmSync(exportStagingPath, { force: true });
     }

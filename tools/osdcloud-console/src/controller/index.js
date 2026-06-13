@@ -5,7 +5,7 @@ import { summarizeDriverPackCache } from '../driverPackCache.js';
 import { MediaHttpServer } from '../httpServer.js';
 import { RingBuffer, appendLog, tailFile } from '../logger.js';
 import { formatOsImageLabel, publishSelectedOsImage, resolveOsImageState } from '../osimages/catalog.js';
-import { downloadOsImageFromCatalog, listOsDownloadCatalog } from '../osimages/download.js';
+import { downloadOsImageFromCatalog, listOsDownloadCatalog, reexportOsImageFromSource } from '../osimages/download.js';
 import { deleteCachedOsImage } from '../osimages/maintenance.js';
 import { importUploadedOsImage, uploadOsImageFile } from '../osimages/transfer.js';
 import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, resolveDeploymentProfileState, updateDeploymentProfile } from '../profiles/profiles.js';
@@ -41,6 +41,7 @@ export class ServiceController extends EventEmitter {
       deleteStatusRun,
       deleteCachedOsImage,
       downloadOsImageFromCatalog,
+      reexportOsImageFromSource,
       importUploadedOsImage,
       listOsDownloadCatalog,
       listIpv4ServiceInterfaces,
@@ -808,6 +809,75 @@ export class ServiceController extends EventEmitter {
       ...this.osDownloadStatus,
       promise,
     };
+  }
+
+  startReexportOsImage(imageId) {
+    if (this.osDownloadStatus?.running) {
+      throw errorWithStatus(`Operation already running: ${this.osDownloadStatus.catalogId ? `Downloading OS image ${this.osDownloadStatus.catalogId}` : 'Re-exporting OS image'}`, 409);
+    }
+
+    const jobId = `os-reexport-${Date.now()}`;
+    this.osDownloadStatus = {
+      jobId,
+      imageId,
+      status: 'starting',
+      phase: 'starting',
+      message: 'Starting OS image re-export...',
+      running: true,
+      bytes: 0,
+      totalBytes: null,
+      fileName: null,
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      error: null,
+    };
+    this.addLog(`[WEB] Re-exporting OS image ${imageId}`);
+    this.emit('operation', this.operation);
+
+    const promise = Promise.resolve().then(() => this.dependencies.reexportOsImageFromSource(this.config, imageId, {
+      onProgress: (progress) => {
+        const prevPhase = this.osDownloadStatus.phase;
+        this.osDownloadStatus = { ...this.osDownloadStatus, ...progress, jobId, imageId, running: true, error: null };
+        if (progress.phase && progress.phase !== prevPhase) {
+          this.addLog(`[DOWNLOAD] ${progress.message ?? progress.phase}`);
+        }
+        this.emit('operation', this.operation);
+      },
+    })).then((result) => {
+      this.osDownloadStatus = {
+        ...this.osDownloadStatus,
+        jobId,
+        imageId: result.image.id,
+        status: result.status,
+        phase: result.status,
+        message: `Re-exported ${result.image.fileName}.`,
+        running: false,
+        bytes: result.bytes,
+        fileName: result.image.fileName,
+        finishedAt: new Date().toISOString(),
+        error: null,
+      };
+      this.addLog(`OS image ${result.status}: ${result.image.id} ${result.image.fileName}`);
+      return result;
+    }).catch((error) => {
+      this.osDownloadStatus = {
+        ...this.osDownloadStatus,
+        jobId,
+        status: 'failed',
+        running: false,
+        finishedAt: new Date().toISOString(),
+        error: error.message,
+      };
+      this.addLog(`[WEB] Re-exporting OS image failed: ${error.message}`);
+      throw error;
+    }).finally(() => {
+      if (this.osDownloadPromise === promise) {
+        this.osDownloadPromise = null;
+      }
+    });
+    promise.catch(() => {});
+    this.osDownloadPromise = promise;
+    return { ...this.osDownloadStatus, promise };
   }
 
   async uploadOsImage(input) {

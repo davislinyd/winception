@@ -66,6 +66,37 @@ export async function handleOsImageDelete(image) {
   }
 }
 
+export async function handleOsImageReexport(image) {
+  const ok = await confirmAction({
+    title: 'Re-export OS image',
+    message: 'This replaces the cached WIM by re-exporting from the already-downloaded source ESD using the corrected edition index. Profile references are preserved — no need to delete the image first.',
+    details: [`OS: ${osImageLabel(image)}`, `File: ${image.fileName}`],
+    confirmLabel: 'Re-export',
+    severity: 'warning',
+  });
+  if (ok) {
+    if (state.osDownloadStarting || state.current?.osDownloadStatus?.running) {
+      return;
+    }
+    state.osDownloadStarting = true;
+    render();
+    try {
+      const payload = await api('/api/os-image-reexport', {
+        method: 'POST',
+        body: JSON.stringify({ imageId: image.id }),
+      });
+      state.current = payload.state;
+      state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
+      render();
+    } catch (error) {
+      window.alert(error.message);
+    } finally {
+      state.osDownloadStarting = false;
+      render();
+    }
+  }
+}
+
 export async function handleOsImageDownload(image) {
   const ok = await confirmAction({
     title: 'Download OS image',

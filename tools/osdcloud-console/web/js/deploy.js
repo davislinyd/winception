@@ -573,6 +573,15 @@ export function renderOsImages(appState) {
         : '';
       appendTextCell(tr, `${cacheText}${usageText}`);
       const actionCell = document.createElement('td');
+      const reexportButton = document.createElement('button');
+      reexportButton.type = 'button';
+      reexportButton.textContent = 'Re-export';
+      reexportButton.dataset.icon = 'refresh';
+      reexportButton.dataset.osImageAction = 'reexport';
+      reexportButton.dataset.osImageId = image.id;
+      reexportButton.disabled = Boolean(state.current?.osDownloadStatus?.running || state.osDownloadStarting);
+      reexportButton.title = 'Re-export WIM from cached source ESD without deleting profile references';
+      actionCell.append(reexportButton);
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
       deleteButton.className = 'danger';
