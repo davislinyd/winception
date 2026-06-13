@@ -1,0 +1,200 @@
+/* Warning Banner styles */
+#warning-banner {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--on-surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  gap: 16px;
+  box-shadow: 0 1px 3px 0 rgba(51, 46, 41, 0.1);
+  margin-bottom: 8px;
+}
+#warning-banner.hidden {
+  display: none !important;
+}
+
+/* ============================================================
+   暖紙墨 component layer — badges, chips, cards
+   ============================================================ */
+.live-chip { display: inline-flex; align-items: center; }
+.updated-chip { color: var(--on-surface-variant); white-space: nowrap; }
+
+/* ---- Status pills ---- */
+.badge,
+.status-pill {
+  border-radius: 999px !important;
+  font: 700 10px/1.4 Inter, sans-serif !important;
+  letter-spacing: 0.04em !important;
+  padding: 4px 10px !important;
+  border: 1px solid transparent;
+}
+.status-pill.ok, .badge.ok {
+  background: var(--ok-bg) !important; color: var(--ok) !important;
+}
+.badge.neutral, .status-pill.neutral {
+  background: var(--surface-container) !important;
+  border-color: var(--hairline) !important; color: var(--on-surface-variant) !important;
+}
+.badge.running, .status-pill.working {
+  background: var(--warn-bg) !important; color: var(--warn) !important;
+}
+.status-pill.warn {
+  background: var(--warn-bg) !important; color: var(--warn) !important;
+}
+.badge.failed, .status-pill.fail {
+  background: var(--error-container) !important; color: var(--error) !important;
+}
+.live-chip.running::before, .live-chip.ok::before {
+  content: ""; width: 7px; height: 7px; border-radius: 999px;
+  background: currentColor; margin-right: 6px;
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(56, 104, 74, 0.4); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(56, 104, 74, 0); }
+}
+
+/* ---- Section heading labels ---- */
+.runtime-readiness-panel h3,
+.sync-progress-panel h3,
+.status-profile-panel h3,
+.status-os-panel h3,
+.driver-cache-panel h3,
+.preflight-summary-panel h3,
+.client-fleet-header h3,
+.system-log-panel h3,
+.operations-panel h3 {
+  letter-spacing: 0.08em !important;
+}
+
+/* ---- Service cards: soft toggles ---- */
+.service-card {
+  border-radius: 10px !important;
+  padding: 14px !important;
+}
+.service-switch {
+  background: var(--surface-container-high);
+}
+.service-switch.running { background: var(--ok) !important; }
+
+/* ---- Progress rings (fleet cards + detail, rendered by app.js) ---- */
+.ring { --val: 0; --ring-color: var(--warn); width: 46px; height: 46px; flex: 0 0 auto; border-radius: 999px;
+  background: conic-gradient(var(--ring-color) calc(var(--val) * 1%), var(--surface-container-high) 0);
+  display: flex; align-items: center; justify-content: center; }
+.ring::after { content: attr(data-label); width: 36px; height: 36px; border-radius: 999px; background: var(--surface-container-lowest);
+  display: flex; align-items: center; justify-content: center; font: 700 11px/1 Inter, sans-serif; color: var(--on-surface); }
+.ring.done { --ring-color: var(--ok); }
+.ring.idle { background: none; border: 2px dashed var(--outline-variant); }
+
+/* ---- Fleet card grid (Fleet view) ---- */
+#view-fleet .fleet-stat-strip { display: flex; gap: 10px; flex-wrap: wrap; }
+.fleet-stat { background: var(--surface-container-lowest); border: var(--card-border); border-radius: 10px; box-shadow: var(--card-shadow); padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+.fleet-stat .num { font: 600 24px/1 "Source Serif 4", Georgia, serif; color: var(--on-surface); }
+.fleet-stat .lbl { font: 500 11px/1 Inter, sans-serif; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.06em; }
+.fleet-stat.fail .num { color: var(--error); }
+.fleet-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.fleet-card { background: var(--surface-container-lowest); border: var(--card-border); border-radius: 10px; box-shadow: var(--card-shadow); padding: 16px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+.fleet-card:hover { border-color: var(--outline); background: var(--surface-bright); }
+.fleet-card .fc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fleet-card .fc-name { font: 600 14px/1.2 Inter, sans-serif; color: var(--on-surface); }
+.fleet-card .fc-run { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--on-surface-variant); }
+.fleet-card .ring { width: 72px; height: 72px; align-self: center; }
+.fleet-card .ring::after { width: 58px; height: 58px; font-size: 14px; }
+.fleet-card .fc-stage { text-align: center; font: 400 12px/1.3 Inter, sans-serif; color: var(--on-surface-variant); }
+
+/* ---- Live activity styling for the system log panel ---- */
+.system-log-output { font-size: 11px; line-height: 1.6; }
+
+/* ============================================================
+   Overview bento (Stitch parity) — replaces old 3-col cockpit
+   ============================================================ */
+#view-dashboard.active { display: flex; flex-direction: column; }
+
+.bento-card {
+  background: var(--surface-container-lowest);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+  transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s ease;
+}
+.bento-card:hover { transform: translateY(-3px); box-shadow: var(--card-shadow-hover); }
+.bento-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bento-head h3 {
+  margin: 0; font: 700 11px/1.4 Inter, sans-serif;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);
+}
+
+/* small pill buttons used inside cards / activity header */
+.bento-mini {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--hairline); background: var(--surface-container-low);
+  color: var(--on-surface-variant); cursor: pointer;
+  border-radius: 999px; padding: 5px 12px;
+  font: 600 12px/1 Inter, sans-serif; transition: all 0.18s ease;
+}
+.bento-mini[data-icon]::before { font-size: 15px; }
+.bento-mini:hover:not(:disabled) { background: var(--surface-container-high); color: var(--on-surface); }
+.bento-mini.ghost { background: transparent; }
+.bento-mini.warning { background: var(--accent-soft); color: var(--accent-hover); border: 1px solid var(--accent-tint-border); box-shadow: none; }
+.bento-mini.warning[data-icon]::before { color: var(--accent-hover); }
+.bento-mini.danger { background: var(--surface-container-high); color: var(--tertiary); border: 1px solid var(--outline-variant); box-shadow: none; }
+.bento-mini.danger[data-icon]::before { color: var(--tertiary); }
+.bento-mini.danger-text { color: var(--tertiary); }
+.bento-mini.danger-text:hover { background: var(--surface-container-high); color: var(--tertiary); }
+
+/* services in the deploy view use a 3-col grid (dash-services-grid) */
+
+/* Live metrics card */
+.live-metrics { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
+.live-metric { display: flex; flex-direction: column; gap: 2px; }
+.live-metric .lm-num { font: 600 26px/1 "Source Serif 4", Georgia, serif; color: var(--on-surface); letter-spacing: -0.01em; }
+.live-metric.deploying .lm-num { color: var(--primary); }
+.live-metric.ready .lm-num { color: var(--ok); }
+.live-metric.failed .lm-num { color: var(--error); }
+.live-metric .lm-lbl { font: 600 10px/1 Inter, sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--on-surface-variant); }
+.live-metrics .lm-foot { flex-basis: 100%; font: 500 11px/1.3 "JetBrains Mono", monospace; color: var(--on-surface-variant); }
+
+/* Live Activity card */
+.live-activity-card { padding: 0; min-height: 240px; border-radius: var(--card-radius); }
+.live-activity-head { padding: 16px 18px 10px; align-items: flex-start; }
+.live-activity-head h3 { margin: 0; font: 600 16px/1.2 "Source Serif 4", Georgia, serif; letter-spacing: -0.01em; text-transform: none; color: var(--on-surface); }
+.live-activity-sub { font: 400 12px/1.3 Inter, sans-serif; color: var(--on-surface-variant); }
+.live-activity-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.live-activity-card .system-log-output { margin: 0; border-top: 1px solid var(--outline-variant); border-radius: 0 0 var(--card-radius) var(--card-radius); max-height: 320px; }
+
+/* Advanced diagnostics collapsible */
+.overview-diagnostics {
+  background: var(--surface-container-lowest); border: var(--card-border);
+  border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden;
+}
+.overview-diagnostics > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+  padding: 14px 18px; font: 700 12px/1 Inter, sans-serif; letter-spacing: 0.04em;
+  color: var(--on-surface-variant); text-transform: uppercase;
+}
+.overview-diagnostics > summary::-webkit-details-marker { display: none; }
+.overview-diagnostics > summary::after { content: "expand_more"; font-family: "Material Symbols Outlined"; margin-left: auto; transition: transform 0.2s ease; }
+.overview-diagnostics[open] > summary::after { transform: rotate(180deg); }
+.overview-diagnostics-body { padding: 0 16px 16px; }
+
+/* baseline for plain buttons that used to live in the operations rail */
+.runtime-readiness-actions button,
+.client-fleet-header-actions button {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--hairline); background: var(--surface-container-low);
+  color: var(--on-surface-variant); cursor: pointer;
+  border-radius: 999px; padding: 7px 14px;
+  font: 600 13px/1 Inter, sans-serif; transition: all 0.18s ease;
+}
+.runtime-readiness-actions button:hover:not(:disabled),
+.client-fleet-header-actions button:hover:not(:disabled) { background: var(--surface-container-high); color: var(--on-surface); }
+.runtime-readiness-actions button.warning {
+  background: var(--accent-soft); color: var(--accent-hover); border: 1px solid var(--accent-tint-border);
+  box-shadow: none;
+}
+.runtime-readiness-actions button.warning[data-icon]::before { color: var(--accent-hover); }

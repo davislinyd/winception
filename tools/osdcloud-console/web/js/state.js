@@ -1,0 +1,42 @@
+export const RESERVED_WINDOWS_USERNAMES = new Set([
+  'administrator', 'guest', 'defaultaccount', 'wdagutilityaccount', 'system',
+]);
+export const DEFAULT_WINDOWS_USERNAME = 'LabAdmin';
+
+export const state = {
+  current: null,
+  selectedRunId: null,
+  pendingInterface: null,
+  interfaces: [],
+  interfacesLoading: false,
+  interfacesError: null,
+  osDownloadCatalog: [],
+  osDownloadCatalogLoaded: false,
+  osDownloadCatalogLoading: false,
+  osDownloadCatalogError: null,
+  osDownloadCatalogFilters: null,
+  osDownloadStarting: false,
+  refreshError: null,
+  osImportInspection: null,
+  busy: false,
+  clientFleetSignature: '',
+  logsText: null,
+  fleetExpanded: false,
+  initializationAutoOpened: false,
+  initializationPendingAction: null,
+  initializationOperationAction: null,
+  consoleDockCollapsed: true,
+  consoleDockOperationKey: '',
+  initializationDetailScrollPositions: {},
+  endpointSyncReturnToInitialization: false,
+  initializationRootDraft: '',
+  initializationSecretsEditing: false,
+  initializationSecretsDraft: {
+    windowsUsername: DEFAULT_WINDOWS_USERNAME,
+    windowsPassword: '',
+  },
+  currentView: null,
+  selectedGuidedStepId: null,
+  fleetFilter: 'all',
+  fleetSearch: '',
+};

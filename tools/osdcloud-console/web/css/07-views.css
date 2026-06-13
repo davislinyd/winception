@@ -1,0 +1,189 @@
+/* Deploy summary bar */
+.deploy-summary { display: flex; align-items: stretch; background: var(--surface-bright); border: 1px solid var(--hairline); border-radius: var(--card-radius); overflow: hidden; }
+.deploy-seg { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; text-align: left; padding: 14px 18px; border: none; border-left: 1px solid var(--hairline); background: transparent; cursor: pointer; transition: background 0.12s ease; }
+.deploy-seg:first-child { border-left: none; }
+.deploy-seg:hover { background: var(--surface-container-low); }
+.deploy-seg-label { font: 700 9px/1 Inter, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.deploy-seg-caret { position: absolute; top: 12px; right: 12px; font-size: 16px; color: var(--outline); opacity: 0; transition: opacity 0.12s ease; }
+.deploy-seg:hover .deploy-seg-caret { opacity: 1; }
+.deploy-seg-value { font: 600 13px/1.35 Inter, sans-serif; color: var(--ink); min-width: 0; }
+.deploy-seg-value.mono, .deploy-seg-value .technical-string { font-family: "JetBrains Mono", monospace; font-weight: 500; }
+.deploy-seg-value a, .deploy-seg-value .profile-software-item { color: var(--ink) !important; }
+/* Service dots rendered by app.js (legacy class names kept for the JS contract) */
+.v3-svc { display: inline-flex; align-items: center; gap: 5px; font: 400 11px/1 Inter, sans-serif; color: var(--muted); }
+.v3-svc .d { width: 7px; height: 7px; border-radius: 999px; background: var(--hairline); }
+.v3-svc.on .d { background: var(--sage); }
+.v3-svc.off .d { background: var(--hairline); }
+.deploy-summary-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 5px; padding: 12px 16px; border-left: 1px solid var(--hairline); }
+.v3-summary-status { font: 400 11px/1 Inter, sans-serif; color: var(--muted); }
+.v3-summary-status.warn { color: var(--ochre); }
+.v3-summary-status.ok { color: var(--sage); }
+.btn-primary { background: var(--clay); color: var(--on-accent); border: 1px solid var(--clay); border-radius: var(--ctl-radius, 4px); padding: 9px 18px; font: 600 12px/1 Inter, sans-serif; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; transition: background 0.12s ease; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-primary[data-icon]::before { font-size: 16px; margin-right: 6px; }
+
+/* Always-visible readiness panels under the services card */
+.dashboard-diagnostics-grid { margin-top: 26px; }
+
+/* Guided (Setup) + Fleet views inside v3 main: white cards, ink */
+#view-fleet, #initialization-dialog { padding-top: 4px; }
+
+/* ============================================================
+   v3 Setup — centered vertical timeline accordion (Stitch v3)
+   ============================================================ */
+#initialization-dialog.view { display: none; }
+/* Fill the available height so the card header/footer stay pinned while columns scroll inside */
+#initialization-dialog.view.active { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.guided-v3 { max-width: 1120px; width: 100%; margin: 0 auto; background: var(--surface-bright); border: 1px solid var(--hairline); border-radius: 8px; padding: 28px 32px 24px; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.guided-v3-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--hairline); margin-bottom: 8px; }
+.guided-v3-title { margin: 0; font: 600 22px/1.25 "Source Serif 4", Georgia, serif; letter-spacing: -0.01em; color: var(--ink); }
+.guided-v3-sub { display: block; margin-top: 5px; font: 400 13px/1.4 Inter, sans-serif; color: var(--on-surface-variant); }
+.guided-v3-progress { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 180px; }
+.guided-v3-progress-meta { display: flex; align-items: center; gap: 8px; }
+.guided-v3-progress-text { font: 600 11px/1 Inter, sans-serif; color: var(--on-surface-variant); white-space: nowrap; }
+.guided-v3-progress .guided-progress-track { width: 180px; height: 4px; border-radius: 999px; background: var(--surface-container-high); overflow: hidden; }
+.guided-v3-progress .guided-progress-fill { height: 100%; background: var(--accent); width: 0; transition: width 0.4s ease; }
+#initialization-dialog .status-pill { border-radius: 999px; padding: 2px 8px; font: 600 10px/1.4 Inter, sans-serif; }
+
+/* Two-column body: step timeline left with its OWN scrollbar, step detail right —
+   the page itself never scrolls, so the header/progress stay visible */
+.guided-v3-body { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 28px; flex: 1 1 auto; min-height: 0; }
+.guided-v3-main { min-width: 0; min-height: 0; overflow-y: auto; padding-right: 6px; }
+.guided-v3-main::-webkit-scrollbar { width: 8px; }
+.guided-v3-main::-webkit-scrollbar-track { background: transparent; }
+.guided-v3-main::-webkit-scrollbar-thumb { background: var(--surface-container-highest); border-radius: 8px; }
+.guided-v3-main::-webkit-scrollbar-thumb:hover { background: var(--outline); }
+@media (max-width: 960px) {
+  #initialization-dialog.view.active { display: block; flex: none; }
+  .guided-v3 { display: block; }
+  .guided-v3-body { grid-template-columns: minmax(0, 1fr); }
+  .guided-v3-main { overflow-y: visible; max-height: none; padding-right: 0; }
+}
+
+/* Timeline */
+.guided-timeline { position: relative; padding: 12px 0 4px; }
+.guided-timeline::before { content: ""; position: absolute; left: 9px; top: 22px; bottom: 14px; width: 2px; background: var(--hairline); }
+.guided-timeline .initialization-step { position: relative; display: block; background: transparent !important; border: none !important; border-radius: 0 !important; padding: 11px 0 11px 38px !important; margin: 0 !important; }
+.guided-timeline .initialization-step::before { content: ""; position: absolute; left: 2px; top: 13px; width: 16px; height: 16px; border-radius: 999px; background: var(--surface-bright); border: 2px solid var(--outline-variant); z-index: 1; box-sizing: border-box; }
+.guided-timeline .initialization-step.done::before { background: var(--accent); border-color: var(--accent); }
+.guided-timeline .initialization-step.done::after { content: "check"; font-family: "Material Symbols Outlined"; position: absolute; left: 4px; top: 14px; font-size: 12px; line-height: 1; color: #fff; z-index: 2; }
+.guided-timeline .initialization-step.active::before { border-color: var(--accent); background: var(--surface-bright); box-shadow: 0 0 0 3px rgba(156,66,33,0.15); }
+/* A done step stays a filled circle with its check even while selected —
+   selection shows as the halo only, so it never looks like a not-run (hollow) step */
+.guided-timeline .initialization-step.done.active::before { background: var(--accent); }
+.guided-timeline .initialization-step.working::before { border-color: var(--warn); box-shadow: 0 0 0 3px rgba(143,90,31,0.15); }
+.guided-timeline .status-pill { display: none !important; }
+.guided-timeline .initialization-step-body { display: flex; flex-direction: column; gap: 2px; }
+.guided-timeline .initialization-step-body strong { font: 600 14px/1.3 Inter, sans-serif; color: var(--ink); }
+.guided-timeline .initialization-step-body span { font: 400 12px/1.4 Inter, sans-serif; color: var(--on-surface-variant); }
+.guided-timeline .initialization-step:not(.done):not(.active) .initialization-step-body strong { color: var(--on-surface-variant); font-weight: 500; }
+.guided-timeline .initialization-step.active .initialization-step-body strong { font-weight: 700; }
+.guided-timeline .initialization-step { cursor: pointer; border-radius: 8px !important; transition: background 0.1s ease; }
+.guided-timeline .initialization-step:hover { background: var(--surface-container-low) !important; }
+
+/* Right-column detail panel: fits the body height, scrolls internally if long */
+.guided-v3-detail {
+  margin: 12px 0 0 !important; border: 1px solid var(--outline-variant) !important; border-radius: 8px !important;
+  padding: 18px !important; background: var(--surface-container-low) !important; box-shadow: none !important;
+  display: flex; flex-direction: column; gap: 14px;
+  align-self: start;
+  max-height: calc(100% - 12px);
+  min-height: 0;
+  overflow-y: auto;
+}
+.guided-v3-detail:empty, .guided-v3-detail[hidden] { display: none !important; }
+.guided-v3-detail .guided-detail-header { border-bottom: 1px solid var(--hairline); padding-bottom: 12px; }
+.guided-v3-detail .guided-detail-title { font: 600 17px/1.3 "Source Serif 4", Georgia, serif; color: var(--ink); }
+.guided-v3-detail .guided-detail-title .material-symbols-outlined { color: var(--on-surface-variant) !important; }
+.guided-v3-detail .guided-detail-desc { font: 400 13px/1.5 Inter, sans-serif; color: var(--on-surface-variant); }
+
+.guided-v3-foot { display: flex; justify-content: flex-end; padding-top: 16px; margin-top: 6px; border-top: 1px solid var(--hairline); }
+.guided-v3-foot .btn-primary[hidden] { display: none; }
+
+/* ============================================================
+   v3 — embedded config editors (Profile / OS Image / Endpoint)
+   render inline in the Deploy view instead of floating modals
+   ============================================================ */
+.config-embed[hidden] { display: none; }
+.config-embed { margin-top: 14px; }
+dialog.embedded-open {
+  display: block !important;
+  position: static !important;
+  inset: auto !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 8px !important;
+  background: var(--surface-bright) !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  color: var(--on-surface);
+}
+dialog.embedded-open::backdrop { display: none !important; }
+.config-embed .drawer-card,
+.config-embed .dialog-card {
+  max-width: 100% !important;
+  width: 100% !important;
+  max-height: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+}
+/* panel header */
+.config-embed .dialog-header {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface-bright);
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 8px 8px 0 0;
+  padding: 14px 20px;
+}
+.config-embed .dialog-header h3 { font: 600 16px/1.2 "Source Serif 4", Georgia, serif; color: var(--ink); }
+.config-embed .drawer-body,
+.config-embed .dialog-card > .form-grid { padding: 18px 20px 20px; }
+
+/* ============================================================
+   v3 — Deploy dashboard (status tiles + inline services) + Activity log
+   ============================================================ */
+.dash-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 760px) { .dash-tiles { grid-template-columns: repeat(2, 1fr); } }
+.dash-tile {
+  display: flex; flex-direction: row; gap: 10px; align-items: baseline;
+  text-align: left; cursor: pointer;
+  background: var(--surface-bright); border: 1px solid var(--hairline); border-radius: var(--card-radius);
+  padding: 12px 16px; transition: border-color 0.12s ease, background 0.12s ease;
+}
+.dash-tile:hover { border-color: var(--accent); background: var(--surface-container-low); }
+.dash-tile-num { font: 600 24px/1 "Source Serif 4", Georgia, serif; letter-spacing: -0.01em; color: var(--ink); }
+.dash-tile-label { font: 500 12px/1 Inter, sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--on-surface-variant); }
+.dash-tile.live .dash-tile-num { color: var(--ok); }
+.dash-tile.live .dash-tile-label::after { content: " ●"; color: var(--ok); animation: pulse-soft 1.6s infinite; }
+.dash-tile.err .dash-tile-num { color: var(--error); }
+
+.dash-card { background: var(--surface-bright); border: 1px solid var(--hairline); border-radius: 8px; }
+.dash-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--hairline); font: 700 11px/1 Inter, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-surface-variant); }
+.dash-services-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px 18px; }
+@media (max-width: 760px) { .dash-services-grid { grid-template-columns: 1fr; } }
+
+/* Setup timeline: "ran with failures" state — preflight ran but has blocking checks */
+.guided-timeline .initialization-step.has-failures::before { border-color: var(--warn) !important; background: var(--warn-bg) !important; box-shadow: 0 0 0 3px rgba(143,90,31,0.15); }
+.guided-timeline .initialization-step.has-failures::after { content: "warning"; font-family: "Material Symbols Outlined"; position: absolute; left: 3px; top: 14px; font-size: 11px; line-height: 1; color: var(--warn); z-index: 2; }
+.guided-timeline .initialization-step:not(.done):not(.active).has-failures .initialization-step-body strong { color: var(--ink); font-weight: 600; }
+
+/* Setup timeline: "needs update" state.
+   A completed step must ALWAYS keep its checkmark — the re-run hint is conveyed
+   by a warn halo on the ring plus the "Needs update" text badge, never by
+   replacing the ✓ glyph (which made a done step look like it never ran). */
+.guided-timeline .initialization-step.needs-update:not(.done)::before { border-color: var(--warn) !important; background: var(--surface-bright) !important; box-shadow: 0 0 0 3px rgba(143,90,31,0.15); }
+.guided-timeline .initialization-step.needs-update.done::before { background: var(--accent) !important; border-color: var(--warn) !important; box-shadow: 0 0 0 3px rgba(143,90,31,0.2); }
+.guided-timeline .initialization-step.needs-update.done::after { content: "check"; color: #fff; left: 4px; }
+.needs-update-badge {
+  display: inline-block; margin-left: 8px; vertical-align: middle;
+  font: 600 10px/1 Inter, sans-serif; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--warn); background: var(--warn-bg); border: 1px solid var(--warn-border);
+  padding: 2px 7px; border-radius: 999px;
+}

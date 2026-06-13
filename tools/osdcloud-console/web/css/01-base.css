@@ -1,0 +1,102 @@
+:root {
+  /* Winception Console — 暖紙墨 warm paper + ink design system */
+  /* Analogous warm neutrals (hue ~35-45°, low chroma); single terracotta accent. */
+  /* Contrast: ink/paper 12.6:1, muted/paper 5.3:1, term-text/term-bg 11.9:1 (all ≥ WCAG AA). */
+  --paper:    #FAF7F2;   /* 暖紙 warm off-white field */
+  --ink:      #332E29;   /* 暖墨 warm soot, not pure black */
+  --muted:    #6E655B;
+  --hairline: #E8E0D3;
+  --clay:     #9C4221;   /* 陶土 terracotta — the one accent */
+  --surface:  #F6F1E8;
+  --sage:     #38684A;
+  --ochre:    #8F5A1F;
+  --brick:    #9E3B32;
+  /* Surface scale (warm light) */
+  --surface-dim:               #F1EADD;
+  --surface-bright:            #FFFDF8;
+  --surface-container-lowest:  #FFFDF8;
+  --surface-container-low:     #F6F1E8;
+  --surface-container:         #F1EADD;
+  --surface-container-high:    #EBE2D2;
+  --surface-container-highest: #E4DAC7;
+  --on-surface:         #332E29;
+  --on-surface-variant: #5C544A;
+  --inverse-surface:    #36302A;
+  --inverse-on-surface: #F5EFE4;
+  --outline:            #8A7F70;
+  --outline-variant:    #E3DACA;
+  --surface-tint:       #9C4221;
+  /* Material aliases — map to 暖紙墨 tokens */
+  --primary:            #9C4221;
+  --primary-strong:     #7F3318;
+  --primary-container:  #F4E5DB;
+  --on-primary:         #FFFFFF;
+  --on-primary-container: #332E29;
+  --primary-fixed:      #E8C4AE;
+  --primary-fixed-dim:  #D9A98C;
+  --secondary:          #7A4C1A;
+  --secondary-container: #E8A93B;
+  --tertiary:           #9E3B32;
+  /* Status: sage=done, ochre=working, madder=error (desaturated, warm-leaning) */
+  --ok:           #38684A;
+  --ok-bg:        #E6EEE3;
+  --ok-border:    #BCD2BB;
+  --warn:         #8F5A1F;
+  --warn-bg:      #F7EBD7;
+  --warn-border:  #E4C896;
+  --warn-tint-hover: #F1E0C4;
+  --warn-fg:      #7A4C1A;
+  --error:        #9E3B32;
+  --error-strong: #7E2B24;
+  --error-container: #F7E5E1;
+  --error-border: #E0B4AC;
+  --error-tint-hover: #F0D8D2;
+  /* Accent — terracotta */
+  --accent:       #9C4221;
+  --accent-hover: #7F3318;
+  --on-accent:    #FFFFFF;
+  --accent-soft:  #F4E5DB;
+  --accent-tint-hover: #ECD5C5;
+  --accent-tint-border: #D9B49C;
+  /* Terminal (console dock) — warm charcoal + cream */
+  --term-bg:      #2A2520;
+  --term-surface: #353028;
+  --term-text:    #EFE7D8;
+  --term-muted:   #A29789;
+  --term-ok:      #9CBF93;
+  --term-err:     #E5A294;
+  /* Legacy brand vars (kept for any remaining references) */
+  --brand-blue:   #9C4221;
+  --brand-orange: #E8A93B;
+  --brand-red:    #9E3B32;
+  --background:   #FAF7F2;
+  --surface-variant: #F1EADD;
+  /* Layout */
+  --sidebar-w:     240px;
+  --rail-w:        64px;
+  --content-max:   1100px;
+  --card-radius:   6px;
+  --ctl-radius:    4px;
+  --card-shadow:   none;
+  --card-shadow-hover: none;
+  --card-border:   1px solid var(--hairline);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--background);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
