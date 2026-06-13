@@ -7,7 +7,7 @@ import { mediaHttpServerConfig } from './config.js';
 import { createDeploymentProfile, deleteDeploymentProfile, updateDeploymentProfileSoftware } from './profiles/profiles.js';
 import { publishDeploymentProfile } from './profiles/publish.js';
 import { MediaHttpServer } from './httpServer.js';
-import { publishSelectedOsImage } from './osImages.js';
+import { publishSelectedOsImage } from './osimages/catalog.js';
 import { ServiceController } from './serviceController.js';
 import { TftpResponder } from './tftp.js';
 import { WebManagementServer } from './webServer.js';

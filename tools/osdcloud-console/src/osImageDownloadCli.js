@@ -1,9 +1,5 @@
-import {
-  downloadOsImageFromCatalogItem,
-  listOsDownloadCatalog,
-  loadOsImageCatalog,
-  publishSelectedOsImage,
-} from './osImages.js';
+import { loadOsImageCatalog, publishSelectedOsImage } from './osimages/catalog.js';
+import { downloadOsImageFromCatalogItem, listOsDownloadCatalog } from './osimages/download.js';
 import { loadConfig } from './config.js';
 
 function parseArgs(argv) {

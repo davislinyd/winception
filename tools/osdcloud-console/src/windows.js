@@ -8,7 +8,7 @@ import { appRootForConfig, stateRootForConfig, resolveHttpFile } from './config.
 import { ipv4ToUInt32 } from './dhcp.js';
 import { resolveTftpPath } from './tftp.js';
 import { evaluateDeploymentProfilePayload } from './profiles/profiles.js';
-import { evaluateOsImageCache } from './osImages.js';
+import { evaluateOsImageCache } from './osimages/catalog.js';
 import {
   collectProcessOutput,
   preparePowerShellArgs as prepareProcessPowerShellArgs,

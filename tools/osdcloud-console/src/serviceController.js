@@ -21,16 +21,10 @@ import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentPro
 import { publishDeploymentProfile } from './profiles/publish.js';
 import { createCustomScript, deleteCustomScript, readCustomScriptContent, uploadCustomScript } from './profiles/scripts.js';
 import { createSoftwarePackage, deleteSoftwarePackage, formatSoftwareList, openSoftwareInstallScript, readSoftwareInstallScript, uploadSoftwareInstaller } from './profiles/software.js';
-import {
-  deleteCachedOsImage,
-  downloadOsImageFromCatalog,
-  formatOsImageLabel,
-  importUploadedOsImage,
-  listOsDownloadCatalog,
-  publishSelectedOsImage,
-  resolveOsImageState,
-  uploadOsImageFile,
-} from './osImages.js';
+import { formatOsImageLabel, publishSelectedOsImage, resolveOsImageState } from './osimages/catalog.js';
+import { downloadOsImageFromCatalog, listOsDownloadCatalog } from './osimages/download.js';
+import { deleteCachedOsImage } from './osimages/maintenance.js';
+import { importUploadedOsImage, uploadOsImageFile } from './osimages/transfer.js';
 import { formatLogLine, RingBuffer, tailFile, appendLog } from './logger.js';
 import {
   isElevatedSync,

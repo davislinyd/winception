@@ -3,21 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  deleteCachedOsImage,
-  downloadOsImageFromCatalogItem,
-  evaluateOsImageCache,
-  importUploadedOsImage,
-  importLocalOsImage,
-  inspectLocalOsImage,
-  loadOsImageCatalog,
-  osImageOptions,
-  publishSelectedOsImage,
-  resolveOsImageState,
-  scanCachedOsImages,
-  listOsDownloadCatalog,
-  uploadOsImageFile,
-} from '../src/osImages.js';
+import { evaluateOsImageCache, loadOsImageCatalog, osImageOptions, publishSelectedOsImage, resolveOsImageState, scanCachedOsImages } from '../src/osimages/catalog.js';
+import { downloadOsImageFromCatalogItem, listOsDownloadCatalog } from '../src/osimages/download.js';
+import { inspectLocalOsImage } from '../src/osimages/inspect.js';
+import { deleteCachedOsImage } from '../src/osimages/maintenance.js';
+import { importLocalOsImage, importUploadedOsImage, uploadOsImageFile } from '../src/osimages/transfer.js';
 
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
