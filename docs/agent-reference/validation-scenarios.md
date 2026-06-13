@@ -10,7 +10,7 @@ Read this file when selecting verification for subsystem-specific changes. Also 
 
 ## Web Console
 
-- Web layout or visual changes must run `node --check tools/osdcloud-console/web/app.js`, relevant Web UI tests such as `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/` when appropriate.
+- Web layout or visual changes must syntax-check every front-end module (the UI is split into ES modules under `tools/osdcloud-console/web/js/`), for example on PowerShell `Get-ChildItem tools/osdcloud-console/web/js -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }`, run relevant Web UI tests such as `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/` when appropriate.
 - Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
 - Read-only verification must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
 

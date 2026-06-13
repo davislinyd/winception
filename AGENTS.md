@@ -33,6 +33,7 @@ Do not treat a single failed test, failed preflight, failed deployment phase, or
 
 Read these files only when the task touches the relevant area:
 
+- Changing console code (which file owns a feature, where to make an edit, front-end/back-end module layout): `docs/agent-reference/module-map.md`. Use it to open one focused module instead of reading a whole monolith.
 - Deployment path, physical laptop, VM regression, timing run, ISO, or path evidence questions: `docs/agent-reference/deployment-paths.md`.
 - Runtime Readiness, Prepare runtime, endpoint sync, Web console, service controls, OS Image Cache, deployment profile publish, WinPE, SetupComplete, or desktop-ready behavior: `docs/agent-reference/runtime-web-console.md`.
 - Choosing verification for Web, OS image, profile/software/custom script, driver pack, multi-client, WinPE/SetupComplete, or other subsystem changes: `docs/agent-reference/validation-scenarios.md`.

@@ -5,10 +5,66 @@ import path from 'node:path';
 
 const webRoot = path.resolve('tools', 'osdcloud-console', 'web');
 
+// The web UI source is split into per-page ES modules under web/js and per-region
+// stylesheets under web/css. These helpers reconstruct the full source text so the
+// content assertions below keep working regardless of which module a symbol lives in.
+// They fall back to the legacy single-file layout when the split dirs are absent.
+function collectFiles(dir, ext) {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...collectFiles(full, ext));
+    } else if (entry.name.endsWith(ext)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function readWebScript() {
+  const files = collectFiles(path.join(webRoot, 'js'), '.js');
+  if (files.length) {
+    return files.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+  }
+  return fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+}
+
+// Concatenate stylesheets in <link> (cascade) order so order-sensitive `A[\s\S]*B`
+// assertions still see the same sequence the browser does.
+function readWebStyles() {
+  const cssDir = path.join(webRoot, 'css');
+  if (fs.existsSync(cssDir)) {
+    const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
+    const hrefs = [...html.matchAll(/<link[^>]+href="\.\/(css\/[^"]+\.css)"/g)].map((m) => m[1]);
+    if (hrefs.length) {
+      return hrefs.map((h) => fs.readFileSync(path.join(webRoot, h), 'utf8')).join('\n');
+    }
+  }
+  return fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
+}
+
+// Slice from a marker to the next function declaration, tolerating `export`/`async`
+// prefixes that appear once the source is split into modules.
+function blockFromMarker(text, startMarker) {
+  const start = text.indexOf(startMarker);
+  if (start === -1) {
+    return { start, end: -1, block: '' };
+  }
+  const after = start + startMarker.length;
+  const rest = text.slice(after);
+  const match = rest.match(/\n(?:export )?(?:async )?function /);
+  const end = match ? after + match.index : text.length;
+  return { start, end, block: text.slice(start, end) };
+}
+
 test('web UI exposes dashboard view topology', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
-  const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
+  const script = readWebScript();
+  const styles = readWebStyles();
 
   assert.match(html, /id="tailwind-config"/);
   assert.match(html, /cdn\.tailwindcss\.com\?plugins=forms,container-queries/);
@@ -416,7 +472,7 @@ test('web UI exposes dashboard view topology', () => {
 });
 
 test('preflight failed rows expose hover fix hints', () => {
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+  const script = readWebScript();
 
   assert.match(script, /function preflightResolutionHint\(check\)/);
   assert.match(script, /selected manifest stale/);
@@ -435,17 +491,16 @@ test('preflight failed rows expose hover fix hints', () => {
   assert.match(script, /detail\.title = tooltip/);
   assert.match(script, /row\.title = tooltip/);
 
-  const summaryStart = script.indexOf('if (passedCount > 0 || !issues.length) {');
-  const summaryEnd = script.indexOf('function roleForInterface', summaryStart);
+  const { start: summaryStart, end: summaryEnd, block: passedSummaryBlock } =
+    blockFromMarker(script, 'if (passedCount > 0 || !issues.length) {');
   assert.notEqual(summaryStart, -1);
   assert.notEqual(summaryEnd, -1);
-  const passedSummaryBlock = script.slice(summaryStart, summaryEnd);
   assert.doesNotMatch(passedSummaryBlock, /How to fix:/);
   assert.doesNotMatch(passedSummaryBlock, /preflightTooltip/);
 });
 
 test('system log follows only when already scrolled to bottom', () => {
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+  const script = readWebScript();
 
   assert.match(script, /logsText: null/);
   assert.match(script, /function isScrolledToBottom\(element, tolerance = 2\)/);
@@ -458,25 +513,24 @@ test('system log follows only when already scrolled to bottom', () => {
   assert.match(script, /state\.logsText = nextText/);
   assert.match(script, /logElement\.scrollTop = wasAtBottom \? logElement\.scrollHeight : previousScrollTop/);
 
-  const renderLogsStart = script.indexOf('function renderLogs(appState) {');
-  const renderLogsEnd = script.indexOf('function render()', renderLogsStart);
+  const { start: renderLogsStart, end: renderLogsEnd, block: renderLogsBlock } =
+    blockFromMarker(script, 'function renderLogs(appState) {');
   assert.notEqual(renderLogsStart, -1);
   assert.notEqual(renderLogsEnd, -1);
-  const renderLogsBlock = script.slice(renderLogsStart, renderLogsEnd);
   assert.ok(renderLogsBlock.indexOf('const wasAtBottom = isScrolledToBottom(logElement)') < renderLogsBlock.indexOf('logElement.textContent = nextText'));
 });
 
 test('web UI uses confirmation dialog instead of window confirm', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+  const script = readWebScript();
 
   assert.match(html, /id="confirm-dialog"/);
   assert.doesNotMatch(script, /window\.confirm/);
 });
 
 test('select interface drawer opens before live interface refresh settles', () => {
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
-  const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
+  const script = readWebScript();
+  const styles = readWebStyles();
 
   const interfacesActionStart = script.indexOf("} else if (action === 'interfaces') {");
   const reloadActionStart = script.indexOf("} else if (action === 'reload-endpoints') {", interfacesActionStart);
@@ -508,7 +562,7 @@ test('select interface drawer opens before live interface refresh settles', () =
 
 test('web UI uses a single stateful all-services toggle', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+  const script = readWebScript();
 
   assert.match(html, /data-action="all-services-toggle"/);
   assert.doesNotMatch(html, /data-action="start-all"/);
@@ -519,8 +573,8 @@ test('web UI uses a single stateful all-services toggle', () => {
 });
 
 test('web UI makes service cards stateful toggles', () => {
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
-  const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
+  const script = readWebScript();
+  const styles = readWebStyles();
 
   assert.match(script, /row\.dataset\.action = action/);
   assert.match(script, /row\.setAttribute\('role', 'button'\)/);
@@ -545,8 +599,8 @@ test('web UI makes service cards stateful toggles', () => {
 
 test('operations buttons use neutral, warning, and danger severity without blue default', () => {
   const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
-  const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
+  const script = readWebScript();
+  const styles = readWebStyles();
 
   assert.doesNotMatch(html, /quiet-action/);
   assert.doesNotMatch(html, /primary-action/);
@@ -562,8 +616,8 @@ test('operations buttons use neutral, warning, and danger severity without blue 
 });
 
 test('web UI keeps local component layer', () => {
-  const styles = fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
-  const script = fs.readFileSync(path.join(webRoot, 'app.js'), 'utf8');
+  const styles = readWebStyles();
+  const script = readWebScript();
 
   assert.match(styles, /--clay:\s+#9C4221/);
   assert.match(styles, /--term-bg:\s+#2A2520/);
