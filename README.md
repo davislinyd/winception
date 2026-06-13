@@ -67,76 +67,17 @@
 
 ## 部署流程圖
 
-GitHub 會直接渲染下方 Mermaid 圖。完整節點說明與安全閘門見
+GitHub 直接渲染下列 SVG 圖。完整節點說明與安全閘門見
 [docs/diagrams/technical-flow.md](docs/diagrams/technical-flow.md) 與
 [docs/diagrams/user-flow.md](docs/diagrams/user-flow.md)。
 
 ### 技術流程圖：系統架構與資料流
 
-```mermaid
-flowchart TD
-    subgraph HOST["部署主機 Deployment Host (Windows)"]
-        SETUP["Setup-DeploymentServer.cmd<br/>安裝 host bundle"]
-        BUNDLE["HostTools: App + State"]
-        WEB["Web Console (Node.js)<br/>127.0.0.1:8080"]
-        CTRL["ServiceController<br/>服務編排 / DI"]
-        RT["Runtime root (C:/OSDCloud)<br/>boot.wim / OS WIM 快取 / Apps / Scripts"]
-        subgraph SVC["部署服務 Deployment Services"]
-            DHCP["DHCP responder<br/>boot mode: secureboot / iPXE"]
-            TFTP["TFTP<br/>signed bootmgr / iPXE 開機檔"]
-            HTTP["HTTP media + status<br/>WinPE / OS WIM / Apps / Scripts / driver pack"]
-            TOR["BitTorrent tracker + seeder<br/>OS image P2P (預設開啟)"]
-            SMB["SMB share<br/>pxeinstall 唯讀，套用 Windows ESD/WIM"]
-        end
-        SETUP --> BUNDLE --> WEB --> CTRL
-        CTRL --> SVC
-        CTRL --> RT
-    end
-
-    subgraph CLIENT["目標電腦 Target Client"]
-        PXE["UEFI IPv4 PXE 開機"]
-        WINPE["WinPE 啟動<br/>OSDCloud iPXE"]
-        APPLY["套用 Windows 11 影像<br/>+ driver pack + 軟體/腳本"]
-        OOBE["SetupComplete + OOBE 客製化"]
-        READY["windows-desktop-ready"]
-        PXE --> WINPE --> APPLY --> OOBE --> READY
-    end
-
-    PXE -.->|"1 DHCP / boot mode"| DHCP
-    PXE -.->|"2 取得開機檔"| TFTP
-    WINPE -.->|"3 boot.wim / OS 影像 HTTP"| HTTP
-    WINPE -.->|"3 OS image P2P"| TOR
-    APPLY -.->|"4 影像 / 驅動 / 軟體"| HTTP
-    APPLY -.->|"4 Windows ESD/WIM via SMB"| SMB
-    READY ==>|"5 狀態回報 JSONL /osdcloud/status"| HTTP
-    HTTP --> ACT["Web Console<br/>Activity / Client Fleet"]
-```
+![技術流程圖：OSDCloud 部署架構與資料流](docs/diagrams/technical-flow.svg)
 
 ### 用戶流程圖：operator 操作路徑
 
-```mermaid
-flowchart TD
-    A["執行 Setup-DeploymentServer.cmd"] --> B["開啟 Web Console<br/>127.0.0.1:8080"]
-    B --> C["引導設定 Guided Setup"]
-    C --> S1["1 Project root"]
-    S1 --> S2["2 Web service IP"]
-    S2 --> S3["3 Deployment secrets"]
-    S3 --> S4["4 Prepare runtime"]
-    S4 --> S5["5 PXE / service endpoint"]
-    S5 --> S6["6 OS Image Cache"]
-    S6 --> S7["7 Publish profile"]
-    S7 --> S8["8 Run preflight"]
-    S8 --> D{"Preflight 全部通過?"}
-    D -- "否 / blocking" --> FIX["修正問題<br/>不要啟動 DHCP / 不要 PXE 開機"]
-    FIX --> S8
-    D -- "是" --> G{"確認 LAN 無其他 DHCP server?"}
-    G -- "否" --> WAIT["先關閉外部 DHCP"]
-    WAIT --> G
-    G -- "是" --> S9["9 Start services<br/>HTTP / TFTP / DHCP"]
-    S9 --> S10["10 目標電腦 UEFI IPv4 PXE 開機"]
-    S10 --> MON["回 Dashboard 監看<br/>Client Fleet / Validation Evidence / System Log"]
-    MON --> READY2["windows-desktop-ready ✓"]
-```
+![用戶流程圖：Web Console Guided Setup 路徑](docs/diagrams/user-flow.svg)
 
 ## 目前狀態
 

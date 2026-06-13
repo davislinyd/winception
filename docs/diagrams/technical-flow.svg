@@ -1,0 +1,102 @@
+<svg viewBox="0 0 1080 560" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', system-ui, -apple-system, 'Noto Sans TC', 'PingFang TC', sans-serif">
+  <style>
+    .bg{fill:#F7F2E9}
+    .title{fill:#2A2520;font-weight:600;font-size:20px}
+    .subtitle{fill:#6E6353;font-size:12.5px}
+    .panel{fill:#FBF6EC;stroke:#E4DAC8;stroke-width:1.5}
+    .panelC{fill:#EFF1EA;stroke:#D6D8CC;stroke-width:1.5}
+    .lane{fill:#9C4221;font-weight:600;font-size:12.5px;letter-spacing:.6px}
+    .node{fill:#FFFFFF;stroke:#D9CEBA;stroke-width:1.4}
+    .svc{fill:#FCF3E8;stroke:#E7C9A6;stroke-width:1.4}
+    .cli{fill:#FFFFFF;stroke:#CFD4C5;stroke-width:1.4}
+    .tc{fill:#2A2520;font-weight:600;font-size:12px;text-anchor:middle}
+    .ts{fill:#6E6353;font-size:10.5px;text-anchor:middle}
+    .el{fill:#6E6353;font-size:10.5px;text-anchor:middle}
+    .fl{fill:#9C4221;font-weight:600;font-size:11px;text-anchor:middle}
+    .arrow{fill:none;stroke:#8B7E68;stroke-width:1.6}
+    .flow{fill:none;stroke:#B25B36;stroke-width:1.7;stroke-dasharray:5 4}
+  </style>
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8B7E68"/></marker>
+    <marker id="ahc" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#B25B36"/></marker>
+  </defs>
+
+  <rect class="bg" width="1080" height="560"/>
+  <text class="title" x="540" y="34" text-anchor="middle">技術流程圖 · OSDCloud 零接觸部署架構與資料流</text>
+  <text class="subtitle" x="540" y="54" text-anchor="middle">Setup → 主機服務編排 → 用戶端 PXE 部署 → 狀態回報</text>
+
+  <!-- Lane A: host control pipeline -->
+  <g>
+    <rect class="node" x="78"  y="78" width="190" height="44" rx="8"/>
+    <rect class="node" x="323" y="78" width="190" height="44" rx="8"/>
+    <rect class="node" x="568" y="78" width="190" height="44" rx="8"/>
+    <rect class="node" x="813" y="78" width="190" height="44" rx="8"/>
+    <text class="tc" x="173" y="105">Setup-DeploymentServer.cmd</text>
+    <text class="tc" x="418" y="105">HostTools · App + State</text>
+    <text class="tc" x="663" y="105">Web Console · :8080</text>
+    <text class="tc" x="908" y="105">ServiceController</text>
+    <path class="arrow" d="M268,100 H321" marker-end="url(#ah)"/>
+    <path class="arrow" d="M513,100 H566" marker-end="url(#ah)"/>
+    <path class="arrow" d="M758,100 H811" marker-end="url(#ah)"/>
+    <text class="el" x="294" y="94">安裝</text>
+    <text class="el" x="539" y="94">啟動</text>
+    <text class="el" x="784" y="94">編排</text>
+    <path class="arrow" d="M908,122 V148" marker-end="url(#ah)"/>
+    <text class="el" x="950" y="139" text-anchor="start">管理 / 啟動</text>
+  </g>
+
+  <!-- Lane B: services -->
+  <rect class="panel" x="78" y="150" width="925" height="120" rx="10"/>
+  <text class="lane" x="94" y="170">部署服務 · DEPLOYMENT SERVICES</text>
+  <g>
+    <rect class="svc" x="90"  y="188" width="165" height="62" rx="8"/>
+    <rect class="svc" x="274" y="188" width="165" height="62" rx="8"/>
+    <rect class="svc" x="458" y="188" width="165" height="62" rx="8"/>
+    <rect class="svc" x="642" y="188" width="165" height="62" rx="8"/>
+    <rect class="svc" x="826" y="188" width="165" height="62" rx="8"/>
+    <text class="tc" x="172" y="214">DHCP</text>          <text class="ts" x="172" y="232">boot: secureboot / iPXE</text>
+    <text class="tc" x="356" y="214">TFTP</text>          <text class="ts" x="356" y="232">bootmgr / iPXE 開機檔</text>
+    <text class="tc" x="540" y="214">HTTP media + status</text> <text class="ts" x="540" y="232">WinPE · OS · Apps · Scripts</text>
+    <text class="tc" x="724" y="214">Torrent tracker+seeder</text> <text class="ts" x="724" y="232">OS image P2P · 預設開啟</text>
+    <text class="tc" x="908" y="214">SMB share</text>     <text class="ts" x="908" y="232">pxeinstall 唯讀 · ESD/WIM</text>
+  </g>
+
+  <!-- connectors between services and client -->
+  <path class="arrow" d="M300,270 V328" marker-end="url(#ah)"/>
+  <text class="el" x="312" y="302" text-anchor="start">用戶端存取服務</text>
+  <path class="flow" d="M780,328 V272" marker-end="url(#ahc)"/>
+  <text class="fl" x="768" y="302" text-anchor="end">狀態回報 JSONL</text>
+
+  <!-- Lane C: client lifecycle -->
+  <rect class="panelC" x="78" y="330" width="925" height="150" rx="10"/>
+  <text class="lane" x="94" y="350">目標電腦 · TARGET CLIENT lifecycle</text>
+  <g>
+    <rect class="cli" x="90"  y="366" width="165" height="86" rx="8"/>
+    <rect class="cli" x="274" y="366" width="165" height="86" rx="8"/>
+    <rect class="cli" x="458" y="366" width="165" height="86" rx="8"/>
+    <rect class="cli" x="642" y="366" width="165" height="86" rx="8"/>
+    <rect class="cli" x="826" y="366" width="165" height="86" rx="8"/>
+    <text class="tc" x="172" y="392">UEFI IPv4 PXE</text>
+    <text class="ts" x="172" y="412">開機</text>
+    <text class="fl" x="172" y="436">← DHCP + TFTP</text>
+    <text class="tc" x="356" y="392">WinPE 啟動</text>
+    <text class="ts" x="356" y="412">OSDCloud iPXE</text>
+    <text class="fl" x="356" y="436">← HTTP · Torrent</text>
+    <text class="tc" x="540" y="392">套用 Windows 11</text>
+    <text class="ts" x="540" y="412">+ driver / 軟體 / 腳本</text>
+    <text class="fl" x="540" y="436">← SMB · HTTP</text>
+    <text class="tc" x="724" y="392">SetupComplete</text>
+    <text class="ts" x="724" y="412">+ OOBE 客製化</text>
+    <text class="ts" x="724" y="432">略過 OOBE</text>
+    <text class="tc" x="908" y="392">desktop-ready</text>
+    <text class="ts" x="908" y="412">windows-desktop-ready</text>
+    <text class="fl" x="908" y="436">→ /osdcloud/status</text>
+    <path class="arrow" d="M255,409 H272" marker-end="url(#ah)"/>
+    <path class="arrow" d="M439,409 H456" marker-end="url(#ah)"/>
+    <path class="arrow" d="M623,409 H640" marker-end="url(#ah)"/>
+    <path class="arrow" d="M807,409 H824" marker-end="url(#ah)"/>
+  </g>
+
+  <text class="el" x="540" y="504">生命週期：run-start → winpe-end → windows-start → windows-apps-finished → windows-setupcomplete-finished → windows-desktop-ready</text>
+  <text class="el" x="540" y="524">狀態回報送至 HTTP <tspan fill="#9C4221">/osdcloud/status</tspan>，於 Web Console 的 Activity / Client Fleet 檢視證據</text>
+</svg>

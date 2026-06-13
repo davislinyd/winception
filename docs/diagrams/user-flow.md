@@ -3,29 +3,7 @@
 操作者（operator）在 Web console 上從零到 `windows-desktop-ready` 的完整操作路徑，
 含兩道安全閘門：preflight 必須全綠、確認 LAN 無其他 DHCP 才啟動服務。
 
-```mermaid
-flowchart TD
-    A["執行 Setup-DeploymentServer.cmd"] --> B["開啟 Web Console<br/>127.0.0.1:8080"]
-    B --> C["引導設定 Guided Setup"]
-    C --> S1["1 Project root"]
-    S1 --> S2["2 Web service IP"]
-    S2 --> S3["3 Deployment secrets"]
-    S3 --> S4["4 Prepare runtime"]
-    S4 --> S5["5 PXE / service endpoint"]
-    S5 --> S6["6 OS Image Cache"]
-    S6 --> S7["7 Publish profile"]
-    S7 --> S8["8 Run preflight"]
-    S8 --> D{"Preflight 全部通過?"}
-    D -- "否 / blocking" --> FIX["修正問題<br/>不要啟動 DHCP / 不要 PXE 開機"]
-    FIX --> S8
-    D -- "是" --> G{"確認 LAN 無其他 DHCP server?"}
-    G -- "否" --> WAIT["先關閉外部 DHCP"]
-    WAIT --> G
-    G -- "是" --> S9["9 Start services<br/>HTTP / TFTP / DHCP"]
-    S9 --> S10["10 目標電腦 UEFI IPv4 PXE 開機"]
-    S10 --> MON["回 Dashboard 監看<br/>Client Fleet / Validation Evidence / System Log"]
-    MON --> READY["windows-desktop-ready ✓"]
-```
+![用戶流程圖：Web Console Guided Setup 路徑](user-flow.svg)
 
 ## 說明
 

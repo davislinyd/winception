@@ -3,44 +3,7 @@
 OSDCloud + iPXE 零接觸部署的系統架構與資料流。從部署主機安裝、服務編排，到目標電腦
 PXE 開機、套用影像、回報狀態的完整路徑。
 
-```mermaid
-flowchart TD
-    subgraph HOST["部署主機 Deployment Host (Windows)"]
-        SETUP["Setup-DeploymentServer.cmd<br/>安裝 host bundle"]
-        BUNDLE["HostTools: App + State"]
-        WEB["Web Console (Node.js)<br/>127.0.0.1:8080"]
-        CTRL["ServiceController<br/>服務編排 / DI"]
-        RT["Runtime root (C:/OSDCloud)<br/>boot.wim / OS WIM 快取 / Apps / Scripts"]
-        subgraph SVC["部署服務 Deployment Services"]
-            DHCP["DHCP responder<br/>boot mode: secureboot / iPXE"]
-            TFTP["TFTP<br/>signed bootmgr / iPXE 開機檔"]
-            HTTP["HTTP media + status<br/>WinPE / OS WIM / Apps / Scripts / driver pack"]
-            TOR["BitTorrent tracker + seeder<br/>OS image P2P (預設開啟)"]
-            SMB["SMB share<br/>pxeinstall 唯讀，套用 Windows ESD/WIM"]
-        end
-        SETUP --> BUNDLE --> WEB --> CTRL
-        CTRL --> SVC
-        CTRL --> RT
-    end
-
-    subgraph CLIENT["目標電腦 Target Client"]
-        PXE["UEFI IPv4 PXE 開機"]
-        WINPE["WinPE 啟動<br/>OSDCloud iPXE"]
-        APPLY["套用 Windows 11 影像<br/>+ driver pack + 軟體/腳本"]
-        OOBE["SetupComplete + OOBE 客製化"]
-        READY["windows-desktop-ready"]
-        PXE --> WINPE --> APPLY --> OOBE --> READY
-    end
-
-    PXE -.->|"1 DHCP / boot mode"| DHCP
-    PXE -.->|"2 取得開機檔"| TFTP
-    WINPE -.->|"3 boot.wim / OS 影像 HTTP"| HTTP
-    WINPE -.->|"3 OS image P2P"| TOR
-    APPLY -.->|"4 影像 / 驅動 / 軟體"| HTTP
-    APPLY -.->|"4 Windows ESD/WIM via SMB"| SMB
-    READY ==>|"5 狀態回報 JSONL /osdcloud/status"| HTTP
-    HTTP --> ACT["Web Console<br/>Activity / Client Fleet"]
-```
+![技術流程圖：OSDCloud 部署架構與資料流](technical-flow.svg)
 
 ## 說明
 
