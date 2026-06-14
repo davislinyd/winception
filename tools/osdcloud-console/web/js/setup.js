@@ -611,7 +611,7 @@ export function renderInitialization(appState) {
       const runtime = appState.runtime;
       const requiresElevation = appState?.host?.elevated === false;
       button.disabled = state.busy
-        || (selectedStep.action === 'prepare-runtime' && (runtime.ready || requiresElevation))
+        || (selectedStep.action === 'prepare-runtime' && requiresElevation)
         || (selectedStep.action === 'all-services-toggle' && initialization.deploymentReady !== true);
       
       buttonContainer.append(button);
@@ -735,9 +735,6 @@ export function confirmPrepareRuntime(runtime) {
 
 export async function handleInitializationLongAction(action) {
   const runtime = state.current?.runtime;
-  if (action === 'prepare-runtime' && runtime?.ready) {
-    return;
-  }
   closeDialog(elements.initializationDialog);
   if (action === 'prepare-runtime') {
     const ok = await confirmPrepareRuntime(runtime);

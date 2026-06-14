@@ -11,6 +11,7 @@ $SourceRoot = Split-Path -Parent $PSScriptRoot
 
 Write-Host "Copying updated files to $AppRoot..."
 Copy-Item -Path (Join-Path $SourceRoot "tools") -Destination $AppRoot -Recurse -Force
+Copy-Item -Path (Join-Path $SourceRoot "osdcloud-assets") -Destination $AppRoot -Recurse -Force
 Copy-Item -Path (Join-Path $SourceRoot "package.json") -Destination $AppRoot -Force
 
 Write-Host "Finding and terminating active Web Console process..."

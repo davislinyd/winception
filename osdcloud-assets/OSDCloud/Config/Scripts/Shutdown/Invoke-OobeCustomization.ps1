@@ -118,7 +118,11 @@ try {
     $deploymentMetadata = Get-DeploymentMetadata -WindowsRoot $windowsRoot
     $selectedOs = Get-SelectedOsMetadata -DeploymentMetadata $deploymentMetadata
     $locale = if ($selectedOs.locale) { [string] $selectedOs.locale } elseif ($selectedOs.language) { [string] $selectedOs.language } else { 'zh-TW' }
-    $timeZone = if ($selectedOs.timeZone) { [string] $selectedOs.timeZone } else { 'Taipei Standard Time' }
+    # Only default to Taipei Standard Time when the locale is zh-TW.
+    # For en-us and other locales, fall through with no timezone so Windows
+    # picks its own default and does NOT add zh-TW to the preferred language list.
+    $defaultTimeZone = if ($locale -match '^zh[-_]TW$') { 'Taipei Standard Time' } else { '' }
+    $timeZone = if (-not [string]::IsNullOrWhiteSpace([string] $selectedOs.timeZone)) { [string] $selectedOs.timeZone } else { $defaultTimeZone }
     $localeXml = ConvertTo-XmlText -Value $locale
     $timeZoneXml = ConvertTo-XmlText -Value $timeZone
     $windowsUsername = Get-DeploymentSecret -JsonName 'windowsUsername' -EnvironmentName 'OSDCLOUD_WINDOWS_USERNAME'

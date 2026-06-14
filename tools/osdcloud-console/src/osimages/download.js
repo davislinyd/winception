@@ -425,6 +425,12 @@ export async function reexportOsImageFromSource(config = {}, imageId, options = 
     throw new Error('Source ESD not found on disk. Re-download from the catalog to fetch a fresh source before re-exporting.');
   }
 
+  options.onProgress?.({
+    status: 'reexporting',
+    phase: 'inspecting-source',
+    message: 'Inspecting source ESD with DISM...',
+    fileName: image.fileName,
+  });
   const wimRows = await inspectWimInfo(sourceFilePath, options);
   const resolvedImageIndex = findEditionIndex(wimRows, image.edition) ?? image.sourceImageIndex ?? 1;
 
@@ -464,6 +470,12 @@ export async function reexportOsImageFromSource(config = {}, imageId, options = 
       },
     });
 
+    options.onProgress?.({
+      status: 'reexporting',
+      phase: 'verifying-wim',
+      message: 'Verifying exported WIM...',
+      fileName: image.fileName,
+    });
     if (options.validateImage !== false) {
       await validateImageIndex(exportStagingPath, 1, options);
       const exportedRows = await inspectWimInfo(exportStagingPath, options);
@@ -478,6 +490,12 @@ export async function reexportOsImageFromSource(config = {}, imageId, options = 
     const exportStat = fs.statSync(exportStagingPath);
     const newSha256 = await sha256File(exportStagingPath);
 
+    options.onProgress?.({
+      status: 'reexporting',
+      phase: 'finalizing',
+      message: 'Finalizing re-export...',
+      fileName: image.fileName,
+    });
     if (fs.existsSync(destination)) {
       fs.rmSync(destination, { force: true });
     }

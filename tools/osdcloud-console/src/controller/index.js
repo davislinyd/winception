@@ -413,6 +413,7 @@ export class ServiceController extends EventEmitter {
       runtime: state.runtime,
       endpoint: endpointResult.value,
       osImage: osImageResult.error ? null : osImageResult.value,
+      profile: profileResult.error ? null : profileResult.value,
       profilePayload: profilePayloadResult.value,
       preflight: this.preflightResults,
       services: state.services,
@@ -840,6 +841,8 @@ export class ServiceController extends EventEmitter {
         this.osDownloadStatus = { ...this.osDownloadStatus, ...progress, jobId, imageId, running: true, error: null };
         if (progress.phase && progress.phase !== prevPhase) {
           this.addLog(`[DOWNLOAD] ${progress.message ?? progress.phase}`);
+        } else if (progress.dismPercent !== undefined && progress.message) {
+          this.addLog(`[DOWNLOAD] ${progress.message}`);
         }
         this.emit('operation', this.operation);
       },

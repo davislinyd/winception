@@ -97,7 +97,7 @@ export function renderRuntimeReadiness(appState) {
   setActionLabel('prepare-runtime', runtime.ready ? 'Runtime ready' : 'Prepare runtime');
   setActionIcon('prepare-runtime', runtime.ready ? 'check_circle' : 'deployed_code_update');
   actionButtons('prepare-runtime').forEach((button) => {
-    button.disabled = state.busy || runtime.ready || requiresElevation;
+    button.disabled = state.busy || requiresElevation;
   });
 }
 
@@ -566,7 +566,10 @@ export function renderOsImages(appState) {
       appendTextCell(tr, `${image.id} / ${image.name}`);
       appendTextCell(tr, image.language);
       appendTextCell(tr, image.edition);
-      appendTextCell(tr, image.imageIndex);
+      const srcIdxCell = appendTextCell(tr, image.sourceImageIndex ?? image.imageIndex);
+      srcIdxCell.title = image.sourceImageIndex != null
+        ? `Exported from source ESD/WIM index ${image.sourceImageIndex}`
+        : `WIM image index ${image.imageIndex}`;
       const cacheText = image.cached ? `${bytes(image.bytes)} cached` : 'missing';
       const usageText = inUse
         ? ` · used by ${usedBy.map((profile) => profile.name ?? profile.id).join(', ')}`

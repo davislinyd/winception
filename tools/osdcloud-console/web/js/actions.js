@@ -328,9 +328,6 @@ export async function handleAction(action, source = null) {
     await confirmEndpointSync(choice);
   } else if (action === 'prepare-runtime') {
     const runtime = state.current?.runtime;
-    if (runtime?.ready) {
-      return;
-    }
     const ok = await confirmPrepareRuntime(runtime);
     if (ok) {
       await mutate('/api/runtime/prepare');

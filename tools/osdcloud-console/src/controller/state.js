@@ -3,6 +3,13 @@ import { formatOsImageLabel } from '../osimages/catalog.js';
 import { formatSoftwareList } from '../profiles/software.js';
 import { deploymentServicesRunning, fleetHasDeploymentRun, osImageDeployableStatus, preflightStatus, profilePayloadStatus } from './helpers.js';
 
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
+  return `${bytes} B`;
+}
+
 export function runtimeInitializationDetailItems(runtime) {
   if (!runtime || runtime.ready === true || runtime.error || !Array.isArray(runtime.missing)) {
     return undefined;
@@ -77,7 +84,7 @@ export function projectRootStatus(config) {
   };
 }
 
-export function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profilePayload, preflight, services, fleet, elevated }) {
+export function buildInitializationState({ config, secrets, runtime, endpoint, osImage, profile, profilePayload, preflight, services, fleet, elevated }) {
   const web = webServerConfig(config);
   const webReady = Boolean(web.host) && Number.isInteger(web.port) && web.port >= 0;
   const rootStatus = projectRootStatus(config);
@@ -113,6 +120,99 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
   const clientBootDetail = bootMode === 'secureboot'
     ? 'Boot the target computer from UEFI IPv4 PXE — Secure Boot can stay ON. Monitor Client Fleet and Validation Evidence.'
     : 'Boot the target computer from UEFI IPv4 PXE with Secure Boot turned OFF (the iPXE chain is unsigned), then monitor Client Fleet and Validation Evidence.';
+  const secretFields = [
+    ['windowsUsername', 'deployment account name'],
+    ['windowsPassword', 'deployment account password'],
+    ['pxeinstallPassword', 'WinPE SMB password (auto-generated)'],
+  ];
+  const secretsDetailItems = secretFields.map(([field, meta]) => {
+    const s = secrets.status?.[field];
+    const present = s?.present === true;
+    return {
+      title: field,
+      meta,
+      detail: present
+        ? `present (${s.source})${field === 'windowsUsername' && secrets.windowsUsername ? `: ${secrets.windowsUsername}` : ''}`
+        : field === 'pxeinstallPassword' ? 'MISSING — save secrets to auto-generate' : 'MISSING',
+      status: present ? 'ready' : 'blocked',
+    };
+  });
+  const endpointDetailItems = !endpoint.ready ? undefined : [
+    {
+      title: 'Service interface',
+      meta: 'NIC',
+      detail: `${config.adapter?.interfaceAlias ?? 'unknown'} — ${config.adapter?.serverIp ?? ''}/${config.adapter?.prefixLength ?? ''}`.trim(),
+      status: 'ready',
+    },
+    { title: 'Boot mode', meta: 'firmware chain', detail: bootModeLabel, status: 'ready' },
+    ...(config.dhcp?.leaseStartIp ? [{ title: 'DHCP lease pool', meta: 'client IP range', detail: `${config.dhcp.leaseStartIp} – ${config.dhcp.leaseEndIp ?? ''}`, status: 'ready' }] : []),
+    ...(config.smb?.share ? [{ title: 'SMB share', meta: 'OS image distribution', detail: config.smb.share, status: 'ready' }] : []),
+  ];
+  const osImageDetailItems = cachedWims.length > 0
+    ? cachedWims.map((img) => ({
+      title: img.fileName ?? img.id,
+      meta: [img.edition, img.language].filter(Boolean).join(' · '),
+      detail: [
+        formatFileSize(img.bytes),
+        img.sourceImageIndex != null ? `ESD idx ${img.sourceImageIndex}` : '',
+        img.usedByProfiles?.length > 0 ? `used by: ${img.usedByProfiles.map((p) => p.name).join(', ')}` : '',
+      ].filter(Boolean).join(' · '),
+      status: 'ready',
+    }))
+    : [{ title: 'No cached WIM images', meta: 'os image', detail: 'Download or import a Windows image first.', status: 'blocked' }];
+  const activeProfile = profile?.activeProfile;
+  const profileDetailItems = !activeProfile ? undefined : [
+    {
+      title: activeProfile.name ?? activeProfile.id,
+      meta: 'active profile',
+      detail: activeProfile.description ?? '',
+      status: profileStatus.ready && osDeployableStatus.ready ? 'ready' : 'blocked',
+    },
+    ...(profile.selectedSoftwareText ? [{
+      title: 'Software',
+      meta: 'install sequence',
+      detail: profile.selectedSoftwareText,
+      status: 'ready',
+    }] : []),
+    ...(osImage?.activeImage ? [{
+      title: 'OS Image',
+      meta: 'deployment target',
+      detail: [
+        osImage.activeImage.fileName ?? osImage.activeImage.id,
+        osImage.activeImage.edition,
+        osImage.activeImage.language,
+      ].filter(Boolean).join(' · '),
+      status: osDeployableStatus.ready ? 'ready' : 'blocked',
+    }] : []),
+  ];
+  const servicesDetailItems = [
+    {
+      title: 'HTTP',
+      meta: 'file server / status endpoint',
+      detail: services?.http?.running ? `running on ${config.http?.host ?? ''}:${config.http?.port ?? 80}` : 'stopped',
+      status: services?.http?.running ? 'ready' : 'blocked',
+    },
+    {
+      title: 'TFTP',
+      meta: 'PXE boot file server',
+      detail: services?.tftp?.running ? `running on ${config.tftp?.listenIp ?? ''}:${config.tftp?.port ?? 69}` : 'stopped',
+      status: services?.tftp?.running ? 'ready' : 'blocked',
+    },
+    {
+      title: 'DHCP',
+      meta: 'PXE boot announcer',
+      detail: services?.dhcp?.running ? `running on ${config.dhcp?.listenIp ?? ''}:67` : 'stopped',
+      status: services?.dhcp?.running ? 'ready' : 'blocked',
+    },
+  ];
+  const preflightDetailItems = Array.isArray(preflight) && preflight.length > 0
+    ? preflight.slice(0, 12).map((check) => ({
+      title: check.name ?? 'Check',
+      meta: check.ok === true && check.warn === true ? 'warning' : '',
+      detail: check.detail ?? '',
+      status: check.ok === true ? (check.warn ? 'warn' : 'ready') : check.ok === false ? 'blocked' : 'unknown',
+    }))
+    : undefined;
   const clientBootDetailItems = [
     {
       title: 'Dell Latitude 5420-5450 / Dell Pro 14',
@@ -190,6 +290,7 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
       safetyNote: '密碼只寫入本機 state，不會出現在 API 回應、log、文件或 Git commit。',
       nextActionText: secrets.ready ? '認證已就緒' : '輸入部署認證',
       phase: 'setup',
+      detailItems: secretsDetailItems,
     },
     {
       id: 'runtime',
@@ -217,6 +318,7 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
       safetyNote: '每次部署前確認服務 IP 與 endpoint 設定一致。',
       nextActionText: endpoint.ready ? 'Endpoint 已同步' : '選擇服務介面',
       phase: 'endpoint',
+      detailItems: endpointDetailItems,
     },
     {
       id: 'os-image',
@@ -230,6 +332,7 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
       safetyNote: 'WinPE 部署時使用 SMB 讀取已匯出的 WIM，不讓 client 重新從外網下載 Windows。',
       nextActionText: osImageCached ? 'OS 映像已快取' : '開啟 OS 映像',
       phase: 'content',
+      detailItems: osImageDetailItems,
     },
     {
       id: 'profile',
@@ -243,6 +346,7 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
       safetyNote: 'Profile publish 只發佈被選中的 software；Minimal profile 不會下載 client installer。',
       nextActionText: profileStatus.ready ? 'Profile 已發佈' : '發佈 profile',
       phase: 'content',
+      detailItems: profileDetailItems,
     },
     {
       id: 'preflight',
@@ -257,6 +361,7 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
       safetyNote: '只要有 blocking failure，就不要啟動 DHCP 或讓 client PXE 開機。',
       nextActionText: finalPreflight.ready ? 'Preflight 已通過' : '執行 preflight',
       phase: 'validate',
+      detailItems: preflightDetailItems,
     },
     {
       id: 'services',
@@ -274,6 +379,7 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
       safetyNote: '只有確認測試 LAN 沒有其他 DHCP server 後，才啟動 DHCP 或 Start all services。',
       nextActionText: deploymentLive ? '服務已啟動' : '啟動服務',
       phase: 'go-live',
+      detailItems: servicesDetailItems,
     },
     {
       id: 'client',
