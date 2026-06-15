@@ -83,7 +83,7 @@
 /* ---- Progress rings (fleet cards + detail, rendered by fleet.js) ----
    Layered: base fill + (active) flowing sheen clipped to the filled arc only
    + (done) shimmer halo + centered label. */
-.ring { --val: 0; --ring-color: var(--warn); position: relative; width: 46px; height: 46px; flex: 0 0 auto; border-radius: 999px; }
+.ring { --val: 0; --ring-color: var(--ok); position: relative; width: 46px; height: 46px; flex: 0 0 auto; border-radius: 999px; }
 .ring-fill { position: absolute; inset: 0; border-radius: 999px;
   background: conic-gradient(var(--ring-color) calc(var(--val) * 1%), var(--surface-container-high) 0); }
 .ring.active .ring-fill { animation: wxn-ringfill 2.2s ease-in-out infinite; }
@@ -117,7 +117,6 @@
 .fleet-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .fleet-card { background: var(--surface-container-lowest); border: var(--card-border); border-radius: 10px; box-shadow: var(--card-shadow); padding: 16px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
 .fleet-card:hover { border-color: var(--outline); background: var(--surface-bright); }
-.fleet-card .fc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .fleet-card .fc-name { font: 600 14px/1.2 Inter, sans-serif; color: var(--on-surface); }
 .fleet-card .fc-run { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--on-surface-variant); }
 .fleet-card .ring { width: 72px; height: 72px; align-self: center; }

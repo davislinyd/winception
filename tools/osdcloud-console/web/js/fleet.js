@@ -67,17 +67,13 @@ export function renderFleetCards(appState) {
       card.classList.add('selected');
     }
     card.dataset.fleetSelect = run.runId;
-    const head = document.createElement('div');
-    head.className = 'fc-head';
-    const nameWrap = document.createElement('div');
+    const pill = makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : run.status === 'stale' ? 'neutral' : 'working');
     const name = document.createElement('div');
     name.className = 'fc-name';
     name.textContent = text(run.clientId);
     const runId = document.createElement('div');
     runId.className = 'fc-run';
     runId.textContent = text(run.runId);
-    nameWrap.append(name, runId);
-    head.append(nameWrap, makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : run.status === 'stale' ? 'neutral' : 'working'));
     const ring = makeFleetRing(run);
     const stageLabel = document.createElement('div');
     stageLabel.className = 'fc-stage-label';
@@ -85,14 +81,35 @@ export function renderFleetCards(appState) {
     const stage = document.createElement('div');
     stage.className = 'fc-stage';
     stage.textContent = text(run.latestStage, 'pending');
-    card.append(head, ring, stageLabel, stage);
+    card.append(pill, name, ring, stageLabel, stage, runId);
     elements.fleetCards.append(card);
   }
   renderFleetDetail(runs.find((run) => run.runId === state.selectedRunId) ?? runs[0]);
 }
 
+const STAGE_PCT_EST = new Map([
+  ['winpe-start',            3],
+  ['smb-mounted',            8],
+  ['osdcloud-start',        12],
+  ['apply-image',           18],
+  ['rebooting',             82],
+  ['windows-setupcomplete', 87],
+  ['windows-apps',          92],
+  ['windows-desktop-ready', 96],
+]);
+
+function estPct(stage) {
+  if (!stage) return 0;
+  for (const [key, val] of STAGE_PCT_EST) {
+    if (stage === key || stage.startsWith(key + '-')) return val;
+  }
+  return 0;
+}
+
 export function makeFleetRing(run) {
-  const pct = Math.max(0, Math.min(100, Math.round(run.latestPercent ?? 0)));
+  const pct = run.latestPercent != null
+    ? Math.max(0, Math.min(100, Math.round(run.latestPercent)))
+    : estPct(run.latestStage);
   const isDone = run.status === 'completed' ||
     (run.status === 'stale' && STALE_DONE_STAGES.has(run.latestStage));
   const isFailed = run.status === 'failed';
@@ -117,6 +134,8 @@ export function makeFleetRing(run) {
   }
   if (isFailed) {
     ring.style.setProperty('--ring-color', 'var(--error)');
+  } else if (!isDone) {
+    ring.style.setProperty('--ring-color', pct < 50 ? 'var(--term-ok)' : 'var(--ok)');
   }
   // Layered ring: base fill, flowing sheen (active, clipped to the filled arc),
   // shimmer halo (done), and the centered label.
