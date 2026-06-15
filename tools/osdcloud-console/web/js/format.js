@@ -105,15 +105,22 @@ export function localTime(value) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+const TZ = 'Asia/Taipei';
+const compactDateTimeFmt = new Intl.DateTimeFormat('en', {
+  timeZone: TZ,
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit',
+  hour12: false,
+  timeZoneName: 'shortOffset',
+});
+
 export function localCompactDateTime(value) {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) {
     return '-';
   }
-  return [
-    `${date.getFullYear()}/${twoDigit(date.getMonth() + 1)}/${twoDigit(date.getDate())}`,
-    `${twoDigit(date.getHours())}:${twoDigit(date.getMinutes())}`,
-  ].join(' ');
+  const p = Object.fromEntries(compactDateTimeFmt.formatToParts(date).map((x) => [x.type, x.value]));
+  return `${p.year}/${p.month}/${p.day} ${p.hour}:${p.minute} ${p.timeZoneName.replace('GMT', 'UTC')}`;
 }
 
 export function localDateTime(value) {

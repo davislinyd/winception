@@ -14,14 +14,6 @@ export const failureStages = new Set([
 export const staleThresholdMs = 15 * 60 * 1000;
 export const terminalStatuses = new Set(['completed', 'failed', 'stale']);
 
-const runStatusOrder = new Map([
-  ['running', 0],
-  ['awaiting-windows', 0],
-  ['windows-running', 0],
-  ['stale', 1],
-  ['failed', 2],
-  ['completed', 3],
-]);
 
 function safeReadJson(filePath, fallback) {
   try {
@@ -55,17 +47,8 @@ function sortTimestamp(value) {
   return parseDate(value) ?? 0;
 }
 
-function statusRank(status) {
-  return runStatusOrder.get(status) ?? 4;
-}
-
 function compareRuns(a, b) {
-  const statusDelta = statusRank(a.status) - statusRank(b.status);
-  if (statusDelta !== 0) {
-    return statusDelta;
-  }
-
-  const timeDelta = sortTimestamp(b.lastReceivedAt) - sortTimestamp(a.lastReceivedAt);
+  const timeDelta = sortTimestamp(b.startedAt) - sortTimestamp(a.startedAt);
   if (timeDelta !== 0) {
     return timeDelta;
   }

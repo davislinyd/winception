@@ -1,5 +1,5 @@
 import { $, elements } from './dom.js';
-import { text } from './format.js';
+import { localCompactDateTime, text } from './format.js';
 import { state } from './state.js';
 import { makeIcon, makeStatusPill } from './ui.js';
 
@@ -81,7 +81,10 @@ export function renderFleetCards(appState) {
     const stage = document.createElement('div');
     stage.className = 'fc-stage';
     stage.textContent = text(run.latestStage, 'pending');
-    card.append(pill, name, ring, stageLabel, stage, runId);
+    const started = document.createElement('div');
+    started.className = 'fc-started';
+    started.textContent = localCompactDateTime(run.startedAt);
+    card.append(pill, name, ring, stageLabel, stage, runId, started);
     elements.fleetCards.append(card);
   }
   renderFleetDetail(runs.find((run) => run.runId === state.selectedRunId) ?? runs[0]);
@@ -207,6 +210,11 @@ export function renderFleetDetail(run) {
   meta.className = 'fd-meta';
   meta.textContent = `${text(run.runId)}${run.clientIp ? ' · ' + run.clientIp : ''}`;
   elements.fleetDetail.append(meta);
+
+  const startedMeta = document.createElement('div');
+  startedMeta.className = 'fd-meta';
+  startedMeta.textContent = `Started ${localCompactDateTime(run.startedAt)}`;
+  elements.fleetDetail.append(startedMeta);
 
   elements.fleetDetail.append(makeFleetRing(run));
 
