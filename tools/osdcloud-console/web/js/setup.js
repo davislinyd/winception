@@ -6,7 +6,7 @@ import { $, elements } from './dom.js';
 import { text } from './format.js';
 import { render } from './render.js';
 import { DEFAULT_WINDOWS_USERNAME, RESERVED_WINDOWS_USERNAMES, state } from './state.js';
-import { setControlsDisabled } from './ui.js';
+import { setControlsDisabled, setSetupRailCollapsed } from './ui.js';
 
 export function initializationActionLabel(action) {
   const labels = {
@@ -412,12 +412,12 @@ export function renderInitialization(appState) {
   const deploymentReady = initialization.deploymentReady === true;
   const deploymentLive = initialization.deploymentLive === true;
   if (state.currentView === null) {
-    state.currentView = deploymentLive ? 'dashboard' : 'guided';
+    state.currentView = 'dashboard';
   }
 
-  // Toggle active views and nav tabs
-  if (elements.tabGuided && elements.tabDashboard) {
-    elements.tabGuided.classList.toggle('active', state.currentView === 'guided');
+  // Toggle active views and nav tabs (Deploy / Activity; Setup is the Deploy rail)
+  if (elements.tabDashboard) {
+    elements.tabGuided?.classList.toggle('active', state.currentView === 'guided');
     elements.tabDashboard.classList.toggle('active', state.currentView === 'dashboard');
   }
   if (elements.tabFleet) {
@@ -428,9 +428,6 @@ export function renderInitialization(appState) {
   }
   if (elements.navLogs) {
     elements.navLogs.classList.toggle('active', state.currentView === 'logs');
-  }
-  if (elements.initializationDialog) {
-    elements.initializationDialog.classList.toggle('active', state.currentView === 'guided');
   }
   const dashboardView = $('#view-dashboard');
   if (dashboardView) {
@@ -459,8 +456,8 @@ export function renderInitialization(appState) {
   const dialogScrollPosition = captureInitializationDialogScrollPosition();
   state.initializationDetailScrollPositions = captureInitializationDetailScrollPositions();
   
-  // Set default selected step in guided setup
-  if (!state.selectedGuidedStepId) {
+  // Set default selected step in guided setup (skip when user explicitly collapsed)
+  if (!state.selectedGuidedStepId && !state.guidedStepCollapsed) {
     state.selectedGuidedStepId = initialization.nextStepId || initialization.steps?.[0]?.id || 'project-root';
   }
 
@@ -473,9 +470,14 @@ export function renderInitialization(appState) {
   const progressPercent = totalSteps ? Math.round((doneSteps / totalSteps) * 100) : 0;
   if (elements.initProgressFill) {
     elements.initProgressFill.style.width = `${progressPercent}%`;
+    elements.initProgressFill.style.background =
+      progressPercent >= 67 ? 'var(--ok)' : progressPercent >= 34 ? 'var(--warn)' : 'var(--error)';
   }
   if (elements.initProgressText) {
     elements.initProgressText.textContent = `${doneSteps} of ${totalSteps} complete · ${progressPercent}%`;
+  }
+  if (elements.setupRailStripCount) {
+    elements.setupRailStripCount.textContent = `${doneSteps}/${totalSteps}`;
   }
 
   // Dependency staleness: steps whose completed output needs re-running
@@ -493,7 +495,7 @@ export function renderInitialization(appState) {
     const row = document.createElement('div');
     row.className = `initialization-step ${step.done ? 'done' : step.required ? 'blocked' : 'optional'}`;
     row.dataset.stepId = step.id;
-    if (step.id === state.selectedGuidedStepId) {
+    if (step.id === state.selectedGuidedStepId && !state.guidedStepCollapsed) {
       row.classList.add('active');
     }
     if (stepIsRunning) {
@@ -536,7 +538,8 @@ export function renderInitialization(appState) {
   renderSetupProgressChip(initialization, doneSteps, totalSteps);
 
   // 2. Render the focused detail panel (moved inline under the active step below)
-  const selectedStep = (initialization.steps ?? []).find(s => s.id === state.selectedGuidedStepId) || initialization.steps?.[0];
+  const selectedStep = state.guidedStepCollapsed ? null :
+    ((initialization.steps ?? []).find(s => s.id === state.selectedGuidedStepId) || initialization.steps?.[0]);
   const detailPanel = elements.guidedStepDetail;
 
   if (selectedStep && detailPanel) {
@@ -622,8 +625,13 @@ export function renderInitialization(appState) {
     restoreInitializationDetailScrollPosition(step.id, detailList);
   }
 
-  // Two-column body: the detail panel lives in the sticky right column, never inline
-  if (elements.guidedStepDetail) {
+  // Inline expansion: move the detail panel inside the active step row
+  // detailPanel is a stable DOM node; replaceChildren() above already detached it from any prior step
+  const activeStepRow = elements.initializationSteps.querySelector('.initialization-step.active');
+  if (activeStepRow && detailPanel && selectedStep) {
+    activeStepRow.appendChild(detailPanel);
+    detailPanel.hidden = false;
+  } else if (elements.guidedStepDetail) {
     elements.guidedStepDetail.hidden = !selectedStep;
   }
 
@@ -644,7 +652,8 @@ export function renderInitialization(appState) {
 
   if (!deploymentLive && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
     state.initializationAutoOpened = true;
-    switchToView('guided');
+    switchToView('dashboard');
+    setSetupRailCollapsed(false);
   }
   restoreInitializationDialogScrollPosition(dialogScrollPosition);
   restoreInitializationTextControlFocus(focusedTextControl);

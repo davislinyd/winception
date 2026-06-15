@@ -9,6 +9,11 @@
 .deploy-seg-value { font: 600 13px/1.35 Inter, sans-serif; color: var(--ink); min-width: 0; }
 .deploy-seg-value.mono, .deploy-seg-value .technical-string { font-family: "JetBrains Mono", monospace; font-weight: 500; }
 .deploy-seg-value a, .deploy-seg-value .profile-software-item { color: var(--ink) !important; }
+/* OS image summary segment: truncate long image ID, edition, and filename */
+#active-os-details .profile-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+#active-os-details .profile-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; font-size: 11px; }
+.active-os-cache-file { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; }
+
 /* Service dots rendered by app.js (legacy class names kept for the JS contract) */
 .v3-svc { display: inline-flex; align-items: center; gap: 5px; font: 400 11px/1 Inter, sans-serif; color: var(--muted); }
 .v3-svc .d { width: 7px; height: 7px; border-radius: 999px; background: var(--hairline); }
@@ -18,15 +23,89 @@
 .v3-summary-status { font: 400 11px/1 Inter, sans-serif; color: var(--muted); }
 .v3-summary-status.warn { color: var(--ochre); }
 .v3-summary-status.ok { color: var(--sage); }
-.btn-primary { background: var(--clay); color: var(--on-accent); border: 1px solid var(--clay); border-radius: var(--ctl-radius, 4px); padding: 9px 18px; font: 600 12px/1 Inter, sans-serif; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; transition: background 0.12s ease; }
+.btn-primary { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); border-radius: var(--ctl-radius, 4px); padding: 9px 18px; font: 600 12px/1 Inter, sans-serif; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; transition: background 0.12s ease; }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 .btn-primary[data-icon]::before { font-size: 16px; margin-right: 6px; }
 
 /* Always-visible readiness panels under the services card */
-.dashboard-diagnostics-grid { margin-top: 26px; }
+.dashboard-diagnostics-grid { margin-top: 18px; }
 
-/* Guided (Setup) + Fleet views inside v3 main: white cards, ink */
-#view-fleet, #initialization-dialog { padding-top: 4px; }
+/* ============================================================
+   Deploy two columns: dashboard (left) + collapsible guided-setup
+   rail (right). Collapsing the rail maximizes the dashboard.
+   ============================================================ */
+.deploy-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40%;
+  gap: 16px;
+  align-items: stretch;
+}
+.deploy-grid.setup-collapsed { grid-template-columns: minmax(0, 1fr) 48px; }
+/* Left column scrolls independently; the banner + summary live here */
+.deploy-main { min-width: 0; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.deploy-grid .dash-services-grid { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 1024px) {
+  .deploy-grid, .deploy-grid.setup-collapsed { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .deploy-grid .dash-services-grid { grid-template-columns: 1fr; }
+}
+
+/* Full-height guided-setup rail with its own scroll; collapses to a strip */
+.setup-rail { align-self: stretch; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.setup-rail .setup-rail-panel { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.deploy-grid.setup-collapsed .setup-rail-panel { display: none; }
+.deploy-grid:not(.setup-collapsed) .setup-rail-strip { display: none; }
+
+/* Collapsed strip: a thin vertical handle that re-expands the rail */
+.setup-rail-strip {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  width: 48px; padding: 12px 0 14px; cursor: pointer;
+  background: var(--surface-bright); border: 1px solid var(--hairline);
+  border-radius: 12px; color: var(--on-surface-variant);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.setup-rail-strip:hover { background: var(--surface-container-low); border-color: var(--accent-tint-border); }
+.setup-rail-strip-label { writing-mode: vertical-rl; transform: rotate(180deg); font: 600 10px/1 Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+.setup-rail-strip-count { font: 600 11px/1 Inter, sans-serif; color: var(--accent); }
+.setup-rail-strip .material-symbols-outlined.filled { font-size: 19px; color: var(--accent); }
+
+/* Collapse chevron in the rail header */
+.setup-rail-collapse {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex: 0 0 auto; margin-left: 6px;
+  border: 1px solid var(--hairline); border-radius: 8px;
+  background: var(--surface-container-lowest); color: var(--on-surface-variant); cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.setup-rail-collapse:hover { background: var(--surface-container); color: var(--ink); }
+.setup-rail-collapse .material-symbols-outlined { font-size: 20px; }
+
+/* Guided-setup card, recomposed to a single narrow column for the rail */
+.setup-rail .guided-v3 {
+  max-width: none; width: 100%; margin: 0;
+  padding: 16px 16px 14px; border-radius: 12px;
+  display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto;
+}
+.setup-rail .guided-v3-head { flex: 0 0 auto; flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; padding-bottom: 14px; margin-bottom: 4px; }
+.setup-rail .guided-v3-head-text { flex: 1 1 auto; min-width: 0; }
+.setup-rail .guided-v3-eyebrow { display: block; font: 600 10px/1 Inter, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; color: var(--on-surface-variant); margin-bottom: 5px; }
+.setup-rail .guided-v3-title { font-size: 17px; line-height: 1.25; }
+.setup-rail .guided-v3-sub { font-size: 12px; }
+.setup-rail .guided-v3-progress { flex: 1 0 100%; min-width: 0; align-items: stretch; }
+.setup-rail .guided-v3-progress .guided-progress-track { width: 100%; }
+.setup-rail .guided-v3-body { display: block; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.setup-rail .guided-v3-foot { flex: 0 0 auto; }
+.setup-rail .guided-v3-main { overflow: visible; padding-right: 0; }
+.setup-rail .guided-v3-detail { margin: 12px 0 0 !important; max-height: none; align-self: stretch; }
+.setup-rail .guided-timeline .initialization-step-body strong { font-size: 13px; }
+.setup-rail .guided-timeline .initialization-step-body span { font-size: 11px; }
+
+/* Fleet view spacing (guided setup now lives in the Deploy rail, not a view) */
+#view-fleet { padding-top: 4px; }
 
 /* ============================================================
    v3 Setup — centered vertical timeline accordion (Stitch v3)
@@ -64,13 +143,18 @@
 .guided-timeline { position: relative; padding: 12px 0 4px; }
 .guided-timeline::before { content: ""; position: absolute; left: 9px; top: 22px; bottom: 14px; width: 2px; background: var(--hairline); }
 .guided-timeline .initialization-step { position: relative; display: block; background: transparent !important; border: none !important; border-radius: 0 !important; padding: 11px 0 11px 38px !important; margin: 0 !important; }
+/* Base icon: pending — hollow circle */
 .guided-timeline .initialization-step::before { content: ""; position: absolute; left: 2px; top: 13px; width: 16px; height: 16px; border-radius: 999px; background: var(--surface-bright); border: 2px solid var(--outline-variant); z-index: 1; box-sizing: border-box; }
-.guided-timeline .initialization-step.done::before { background: var(--accent); border-color: var(--accent); }
+/* done: filled green circle + white check */
+.guided-timeline .initialization-step.done::before { background: var(--ok); border-color: var(--ok); }
 .guided-timeline .initialization-step.done::after { content: "check"; font-family: "Material Symbols Outlined"; position: absolute; left: 4px; top: 14px; font-size: 12px; line-height: 1; color: #fff; z-index: 2; }
-.guided-timeline .initialization-step.active::before { border-color: var(--accent); background: var(--surface-bright); box-shadow: 0 0 0 3px rgba(156,66,33,0.15); }
-/* A done step stays a filled circle with its check even while selected —
-   selection shows as the halo only, so it never looks like a not-run (hollow) step */
-.guided-timeline .initialization-step.done.active::before { background: var(--accent); }
+/* done + active: keep green, add subtle halo */
+.guided-timeline .initialization-step.done.active::before { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 0 3px rgba(56,104,74,0.18); }
+/* active (not done): terracotta bullseye — inner dot ∘ white ring ∘ outer ring */
+.guided-timeline .initialization-step.active:not(.done)::before { background: radial-gradient(circle, var(--accent) 30%, var(--surface-bright) 30% 62%, var(--accent) 62%); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(156,66,33,0.15); }
+/* needs-update: amber bullseye */
+.guided-timeline .initialization-step.needs-update:not(.done)::before { background: radial-gradient(circle, var(--warn) 30%, var(--surface-bright) 30% 62%, var(--warn) 62%); border-color: var(--warn); box-shadow: 0 0 0 3px rgba(143,90,31,0.12); }
+/* working (running): amber border pulse */
 .guided-timeline .initialization-step.working::before { border-color: var(--warn); box-shadow: 0 0 0 3px rgba(143,90,31,0.15); }
 .guided-timeline .status-pill { display: none !important; }
 .guided-timeline .initialization-step-body { display: flex; flex-direction: column; gap: 2px; }
@@ -80,6 +164,18 @@
 .guided-timeline .initialization-step.active .initialization-step-body strong { font-weight: 700; }
 .guided-timeline .initialization-step { cursor: pointer; border-radius: 8px !important; transition: background 0.1s ease; }
 .guided-timeline .initialization-step:hover { background: var(--surface-container-low) !important; }
+
+/* Inline detail panel — moved into the active step row via JS appendChild */
+.guided-timeline .initialization-step .guided-v3-detail {
+  margin-top: 10px !important;
+  margin-bottom: 2px !important;
+  max-height: none !important;
+  overflow-y: visible !important;
+}
+/* Big serif title duplicates the step row's label — hide it when inline */
+.guided-timeline .initialization-step .guided-v3-detail .guided-detail-title { display: none !important; }
+/* No bottom border on header when the title is gone */
+.guided-timeline .initialization-step .guided-v3-detail .guided-detail-header { border-bottom: none !important; padding-bottom: 0 !important; }
 
 /* Right-column detail panel: fits the body height, scrolls internally if long */
 .guided-v3-detail {

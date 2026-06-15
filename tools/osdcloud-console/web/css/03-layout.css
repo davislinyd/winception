@@ -315,18 +315,18 @@ button[data-icon]::before {
 
 .service-card-action:hover {
   background: var(--surface-container-low);
-  border-color: var(--primary);
+  border-color: var(--outline);
 }
 
 .service-card-action:focus-visible {
   background: var(--surface-container-low);
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-fixed);
+  border-color: var(--outline);
+  box-shadow: 0 0 0 2px rgba(156, 66, 33, 0.22);
   outline: none;
 }
 
 .profile-name {
-  color: var(--primary);
+  color: var(--ink);
   font: 600 16px/24px Inter, sans-serif;
 }
 

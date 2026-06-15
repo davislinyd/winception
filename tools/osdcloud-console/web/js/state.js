@@ -27,6 +27,7 @@ export const state = {
   initializationOperationAction: null,
   consoleDockCollapsed: true,
   consoleDockOperationKey: '',
+  setupRailCollapsed: false,
   initializationDetailScrollPositions: {},
   endpointSyncReturnToInitialization: false,
   initializationRootDraft: '',
@@ -37,6 +38,7 @@ export const state = {
   },
   currentView: null,
   selectedGuidedStepId: null,
+  guidedStepCollapsed: false,
   fleetFilter: 'all',
   fleetSearch: '',
 };

@@ -95,18 +95,49 @@ export function makeFleetRing(run) {
   const pct = Math.max(0, Math.min(100, Math.round(run.latestPercent ?? 0)));
   const isDone = run.status === 'completed' ||
     (run.status === 'stale' && STALE_DONE_STAGES.has(run.latestStage));
+  const isFailed = run.status === 'failed';
+  const isIdle = !isDone && !isFailed && !pct;
   const ring = document.createElement('div');
-  ring.className = isDone ? 'ring done' : 'ring';
-  if (!isDone && run.status !== 'failed' && !pct) {
+  ring.className = 'ring';
+  let label;
+  if (isDone) {
+    ring.classList.add('done');
+    ring.style.setProperty('--val', '100');
+    label = '✓';
+  } else if (isIdle) {
     ring.classList.add('idle');
-    ring.dataset.label = '—';
+    label = '—';
   } else {
-    ring.style.setProperty('--val', String(isDone ? 100 : pct));
-    ring.dataset.label = isDone ? '✓' : `${pct}%`;
+    ring.style.setProperty('--val', String(pct));
+    label = `${pct}%`;
+    // in-progress runs animate; failed runs stay static
+    if (!isFailed) {
+      ring.classList.add('active');
+    }
   }
-  if (run.status === 'failed') {
+  if (isFailed) {
     ring.style.setProperty('--ring-color', 'var(--error)');
   }
+  // Layered ring: base fill, flowing sheen (active, clipped to the filled arc),
+  // shimmer halo (done), and the centered label.
+  const fill = document.createElement('div');
+  fill.className = 'ring-fill';
+  ring.append(fill);
+  if (ring.classList.contains('active')) {
+    const sheen = document.createElement('div');
+    sheen.className = 'ring-sheen';
+    sheen.append(document.createElement('div'));
+    ring.append(sheen);
+  }
+  if (isDone) {
+    const halo = document.createElement('div');
+    halo.className = 'ring-halo';
+    ring.append(halo);
+  }
+  const centerLabel = document.createElement('div');
+  centerLabel.className = 'ring-label';
+  centerLabel.textContent = label;
+  ring.append(centerLabel);
   return ring;
 }
 

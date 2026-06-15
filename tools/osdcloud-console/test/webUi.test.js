@@ -69,14 +69,21 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="tailwind-config"/);
   assert.match(html, /cdn\.tailwindcss\.com\?plugins=forms,container-queries/);
   assert.match(html, /bg-paper text-ink h-screen overflow-hidden flex font-body/);
-  // 暖紙墨 shell: full-height left sidebar + measured content column + bottom console dock
+  // 暖紙墨 shell: top bar (brand + nav + status) + full-width content + bottom console dock
   assert.match(html, /class="shell"/);
-  assert.match(html, /class="shell-sidebar"/);
-  assert.match(html, /class="shell-nav"/);
-  assert.match(html, /id="setup-progress-chip"/);
+  assert.match(html, /class="topbar"/);
+  assert.match(html, /class="topbar-nav"/);
+  assert.match(html, /class="brand-mark"/);
+  // Setup is integrated as a collapsible right rail on the Deploy view (no sidebar chip)
+  assert.match(html, /id="deploy-grid"/);
+  assert.match(html, /id="setup-rail"/);
+  assert.doesNotMatch(html, /id="setup-progress-chip"/);
+  assert.doesNotMatch(html, /class="shell-sidebar"/);
   assert.doesNotMatch(html, /id="sidebar"/);
   assert.doesNotMatch(html, /sidebar-step-row/);
-  assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-guided"[\s\S]*id="tab-fleet"/);
+  // Top-bar nav is Deploy + Activity only (Setup moved into the rail)
+  assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-fleet"/);
+  assert.doesNotMatch(html, /id="tab-guided"/);
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
   assert.match(html, /class="deploy-summary"/);
   assert.match(html, /id="summary-action"/);
@@ -627,12 +634,13 @@ test('web UI keeps local component layer', () => {
   assert.match(styles, /\.preflight-summary-list/);
   assert.match(styles, /-webkit-line-clamp: 2/);
   assert.match(styles, /\.dashboard-diagnostics-grid \{\s*display: grid;[\s\S]*grid-template-columns: minmax\(0, 1fr\);/);
-  // 暖紙墨 shell pins: sidebar + measured content column
-  assert.match(styles, /\.shell \{\s*display: grid;[\s\S]*grid-template-columns: var\(--sidebar-w\) minmax\(0, 1fr\);/);
-  assert.match(styles, /\.shell-sidebar \{/);
-  assert.match(styles, /\.shell-main > \* \{[\s\S]*max-width: var\(--content-max\);/);
-  assert.match(styles, /--sidebar-w:\s+240px/);
-  assert.match(styles, /--content-max:\s+1100px/);
+  // 暖紙墨 shell pins: top bar + full-width content + collapsible setup rail
+  assert.match(styles, /\.shell \{\s*display: grid;[\s\S]*grid-template-rows: var\(--topbar-h\) minmax\(0, 1fr\) auto;/);
+  assert.match(styles, /\.topbar \{/);
+  assert.match(styles, /\.shell-main > \* \{[\s\S]*max-width: none;/);
+  assert.match(styles, /--topbar-h:\s+56px/);
+  assert.match(styles, /\.deploy-grid \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) 40%;/);
+  assert.match(styles, /\.deploy-grid\.setup-collapsed \{/);
   assert.doesNotMatch(styles, /grid-template-areas:\s*"operations endpoint log"/);
   assert.doesNotMatch(styles, /\.preflight-summary-panel \{[\s\S]*max-height: 220px;/);
   assert.doesNotMatch(styles, /#view-dashboard\.active \.operations-panel \{\s*min-height:/);

@@ -1,11 +1,14 @@
 :root {
-  /* Winception Console — 暖紙墨 warm paper + ink design system */
-  /* Analogous warm neutrals (hue ~35-45°, low chroma); single terracotta accent. */
-  /* Contrast: ink/paper 12.6:1, muted/paper 5.3:1, term-text/term-bg 11.9:1 (all ≥ WCAG AA). */
-  --paper:    #FAF7F2;   /* 暖紙 warm off-white field */
-  --ink:      #332E29;   /* 暖墨 warm soot, not pure black */
-  --muted:    #6E655B;
-  --hairline: #E8E0D3;
+  /* Winception Console — 暖紙墨 (Warm Paper + Ink)
+     Analogous warm neutrals (hue ~35–45°, very low chroma) so paper,
+     ink and borders harmonize. ONE terracotta accent does all pointing.
+     Status colors are desaturated & warm-shifted. 60-30-10:
+     ~60% paper surfaces / ~30% ink & borders / ~10% clay + status tints.
+     Contrast: ink/paper 12.6:1, muted/paper 5.3:1 (all ≥ WCAG AA). */
+  --paper:    #FAF7F2;   /* 暖紙 warm off-white field (page background) */
+  --ink:      #332E29;   /* 暖墨 warm soot, NOT pure black (primary text) */
+  --muted:    #6E655B;   /* secondary text */
+  --hairline: #E8E0D3;   /* dividers, card borders */
   --clay:     #9C4221;   /* 陶土 terracotta — the one accent */
   --surface:  #F6F1E8;
   --sage:     #38684A;
@@ -27,17 +30,17 @@
   --outline-variant:    #E3DACA;
   --surface-tint:       #9C4221;
   /* Material aliases — map to 暖紙墨 tokens */
-  --primary:            #9C4221;
-  --primary-strong:     #7F3318;
-  --primary-container:  #F4E5DB;
-  --on-primary:         #FFFFFF;
+  --primary:              #9C4221;
+  --primary-strong:       #7F3318;
+  --primary-container:    #F4E5DB;
+  --on-primary:           #FFFFFF;
   --on-primary-container: #332E29;
-  --primary-fixed:      #E8C4AE;
-  --primary-fixed-dim:  #D9A98C;
-  --secondary:          #7A4C1A;
-  --secondary-container: #E8A93B;
-  --tertiary:           #9E3B32;
-  /* Status: sage=done, ochre=working, madder=error (desaturated, warm-leaning) */
+  --primary-fixed:        #E8C4AE;
+  --primary-fixed-dim:    #D9A98C;
+  --secondary:            #7A4C1A;
+  --secondary-container:  #E8A93B;
+  --tertiary:             #9E3B32;
+  /* Status: sage=done, ochre=working, madder=error (semantic, kept) */
   --ok:           #38684A;
   --ok-bg:        #E6EEE3;
   --ok-border:    #BCD2BB;
@@ -51,12 +54,12 @@
   --error-container: #F7E5E1;
   --error-border: #E0B4AC;
   --error-tint-hover: #F0D8D2;
-  /* Accent — terracotta */
-  --accent:       #9C4221;
-  --accent-hover: #7F3318;
-  --on-accent:    #FFFFFF;
-  --accent-soft:  #F4E5DB;
-  --accent-tint-hover: #ECD5C5;
+  /* Accent — 陶土 terracotta (CTA, active nav, selection, progress) */
+  --accent:             #9C4221;
+  --accent-hover:       #7F3318;
+  --on-accent:          #FFFFFF;
+  --accent-soft:        #F4E5DB;
+  --accent-tint-hover:  #ECD5C5;
   --accent-tint-border: #D9B49C;
   /* Terminal (console dock) — warm charcoal + cream */
   --term-bg:      #2A2520;
@@ -67,11 +70,12 @@
   --term-err:     #E5A294;
   /* Legacy brand vars (kept for any remaining references) */
   --brand-blue:   #9C4221;
-  --brand-orange: #E8A93B;
+  --brand-orange: #F39C12;
   --brand-red:    #9E3B32;
   --background:   #FAF7F2;
   --surface-variant: #F1EADD;
   /* Layout */
+  --topbar-h:      56px;
   --sidebar-w:     240px;
   --rail-w:        64px;
   --content-max:   1100px;

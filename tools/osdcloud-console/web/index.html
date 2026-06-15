@@ -18,7 +18,7 @@
             muted:    "#6E655B",
             hairline: "#E8E0D3",
             clay:     "#9C4221",
-            surface:  "#F6F1E8",
+            surface:  "#F6EEE0",
             sage:     "#38684A",
             ochre:    "#8F5A1F",
             brick:    "#9E3B32",
@@ -85,56 +85,71 @@
 </head>
 <body class="bg-paper text-ink h-screen overflow-hidden flex font-body">
 
-  <!-- 暖紙墨 shell: left sidebar rail / measured content column / console dock -->
+  <!-- 暖紙墨 shell: top bar (brand + nav + status) / full-width content / console dock -->
   <div class="shell">
-    <aside class="shell-sidebar">
-      <div class="shell-brand">
-        <div class="shell-logo" aria-hidden="true">W</div>
-        <div class="shell-brand-text">
-          <span class="shell-brand-name">Winception</span>
-          <span id="app-version" class="shell-brand-version"></span>
+    <header class="topbar">
+      <div class="topbar-brand">
+        <svg class="brand-mark" width="40" height="29" viewBox="0 0 140 100" aria-hidden="true" focusable="false">
+          <defs>
+            <linearGradient id="wxn-ink" gradientUnits="userSpaceOnUse" x1="10" y1="14" x2="128" y2="90">
+              <stop offset="0" stop-color="#5b5249" /><stop offset="0.5" stop-color="#241f1a" /><stop offset="1" stop-color="#0c0a08" />
+            </linearGradient>
+            <filter id="wxn-kuang" x="-30%" y="-30%" width="160%" height="160%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="1" seed="3" result="fine" />
+              <feDisplacementMap in="SourceGraphic" in2="fine" scale="1.3" result="r1" />
+              <feTurbulence type="fractalNoise" baseFrequency="0.02 0.015" numOctaves="2" seed="7" result="big" />
+              <feDisplacementMap in="r1" in2="big" scale="2.6" />
+            </filter>
+          </defs>
+          <g transform="rotate(-3 70 50) skewX(-9)" filter="url(#wxn-kuang)" fill="none" stroke="url(#wxn-ink)" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8,16 C7,14 9,13 12,15" stroke-width="3" />
+            <path d="M11,15 C16,42 24,69 33,84" stroke-width="14" />
+            <path d="M33,84 C41,65 47,49 53,33" stroke-width="4.2" />
+            <path d="M53,33 C61,53 70,73 80,85" stroke-width="14" />
+            <path d="M80,85 C90,64 97,45 104,30 C110,17 119,10 138,3" stroke-width="4" />
+          </g>
+          <g filter="url(#wxn-kuang)" fill="#241f1a">
+            <circle cx="124" cy="13" r="1.8" /><circle cx="131" cy="9" r="1.1" opacity="0.7" /><circle cx="92" cy="90" r="1.4" opacity="0.6" />
+          </g>
+        </svg>
+        <div class="topbar-brand-text">
+          <span class="topbar-brand-name">Winception</span>
+          <span id="app-version" class="topbar-brand-version"></span>
         </div>
       </div>
-      <nav class="shell-nav" aria-label="Views">
-        <button id="tab-dashboard" class="shell-navlink active" type="button" title="Deploy">
+      <nav class="topbar-nav" aria-label="Views">
+        <button id="tab-dashboard" class="topbar-navlink active" type="button" title="Deploy">
           <span class="material-symbols-outlined">rocket_launch</span>
           <span>Deploy</span>
         </button>
-        <button id="tab-guided" class="shell-navlink" type="button" title="Setup">
-          <span class="material-symbols-outlined">settings</span>
-          <span>Setup</span>
-        </button>
-        <button id="tab-fleet" class="shell-navlink" type="button" title="Activity">
+        <button id="tab-fleet" class="topbar-navlink" type="button" title="Activity">
           <span class="material-symbols-outlined">analytics</span>
           <span>Activity</span>
         </button>
       </nav>
-      <button id="setup-progress-chip" class="setup-chip" type="button" title="Open guided setup" hidden>
-        <span class="material-symbols-outlined text-[15px]">checklist</span>
-        <span id="setup-progress-text">Setup</span>
-      </button>
-      <div class="shell-side-status">
+      <div class="topbar-status">
         <span id="endpoint-line" class="font-technical-string text-technical-string endpoint-chip">Loading endpoint...</span>
-        <div class="shell-side-row">
-          <span id="operation-badge" class="badge neutral live-chip">Idle</span>
-          <span id="updated-at" class="font-data-tabular text-data-tabular updated-chip"></span>
-        </div>
-        <div class="shell-side-row">
-          <span class="host-chip" title="Console session"><span class="host-chip-dot"></span>admin</span>
-          <button id="refresh-button" class="ctx-icon-btn" type="button" aria-label="Refresh"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
-        </div>
+        <span id="operation-badge" class="badge neutral live-chip">Idle</span>
+        <span class="host-chip" title="Console session"><span class="host-chip-dot"></span>admin</span>
+        <span id="updated-at" class="font-data-tabular text-data-tabular updated-chip"></span>
+        <button id="refresh-button" class="ctx-icon-btn" type="button" aria-label="Refresh"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
       </div>
-    </aside>
-    <main class="shell-main flex-1 overflow-y-auto flex flex-col">
-      <section id="warning-banner" class="hidden" role="alert">
-        <div class="flex items-center gap-sm">
-          <span class="material-symbols-outlined text-[24px]">warning</span>
-          <span id="warning-banner-text" class="font-ui-label text-ui-label font-medium"></span>
-        </div>
-        <button data-action="endpoint-sync" data-icon="sync_alt" class="warning" type="button">立即同步 (Sync now)</button>
-      </section>
+    </header>
+    <main class="shell-main flex flex-col">
+      <section id="view-dashboard" class="view active flex-col" aria-labelledby="dashboard-title">
 
-      <section id="view-dashboard" class="view active flex-col gap-sm" aria-labelledby="dashboard-title">
+        <!-- Deploy = two columns: dashboard (left, scrolls independently) + full-height collapsible guided-setup rail (right) -->
+        <div id="deploy-grid" class="deploy-grid">
+        <div class="deploy-main flex flex-col gap-sm">
+
+        <!-- endpoint-sync warning lives in the left column only -->
+        <section id="warning-banner" class="hidden" role="alert">
+          <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-[24px]">warning</span>
+            <span id="warning-banner-text" class="font-ui-label text-ui-label font-medium"></span>
+          </div>
+          <button data-action="endpoint-sync" data-icon="sync_alt" class="warning" type="button">Sync now</button>
+        </section>
 
         <!-- Deploy = dashboard: config + action, status tiles, inline services -->
         <div class="deploy-summary">
@@ -192,23 +207,27 @@
             <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
           </section>
         </div>
-      </section>
-      <!-- Guided Setup View Container -->
-      <section id="initialization-dialog" class="view flex-col gap-sm" aria-labelledby="guided-setup-title">
-        <div class="guided-v3">
-          <div class="guided-v3-head">
-            <div class="guided-v3-head-text">
-              <h2 id="guided-setup-title" class="guided-v3-title">Set up deployment</h2>
-              <span id="initialization-summary" class="guided-v3-sub">Checking initialization state...</span>
-            </div>
-            <div class="guided-v3-progress">
-              <div class="guided-v3-progress-meta">
-                <span id="initialization-badge" class="status-pill neutral" aria-live="polite">Checking</span>
-                <span id="init-progress-text" class="guided-v3-progress-text"></span>
+        </div><!-- /deploy-main -->
+
+        <!-- Guided setup, integrated as a collapsible right rail -->
+        <aside id="setup-rail" class="setup-rail">
+          <section id="initialization-dialog" class="setup-rail-panel" aria-labelledby="guided-setup-title">
+            <div class="guided-v3">
+              <div class="guided-v3-head">
+                <div class="guided-v3-head-text">
+                  <span class="guided-v3-eyebrow">Guided setup</span>
+                  <h2 id="guided-setup-title" class="guided-v3-title">Set up deployment</h2>
+                  <span id="initialization-summary" class="guided-v3-sub">Checking initialization state...</span>
+                </div>
+                <button id="setup-rail-collapse" class="setup-rail-collapse" type="button" title="Collapse — maximize Deploy" aria-label="Collapse guided setup"><span class="material-symbols-outlined">chevron_right</span></button>
+                <div class="guided-v3-progress">
+                  <div class="guided-v3-progress-meta">
+                    <span id="initialization-badge" class="status-pill neutral" aria-live="polite">Checking</span>
+                    <span id="init-progress-text" class="guided-v3-progress-text"></span>
+                  </div>
+                  <div class="guided-progress-track"><div id="init-progress-fill" class="guided-progress-fill"></div></div>
+                </div>
               </div>
-              <div class="guided-progress-track"><div id="init-progress-fill" class="guided-progress-fill"></div></div>
-            </div>
-          </div>
           <div class="guided-v3-body">
             <div class="guided-v3-main">
               <div id="initialization-steps" class="guided-timeline"></div>
@@ -216,10 +235,19 @@
             <!-- right column: full detail of the selected step, sticky so no scrolling is needed -->
             <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by app.js --></section>
           </div>
-          <div class="guided-v3-foot">
-            <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="btn-primary" type="button">Next step</button>
-          </div>
-        </div>
+              <div class="guided-v3-foot">
+                <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="btn-primary" type="button">Next step</button>
+              </div>
+            </div>
+          </section>
+          <button id="setup-rail-strip" class="setup-rail-strip" type="button" title="Expand guided setup">
+            <span class="material-symbols-outlined">chevron_left</span>
+            <span class="setup-rail-strip-label">Guided setup</span>
+            <span id="setup-rail-strip-count" class="setup-rail-strip-count"></span>
+            <span class="material-symbols-outlined filled">checklist</span>
+          </button>
+        </aside>
+        </div><!-- /deploy-grid -->
       </section>
 
       <!-- Fleet View Container -->

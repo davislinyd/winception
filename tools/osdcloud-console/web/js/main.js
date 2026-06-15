@@ -1,13 +1,13 @@
 import { handleAction, handleOsImageDelete, handleOsImageDownload, handleOsImageImport, handleOsImageReexport, handleProfileDelete, handleProfileSelect, handleSoftwareDelete, setFleetExpanded, switchToView } from './actions.js';
 import { api, refresh } from './api.js';
 import { clearRefineFilters, openValidationEvidenceFromTarget } from './deploy.js';
-import { closeDialog, confirmEndpointSync, enableBackdropCloseForDialogs, handleScriptDelete, showScriptContentViewer, showSoftwareDetails, showSoftwareScriptViewer, suppressBackdropCloseClickThrough } from './dialogs.js';
+import { closeDialog, closeEmbeddedConfig, confirmEndpointSync, enableBackdropCloseForDialogs, handleScriptDelete, showScriptContentViewer, showSoftwareDetails, showSoftwareScriptViewer, suppressBackdropCloseClickThrough } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
 import { renderFleetCards } from './fleet.js';
 import { render } from './render.js';
 import { handleInitializationAction } from './setup.js';
 import { state } from './state.js';
-import { copyConsoleLog, setConsoleDockCollapsed } from './ui.js';
+import { copyConsoleLog, setConsoleDockCollapsed, setSetupRailCollapsed } from './ui.js';
 
 document.addEventListener('click', (event) => {
   const target = event.target instanceof Element ? event.target : event.target?.parentElement;
@@ -176,7 +176,28 @@ elements.endpointSettingsDialog?.addEventListener('close', () => {
   }
 });
 
+// Click outside config-embed (profile / OS image / endpoint panel) closes it.
+// Uses mousedown + capture so it fires before stopPropagation in button handlers.
+document.addEventListener('mousedown', (event) => {
+  const configHost = document.getElementById('config-embed');
+  if (!configHost || configHost.hidden) return;
+  const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+  if (!target) return;
+  // deploy-seg segment buttons have their own toggle logic — don't interfere
+  if (target.closest('.deploy-seg[data-action]')) return;
+  if (!target.closest('#config-embed')) {
+    closeEmbeddedConfig();
+  }
+}, { capture: true });
+
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    const configHost = document.getElementById('config-embed');
+    if (configHost && !configHost.hidden && !document.querySelector('dialog[open]')) {
+      closeEmbeddedConfig();
+      return;
+    }
+  }
   if (event.key === 'Escape' && state.fleetExpanded && !document.querySelector('dialog[open]')) {
     event.preventDefault();
     setFleetExpanded(false);
@@ -275,9 +296,9 @@ elements.consoleDockCopy?.addEventListener('click', (event) => {
   copyConsoleLog(elements.consoleDockCopy).catch((error) => window.alert(error.message));
 });
 
-// Header view switcher tabs
-if (elements.tabGuided && elements.tabDashboard) {
-  elements.tabGuided.addEventListener('click', () => switchToView('guided'));
+// Header view switcher tabs (Deploy / Activity; Setup is now the Deploy rail)
+if (elements.tabDashboard) {
+  elements.tabGuided?.addEventListener('click', () => switchToView('guided'));
   elements.tabDashboard.addEventListener('click', () => switchToView('dashboard'));
   if (elements.tabFleet) {
     elements.tabFleet.addEventListener('click', () => switchToView('fleet'));
@@ -307,16 +328,21 @@ if (elements.initializationSteps) {
   elements.initializationSteps.addEventListener('click', (event) => {
     const stepEl = event.target.closest('.initialization-step');
     if (stepEl && stepEl.dataset.stepId) {
-      state.selectedGuidedStepId = stepEl.dataset.stepId;
+      if (stepEl.dataset.stepId === state.selectedGuidedStepId && !state.guidedStepCollapsed) {
+        state.guidedStepCollapsed = true;
+      } else {
+        state.selectedGuidedStepId = stepEl.dataset.stepId;
+        state.guidedStepCollapsed = false;
+      }
       render();
     }
   });
 }
 
-// Topbar setup progress chip: jump to guided setup
-elements.setupProgressChip?.addEventListener('click', () => {
-  switchToView('guided');
-});
+// Guided-setup rail: the chevron collapses it (maximizing Deploy); the
+// collapsed strip re-expands it.
+elements.setupRailCollapse?.addEventListener('click', () => setSetupRailCollapsed(true));
+elements.setupRailStrip?.addEventListener('click', () => setSetupRailCollapsed(false));
 
 refresh().catch((error) => window.alert(error.message));
 setInterval(() => {

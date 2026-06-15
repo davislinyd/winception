@@ -80,14 +80,33 @@
 }
 .service-switch.running { background: var(--ok) !important; }
 
-/* ---- Progress rings (fleet cards + detail, rendered by app.js) ---- */
-.ring { --val: 0; --ring-color: var(--warn); width: 46px; height: 46px; flex: 0 0 auto; border-radius: 999px;
-  background: conic-gradient(var(--ring-color) calc(var(--val) * 1%), var(--surface-container-high) 0);
-  display: flex; align-items: center; justify-content: center; }
-.ring::after { content: attr(data-label); width: 36px; height: 36px; border-radius: 999px; background: var(--surface-container-lowest);
+/* ---- Progress rings (fleet cards + detail, rendered by fleet.js) ----
+   Layered: base fill + (active) flowing sheen clipped to the filled arc only
+   + (done) shimmer halo + centered label. */
+.ring { --val: 0; --ring-color: var(--warn); position: relative; width: 46px; height: 46px; flex: 0 0 auto; border-radius: 999px; }
+.ring-fill { position: absolute; inset: 0; border-radius: 999px;
+  background: conic-gradient(var(--ring-color) calc(var(--val) * 1%), var(--surface-container-high) 0); }
+.ring.active .ring-fill { animation: wxn-ringfill 2.2s ease-in-out infinite; }
+/* flowing highlight, masked to the filled arc only (ring rim ∩ 0→val%) */
+.ring-sheen { position: absolute; inset: 0; border-radius: 999px; overflow: hidden;
+  -webkit-mask-image: radial-gradient(circle, transparent 56%, #000 57%), conic-gradient(#000 calc(var(--val) * 1%), transparent 0);
+  -webkit-mask-composite: source-in;
+  mask-image: radial-gradient(circle, transparent 56%, #000 57%), conic-gradient(#000 calc(var(--val) * 1%), transparent 0);
+  mask-composite: intersect; }
+.ring-sheen > div { position: absolute; inset: 0; border-radius: 999px;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(255, 253, 248, 0.85) 38deg, transparent 76deg);
+  animation: wxn-ringflow 1.6s linear infinite; }
+.ring-halo { position: absolute; inset: -3px; border-radius: 999px;
+  box-shadow: 0 0 7px 1px var(--ring-color); border: 1px solid var(--ring-color);
+  animation: wxn-ringglow 1.9s ease-in-out infinite; }
+.ring-label { position: absolute; inset: 7px; border-radius: 999px; background: var(--surface-container-lowest);
   display: flex; align-items: center; justify-content: center; font: 700 11px/1 Inter, sans-serif; color: var(--on-surface); }
 .ring.done { --ring-color: var(--ok); }
 .ring.idle { background: none; border: 2px dashed var(--outline-variant); }
+.ring.idle .ring-fill { display: none; }
+@keyframes wxn-ringflow { to { transform: rotate(360deg); } }
+@keyframes wxn-ringfill { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
+@keyframes wxn-ringglow { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.12; transform: scale(1.04); } }
 
 /* ---- Fleet card grid (Fleet view) ---- */
 #view-fleet .fleet-stat-strip { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -102,7 +121,7 @@
 .fleet-card .fc-name { font: 600 14px/1.2 Inter, sans-serif; color: var(--on-surface); }
 .fleet-card .fc-run { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--on-surface-variant); }
 .fleet-card .ring { width: 72px; height: 72px; align-self: center; }
-.fleet-card .ring::after { width: 58px; height: 58px; font-size: 14px; }
+.fleet-card .ring .ring-label { font-size: 14px; }
 .fleet-card .fc-stage { text-align: center; font: 400 12px/1.3 Inter, sans-serif; color: var(--on-surface-variant); }
 
 /* ---- Live activity styling for the system log panel ---- */
@@ -198,3 +217,9 @@
   box-shadow: none;
 }
 .runtime-readiness-actions button.warning[data-icon]::before { color: var(--accent-hover); }
+/* Ready state: icon switches to check_circle — show green "complete" style */
+.runtime-readiness-actions button[data-icon="check_circle"] {
+  background: var(--ok-bg) !important; color: var(--ok) !important;
+  border: 1px solid var(--ok) !important; box-shadow: none;
+}
+.runtime-readiness-actions button[data-icon="check_circle"]::before { color: var(--ok) !important; }

@@ -4,7 +4,7 @@ import { $, $$, elements } from './dom.js';
 import { bytes, osImageLabel, text } from './format.js';
 import { render } from './render.js';
 import { state } from './state.js';
-import { setControlsDisabled, setDefinitionListNodes } from './ui.js';
+import { setControlsDisabled, setDefinitionListNodes, setSetupRailCollapsed } from './ui.js';
 
 export let suppressBackdropClickUntil = 0;
 export function isDialogOpen(dialog) {
@@ -80,7 +80,8 @@ export function openEmbeddedConfig(dialog) {
 
 export function openDialog(dialog) {
   if (dialog === elements.initializationDialog) {
-    switchToView('guided');
+    switchToView('dashboard');
+    setSetupRailCollapsed(false);
     return;
   }
   if (isEmbeddedConfigDialog(dialog)) {

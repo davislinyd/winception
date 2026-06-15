@@ -140,6 +140,14 @@ export async function copyConsoleLog(button) {
   }, 1200);
 }
 
+export function setSetupRailCollapsed(collapsed) {
+  state.setupRailCollapsed = collapsed;
+  if (elements.deployGrid) {
+    elements.deployGrid.classList.toggle('setup-collapsed', collapsed);
+  }
+  elements.setupRailCollapse?.setAttribute('aria-expanded', String(!collapsed));
+}
+
 export function setConsoleDockCollapsed(collapsed) {
   state.consoleDockCollapsed = collapsed;
   if (elements.consoleDock) {

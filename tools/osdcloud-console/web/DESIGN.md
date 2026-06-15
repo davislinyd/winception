@@ -1,5 +1,7 @@
 # Winception Console — 暖紙墨 Design System (Warm Paper + Ink)
 
+<!-- V6.4 暖紙墨: restored from design bundle hfB5_hjSCFwgKT3JqzmC3g (terracotta #9C4221) -->
+
 A reading-first ops console. The entire UI sits on a warm paper field with warm
 soot ink; a single terracotta accent does all the pointing. Hierarchy comes from
 borders and spacing — never shadows, never extra hues.
@@ -15,13 +17,13 @@ borders harmonize (analogous scheme). Status colors are desaturated and warm-shi
 
 | Token | Hex | Contrast vs paper | 用途 |
 |---|---|---|---|
-| `--paper` | `#FAF7F2` | — | 暖紙底色(頁面背景) |
-| `--ink` | `#332E29` | 12.6:1 | 主文字(暖墨,非純黑) |
-| `--muted` | `#6E655B` | 5.3:1 | 次要文字 |
-| `--hairline` | `#E8E0D3` | — | 分隔線、卡片邊框 |
-| `--clay` / `--accent` | `#9C4221` | 6.1:1 | 陶土紅 — 唯一強調色(CTA、選取、進度) |
+| `--paper` | `#FAF7F2` | — | 暖紙底色(暖奶油 off-white,頁面背景) |
+| `--ink` | `#332E29` | ~12.6:1 | 主文字(暖墨,非純黑) |
+| `--muted` | `#6E655B` | ~5.3:1 | 次要文字(暖棕) |
+| `--hairline` | `#E8E0D3` | — | 分隔線、卡片邊框(暖砂) |
+| `--clay` / `--accent` | `#9C4221` | ~4.9:1 | 陶土紅 — 唯一強調色(CTA、選取、進度) |
 | `--surface-bright` | `#FFFDF8` | — | 卡片底(暖白) |
-| `--surface-container-low` | `#F6F1E8` | — | 側欄、嵌入面板底 |
+| `--surface-container-low` | `#F6F1E8` | — | 嵌入面板底、頂部列底色 |
 | `--ok` / `--sage` | `#38684A` | 5.6:1 | 完成/運行(鼠尾草綠) |
 | `--warn` / `--ochre` | `#8F5A1F` | 5.5:1 | 進行中/提醒(赭黃) |
 | `--error` / `--brick` | `#9E3B32` | 6.3:1 | 錯誤/破壞性(茜紅) |
@@ -29,14 +31,13 @@ borders harmonize (analogous scheme). Status colors are desaturated and warm-shi
 
 ### Terminal 終端機(console dock)
 
-The only dark element. Warm charcoal, cream text — like ink on a chalkboard,
-not a blue IDE panel.
+The only dark element. Warm charcoal, cream text — ink on a chalkboard.
 
 | Token | Hex | 用途 |
 |---|---|---|
 | `--term-bg` | `#2A2520` | 日誌底(暖炭) |
 | `--term-surface` | `#353028` | dock 標頭底 |
-| `--term-text` | `#EFE7D8` | 日誌文字(米色,11.9:1) |
+| `--term-text` | `#EFE7D8` | 日誌文字(暖米色) |
 | `--term-ok` / `--term-err` | `#9CBF93` / `#E5A294` | 成功/錯誤行 |
 
 ## Typography 字型
@@ -55,24 +56,28 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
 ## Layout 版面
 
 ```
-┌──────────────┬──────────────────────────────────────────┐
-│ .shell-sidebar │  .shell-main(scroll)                   │
-│ 240px 整高     │  內容限寬 var(--content-max)=1100px 置中  │
-│  brand        │  #view-dashboard / #initialization-dialog │
-│  3 nav links  │  / #view-fleet                           │
-│  setup chip   ├──────────────────────────────────────────┤
-│  ── 釘底 ──    │  #console-dock(只佔內容欄,可收合)        │
-│  endpoint 等   │                                          │
-└──────────────┴──────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│ .topbar 56px  狂草「W」+ Winception · Deploy/Activity · 狀態 │
+├────────────────────────────────────────────────────────────┤
+│ .shell-main(scroll)  內容滿版,左右 5% gutters             │
+│   #view-dashboard = 兩欄: dashboard(左) + 導引設定軌(右40%)│
+│   #view-fleet                                              │
+├────────────────────────────────────────────────────────────┤
+│ #console-dock(橫跨內容欄底,可收合)                         │
+└────────────────────────────────────────────────────────────┘
 ```
 
-- `.shell`: grid `var(--sidebar-w) minmax(0,1fr)` × `minmax(0,1fr) auto`,100vh。
-- 1100px 的閱讀 measure 讓行長落在舒適範圍;側欄底色 `--surface-container-low`
-  與紙面區隔,右側 hairline。
-- Active nav: 亮底 + 左側 3px 陶土紅 inset bar。
-- `@media (max-width: 1024px)`: 側欄縮為 `--rail-w`=64px icon rail(文字隱藏,
-  nav 按鈕靠 `title` 提示)。
-- z-index: sidebar 20 / dock 25 / `.fleet-backdrop` 40 / `.client-fleet-panel` 45 /
+- `.shell`: grid `minmax(0,1fr)` × `var(--topbar-h)=56px minmax(0,1fr) auto`,
+  100vh。頂部列 / 內容欄 / 主控台 dock 垂直堆疊。
+- 頂部列 `--surface-container-low` 底 + 底部 hairline;品牌為 狂草毛筆「W」墨色
+  SVG(`feTurbulence`+位移濾鏡)+ Source Serif「Winception」字標;nav 僅
+  Deploy / Activity(active = 亮底 + 底部 2px 陶土紅 inset)。
+- 內容滿版、左右 5% gutters,不再限寬置中(`--content-max` 已停用)。
+- Deploy = 兩欄:左為 dashboard,右為可收合的「導引設定」軌
+  (`.deploy-grid` = `minmax(0,1fr) 40%`)。收合後軌縮為 48px 直條、dashboard
+  最大化。導引設定不再是獨立 nav 目的地。
+- `@media (max-width: 1024px)`: 兩欄堆疊為單欄,頂部列縮邊距。
+- z-index: topbar 20 / dock 25 / `.fleet-backdrop` 40 / `.client-fleet-panel` 45 /
   fallback dialog 60。
 
 ## Components 元件
@@ -83,7 +88,56 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
   (注意型動作:sync/prepare);`button.danger`/紅只用於破壞性與錯誤。
 - **Status pills**: 999px 膠囊,tint 底 + 同色深字(`.ok`/`.working`/`.fail`)。
 - **Focus ring**: `0 0 0 3px rgba(156,66,33,.18)`(陶土紅 18%)。
-- **Dialog backdrop**: `rgba(43,38,33,.45)` 暖色遮罩。
+- **Dialog backdrop**: `rgba(44,33,19,.45)` 暖色遮罩。
+
+## Guided setup rail 導引設定軌
+
+位於 Deploy 右側 40% 欄,可收合為 48px 直條(點擊 chevron 或 strip 展開)。
+
+### 步驟圖示(per-state icons)
+
+步驟列 `.initialization-step` 的 `::before` 偽元素表示狀態:
+
+| 狀態 class | 圖示外觀 |
+|---|---|
+| 無(pending) | 灰色空心圓 |
+| `.done` | 實心 `var(--ok)` 綠圓 + `::after` 白色 check 符號 |
+| `.done.active` | 同上 + 淡綠暈 halo |
+| `.active:not(.done)` | 陶土紅同心圓(bullseye) — `radial-gradient` |
+| `.needs-update:not(.done)` | 琥珀同心圓(bullseye) |
+| `.working` | 琥珀邊框 + 脈衝暈 |
+
+### 步驟展開/收合
+
+- 點擊步驟標題 → 展開:步驟內容 `.guided-v3-detail` 嵌入該步驟 DOM 節點內(行內顯示,非底部)。
+- 再次點擊已展開的步驟 → 收合(toggle);狀態 flag = `state.guidedStepCollapsed`。
+
+### 進度條顏色
+
+`#init-progress-fill` 依完成百分比動態設定 `background`:
+- 0–33%: `var(--error)`(紅)
+- 34–66%: `var(--warn)`(琥珀)
+- 67–100%: `var(--ok)`(綠)
+
+## Deploy summary bar 部署摘要列
+
+位於 dashboard 左欄頂端。三個區段(Profile / OS Image / Endpoint)各含一個
+`.deploy-seg` 按鈕。
+
+- **`.profile-name`**(卡片標題,Profile name & OS image name): 顏色 `var(--ink)`,
+  與 guided setup「Set up deployment」標題同色。截斷以 `text-overflow: ellipsis`
+  防止溢出。
+- **`.profile-meta`**: `font-size: 11px`,同樣截斷。
+- **Service card hover**: `border-color: var(--outline)`(暖灰),非陶土紅。
+- **Runtime ready 按鈕**: 當 `data-icon="check_circle"` 時顯示綠色樣式
+  (`var(--ok-bg)` 底 + `var(--ok)` 字/邊框),不使用 `.warning` 橙色。
+- **Config panel 關閉**: 點擊 Profile/OS Image/Endpoint panel 外的空白區域,或按
+  Escape,均可關閉面板(使用 `mousedown` capture phase 監聽)。
+
+## Activity 頁搜尋框
+
+`.fleet-search`: `display:flex; flex-direction:row; height:30px`,放大鏡圖示
+(`material-symbols-outlined`)在輸入框左側行內排列,非堆疊。
 
 ## Rules 設計規則
 
@@ -91,7 +145,7 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
 2. 琥珀 = 提醒(需要使用者注意的次要動作);紅 = 僅錯誤與破壞性動作。
 3. 終端機永遠是暖炭色,是頁面上唯一的深色塊。
 4. serif 只用於標題與數字;小字級大寫標籤一律 Inter。
-5. 層次 = 邊線 + 留白;禁止陰影與漸層。
+5. 層次 = 邊線 + 留白;禁止陰影與漸層(gradients)。
 6. 文字對比 ≥ WCAG AA(內文 ≥ 4.5:1)。
 
 ## Compatibility notes 相容性附註

@@ -98,6 +98,7 @@ export function renderRuntimeReadiness(appState) {
   setActionIcon('prepare-runtime', runtime.ready ? 'check_circle' : 'deployed_code_update');
   actionButtons('prepare-runtime').forEach((button) => {
     button.disabled = state.busy || requiresElevation;
+    button.classList.toggle('warning', !runtime.ready);
   });
 }
 
