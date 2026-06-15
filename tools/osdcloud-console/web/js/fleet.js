@@ -91,6 +91,7 @@ const STAGE_PCT_EST = new Map([
   ['winpe-start',            3],
   ['smb-mounted',            8],
   ['osdcloud-start',        12],
+  ['torrent-verify',        14],
   ['apply-image',           18],
   ['rebooting',             82],
   ['windows-setupcomplete', 87],
@@ -103,7 +104,7 @@ function estPct(stage) {
   for (const [key, val] of STAGE_PCT_EST) {
     if (stage === key || stage.startsWith(key + '-')) return val;
   }
-  return 0;
+  return 5;
 }
 
 export function makeFleetRing(run) {

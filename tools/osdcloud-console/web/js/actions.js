@@ -21,6 +21,7 @@ export function switchToView(viewName) {
     return;
   }
   state.currentView = viewName;
+  localStorage.setItem('winception-view', viewName);
   if (viewName === 'guided' && !state.selectedGuidedStepId && state.current?.initialization?.nextStepId) {
     state.selectedGuidedStepId = state.current.initialization.nextStepId;
   }

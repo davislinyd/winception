@@ -412,7 +412,9 @@ export function renderInitialization(appState) {
   const deploymentReady = initialization.deploymentReady === true;
   const deploymentLive = initialization.deploymentLive === true;
   if (state.currentView === null) {
-    state.currentView = 'dashboard';
+    const saved = localStorage.getItem('winception-view');
+    const valid = new Set(['dashboard', 'fleet', 'guided', 'services', 'logs']);
+    state.currentView = (saved && valid.has(saved)) ? saved : 'dashboard';
   }
 
   // Toggle active views and nav tabs (Deploy / Activity; Setup is the Deploy rail)
@@ -652,7 +654,9 @@ export function renderInitialization(appState) {
 
   if (!deploymentLive && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
     state.initializationAutoOpened = true;
-    switchToView('dashboard');
+    if (!localStorage.getItem('winception-view')) {
+      switchToView('dashboard');
+    }
     setSetupRailCollapsed(false);
   }
   restoreInitializationDialogScrollPosition(dialogScrollPosition);

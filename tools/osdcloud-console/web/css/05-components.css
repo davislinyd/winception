@@ -85,7 +85,7 @@
    + (done) shimmer halo + centered label. */
 .ring { --val: 0; --ring-color: var(--ok); position: relative; width: 46px; height: 46px; flex: 0 0 auto; border-radius: 999px; }
 .ring-fill { position: absolute; inset: 0; border-radius: 999px;
-  background: conic-gradient(var(--ring-color) calc(var(--val) * 1%), var(--surface-container-high) 0); }
+  background: conic-gradient(var(--ring-color) calc(var(--val) * 1%), transparent 0); }
 .ring.active .ring-fill { animation: wxn-ringfill 2.2s ease-in-out infinite; }
 /* flowing highlight, masked to the filled arc only (ring rim ∩ 0→val%) */
 .ring-sheen { position: absolute; inset: 0; border-radius: 999px; overflow: hidden;
