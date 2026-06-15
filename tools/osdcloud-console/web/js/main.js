@@ -326,7 +326,12 @@ if (elements.tabDashboard) {
 // Stepper items click handler
 if (elements.initializationSteps) {
   elements.initializationSteps.addEventListener('click', (event) => {
-    const stepEl = event.target.closest('.initialization-step');
+    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+    // Don't toggle expand/collapse when clicking interactive controls inside the step
+    if (target?.closest('input, button, select, textarea, label, a')) {
+      return;
+    }
+    const stepEl = target?.closest('.initialization-step');
     if (stepEl && stepEl.dataset.stepId) {
       if (stepEl.dataset.stepId === state.selectedGuidedStepId && !state.guidedStepCollapsed) {
         state.guidedStepCollapsed = true;
