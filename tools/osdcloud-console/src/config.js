@@ -395,11 +395,13 @@ export function applyServiceEndpoint(config, choice, options = {}) {
   config.adapter.remoteSubnet = subnetCidr(serverIp, prefixLength);
   config.dhcp.listenIp = serverIp;
   config.dhcp.ipxeBootUrl = `http://${serverIp}/osdcloud/boot.ipxe`;
-  config.dhcp.subnetMask = subnetMask(prefixLength);
-  config.dhcp.router = gateway && isInSubnet(gateway, serverIp, prefixLength) ? gateway : serverIp;
-  Object.assign(config.dhcp, dhcpLeaseRange(serverIp, prefixLength));
-  if (config.dhcp.reservations !== undefined) {
-    config.dhcp.reservations = filterReservationsForSubnet(config.dhcp.reservations, serverIp, prefixLength);
+  if ((config.dhcp.dhcpMode ?? 'server') !== 'proxy') {
+    config.dhcp.subnetMask = subnetMask(prefixLength);
+    config.dhcp.router = gateway && isInSubnet(gateway, serverIp, prefixLength) ? gateway : serverIp;
+    Object.assign(config.dhcp, dhcpLeaseRange(serverIp, prefixLength));
+    if (config.dhcp.reservations !== undefined) {
+      config.dhcp.reservations = filterReservationsForSubnet(config.dhcp.reservations, serverIp, prefixLength);
+    }
   }
   config.tftp.listenIp = serverIp;
   config.http.host = serverIp;
@@ -417,14 +419,17 @@ export function applyServiceEndpoint(config, choice, options = {}) {
 }
 
 export function validateConfig(config) {
+  const isProxyMode = (config.dhcp?.dhcpMode ?? 'server') === 'proxy';
   const required = [
     ['adapter', 'interfaceAlias'],
     ['adapter', 'serverIp'],
     ['dhcp', 'listenIp'],
-    ['dhcp', 'leaseStartIp'],
-    ['dhcp', 'leaseEndIp'],
-    ['dhcp', 'subnetMask'],
-    ['dhcp', 'router'],
+    ...(!isProxyMode ? [
+      ['dhcp', 'leaseStartIp'],
+      ['dhcp', 'leaseEndIp'],
+      ['dhcp', 'subnetMask'],
+      ['dhcp', 'router'],
+    ] : []),
     ['dhcp', 'bootFile'],
     ['dhcp', 'ipxeBootUrl'],
     ['tftp', 'root'],
@@ -454,6 +459,10 @@ export function validateConfig(config) {
   // omit both keys and default to secureboot/bootmgfw.efi in code.
   if (config.dhcp.bootMode !== undefined && !['secureboot', 'ipxe'].includes(config.dhcp.bootMode)) {
     throw new Error(`Invalid dhcp.bootMode: ${config.dhcp.bootMode}. Expected secureboot or ipxe.`);
+  }
+
+  if (config.dhcp.dhcpMode !== undefined && !['server', 'proxy'].includes(config.dhcp.dhcpMode)) {
+    throw new Error(`Invalid dhcp.dhcpMode: ${config.dhcp.dhcpMode}. Expected server or proxy.`);
   }
 
   config.web ??= {};

@@ -137,5 +137,8 @@ export function endpointLabel(config) {
 }
 
 export function dhcpRange(config) {
+  if ((config?.dhcp?.dhcpMode ?? 'server') === 'proxy') {
+    return 'PXE proxy (no IP allocation)';
+  }
   return `${text(config?.dhcp?.leaseStartIp)} - ${text(config?.dhcp?.leaseEndIp)}`;
 }

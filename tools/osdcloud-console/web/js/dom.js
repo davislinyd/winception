@@ -40,6 +40,8 @@ export const elements = {
   syncChecklist: $('#sync-checklist'),
   bootModeLabel: $('#boot-mode-label'),
   bootModeOptions: $('#boot-mode-options'),
+  dhcpModeLabel: $('#dhcp-mode-label'),
+  dhcpModeOptions: $('#dhcp-mode-options'),
   syncProgressSubtitle: $('#sync-progress-subtitle'),
   syncProgressTarget: $('#sync-progress-target'),
   syncProgressSteps: $('#sync-progress-steps'),

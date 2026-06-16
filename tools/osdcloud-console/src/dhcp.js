@@ -107,6 +107,11 @@ export function isIpxeClient(packet) {
   return false;
 }
 
+export function isPxeClient(packet) {
+  const value = getDhcpOptionValue(packet, 60);
+  return value ? Buffer.from(value).toString('ascii').startsWith('PXEClient') : false;
+}
+
 export function effectiveBootFile(config, ipxeClient) {
   if ((config.bootMode ?? 'secureboot') === 'secureboot') {
     // Microsoft-signed boot chain: always hand out the signed boot manager, even to
@@ -215,6 +220,38 @@ export class LeasePool {
   }
 }
 
+export function newProxyDhcpReply(request, messageType, config) {
+  const ipxeClient = isIpxeClient(request);
+  const bootFile = effectiveBootFile(config, ipxeClient);
+  const reply = Buffer.alloc(240);
+  reply[0] = 2;
+  reply[1] = request[1];
+  reply[2] = request[2];
+  reply[3] = 0;
+  request.copy(reply, 4, 4, 8);
+  request.copy(reply, 8, 8, 12);
+  // yiaddr = 0.0.0.0 — proxy mode does not assign an IP
+  Buffer.from(ipv4ToBytes(config.listenIp)).copy(reply, 20);
+  request.copy(reply, 28, 28, 44);
+  Buffer.from(bootFile, 'ascii').copy(reply, 108, 0, Math.min(Buffer.byteLength(bootFile), 128));
+  reply[236] = 99;
+  reply[237] = 130;
+  reply[238] = 83;
+  reply[239] = 99;
+
+  const options = [];
+  addOption(options, 53, [messageType]);
+  addOption(options, 54, ipv4ToBytes(config.listenIp));
+  addOption(options, 60, [...Buffer.from('PXEClient', 'ascii')]);
+  addOption(options, 66, [...Buffer.from(config.listenIp, 'ascii')]);
+  addOption(options, 67, [...Buffer.from(bootFile, 'ascii')]);
+  if (!ipxeClient) {
+    addOption(options, 43, pxeVendorOption(config.listenIp));
+  }
+  options.push(255);
+  return Buffer.concat([reply, Buffer.from(options)]);
+}
+
 export function newDhcpReply(request, messageType, assignedIp, effectiveBootFile, ipxeClient, config) {
   const reply = Buffer.alloc(240);
   reply[0] = 2;
@@ -269,6 +306,11 @@ export class DhcpResponder extends EventEmitter {
   }
 
   refreshLeasePool() {
+    if ((this.config.dhcpMode ?? 'server') === 'proxy') {
+      this.leasePool = null;
+      this.leasePoolKey = null;
+      return;
+    }
     const nextKey = `${this.config.leaseStartIp}-${this.config.leaseEndIp}-${JSON.stringify(this.config.reservations ?? [])}`;
     if (this.leasePool && this.leasePoolKey === nextKey) {
       return;
@@ -296,7 +338,11 @@ export class DhcpResponder extends EventEmitter {
       this.socket.bind(this.config.listenPort ?? 67, this.config.listenIp, () => {
         this.socket.off('error', reject);
         this.socket.setBroadcast(true);
-        this.log(`DHCP responder starting on ${this.config.listenIp} leases=${this.config.leaseStartIp}-${this.config.leaseEndIp} router=${this.config.router} dns=${(this.config.dnsServers ?? []).join(',')} mode=${this.config.bootMode ?? 'secureboot'} boot=${effectiveBootFile(this.config, false)} ipxe=${this.config.ipxeBootUrl}`);
+        if ((this.config.dhcpMode ?? 'server') === 'proxy') {
+          this.log(`PXE proxy starting on ${this.config.listenIp} mode=${this.config.bootMode ?? 'secureboot'} boot=${effectiveBootFile(this.config, false)}`);
+        } else {
+          this.log(`DHCP responder starting on ${this.config.listenIp} leases=${this.config.leaseStartIp}-${this.config.leaseEndIp} router=${this.config.router} dns=${(this.config.dnsServers ?? []).join(',')} mode=${this.config.bootMode ?? 'secureboot'} boot=${effectiveBootFile(this.config, false)} ipxe=${this.config.ipxeBootUrl}`);
+        }
         resolve();
       });
     });
@@ -319,14 +365,30 @@ export class DhcpResponder extends EventEmitter {
 
     const messageType = getDhcpMessageType(packet);
     const mac = getClientMac(packet);
+
+    if (messageType !== 1 && messageType !== 3) {
+      return;
+    }
+
+    if ((this.config.dhcpMode ?? 'server') === 'proxy') {
+      if (!isPxeClient(packet)) {
+        return;
+      }
+      try {
+        const replyType = messageType === 1 ? 2 : 5;
+        const reply = newProxyDhcpReply(packet, replyType, this.config);
+        this.socket.send(reply, this.config.replyPort ?? 68, '255.255.255.255');
+        const bootFile = effectiveBootFile(this.config, isIpxeClient(packet));
+        this.log(`${messageType === 1 ? 'PROXY-OFFER' : 'PROXY-ACK'} to ${mac} boot=${bootFile}`);
+      } catch (error) {
+        this.log(`ERROR proxy type=${messageType === 1 ? 'DISCOVER' : 'REQUEST'} from ${mac} message=${error.message}`);
+      }
+      return;
+    }
+
     const requestedIp = getRequestedIp(packet);
     const ipxeClient = isIpxeClient(packet);
     const bootFile = effectiveBootFile(this.config, ipxeClient);
-
-    if (messageType !== 1 && messageType !== 3) {
-      this.log(`IGNORE type=${messageType} from ${mac} requested=${requestedIp}`);
-      return;
-    }
 
     try {
       const assignedIp = this.leasePool.getLease(mac, requestedIp);

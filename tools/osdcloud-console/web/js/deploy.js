@@ -116,10 +116,11 @@ export function serviceAddress(service) {
 }
 
 export function renderServices(appState) {
+  const dhcpIsProxy = (appState.config?.dhcp?.dhcpMode ?? 'server') === 'proxy';
   const rows = [
     ['http', 'HTTP Server', appState.services.http, 'http-toggle', 'HTTP'],
     ['upload_file', 'TFTP Server', appState.services.tftp, 'tftp-toggle', 'TFTP'],
-    ['router', 'DHCP Server', appState.services.dhcp, 'dhcp-toggle', 'DHCP'],
+    ['router', dhcpIsProxy ? 'DHCP Proxy' : 'DHCP Server', appState.services.dhcp, 'dhcp-toggle', 'DHCP'],
   ];
   elements.servicesGrid.replaceChildren();
   for (const [iconName, name, service, action, actionName] of rows) {
@@ -1412,6 +1413,70 @@ export function renderBootMode(appState) {
       row.append(button);
     }
     elements.bootModeOptions.append(row);
+  }
+}
+
+export const dhcpModes = [
+  {
+    id: 'server',
+    title: 'DHCP Server',
+    description: 'winception allocates IPs from its own lease pool. Use this on an isolated lab network with no other DHCP server.',
+  },
+  {
+    id: 'proxy',
+    title: 'PXE Proxy (relay)',
+    description: 'winception only injects PXE boot options (TFTP server + boot file). The existing router DHCP server assigns IPs. Use this on a shared internal network. Requires modern UEFI firmware.',
+  },
+];
+
+export function activeDhcpMode(config) {
+  return (config?.dhcp?.dhcpMode ?? 'server') === 'proxy' ? 'proxy' : 'server';
+}
+
+export async function handleDhcpModeChange(mode) {
+  const target = dhcpModes.find((candidate) => candidate.id === mode);
+  const ok = await confirmAction({
+    title: 'Change DHCP mode',
+    message: 'This stops services, persists the DHCP mode, and reruns preflight.',
+    details: [`New mode: ${target.title}`, target.description],
+    confirmLabel: 'Change DHCP mode',
+    severity: 'warning',
+  });
+  if (ok) {
+    await mutate('/api/dhcp-mode', { mode });
+  }
+}
+
+export function renderDhcpMode(appState) {
+  if (!elements.dhcpModeOptions) {
+    return;
+  }
+  const current = activeDhcpMode(appState.config);
+  elements.dhcpModeLabel.textContent = `active: ${current}`;
+  elements.dhcpModeOptions.replaceChildren();
+  for (const mode of dhcpModes) {
+    const row = document.createElement('div');
+    row.className = `step-row ${mode.id === current ? 'done' : 'pending'}`;
+    const body = document.createElement('div');
+    body.className = 'flex flex-col gap-xs';
+    const title = document.createElement('strong');
+    title.textContent = mode.title;
+    const description = document.createElement('span');
+    description.className = 'text-on-surface-variant';
+    description.textContent = mode.description;
+    body.append(title, description);
+    row.append(body);
+    if (mode.id === current) {
+      row.append(makeStatusPill('Active', 'ok'));
+    } else {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.icon = 'swap_horiz';
+      button.textContent = 'Switch';
+      button.addEventListener('click', () => handleDhcpModeChange(mode.id));
+      row.append(button);
+    }
+    elements.dhcpModeOptions.append(row);
   }
 }
 

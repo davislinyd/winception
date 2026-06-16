@@ -155,7 +155,9 @@ export async function runPreflight(config, services = {}, options = {}) {
     report(fail('Service IP', error.message));
   }
 
-  report(evaluateDhcpSubnet(config));
+  if ((config.dhcp?.dhcpMode ?? 'server') !== 'proxy') {
+    report(evaluateDhcpSubnet(config));
+  }
 
   for (const relativePath of config.paths.expectedHttpFiles) {
     const filePath = resolveHttpFile(config.http.root, relativePath);

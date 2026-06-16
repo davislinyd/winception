@@ -241,6 +241,12 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/dhcp-mode') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.changeDhcpMode(body.mode ?? body.dhcpMode);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/profile') {
       const body = await readJsonBody(req);
       const result = await this.controller.changeDeploymentProfile(body.profileId ?? body.id);

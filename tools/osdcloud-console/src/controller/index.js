@@ -246,6 +246,7 @@ export class ServiceController extends EventEmitter {
       dhcp: serviceSummary(this.services.dhcp, {
         listenIp: this.config.dhcp.listenIp,
         listenPort: this.config.dhcp.listenPort ?? 67,
+        dhcpMode: this.config.dhcp.dhcpMode ?? 'server',
         leaseStartIp: this.config.dhcp.leaseStartIp,
         leaseEndIp: this.config.dhcp.leaseEndIp,
         router: this.config.dhcp.router,
@@ -358,6 +359,7 @@ export class ServiceController extends EventEmitter {
         adapter: this.config.adapter,
         dhcp: {
           listenIp: this.config.dhcp.listenIp,
+          dhcpMode: this.config.dhcp.dhcpMode ?? 'server',
           leaseStartIp: this.config.dhcp.leaseStartIp,
           leaseEndIp: this.config.dhcp.leaseEndIp,
           subnetMask: this.config.dhcp.subnetMask,
@@ -666,6 +668,30 @@ export class ServiceController extends EventEmitter {
       return {
         configPath: savedPath,
         bootMode: mode,
+        preflight: this.preflightResults,
+      };
+    });
+  }
+
+  async changeDhcpMode(mode) {
+    if (!['server', 'proxy'].includes(mode)) {
+      throw errorWithStatus(`Invalid DHCP mode: ${mode}. Expected server or proxy.`, 400);
+    }
+    return this.runOperation('Changing DHCP mode', async () => {
+      await this.stopAllServices();
+      const previousMode = this.config.dhcp.dhcpMode ?? 'server';
+      this.config.dhcp.dhcpMode = mode;
+      const savedPath = this.dependencies.saveConfig(this.config);
+      this.refreshServiceConfigs();
+      this.addLog(`DHCP mode ${previousMode} -> ${mode} (saved ${savedPath})`);
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+        onCheck: (result) => {
+          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+        },
+      });
+      return {
+        configPath: savedPath,
+        dhcpMode: mode,
         preflight: this.preflightResults,
       };
     });

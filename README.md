@@ -45,7 +45,11 @@
 
 7. `Run preflight` 必須全部通過。只要有 blocking failure，不要啟動 DHCP，也不要讓 client PXE 開機。
 
-8. 確認測試 LAN 沒有其他 DHCP server 後，才在 Guided Setup 或 Dashboard 按 `Start services` / `Start all services`。
+8. 確認網路模式：
+   - **隔離網路（無其他 DHCP）**：保持預設 `DHCP Server` 模式，winception 自行分配 IP。
+   - **共用內網（已有路由器 DHCP）**：在 `Endpoint Settings → DHCP Mode` 切換為 `PXE Proxy (relay)` 模式，winception 只注入 PXE 開機選項，不分配 IP，避免雙 DHCP 衝突。
+   
+   確認模式選擇正確後，在 Guided Setup 或 Dashboard 按 `Start services` / `Start all services`。
 
 9. 目標電腦從 `UEFI IPv4 PXE` 開機，不使用 USB/ISO，不手動點 OOBE。
 
