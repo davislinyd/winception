@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.18 — 2026-06-16
+
+### 變更
+
+- **Web UI**：品牌 logo 更換為 `logo_W_512x512.png`（PNG 圖示取代內嵌 SVG）
+
+---
+
 ## v0.5.17 — 2026-06-16
 
 ### 新功能：DHCP Proxy 模式（ProxyDHCP）

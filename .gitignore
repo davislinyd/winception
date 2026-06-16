@@ -28,6 +28,8 @@ osdcloud-assets/**/Apps/**/*.exe
 
 # Screenshots captured during interactive troubleshooting
 *.png
+!tools/osdcloud-console/web/logo.png
+!src/web/public/logo_W_512x512.png
 *.jpg
 *.jpeg
 

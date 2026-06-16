@@ -87,7 +87,7 @@ body { overflow: hidden; background: var(--paper); }
   z-index: 20;
 }
 .topbar-brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
-.topbar .brand-mark { flex: 0 0 auto; overflow: visible; }
+.topbar .brand-mark { flex: 0 0 auto; width: 36px; height: 36px; object-fit: contain; }
 .topbar-brand-text { display: flex; align-items: baseline; gap: 7px; }
 .topbar-brand-name { font: 600 17px/1 "Source Serif 4", Georgia, serif; letter-spacing: -0.01em; color: var(--ink); }
 .topbar-brand-version { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--muted); }
