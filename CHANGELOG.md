@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.19 — 2026-06-16
+
+### 變更
+
+- **Web UI — Guided setup 佈局重新規劃**：大幅壓縮 setup rail 右側 detail 面板的垂直空間佔用
+  - **用途／完成條件／安全提醒**：三個獨立卡片框改為單一緊湊 2 欄內嵌表格（標籤 chip ＋ 文字），高度由 ~120px 縮至 ~48px
+  - **Detail 項目（READY／MISSING／BLOCKED）**：title／meta／path 三列改為兩列（title 一行 ＋ meta · path 合併一行），使用 flex sub-container
+  - **面板 padding／gap**：detail panel padding 18px → 10px；section 間 gap 14px → 8px；item 間 gap 回調至 4px
+  - **輸入框**：覆寫 Tailwind forms plugin 全域重置，font-size 16px → 12px、padding 8px 12px → 5px 8px、高度 42px → ~29px
+  - **按鈕**：移除步驟動作按鈕的 Tailwind `px-lg py-md` utility（16px／12px），回落統一基礎樣式（26px）；`.btn-primary` padding 9px 18px → 7px 14px；全域 `button` min-height 28px → 24px
+
+---
+
 ## v0.5.18 — 2026-06-16
 
 ### 變更

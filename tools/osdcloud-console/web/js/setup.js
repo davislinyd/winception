@@ -82,7 +82,10 @@ export function appendInitializationDetailItems(body, stepId, detailItems = []) 
     const detail = document.createElement('span');
     detail.className = 'initialization-detail-text';
     detail.textContent = item.detail ?? '';
-    row.append(status, title, meta, detail);
+    const sub = document.createElement('span');
+    sub.className = 'initialization-detail-sub';
+    sub.append(meta, detail);
+    row.append(status, title, sub);
     list.append(row);
   }
   body.append(list);
@@ -606,7 +609,7 @@ export function renderInitialization(appState) {
 
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = (selectedStep.required && !selectedStep.done) ? 'warning px-lg py-md' : 'px-lg py-md';
+      button.className = (selectedStep.required && !selectedStep.done) ? 'warning' : '';
       button.dataset.initAction = selectedStep.action;
       button.dataset.icon = initializationActionIcon(selectedStep.action);
       button.textContent = selectedStep.done
