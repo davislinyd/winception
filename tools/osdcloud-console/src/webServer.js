@@ -357,6 +357,8 @@ export class WebManagementServer {
         || Object.prototype.hasOwnProperty.call(body, 'osImage');
       const hasInstallSequence = Object.prototype.hasOwnProperty.call(body, 'installSequence');
       const hasExecution = Object.prototype.hasOwnProperty.call(body, 'execution');
+      const hasLocale = Object.prototype.hasOwnProperty.call(body, 'locale');
+      const hasTimeZone = Object.prototype.hasOwnProperty.call(body, 'timeZone');
       const result = await this.controller.updateActiveDeploymentProfile({
         profileId: body.profileId ?? body.id,
         name: body.name,
@@ -365,6 +367,8 @@ export class WebManagementServer {
         installSequence: hasInstallSequence ? body.installSequence : undefined,
         execution: hasExecution ? body.execution : undefined,
         osImageId: hasOsImage ? (body.osImageId ?? body.osImage) : undefined,
+        ...(hasLocale ? { locale: body.locale } : {}),
+        ...(hasTimeZone ? { timeZone: body.timeZone } : {}),
       });
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;

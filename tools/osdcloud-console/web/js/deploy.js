@@ -252,7 +252,15 @@ export function renderProfileSummary(appState) {
   } else {
     software.textContent = 'No client software selected.';
   }
-  elements.activeProfileDetails.append(name, description, software);
+  const localeParts = [active?.locale, active?.timeZone].filter(Boolean);
+  if (localeParts.length) {
+    const localeMeta = document.createElement('div');
+    localeMeta.className = 'profile-meta';
+    localeMeta.textContent = `Locale override: ${localeParts.join(' · ')}`;
+    elements.activeProfileDetails.append(name, description, localeMeta, software);
+  } else {
+    elements.activeProfileDetails.append(name, description, software);
+  }
 }
 
 export function appendTextCell(row, value, className = '') {

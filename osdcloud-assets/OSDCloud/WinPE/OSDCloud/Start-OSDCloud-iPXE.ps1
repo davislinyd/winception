@@ -691,6 +691,28 @@ $SelectedOs = Get-LabSelectedOsManifest -OsRoot $osRoot
 if (-not $SelectedOs -or [string]::IsNullOrWhiteSpace([string] $SelectedOs.fileName) -or -not $SelectedOs.imageIndex) {
     throw "selected-os.json did not produce a usable OS selection from $osRoot"
 }
+
+# Apply profile locale/timezone overrides from selected-profile.json (if present).
+# These override the OS image defaults without changing the UILanguage (which must
+# match the language pack baked into the WIM).
+$profileManifestPath = 'Z:\OSDCloud\Apps\selected-profile.json'
+if (Test-Path -LiteralPath $profileManifestPath -PathType Leaf) {
+    try {
+        $profileManifest = Get-Content -LiteralPath $profileManifestPath -Raw | ConvertFrom-Json
+        if (-not [string]::IsNullOrWhiteSpace([string] $profileManifest.locale)) {
+            $SelectedOs | Add-Member -NotePropertyName locale -NotePropertyValue ([string] $profileManifest.locale) -Force
+            Write-Host "Profile locale override: $($profileManifest.locale)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string] $profileManifest.timeZone)) {
+            $SelectedOs | Add-Member -NotePropertyName timeZone -NotePropertyValue ([string] $profileManifest.timeZone) -Force
+            Write-Host "Profile timeZone override: $($profileManifest.timeZone)"
+        }
+    }
+    catch {
+        Write-Warning "Unable to read profile manifest for locale overrides: $($_.Exception.Message)"
+    }
+}
+
 $imagePath = Join-Path $osRoot ([string] $SelectedOs.fileName)
 Write-Host "Selected OS: $($SelectedOs.id) $($SelectedOs.language) $($SelectedOs.edition) index $($SelectedOs.imageIndex)"
 Write-Host "Image source: $share\OSDCloud\OS\$($SelectedOs.fileName)"

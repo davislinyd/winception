@@ -42,7 +42,7 @@ function Assert-MicrosoftSignedBootFile {
         [Parameter(Mandatory)][string] $Label
     )
 
-    Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
+    Import-Module Microsoft.PowerShell.Security -ErrorAction SilentlyContinue
     $signature = Get-AuthenticodeSignature -FilePath $Path -ErrorAction Stop
     if ($signature.Status -ne 'Valid') {
         throw "$Label Authenticode signature is not valid: $($signature.Status) $Path"

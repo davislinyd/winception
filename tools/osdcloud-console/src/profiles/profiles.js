@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadCustomScriptCatalog } from './scripts.js';
-import { arrayFrom, assertInside, defaultInstallSequenceTimeoutSeconds, deploymentProfileOptions, generateDeploymentProfileId, inputError, normalizeExecutionSettings, normalizeId, normalizePositiveInteger, normalizeProfileDescription, normalizeProfileName, readJson, resolveExecutionSettings, selectedProfileFileName, writeJson } from './shared.js';
+import { arrayFrom, assertInside, defaultInstallSequenceTimeoutSeconds, deploymentProfileOptions, generateDeploymentProfileId, inputError, normalizeExecutionSettings, normalizeId, normalizeLocaleTag, normalizePositiveInteger, normalizeProfileDescription, normalizeProfileName, normalizeWindowsTimeZoneId, readJson, resolveExecutionSettings, selectedProfileFileName, writeJson } from './shared.js';
 import { loadSoftwareCatalog } from './software.js';
 
 export function normalizeInstallSequence(value, catalog, scriptCatalog, label) {
@@ -165,6 +165,9 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
     }
 
+    const locale = normalizeLocaleTag(raw.locale, `deployment profile ${id} locale`, { optional: true });
+    const timeZone = normalizeWindowsTimeZoneId(raw.timeZone, `deployment profile ${id} timeZone`, { optional: true });
+
     return {
       id,
       name: String(raw.name ?? id),
@@ -175,6 +178,8 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       hasExplicitExecution: explicitExecution !== null,
       hasInstallSequence: rawInstallSequence !== null,
       osImageId,
+      locale,
+      timeZone,
       filePath,
     };
   });
@@ -292,6 +297,9 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   const explicitExecution = Object.prototype.hasOwnProperty.call(input, 'execution')
     ? normalizeExecutionSettings(input.execution, `deployment profile ${id} execution`)
     : (state.activeProfile.hasExplicitExecution ? { ...state.activeProfile.execution } : null);
+  const locale = normalizeLocaleTag(input.locale, `deployment profile ${id} locale`, { optional: true });
+  const timeZone = normalizeWindowsTimeZoneId(input.timeZone, `deployment profile ${id} timeZone`, { optional: true });
+
   const raw = {
     id,
     name,
@@ -307,6 +315,12 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   if (explicitExecution) {
     raw.execution = explicitExecution;
   }
+  if (locale) {
+    raw.locale = locale;
+  }
+  if (timeZone) {
+    raw.timeZone = timeZone;
+  }
   writeJson(filePath, raw);
 
   return {
@@ -320,6 +334,8 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
       hasExplicitExecution: explicitExecution !== null,
       hasInstallSequence: true,
       osImageId,
+      locale,
+      timeZone,
       filePath,
     },
     filePath,
@@ -368,6 +384,14 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const execution = hasExecution
     ? resolveExecutionSettings(input.execution, `deployment profile ${id} execution`)
     : profile.execution;
+  const hasLocale = Object.prototype.hasOwnProperty.call(input, 'locale');
+  const locale = hasLocale
+    ? normalizeLocaleTag(input.locale, `deployment profile ${id} locale`, { optional: true })
+    : profile.locale ?? null;
+  const hasTimeZone = Object.prototype.hasOwnProperty.call(input, 'timeZone');
+  const timeZone = hasTimeZone
+    ? normalizeWindowsTimeZoneId(input.timeZone, `deployment profile ${id} timeZone`, { optional: true })
+    : profile.timeZone ?? null;
   if (osImageId && options.osImageCatalog && !options.osImageCatalog.byId?.has(osImageId)) {
     throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
   }
@@ -393,6 +417,16 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   if (input.description !== undefined) {
     raw.description = normalizeProfileDescription(input.description);
   }
+  if (locale) {
+    raw.locale = locale;
+  } else {
+    delete raw.locale;
+  }
+  if (timeZone) {
+    raw.timeZone = timeZone;
+  } else {
+    delete raw.timeZone;
+  }
   writeJson(filePath, raw);
 
   return {
@@ -406,6 +440,8 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
       hasExplicitExecution: hasExecution ? rawExecution !== null : profile.hasExplicitExecution,
       hasInstallSequence: true,
       osImageId,
+      locale,
+      timeZone,
     },
     filePath,
   };

@@ -212,6 +212,30 @@ export function normalizeProfileDescription(value) {
   return String(value ?? '').trim();
 }
 
+export function normalizeLocaleTag(value, label, { optional = false } = {}) {
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    if (optional) return null;
+    throw inputError(`${label} is required`);
+  }
+  if (!/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/u.test(raw)) {
+    throw inputError(`Invalid ${label} (expected BCP-47 tag like en-US or zh-TW): ${raw}`);
+  }
+  return raw;
+}
+
+export function normalizeWindowsTimeZoneId(value, label, { optional = false } = {}) {
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    if (optional) return null;
+    throw inputError(`${label} is required`);
+  }
+  if (raw.length > 128) {
+    throw inputError(`${label} is too long (max 128 chars): ${raw}`);
+  }
+  return raw;
+}
+
 export function resolveConfiguredPath(root, value) {
   if (!value) {
     return value;

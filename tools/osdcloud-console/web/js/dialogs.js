@@ -261,10 +261,14 @@ export function showAddProfileDialog(profile) {
         elements.profileError.textContent = 'Select an OS image for this profile.';
         return;
       }
+      const locale = elements.profileLocale.value.trim() || null;
+      const timeZone = elements.profileTimezone.value.trim() || null;
       done({
         name,
         description: elements.profileDescription.value.trim(),
         osImageId,
+        ...(locale ? { locale } : {}),
+        ...(timeZone ? { timeZone } : {}),
       });
     };
 
@@ -333,6 +337,8 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
     elements.softwareProfileName.value = targetProfile?.name ?? '';
     elements.softwareProfileDescription.value = targetProfile?.description ?? '';
     populateOsImageSelect(elements.softwareProfileOsImage, targetProfile?.osImageId ?? '');
+    elements.softwareProfileLocale.value = targetProfile?.locale ?? '';
+    elements.softwareProfileTimezone.value = targetProfile?.timeZone ?? '';
 
     const moveSelected = (id, toIndex) => {
       const fromIndex = selectedOrder.indexOf(id);
@@ -548,6 +554,8 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
         const { type, id } = keyParts(key);
         return { type, id };
       });
+      const locale = elements.softwareProfileLocale.value.trim() || null;
+      const timeZone = elements.softwareProfileTimezone.value.trim() || null;
       done({
         profileId: targetProfile?.id ?? '',
         isActive: isActiveTarget,
@@ -556,6 +564,8 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
         softwareIds: selectedSoftwareIds(),
         installSequence,
         osImageId,
+        locale,
+        timeZone,
       });
     };
     const selectAll = () => {

@@ -669,6 +669,39 @@
         <label>OS image
           <select id="profile-os-image" name="osImageId" required></select>
         </label>
+        <label>Language / Locale <span class="subtle">(optional — overrides OS image default)</span>
+          <select id="profile-locale" name="locale">
+            <option value="">(inherit from OS image)</option>
+            <option value="en-US">en-US — English (United States)</option>
+            <option value="zh-TW">zh-TW — Traditional Chinese / 繁體中文 (Taiwan)</option>
+            <option value="zh-CN">zh-CN — Simplified Chinese / 简体中文 (China)</option>
+            <option value="ja-JP">ja-JP — Japanese / 日本語 (Japan)</option>
+            <option value="ko-KR">ko-KR — Korean / 한국어 (Korea)</option>
+            <option value="vi-VN">vi-VN — Vietnamese / Tiếng Việt</option>
+            <option value="id-ID">id-ID — Indonesian / Bahasa Indonesia</option>
+            <option value="th-TH">th-TH — Thai / ภาษาไทย</option>
+          </select>
+        </label>
+        <label>Time Zone <span class="subtle">(optional — overrides OS image default)</span>
+          <select id="profile-timezone" name="timeZone">
+            <option value="">(inherit from OS image)</option>
+            <option value="UTC">UTC</option>
+            <option value="Taipei Standard Time">Taipei Standard Time (UTC+8)</option>
+            <option value="China Standard Time">China Standard Time (UTC+8)</option>
+            <option value="Tokyo Standard Time">Tokyo Standard Time (UTC+9)</option>
+            <option value="Korea Standard Time">Korea Standard Time (UTC+9)</option>
+            <option value="SE Asia Standard Time">SE Asia Standard Time (UTC+7)</option>
+            <option value="Singapore Standard Time">Singapore Standard Time (UTC+8)</option>
+            <option value="India Standard Time">India Standard Time (UTC+5:30)</option>
+            <option value="Arabian Standard Time">Arabian Standard Time (UTC+4)</option>
+            <option value="W. Europe Standard Time">W. Europe Standard Time (UTC+1)</option>
+            <option value="GMT Standard Time">GMT Standard Time (UTC+0)</option>
+            <option value="Eastern Standard Time">Eastern Standard Time (UTC-5)</option>
+            <option value="Central Standard Time">Central Standard Time (UTC-6)</option>
+            <option value="Mountain Standard Time">Mountain Standard Time (UTC-7)</option>
+            <option value="Pacific Standard Time">Pacific Standard Time (UTC-8)</option>
+          </select>
+        </label>
         <div>
           <div class="field-label">Included Software Baseline</div>
           <div id="profile-software-baseline" class="readonly-list"></div>
@@ -695,6 +728,39 @@
         <label>Description <textarea id="software-profile-description" name="description" rows="3"></textarea></label>
         <label>OS image
           <select id="software-profile-os-image" name="osImageId" required></select>
+        </label>
+        <label>Language / Locale <span class="subtle">(optional — overrides OS image default)</span>
+          <select id="software-profile-locale" name="locale">
+            <option value="">(inherit from OS image)</option>
+            <option value="en-US">en-US — English (United States)</option>
+            <option value="zh-TW">zh-TW — Traditional Chinese / 繁體中文 (Taiwan)</option>
+            <option value="zh-CN">zh-CN — Simplified Chinese / 简体中文 (China)</option>
+            <option value="ja-JP">ja-JP — Japanese / 日本語 (Japan)</option>
+            <option value="ko-KR">ko-KR — Korean / 한국어 (Korea)</option>
+            <option value="vi-VN">vi-VN — Vietnamese / Tiếng Việt</option>
+            <option value="id-ID">id-ID — Indonesian / Bahasa Indonesia</option>
+            <option value="th-TH">th-TH — Thai / ภาษาไทย</option>
+          </select>
+        </label>
+        <label>Time Zone <span class="subtle">(optional — overrides OS image default)</span>
+          <select id="software-profile-timezone" name="timeZone">
+            <option value="">(inherit from OS image)</option>
+            <option value="UTC">UTC</option>
+            <option value="Taipei Standard Time">Taipei Standard Time (UTC+8)</option>
+            <option value="China Standard Time">China Standard Time (UTC+8)</option>
+            <option value="Tokyo Standard Time">Tokyo Standard Time (UTC+9)</option>
+            <option value="Korea Standard Time">Korea Standard Time (UTC+9)</option>
+            <option value="SE Asia Standard Time">SE Asia Standard Time (UTC+7)</option>
+            <option value="Singapore Standard Time">Singapore Standard Time (UTC+8)</option>
+            <option value="India Standard Time">India Standard Time (UTC+5:30)</option>
+            <option value="Arabian Standard Time">Arabian Standard Time (UTC+4)</option>
+            <option value="W. Europe Standard Time">W. Europe Standard Time (UTC+1)</option>
+            <option value="GMT Standard Time">GMT Standard Time (UTC+0)</option>
+            <option value="Eastern Standard Time">Eastern Standard Time (UTC-5)</option>
+            <option value="Central Standard Time">Central Standard Time (UTC-6)</option>
+            <option value="Mountain Standard Time">Mountain Standard Time (UTC-7)</option>
+            <option value="Pacific Standard Time">Pacific Standard Time (UTC-8)</option>
+          </select>
         </label>
       </div>
       <div class="software-toolbar">

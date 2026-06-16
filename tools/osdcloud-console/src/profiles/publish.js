@@ -58,6 +58,12 @@ export function profileManifest(state, osImageResult = null) {
     })),
     osImageId: state.activeProfile.osImageId,
   };
+  if (state.activeProfile.locale) {
+    manifest.locale = state.activeProfile.locale;
+  }
+  if (state.activeProfile.timeZone) {
+    manifest.timeZone = state.activeProfile.timeZone;
+  }
   if (osImageResult?.image) {
     manifest.osImage = {
       id: osImageResult.image.id,
