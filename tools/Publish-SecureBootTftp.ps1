@@ -36,22 +36,62 @@ function Invoke-Bcdedit {
     $output
 }
 
+function Get-AuthenticodeSignatureIsolated {
+    param([Parameter(Mandatory)][string] $Path)
+
+    # Run Get-AuthenticodeSignature in a fresh child runspace. When this script is
+    # invoked from Set-OsdCloudIpxeEndpoint.ps1 (after DISM mount / module injection),
+    # the parent runspace's module state makes loading Microsoft.PowerShell.Security
+    # re-process its types.ps1xml and fail ("AuditToString 成員已經存在"), which under
+    # $ErrorActionPreference='Stop' aborts the whole publish. A clean child process
+    # loads the module without conflict.
+    # Always use Windows PowerShell 5.1 (present on every Windows host and ships
+    # Get-AuthenticodeSignature). $PSHOME is unreliable here because the parent may
+    # be PowerShell 7 (pwsh.exe), whose $PSHOME has no powershell.exe.
+    $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (-not (Test-Path -LiteralPath $psExe -PathType Leaf)) {
+        $psExe = Join-Path $PSHOME 'powershell.exe'
+    }
+    $previous = $env:OSDCLOUD_SIGCHECK_PATH
+    $env:OSDCLOUD_SIGCHECK_PATH = $Path
+    try {
+        $out = & $psExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command {
+            $ErrorActionPreference = 'Stop'
+            $sig = Get-AuthenticodeSignature -LiteralPath $env:OSDCLOUD_SIGCHECK_PATH
+            [pscustomobject]@{
+                Status  = [string] $sig.Status
+                Subject = [string] $sig.SignerCertificate.Subject
+            } | ConvertTo-Json -Compress
+        } 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Isolated Authenticode check failed (exit ${LASTEXITCODE}) for ${Path}: $out"
+        }
+        $json = @($out | Where-Object { "$_".Trim().StartsWith('{') })[-1]
+        if ([string]::IsNullOrWhiteSpace($json)) {
+            throw "Isolated Authenticode check returned no result for ${Path}: $out"
+        }
+        return ($json | ConvertFrom-Json)
+    }
+    finally {
+        $env:OSDCLOUD_SIGCHECK_PATH = $previous
+    }
+}
+
 function Assert-MicrosoftSignedBootFile {
     param(
         [Parameter(Mandatory)][string] $Path,
         [Parameter(Mandatory)][string] $Label
     )
 
-    Import-Module Microsoft.PowerShell.Security -ErrorAction SilentlyContinue
-    $signature = Get-AuthenticodeSignature -FilePath $Path -ErrorAction Stop
+    $signature = Get-AuthenticodeSignatureIsolated -Path $Path
     if ($signature.Status -ne 'Valid') {
         throw "$Label Authenticode signature is not valid: $($signature.Status) $Path"
     }
-    $subject = [string] $signature.SignerCertificate.Subject
+    $subject = [string] $signature.Subject
     if ($subject -notmatch 'Microsoft Corporation|Microsoft Windows') {
         throw "$Label is not signed by Microsoft: $subject $Path"
     }
-    Write-Host "Verified Microsoft signature on $Label ($($signature.SignerCertificate.Subject))"
+    Write-Host "Verified Microsoft signature on $Label ($subject)"
 }
 
 function Get-NtfsFileId {

@@ -353,12 +353,46 @@ function Invoke-ClientAppInstallers {
     $sequenceSummaryPath = Join-Path $LogDir 'install-sequence-summary.json'
     $statePath = Join-Path $LogDir 'install-sequence-state.json'
     Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
-    $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+
+    $AppInstallerTimeoutSeconds = 90 * 60
+    $AppInstallerHeartbeatSeconds = 30
+
+    $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+
+    $pollStart = Get-Date
+    $timedOut = $false
+    while (-not $process.HasExited) {
+        $elapsedSeconds = [int] ((Get-Date) - $pollStart).TotalSeconds
+        if ($elapsedSeconds -ge $AppInstallerTimeoutSeconds) {
+            try { taskkill.exe /PID $process.Id /T /F 2>$null } catch {}
+            $timedOut = $true
+            break
+        }
+        [void] (Send-DeploymentStatus -Stage 'windows-apps-progress' `
+            -Message "Installing client applications... ($elapsedSeconds s elapsed)." `
+            -Percent 94.5)
+        Start-Sleep -Seconds $AppInstallerHeartbeatSeconds
+    }
+    if (-not $timedOut) {
+        $process.WaitForExit()
+    }
+    $process.Refresh()
+
+    # Start-Process -PassThru in Windows PowerShell 5.1 can return null ExitCode even after
+    # WaitForExit(). Fall back to the sequence summary JSON written by Install-Apps.ps1.
+    $appExitCode = $process.ExitCode
+    if ($null -eq $appExitCode) {
+        $summaryObj = Get-JsonFileObject -Path $sequenceSummaryPath
+        $appExitCode = if ($null -ne $summaryObj -and
+                           $summaryObj.PSObject.Properties['failedStep'] -and
+                           $null -ne $summaryObj.failedStep) { 1 } else { 0 }
+    }
+
     $result = [ordered]@{
         found = $true
         root = $appsRoot
         script = $installer
-        exitCode = $process.ExitCode
+        exitCode = $appExitCode
         stdoutLog = $stdoutPath
         stderrLog = $stderrPath
         transcriptLog = $transcriptPath
@@ -373,7 +407,13 @@ function Invoke-ClientAppInstallers {
         $result[$key] = $failureDetails[$key]
     }
 
-    if ($process.ExitCode -ne 0) {
+    if ($timedOut) {
+        $timeoutMessage = "Client application installer exceeded timeout of $([int]($AppInstallerTimeoutSeconds / 60)) minutes and was terminated."
+        [void] (Send-DeploymentStatus -Stage 'windows-apps-error' -Message $timeoutMessage -Percent 94.9 -Extra $result)
+        throw $timeoutMessage
+    }
+
+    if ($appExitCode -ne 0) {
         $message = if ($result.stepStatus -eq 'timed_out') {
             "Client application installer timed out at step $($result.stepIndex) ($($result.stepType):$($result.stepId))."
         }

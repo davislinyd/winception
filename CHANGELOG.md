@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.5.21 — 2026-06-17
+
+### 修正
+
+- **SetupComplete — App 安裝逾時與心跳**：修復 `Invoke-ClientAppInstallers` 呼叫 Install-Apps.ps1 時可能無限期阻塞（實測曾卡 779 分鐘）的問題
+  - 新增 90 分鐘外層逾時保護（`AppInstallerTimeoutSeconds`）；超時後以 `taskkill /T /F` 終止整棵進程樹，送出 `windows-apps-error` 事件
+  - 每 30 秒送一次 `windows-apps-progress` 心跳事件（`AppInstallerHeartbeatSeconds`），防止伺服器 15 分鐘無事件後將正在安裝的機台誤標為 stale
+- **SetupComplete — ExitCode null 回退**：修復 PowerShell 5.1 中 `Start-Process -PassThru` 在 `WaitForExit()` 後 `ExitCode` 仍為 `$null` 的 bug，導致成功部署被誤報為 `windows-setupcomplete-error`
+  - 當 `ExitCode` 為 `$null` 時，改讀取 `install-sequence-summary.json` 的 `failedStep` 欄位作為判斷依據
+- **Publish-SecureBootTftp — TypeData 衝突**：修復 endpoint 同步時 `AuditToString 成員已經存在` 的 terminating error
+  - 原因：共用 runspace 已由系統 `types.ps1xml` 載入 TypeData，再次 `Import-Module Microsoft.PowerShell.Security` 造成衝突
+  - 解法：以獨立 `powershell.exe` 子進程（`Get-AuthenticodeSignatureIsolated`）執行 Authenticode 驗證，傳 JSON 回傳結果，完全隔離 TypeData 環境
+- **Fleet 進度環 — 步驟比例對齊**：修復進度環百分比與執行流程勾選項目嚴重不符的問題（例：3/7 步驟完成顯示 18%）
+  - 提取純邏輯模組 `fleetProgress.js`（無 DOM 依賴，可在 Node.js 單元測試中引用）
+  - 進度環改為按步驟平均切分（7 步 × ~14.3%），`latestPercent` 在當前步驟的切片內縮放
+  - `STAGE_ALIASES` 對映所有中間 stage（torrent-download/verify、drivers、post-apply-scripts 等），確保環進度單調遞增，不會倒退
+  - 新增 4 個單元測試，含完整 torrent 部署序列的單調性驗證
+
+---
+
+## v0.5.20 — 2026-06-16
+
+### 新功能：部署 Profile 語系與時區覆寫
+
+- **Profile 設定**：`locale`（BCP-47）與 `timeZone`（Windows TZ ID）欄位支援在 Profile 層級覆寫 OS 映像預設值
+- **WinPE**：`Start-OSDCloud-iPXE.ps1` 從 `selected-profile.json` 讀取 locale/timeZone，合併至 SelectedOs 後寫入 `DeploymentStatus.json`
+- **OOBE**：`Invoke-OobeCustomization.ps1` 拆分 UILanguage（鎖定 WIM 語言包）與 InputLocale/SystemLocale/UserLocale（可由 Profile 覆寫）
+- **Web UI**：Add profile 與 Edit active profile 對話框新增語系與時區選單
+
+---
+
 ## v0.5.19 — 2026-06-16
 
 ### 變更

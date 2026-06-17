@@ -1,4 +1,5 @@
 import { $, elements } from './dom.js';
+import { FLEET_STAGE_FLOW, STALE_DONE_STAGES, flowIndexForStage, ringPercent } from './fleetProgress.js';
 import { localCompactDateTime, text } from './format.js';
 import { state } from './state.js';
 import { makeIcon, makeStatusPill } from './ui.js';
@@ -90,30 +91,13 @@ export function renderFleetCards(appState) {
   renderFleetDetail(runs.find((run) => run.runId === state.selectedRunId) ?? runs[0]);
 }
 
-const STAGE_PCT_EST = new Map([
-  ['winpe-start',            3],
-  ['smb-mounted',            8],
-  ['osdcloud-start',        12],
-  ['torrent-verify',        14],
-  ['apply-image',           18],
-  ['rebooting',             82],
-  ['windows-setupcomplete', 87],
-  ['windows-apps',          92],
-  ['windows-desktop-ready', 96],
-]);
-
-function estPct(stage) {
-  if (!stage) return 0;
-  for (const [key, val] of STAGE_PCT_EST) {
-    if (stage === key || stage.startsWith(key + '-')) return val;
-  }
-  return 5;
-}
-
+// Resolve a reported stage to its position in FLEET_STAGE_FLOW so the ring
+// percentage and the execution-flow checkmarks stay consistent (the ring is
+// scaled within the matched step's slice). App installation and driver-cache
+// substages run inside the SetupComplete phase, so they map to that step
+// rather than dropping to -1 (which would blank the whole flow during install).
 export function makeFleetRing(run) {
-  const pct = run.latestPercent != null
-    ? Math.max(0, Math.min(100, Math.round(run.latestPercent)))
-    : estPct(run.latestStage);
+  const pct = ringPercent(run);
   const isDone = run.status === 'completed' ||
     (run.status === 'stale' && STALE_DONE_STAGES.has(run.latestStage));
   const isFailed = run.status === 'failed';
@@ -164,25 +148,6 @@ export function makeFleetRing(run) {
   return ring;
 }
 
-// Stale runs that stopped at these stages have effectively completed Windows
-// setup — SetupComplete finished and the desktop-ready reporter was installed.
-// Treat them as done in the UI (✓ ring, all flow steps green) rather than
-// showing a raw sub-100% percentage.
-export const STALE_DONE_STAGES = new Set([
-  'windows-setupcomplete-finished',
-  'windows-logon-start',
-]);
-
-export const FLEET_STAGE_FLOW = [
-  ['winpe-start', 'winpe-start'],
-  ['smb-mounted', 'smb-mounted'],
-  ['osdcloud-start', 'osdcloud-start'],
-  ['apply-image', 'apply-image'],
-  ['rebooting', 'reboot'],
-  ['windows-setupcomplete', 'windows-setupcomplete'],
-  ['windows-desktop-ready', 'desktop-ready'],
-];
-
 export function renderFleetDetail(run) {
   if (!elements.fleetDetail) {
     return;
@@ -225,9 +190,7 @@ export function renderFleetDetail(run) {
 
   const flow = document.createElement('div');
   flow.className = 'fd-flow';
-  const reachedIndex = FLEET_STAGE_FLOW.findIndex(([key]) =>
-    run.latestStage === key || run.latestStage?.startsWith(key + '-')
-  );
+  const reachedIndex = flowIndexForStage(run.latestStage);
   const isDone = run.status === 'completed' ||
     (run.status === 'stale' && STALE_DONE_STAGES.has(run.latestStage));
   FLEET_STAGE_FLOW.forEach(([key, label], idx) => {

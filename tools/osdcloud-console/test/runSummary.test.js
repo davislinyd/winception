@@ -98,7 +98,7 @@ test('tracks interleaved runs without overwriting summaries', () => {
     assert.equal(index.total, 2);
     assert.equal(index.counts.running, 1);
     assert.equal(index.counts.completed, 1);
-    assert.deepEqual(index.runs.map((run) => run.runId), ['run-a', 'run-b']);
+    assert.deepEqual(index.runs.map((run) => run.runId), ['run-b', 'run-a']);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

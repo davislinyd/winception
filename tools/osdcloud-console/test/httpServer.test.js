@@ -164,7 +164,7 @@ test('tracks multiple status runs and buckets missing run ids', async () => {
     assert.equal(index.total, 3);
     assert.equal(index.counts.running, 2);
     assert.equal(index.counts.completed, 1);
-    assert.deepEqual(index.runs.map((run) => run.runId), ['unknown', 'run-a', 'run-b']);
+    assert.deepEqual(index.runs.map((run) => run.runId), ['unknown', 'run-b', 'run-a']);
     assert.deepEqual(index.runs.find((run) => run.runId === 'unknown').warnings, ['missing-run-id']);
     assert.equal(fs.existsSync(path.join(statusRoot, 'runs-index.json')), true);
     assert.equal(fs.existsSync(path.join(statusRoot, 'unknown.summary.json')), true);

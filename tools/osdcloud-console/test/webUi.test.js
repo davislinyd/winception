@@ -237,7 +237,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /function renderRuntimeReadiness\(appState\)/);
   assert.match(script, /const requiresElevation = appState\?\.host\?\.elevated === false/);
   assert.match(script, /Restart the Web console from an elevated PowerShell session before preparing runtime artifacts\./);
-  assert.match(script, /button\.disabled = state\.busy \|\| runtime\.ready \|\| requiresElevation/);
+  assert.match(script, /button\.disabled = state\.busy[\s\S]*selectedStep\.action === 'prepare-runtime' && requiresElevation/);
   assert.match(script, /function appendInitializationDetailItems\(body, stepId, detailItems = \[\]\)/);
   assert.match(script, /function appendGuidedStepOverview\(body, step\)/);
   assert.match(script, /'用途', step\.objective/);
@@ -417,8 +417,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /No catalog rows matched the selected filters/);
   assert.match(script, /function twoDigit\(value\)/);
   assert.match(script, /function localCompactDateTime\(value\)/);
-  assert.ok(script.includes('`${date.getFullYear()}/${twoDigit(date.getMonth() + 1)}/${twoDigit(date.getDate())}`,'));
-  assert.ok(script.includes('`${twoDigit(date.getHours())}:${twoDigit(date.getMinutes())}`,'));
+  assert.match(script, /const TZ = 'Asia\/Taipei'/);
+  assert.match(script, /\$\{p\.year\}\/\$\{p\.month\}\/\$\{p\.day\} \$\{p\.hour\}:\$\{p\.minute\}/);
+  assert.match(script, /timeZoneName\.replace\('GMT', 'UTC'\)/);
   assert.match(script, /function appendFleetLastSeenCell\(row, value\)/);
   assert.match(script, /cell\.className = 'fleet-last-seen-cell'/);
   assert.match(script, /cell\.textContent = localCompactDateTime\(value\)/);
