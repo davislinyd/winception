@@ -94,9 +94,9 @@ export function appendInitializationDetailItems(body, stepId, detailItems = []) 
 
 export function appendGuidedStepOverview(body, step) {
   const items = [
-    ['用途', step.objective],
-    ['完成條件', step.doneWhen],
-    ['安全提醒', step.safetyNote],
+    ['Objective', step.objective],
+    ['Done when', step.doneWhen],
+    ['Safety note', step.safetyNote],
   ].filter(([, value]) => String(value ?? '').trim());
   if (items.length === 0) {
     return;
@@ -247,7 +247,7 @@ export function appendInitializationSecretsForm(body) {
   status.className = 'initialization-secrets-status';
   status.setAttribute('aria-live', 'polite');
   if (editing) {
-    status.textContent = '重新輸入 Windows 帳號與密碼以覆寫現有認證（密碼不會回填，需重新輸入）。';
+    status.textContent = 'Re-enter the Windows username and password to replace the existing credentials. The password is not prefilled and must be entered again.';
   }
   const actions = document.createElement('div');
   actions.className = 'initialization-secrets-actions';
@@ -256,18 +256,18 @@ export function appendInitializationSecretsForm(body) {
   button.className = 'warning';
   button.dataset.initAction = 'save-secrets';
   button.dataset.icon = 'password';
-  button.textContent = editing ? '更新部署認證' : 'Save deployment secrets';
+  button.textContent = editing ? 'Update deployment secrets' : 'Save deployment secrets';
   actions.append(button);
   if (editing) {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.dataset.initAction = 'cancel-secrets';
-    cancel.textContent = '取消';
+    cancel.textContent = 'Cancel';
     actions.append(cancel);
   }
   form.append(
-    createInitializationSecretField('init-windows-username', 'windowsUsername', 'Windows 帳號', 'text'),
-    createInitializationSecretField('init-windows-password', 'windowsPassword', 'Windows 密碼', 'password'),
+    createInitializationSecretField('init-windows-username', 'windowsUsername', 'Windows username', 'text'),
+    createInitializationSecretField('init-windows-password', 'windowsPassword', 'Windows password', 'password'),
     status,
     actions,
   );
@@ -281,7 +281,7 @@ export function appendInitializationSecretsEditButton(body) {
   button.type = 'button';
   button.dataset.initAction = 'edit-secrets';
   button.dataset.icon = 'password';
-  button.textContent = '修改認證';
+  button.textContent = 'Edit secrets';
   actions.append(button);
   body.append(actions);
 }

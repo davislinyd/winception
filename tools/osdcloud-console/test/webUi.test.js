@@ -245,9 +245,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /button\.disabled = state\.busy[\s\S]*selectedStep\.action === 'prepare-runtime' && requiresElevation/);
   assert.match(script, /function appendInitializationDetailItems\(body, stepId, detailItems = \[\]\)/);
   assert.match(script, /function appendGuidedStepOverview\(body, step\)/);
-  assert.match(script, /'用途', step\.objective/);
-  assert.match(script, /'完成條件', step\.doneWhen/);
-  assert.match(script, /'安全提醒', step\.safetyNote/);
+  assert.match(script, /'Objective', step\.objective/);
+  assert.match(script, /'Done when', step\.doneWhen/);
+  assert.match(script, /'Safety note', step\.safetyNote/);
   assert.match(script, /deploymentReady/);
   assert.match(script, /deploymentLive/);
   assert.match(script, /selectedStep\.action === 'all-services-toggle' && initialization\.deploymentReady !== true/);

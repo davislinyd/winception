@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.5.23 — 2026-06-18
+
+### 變更
+
+- **Web UI — 全英文化補齊**：清除 Console 內剩餘的使用者可見中文字串
+  - Guided setup 的 `Objective` / `Done when` / `Safety note` 標籤改為英文
+  - Deployment secrets 區塊的提示、按鈕與 `Windows username` / `Windows password` 欄位改為英文
+  - Initialization step 的 `objective` / `doneWhen` / `safetyNote` / `nextActionText` 全部改為英文文案
+  - Profile 的 locale 下拉選單保留 `zh-TW`、`zh-CN`、`ja-JP` 等 locale code，但顯示名稱統一改為英文
+  - 只改 UI 可見文案；中文 Windows 相容 regex、測試 fixture、註解與設計文件不在此版變更範圍
+
+---
+
 ## v0.5.22 — 2026-06-17
 
 ### 新功能：Activity 多選刪除、封存與 Stale 篩選
