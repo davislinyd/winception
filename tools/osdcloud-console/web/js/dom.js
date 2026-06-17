@@ -91,6 +91,7 @@ export const elements = {
   liveMetrics: $('#live-metrics'),
   fleetStatStrip: $('#fleet-stat-strip'),
   fleetCards: $('#fleet-cards'),
+  fleetBulkBar: $('#fleet-bulkbar'),
   fleetFilter: $('#fleet-filter'),
   fleetSearch: $('#fleet-search'),
   fleetDetail: $('#fleet-detail'),

@@ -247,7 +247,8 @@ dialog.embedded-open::backdrop { display: none !important; }
 /* ============================================================
    v3 — Deploy dashboard (status tiles + inline services) + Activity log
    ============================================================ */
-.dash-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.dash-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+@media (max-width: 1000px) { .dash-tiles { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 760px) { .dash-tiles { grid-template-columns: repeat(2, 1fr); } }
 .dash-tile {
   display: flex; flex-direction: row; gap: 10px; align-items: baseline;
@@ -261,6 +262,7 @@ dialog.embedded-open::backdrop { display: none !important; }
 .dash-tile.live .dash-tile-num { color: var(--ok); }
 .dash-tile.live .dash-tile-label::after { content: " ●"; color: var(--ok); animation: pulse-soft 1.6s infinite; }
 .dash-tile.err .dash-tile-num { color: var(--error); }
+.dash-tile.warn .dash-tile-num { color: var(--accent); }
 
 .dash-card { background: var(--surface-bright); border: 1px solid var(--hairline); border-radius: 8px; }
 .dash-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--hairline); font: 700 11px/1 Inter, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-surface-variant); }

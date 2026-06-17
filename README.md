@@ -389,7 +389,7 @@ Web Dashboard 主要區塊：
 | `Active OS Image` | 顯示 active deployment profile 目前綁定的 OS image（語言、edition、image index 與 cache/preflight 狀態）。切換是透過編輯 profile 而非單獨切 OS；長映像檔名會在卡片內換行，不會撐出框線 |
 | `HTTP/TFTP/DHCP` service cards | 顯示各 host-side service 是否 running 與 bind address；stopped 是中性狀態，不代表 failure，只有 blocked/error 才使用紅色狀態 |
 | `Preflight Summary` | 桌面版位於中間主欄下方的 diagnostics 區塊，和 `Driver Cache` 並排；顯示 preflight 檢查結果，`Not run` / `Ready` / `Review` / `Blocked` 是權威狀態來源，長路徑與錯誤訊息會在此區塊內捲動/截斷；failed row 可 hover 查看建議修復動作，例如 `selected-os.json` stale 時可回 `Deployment Profiles` 重新 `Set active` 同一 profile 觸發重新發佈 |
-| `Client Fleet` | 桌面版橫跨左側 Operations 欄與中間主欄下方，顯示多台 client / 多個 run 的狀態、stage、percent、last seen；可用 `Expand fleet` 以前景 overlay 長時間檢查更多 rows，`View` 開 validation evidence，`Delete` 只刪該列單一 run；`Last Seen` 使用本地時間 `yyyy/mm/dd HH:MM` |
+| `Client Fleet` | 桌面版橫跨左側 Operations 欄與中間主欄下方，顯示多台 client / 多個 run 的狀態、stage、percent、last seen；可用 `Expand fleet` 以前景 overlay 長時間檢查更多 rows，`View` 開 validation evidence；篩選有 `All／Active／Done／Failed／Stale／Archived`（`Failed` 與 `Stale` 各自獨立）。記錄可單筆或批次處理：`Shift+點選` 頭尾選範圍、`Ctrl/Cmd+點選` 或卡片 checkbox 加減選，批次工具列提供 `Delete`（永久刪除）與 `Archive`（封存到 `status\archive`，可於 `Archived` 篩選 `Restore` 還原或永久刪除）；`Last Seen` 使用本地時間 `yyyy/mm/dd HH:MM` |
 | `System Log` | 顯示 DHCP、TFTP、HTTP、endpoint sync 與 Web controller log；桌面版固定在右欄並保持可見，只有 log 內容區自己捲動；停在底部時新 log 會自動跟隨，往上捲動閱讀時會保留目前位置 |
 
 鍵盤與滑鼠：

@@ -317,6 +317,22 @@ async function makeServer(root, overrides = {}) {
         }
         return { runId, removed: 3 };
       },
+      deleteStatusRuns: (_config, runIds) => ({
+        results: runIds.map((runId) => ({ runId, removed: 3, ok: true })),
+        runsIndex: { total: 0, counts: {}, runs: [] },
+      }),
+      archiveStatusRuns: (_config, runIds) => ({
+        results: runIds.map((runId) => ({ runId, moved: 5, ok: true })),
+        runsIndex: { total: 0, counts: {}, runs: [] },
+      }),
+      restoreStatusRuns: (_config, runIds) => ({
+        results: runIds.map((runId) => ({ runId, moved: 5, ok: true })),
+        runsIndex: { total: 0, counts: {}, runs: [] },
+      }),
+      deleteArchivedRuns: (_config, runIds) => ({
+        results: runIds.map((runId) => ({ runId, removed: 3, ok: true })),
+      }),
+      readArchivedFleet: () => ({ total: 0, counts: {}, runs: [] }),
       runPreflight: async () => [{ name: 'Smoke', ok: true, detail: 'test' }],
       saveConfig: () => path.join(root, 'config.json'),
       summarizeValidation: () => [],
@@ -727,6 +743,24 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(response.status, 400);
     payload = await response.json();
     assert.equal(payload.ok, false);
+
+    for (const [pathname, key] of [
+      ['/api/status/runs/delete', 'removed'],
+      ['/api/status/runs/archive', 'moved'],
+      ['/api/status/runs/restore', 'moved'],
+      ['/api/status/archive/delete', 'removed'],
+    ]) {
+      response = await fetch(`${base}${pathname}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ runIds: ['run-1', 'run-2'] }),
+      });
+      assert.equal(response.status, 200, pathname);
+      payload = await response.json();
+      assert.equal(payload.ok, true, pathname);
+      assert.deepEqual(payload.result.results.map((item) => item.runId), ['run-1', 'run-2'], pathname);
+      assert.ok(payload.result.results.every((item) => item.ok && Number.isFinite(item[key])), pathname);
+    }
 
     response = await fetch(`${base}/api/os-images`);
     assert.equal(response.status, 200);

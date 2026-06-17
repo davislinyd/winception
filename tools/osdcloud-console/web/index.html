@@ -238,6 +238,8 @@
               <button type="button" data-fleet-filter="active">Active</button>
               <button type="button" data-fleet-filter="done">Done</button>
               <button type="button" data-fleet-filter="failed">Failed</button>
+              <button type="button" data-fleet-filter="stale">Stale</button>
+              <button type="button" data-fleet-filter="archived">Archived</button>
             </div>
             <label class="fleet-search">
               <span class="material-symbols-outlined text-[16px]">search</span>
@@ -245,6 +247,7 @@
             </label>
           </div>
         </div>
+        <div class="fleet-bulkbar" id="fleet-bulkbar" hidden aria-live="polite"></div>
         <div class="fleet-layout">
           <div class="fleet-cards" id="fleet-cards"></div>
           <aside class="fleet-detail" id="fleet-detail" aria-live="polite"></aside>

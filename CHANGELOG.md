@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.5.22 — 2026-06-17
+
+### 新功能：Activity 多選刪除、封存與 Stale 篩選
+
+- **多選刪除**：Activity（Fleet）卡片支援批次選取與刪除，不再只能單選後刪一筆
+  - `Shift+點選`：先點頭、再 `Shift` 點尾，依當前顯示順序選取整個範圍
+  - `Ctrl/Cmd+點選` 或卡片右上角 checkbox：單張加減選；一般點擊則單選並聚焦
+  - 選取後出現批次工具列（`N selected` ＋ Select all／Delete／Clear），切換篩選會自動清空選取
+- **封存（Archive）**：新增封存機制，把 run 搬到 `statusRoot\archive\`，自 Activity 隱藏但保留全部證據
+  - active 視圖工具列與卡片詳情新增 `Archive`（單筆／批次）
+  - 新增 `Archived` 篩選可瀏覽已封存記錄，提供 `Restore`（還原回 active）與 `Delete permanently`（永久刪除）
+  - 批次操作逐筆隔離錯誤：選取中若有不存在的 run，其餘照常處理並回報略過項目，不會整批失敗
+- **Stale 篩選**：篩選列新增獨立的 `Stale`；`Failed` 不再混入 stale，兩者各自獨立
+  - 統計列與 Dashboard tile 也加上獨立的 `Stale` 計數，保持一致
+- **後端**：`src/status.js` 新增 `archiveStatusRun(s)`／`restoreStatusRun(s)`／`deleteArchivedRun(s)`／批次 `deleteStatusRuns`／`readArchivedFleet`；新增 API endpoint `/api/status/runs/{delete,archive,restore}` 與 `/api/status/archive/delete`；`getState` 加入 `archivedFleet`
+- 新增單元測試（封存／還原／批次／endpoint）
+
+---
+
 ## v0.5.21 — 2026-06-17
 
 ### 修正

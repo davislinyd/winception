@@ -48,7 +48,30 @@
 .fd-flow-step.current .fd-flow-dot { background: var(--primary); box-shadow: 0 0 0 3px rgba(156, 66, 33, 0.18); animation: pulse-soft 1.6s infinite; }
 .fd-flow-name { font: 500 12px/1.2 Inter, sans-serif; color: var(--on-surface); }
 .fd-flow-step.pending .fd-flow-name { color: var(--on-surface-variant); }
-.fd-footer { display: flex; gap: 8px; border-top: 1px solid var(--outline-variant); padding-top: 12px; }
+.fd-footer { display: flex; gap: 8px; border-top: 1px solid var(--outline-variant); padding-top: 12px; flex-wrap: wrap; }
+
+/* Activity multi-select: bulk toolbar + per-card checkbox affordance */
+.fleet-bulkbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 14px; border-radius: 10px;
+  background: var(--surface-container); border: 1px solid var(--hairline);
+}
+.fleet-bulkbar[hidden] { display: none; }
+.fleet-bulk-count { font: 600 13px/1 Inter, sans-serif; color: var(--on-surface); }
+.fleet-bulk-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.fleet-card { position: relative; }
+.fleet-card.multi-selected { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary), var(--card-shadow); background: var(--surface-bright); }
+.fc-check {
+  position: absolute; top: 10px; right: 10px; width: 20px; height: 20px; padding: 0; z-index: 2;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; border: 1.5px solid var(--outline);
+  background: var(--surface-container-lowest); color: var(--on-accent);
+  cursor: pointer; opacity: 0; transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.fleet-card:hover .fc-check, .fc-check[aria-pressed="true"] { opacity: 1; }
+.fc-check:hover { border-color: var(--primary); }
+.fc-check[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); }
+.fc-check .material-symbols-outlined { font-size: 14px; }
 
 /* ============================================================
    Setup (Guided) view — shared progress bar primitives

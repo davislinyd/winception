@@ -122,15 +122,62 @@ function removeLatestIfMatches(filePath, runId) {
   return removePathIfExists(filePath);
 }
 
-export function deleteStatusRun(config, runIdValue) {
+function movePathIfExists(source, destination) {
+  if (!fs.existsSync(source)) {
+    return 0;
+  }
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.rmSync(destination, { force: true, recursive: true });
+  fs.renameSync(source, destination);
+  return 1;
+}
+
+// Per-run artifacts share the runId prefix; latest-* pointers reference whichever
+// run last reported and are cleared (not moved) when a run leaves the active list.
+const ARCHIVE_DIR = 'archive';
+const RUN_FILE_SUFFIXES = ['.summary.json', '.jsonl', '.latest.json', '.screenshots.jsonl'];
+const LATEST_POINTER_FILES = ['latest-summary.json', 'latest-screenshot.json', 'latest.json'];
+
+// Move a run's summary/event/screenshot artifacts between the active status root
+// and its archive subfolder. Returns how many artifacts actually moved so callers
+// can detect a missing run.
+function relocateStatusRun(statusRoot, runId, { fromArchive }) {
+  const activePath = (...parts) => safeStatusPath(statusRoot, ...parts);
+  const archivePath = (...parts) => safeStatusPath(statusRoot, ARCHIVE_DIR, ...parts);
+  let moved = 0;
+  for (const suffix of RUN_FILE_SUFFIXES) {
+    const name = `${runId}${suffix}`;
+    const source = fromArchive ? archivePath(name) : activePath(name);
+    const destination = fromArchive ? activePath(name) : archivePath(name);
+    moved += movePathIfExists(source, destination);
+  }
+  const activeShots = activePath('screenshots', runId);
+  const archiveShots = archivePath('screenshots', runId);
+  moved += movePathIfExists(fromArchive ? archiveShots : activeShots, fromArchive ? activeShots : archiveShots);
+  return moved;
+}
+
+// Run one mutation per id, isolating per-run failures (e.g. a missing run) so a
+// batch deletes/archives every valid id and reports the rest. The runs index is
+// rewritten once by the caller after the loop.
+function runBatch(runIds, operate) {
+  const ids = Array.isArray(runIds) ? runIds : [runIds];
+  if (ids.length === 0) {
+    throw statusError('At least one run ID is required.', 400);
+  }
+  return ids.map((id) => {
+    try {
+      return { ...operate(id), ok: true };
+    } catch (error) {
+      return { runId: String(id ?? '').trim(), ok: false, error: error.message };
+    }
+  });
+}
+
+export function deleteStatusRun(config, runIdValue, options = {}) {
   const runId = normalizeRunIdForDelete(runIdValue);
   const statusRoot = config.http.statusRoot;
-  const paths = [
-    safeStatusPath(statusRoot, `${runId}.summary.json`),
-    safeStatusPath(statusRoot, `${runId}.jsonl`),
-    safeStatusPath(statusRoot, `${runId}.latest.json`),
-    safeStatusPath(statusRoot, `${runId}.screenshots.jsonl`),
-  ];
+  const paths = RUN_FILE_SUFFIXES.map((suffix) => safeStatusPath(statusRoot, `${runId}${suffix}`));
 
   let removed = 0;
   for (const filePath of paths) {
@@ -142,12 +189,95 @@ export function deleteStatusRun(config, runIdValue) {
     throw statusError(`Deployment run not found: ${runId}`, 404);
   }
 
-  removed += removeLatestIfMatches(safeStatusPath(statusRoot, 'latest-summary.json'), runId);
-  removed += removeLatestIfMatches(safeStatusPath(statusRoot, 'latest-screenshot.json'), runId);
-  removed += removeLatestIfMatches(safeStatusPath(statusRoot, 'latest.json'), runId);
+  for (const pointer of LATEST_POINTER_FILES) {
+    removed += removeLatestIfMatches(safeStatusPath(statusRoot, pointer), runId);
+  }
+  if (options.rewriteIndex === false) {
+    return { runId, removed };
+  }
   const runsIndex = writeRunsIndex(statusRoot);
 
   return { runId, removed, runsIndex };
+}
+
+// Archive moves a run out of the active fleet into statusRoot/archive so it stops
+// showing in Activity but its evidence is preserved and can be restored later.
+export function archiveStatusRun(config, runIdValue, options = {}) {
+  const runId = normalizeRunIdForDelete(runIdValue);
+  const statusRoot = config.http.statusRoot;
+  const moved = relocateStatusRun(statusRoot, runId, { fromArchive: false });
+  if (moved === 0) {
+    throw statusError(`Deployment run not found: ${runId}`, 404);
+  }
+  let cleared = 0;
+  for (const pointer of LATEST_POINTER_FILES) {
+    cleared += removeLatestIfMatches(safeStatusPath(statusRoot, pointer), runId);
+  }
+  if (options.rewriteIndex === false) {
+    return { runId, moved, cleared };
+  }
+  const runsIndex = writeRunsIndex(statusRoot);
+  return { runId, moved, cleared, runsIndex };
+}
+
+// Restore moves an archived run back into the active status root.
+export function restoreStatusRun(config, runIdValue, options = {}) {
+  const runId = normalizeRunIdForDelete(runIdValue);
+  const statusRoot = config.http.statusRoot;
+  const moved = relocateStatusRun(statusRoot, runId, { fromArchive: true });
+  if (moved === 0) {
+    throw statusError(`Archived run not found: ${runId}`, 404);
+  }
+  if (options.rewriteIndex === false) {
+    return { runId, moved };
+  }
+  const runsIndex = writeRunsIndex(statusRoot);
+  return { runId, moved, runsIndex };
+}
+
+// Permanently delete a run that lives in the archive subfolder.
+export function deleteArchivedRun(config, runIdValue) {
+  const runId = normalizeRunIdForDelete(runIdValue);
+  const statusRoot = config.http.statusRoot;
+  const paths = RUN_FILE_SUFFIXES.map((suffix) => safeStatusPath(statusRoot, ARCHIVE_DIR, `${runId}${suffix}`));
+  let removed = 0;
+  for (const filePath of paths) {
+    removed += removePathIfExists(filePath);
+  }
+  removed += removePathIfExists(safeStatusPath(statusRoot, ARCHIVE_DIR, 'screenshots', runId), { recursive: true });
+  if (removed === 0) {
+    throw statusError(`Archived run not found: ${runId}`, 404);
+  }
+  return { runId, removed };
+}
+
+export function deleteStatusRuns(config, runIds) {
+  const results = runBatch(runIds, (id) => deleteStatusRun(config, id, { rewriteIndex: false }));
+  const runsIndex = writeRunsIndex(config.http.statusRoot);
+  return { results, runsIndex };
+}
+
+export function archiveStatusRuns(config, runIds) {
+  const results = runBatch(runIds, (id) => archiveStatusRun(config, id, { rewriteIndex: false }));
+  const runsIndex = writeRunsIndex(config.http.statusRoot);
+  return { results, runsIndex };
+}
+
+export function restoreStatusRuns(config, runIds) {
+  const results = runBatch(runIds, (id) => restoreStatusRun(config, id, { rewriteIndex: false }));
+  const runsIndex = writeRunsIndex(config.http.statusRoot);
+  return { results, runsIndex };
+}
+
+export function deleteArchivedRuns(config, runIds) {
+  const results = runBatch(runIds, (id) => deleteArchivedRun(config, id));
+  return { results };
+}
+
+// Build a fleet-style index for archived runs (read on demand by the console).
+export function readArchivedFleet(config, now = new Date()) {
+  const archiveRoot = path.join(config.http.statusRoot, ARCHIVE_DIR);
+  return buildRunsIndex(archiveRoot, now);
 }
 
 export function readScreenshotMetadata(config, maxLines = 5) {

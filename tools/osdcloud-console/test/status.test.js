@@ -4,14 +4,20 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  archiveStatusRun,
+  archiveStatusRuns,
+  deleteArchivedRun,
   deleteStatusRun,
+  deleteStatusRuns,
   formatDeploymentStatus,
   formatFleetClientRows,
   formatFleetRunDetail,
   formatStatusEventLine,
+  readArchivedFleet,
   readRunStatusEvents,
   readStatusEvents,
   resolveDeploymentSummary,
+  restoreStatusRuns,
 } from '../src/status.js';
 
 function statusConfig(statusRoot) {
@@ -327,6 +333,103 @@ test('delete status run rejects missing and invalid run ids', () => {
     assert.throws(() => deleteStatusRun(config, 'missing'), /Deployment run not found: missing/);
     assert.throws(() => deleteStatusRun(config, '..\\run-a'), /Invalid run ID/);
     assert.equal(fs.existsSync(path.join(root, 'run-a.summary.json')), true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function seedRun(root, runId, status = 'completed') {
+  fs.mkdirSync(path.join(root, 'screenshots', runId), { recursive: true });
+  fs.writeFileSync(path.join(root, `${runId}.summary.json`), JSON.stringify({ runId, clientId: `client-${runId}`, status }));
+  fs.writeFileSync(path.join(root, `${runId}.jsonl`), `${JSON.stringify({ runId, stage: 'winpe-start' })}\n`);
+  fs.writeFileSync(path.join(root, `${runId}.latest.json`), JSON.stringify({ runId, stage: 'windows-desktop-ready' }));
+  fs.writeFileSync(path.join(root, `${runId}.screenshots.jsonl`), `${JSON.stringify({ runId, filePath: 'shot.png' })}\n`);
+  fs.writeFileSync(path.join(root, 'screenshots', runId, 'shot.png'), 'png');
+}
+
+test('archives a run into the archive subfolder and lists it via the archived fleet', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-archive-'));
+  try {
+    const config = statusConfig(root);
+    seedRun(root, 'run-a');
+    seedRun(root, 'run-b');
+    fs.writeFileSync(path.join(root, 'latest-summary.json'), JSON.stringify({ runId: 'run-a' }));
+
+    const result = archiveStatusRun(config, 'run-a');
+    assert.equal(result.runId, 'run-a');
+    assert.ok(result.moved >= 4);
+    // active root no longer carries the run, but the archive subfolder does
+    assert.equal(fs.existsSync(path.join(root, 'run-a.summary.json')), false);
+    assert.equal(fs.existsSync(path.join(root, 'screenshots', 'run-a')), false);
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.summary.json')), true);
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.jsonl')), true);
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.latest.json')), true);
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.screenshots.jsonl')), true);
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'screenshots', 'run-a')), true);
+    // matching latest pointer is cleared
+    assert.equal(fs.existsSync(path.join(root, 'latest-summary.json')), false);
+
+    // active index drops the archived run; archived fleet surfaces it
+    assert.equal(result.runsIndex.total, 1);
+    assert.equal(result.runsIndex.runs[0].runId, 'run-b');
+    const archived = readArchivedFleet(config);
+    assert.equal(archived.total, 1);
+    assert.equal(archived.runs[0].runId, 'run-a');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('restores an archived run back into the active fleet', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-restore-'));
+  try {
+    const config = statusConfig(root);
+    seedRun(root, 'run-a');
+    archiveStatusRun(config, 'run-a');
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.summary.json')), true);
+
+    const result = restoreStatusRuns(config, ['run-a']);
+    assert.equal(result.results[0].ok, true);
+    assert.equal(fs.existsSync(path.join(root, 'run-a.summary.json')), true);
+    assert.equal(fs.existsSync(path.join(root, 'screenshots', 'run-a')), true);
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.summary.json')), false);
+    assert.equal(result.runsIndex.total, 1);
+    assert.equal(readArchivedFleet(config).total, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('batch delete and archive isolate per-run failures', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-status-batch-'));
+  try {
+    const config = statusConfig(root);
+    seedRun(root, 'run-a');
+    seedRun(root, 'run-b');
+    seedRun(root, 'run-c');
+
+    const archived = archiveStatusRuns(config, ['run-a', 'missing-run', 'run-b']);
+    assert.deepEqual(archived.results.map((item) => [item.runId, item.ok]), [
+      ['run-a', true],
+      ['missing-run', false],
+      ['run-b', true],
+    ]);
+    assert.match(archived.results[1].error, /not found/);
+    assert.equal(readArchivedFleet(config).total, 2);
+    // only run-c remains active; the index was rewritten once
+    assert.equal(archived.runsIndex.total, 1);
+    assert.equal(archived.runsIndex.runs[0].runId, 'run-c');
+
+    const deleted = deleteStatusRuns(config, ['run-c']);
+    assert.equal(deleted.results[0].ok, true);
+    assert.equal(deleted.runsIndex.total, 0);
+
+    // permanently delete one archived run; the other survives
+    const purged = deleteArchivedRun(config, 'run-a');
+    assert.equal(purged.runId, 'run-a');
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.summary.json')), false);
+    assert.equal(readArchivedFleet(config).total, 1);
+    assert.throws(() => deleteArchivedRun(config, 'run-a'), /Archived run not found/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

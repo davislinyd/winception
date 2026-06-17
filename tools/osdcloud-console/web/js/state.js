@@ -41,4 +41,10 @@ export const state = {
   guidedStepCollapsed: false,
   fleetFilter: 'all',
   fleetSearch: '',
+  // Multi-select for bulk delete/archive in the Activity view.
+  selectedRunIds: [],
+  selectAnchorRunId: null,
+  // Detail focus while browsing archived runs (kept client-side so periodic
+  // refreshes, which only resolve active runs, don't clobber it).
+  selectedArchivedRunId: null,
 };

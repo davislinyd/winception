@@ -13,7 +13,7 @@ import { publishDeploymentProfile } from '../profiles/publish.js';
 import { createCustomScript, deleteCustomScript, readCustomScriptContent, uploadCustomScript } from '../profiles/scripts.js';
 import { createSoftwarePackage, deleteSoftwarePackage, formatSoftwareList, openSoftwareInstallScript, readSoftwareInstallScript, uploadSoftwareInstaller } from '../profiles/software.js';
 import { getRuntimeReadiness } from '../runtimeArtifacts.js';
-import { deleteStatusRun, readFleetStatus, readRecentScreenshotMetadata, readRunLatestScreenshot, readRunStatusEvents, readStatusEvents, summarizeValidation } from '../status.js';
+import { archiveStatusRuns, deleteArchivedRuns, deleteStatusRun, deleteStatusRuns, readArchivedFleet, readFleetStatus, readRecentScreenshotMetadata, readRunLatestScreenshot, readRunStatusEvents, readStatusEvents, restoreStatusRuns, summarizeValidation } from '../status.js';
 import { TftpResponder } from '../tftp.js';
 import { formatDisplayLogLine } from '../timeFormat.js';
 import { TorrentSeeder, TorrentTracker, createOsImageTorrent } from '../torrent.js';
@@ -39,6 +39,11 @@ export class ServiceController extends EventEmitter {
       deleteCustomScript,
       evaluateDeploymentProfilePayload,
       deleteStatusRun,
+      deleteStatusRuns,
+      archiveStatusRuns,
+      restoreStatusRuns,
+      deleteArchivedRuns,
+      readArchivedFleet,
       deleteCachedOsImage,
       downloadOsImageFromCatalog,
       reexportOsImageFromSource,
@@ -306,6 +311,11 @@ export class ServiceController extends EventEmitter {
       runs: [],
     });
     const fleet = fleetResult.value;
+    const archivedFleetResult = safeRead(() => this.dependencies.readArchivedFleet(this.config), {
+      total: 0,
+      counts: {},
+      runs: [],
+    });
     if (!this.selectedRunId && fleet.runs?.length) {
       this.selectedRunId = fleet.runs[0].runId;
     }
@@ -396,6 +406,8 @@ export class ServiceController extends EventEmitter {
       operation: this.operation,
       fleetError: fleetResult.error,
       fleet,
+      archivedFleetError: archivedFleetResult.error,
+      archivedFleet: archivedFleetResult.value,
       selectedRunId: this.selectedRunId,
       selectedRun,
       selectedScreenshot: selectedScreenshotResult.value,
@@ -1138,6 +1150,58 @@ export class ServiceController extends EventEmitter {
       }
       this.addLog(`Deleted deployment run ${deleted.runId}: removed ${deleted.removed} artifacts`);
       return deleted;
+    });
+  }
+
+  forgetSelectedRunIfMatched(results) {
+    const succeeded = new Set((results ?? []).filter((item) => item.ok).map((item) => item.runId));
+    if (this.selectedRunId && succeeded.has(this.selectedRunId)) {
+      this.selectedRunId = null;
+    }
+    return succeeded;
+  }
+
+  summarizeBatch(verb, results) {
+    const ok = (results ?? []).filter((item) => item.ok);
+    const failed = (results ?? []).filter((item) => !item.ok);
+    let message = `${verb} ${ok.length} deployment run${ok.length === 1 ? '' : 's'}`;
+    if (failed.length) {
+      message += `; ${failed.length} skipped (${failed.map((item) => `${item.runId}: ${item.error}`).join('; ')})`;
+    }
+    this.addLog(message);
+  }
+
+  async deleteStatusRuns(runIds) {
+    return this.runOperation('Deleting status runs', async () => {
+      const { results, runsIndex } = this.dependencies.deleteStatusRuns(this.config, runIds);
+      this.forgetSelectedRunIfMatched(results);
+      this.summarizeBatch('Deleted', results);
+      return { results, runsIndex };
+    });
+  }
+
+  async archiveStatusRuns(runIds) {
+    return this.runOperation('Archiving status runs', async () => {
+      const { results, runsIndex } = this.dependencies.archiveStatusRuns(this.config, runIds);
+      this.forgetSelectedRunIfMatched(results);
+      this.summarizeBatch('Archived', results);
+      return { results, runsIndex };
+    });
+  }
+
+  async restoreStatusRuns(runIds) {
+    return this.runOperation('Restoring status runs', async () => {
+      const { results, runsIndex } = this.dependencies.restoreStatusRuns(this.config, runIds);
+      this.summarizeBatch('Restored', results);
+      return { results, runsIndex };
+    });
+  }
+
+  async deleteArchivedRuns(runIds) {
+    return this.runOperation('Deleting archived runs', async () => {
+      const { results } = this.dependencies.deleteArchivedRuns(this.config, runIds);
+      this.summarizeBatch('Permanently deleted', results);
+      return { results };
     });
   }
 

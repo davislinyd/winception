@@ -2,6 +2,7 @@ import { api, loadInterfaces, loadOsDownloadCatalog, mutate, refresh } from './a
 import { currentInterfaceChoice, fillImportMetadataDefaults, importMetadataFromInputs, showValidationEvidence } from './deploy.js';
 import { closeDialog, confirmAction, confirmEndpointSync, handleScriptAdd, openDialog, showAddProfileDialog, showAddScriptDialog, showAddSoftwareDialog, showPicker, showSoftwareDialog } from './dialogs.js';
 import { $, elements } from './dom.js';
+import { visibleFleetRuns } from './fleet.js';
 import { osImageLabel } from './format.js';
 import { render, renderFleetExpandedState } from './render.js';
 import { confirmPrepareRuntime } from './setup.js';
@@ -302,6 +303,199 @@ export async function handleStatusRunDelete(runId) {
   }
 }
 
+// ---- Activity multi-select (bulk delete / archive / restore) ----
+
+export function clearFleetSelection() {
+  state.selectedRunIds = [];
+  state.selectAnchorRunId = null;
+}
+
+export function toggleFleetSelection(runId) {
+  if (!runId) {
+    return;
+  }
+  const selected = new Set(state.selectedRunIds);
+  if (selected.has(runId)) {
+    selected.delete(runId);
+  } else {
+    selected.add(runId);
+  }
+  state.selectedRunIds = [...selected];
+  state.selectAnchorRunId = runId;
+}
+
+// Resolve which card click handling to apply. Plain click focuses a card and
+// resets the multi-selection; shift extends a range from the anchor; ctrl/meta
+// toggles a single card. Range order follows exactly what the user sees.
+export function selectFleetCard(runId, event) {
+  if (!runId) {
+    return;
+  }
+  if (state.fleetFilter === 'archived') {
+    state.selectedArchivedRunId = runId;
+  } else {
+    state.selectedRunId = runId;
+  }
+
+  if (event?.shiftKey && state.selectAnchorRunId) {
+    const order = visibleFleetRuns(state.current ?? {}).runs.map((run) => run.runId);
+    const from = order.indexOf(state.selectAnchorRunId);
+    const to = order.indexOf(runId);
+    if (from !== -1 && to !== -1) {
+      const [lo, hi] = from <= to ? [from, to] : [to, from];
+      state.selectedRunIds = order.slice(lo, hi + 1);
+      return;
+    }
+  }
+  if (event && (event.ctrlKey || event.metaKey)) {
+    toggleFleetSelection(runId);
+    return;
+  }
+  state.selectedRunIds = [runId];
+  state.selectAnchorRunId = runId;
+}
+
+function uniqueRunIds(runIds) {
+  return [...new Set((runIds ?? []).filter(Boolean))];
+}
+
+function runIdDetails(runIds) {
+  const shown = runIds.slice(0, 8).map((id) => `Run: ${id}`);
+  if (runIds.length > 8) {
+    shown.push(`…and ${runIds.length - 8} more`);
+  }
+  return shown;
+}
+
+function reportBulkFailures(payload, verb) {
+  const failed = (payload?.result?.results ?? []).filter((item) => !item.ok);
+  if (failed.length) {
+    window.alert(`${failed.length} run(s) could not be ${verb}:\n${failed.map((item) => `${item.runId}: ${item.error}`).join('\n')}`);
+  }
+}
+
+export async function handleStatusRunsDelete(runIds) {
+  const ids = uniqueRunIds(runIds);
+  if (!ids.length) {
+    return;
+  }
+  const ok = await confirmAction({
+    title: `Delete ${ids.length} client run${ids.length === 1 ? '' : 's'}`,
+    message: 'This permanently removes the selected Client Fleet rows and their per-run status artifacts. Clients still reporting may reappear. To keep the evidence, archive them instead.',
+    details: runIdDetails(ids),
+    confirmLabel: `Delete ${ids.length}`,
+    danger: true,
+  });
+  if (!ok) {
+    return;
+  }
+  const payload = await mutate('/api/status/runs/delete', { runIds: ids });
+  if (payload?.state) {
+    clearFleetSelection();
+    state.clientFleetSignature = '';
+    closeDialog(elements.validationEvidenceDialog);
+    reportBulkFailures(payload, 'deleted');
+    render();
+  }
+}
+
+export async function handleStatusRunsArchive(runIds) {
+  const ids = uniqueRunIds(runIds);
+  if (!ids.length) {
+    return;
+  }
+  const ok = await confirmAction({
+    title: `Archive ${ids.length} client run${ids.length === 1 ? '' : 's'}`,
+    message: 'Archived runs move out of Activity but keep all their status artifacts. Restore them anytime from the Archived filter.',
+    details: runIdDetails(ids),
+    confirmLabel: `Archive ${ids.length}`,
+    severity: 'warning',
+  });
+  if (!ok) {
+    return;
+  }
+  const payload = await mutate('/api/status/runs/archive', { runIds: ids });
+  if (payload?.state) {
+    clearFleetSelection();
+    state.clientFleetSignature = '';
+    closeDialog(elements.validationEvidenceDialog);
+    reportBulkFailures(payload, 'archived');
+    render();
+  }
+}
+
+export async function handleStatusRunsRestore(runIds) {
+  const ids = uniqueRunIds(runIds);
+  if (!ids.length) {
+    return;
+  }
+  const ok = await confirmAction({
+    title: `Restore ${ids.length} archived run${ids.length === 1 ? '' : 's'}`,
+    message: 'Restored runs move back into the active Activity list.',
+    details: runIdDetails(ids),
+    confirmLabel: `Restore ${ids.length}`,
+    severity: 'warning',
+  });
+  if (!ok) {
+    return;
+  }
+  const payload = await mutate('/api/status/runs/restore', { runIds: ids });
+  if (payload?.state) {
+    clearFleetSelection();
+    state.clientFleetSignature = '';
+    reportBulkFailures(payload, 'restored');
+    render();
+  }
+}
+
+export async function handleArchivedRunsDelete(runIds) {
+  const ids = uniqueRunIds(runIds);
+  if (!ids.length) {
+    return;
+  }
+  const ok = await confirmAction({
+    title: `Permanently delete ${ids.length} archived run${ids.length === 1 ? '' : 's'}`,
+    message: 'This permanently removes the selected archived runs and their status artifacts. This cannot be undone.',
+    details: runIdDetails(ids),
+    confirmLabel: `Delete ${ids.length}`,
+    danger: true,
+  });
+  if (!ok) {
+    return;
+  }
+  const payload = await mutate('/api/status/archive/delete', { runIds: ids });
+  if (payload?.state) {
+    clearFleetSelection();
+    reportBulkFailures(payload, 'deleted');
+    render();
+  }
+}
+
+export async function handleFleetBulkAction(action) {
+  if (action === 'bulk-select-all') {
+    const order = visibleFleetRuns(state.current ?? {}).runs.map((run) => run.runId);
+    state.selectedRunIds = order;
+    state.selectAnchorRunId = order[0] ?? null;
+    render();
+    return;
+  }
+  if (action === 'bulk-clear') {
+    clearFleetSelection();
+    render();
+    return;
+  }
+  const ids = [...state.selectedRunIds];
+  if (action === 'bulk-archive') {
+    await handleStatusRunsArchive(ids);
+  } else if (action === 'bulk-delete') {
+    await handleStatusRunsDelete(ids);
+  } else if (action === 'bulk-restore') {
+    await handleStatusRunsRestore(ids);
+  } else if (action === 'bulk-archived-delete') {
+    await handleArchivedRunsDelete(ids);
+  }
+}
+
 export async function handleAction(action, source = null) {
   const services = state.current?.services ?? {};
   if (action === 'run-evidence') {
@@ -465,6 +659,12 @@ export async function handleAction(action, source = null) {
     await refresh();
   } else if (action === 'status-run-delete') {
     await handleStatusRunDelete(source?.dataset?.runId);
+  } else if (action === 'status-run-archive') {
+    await handleStatusRunsArchive([source?.dataset?.runId]);
+  } else if (action === 'status-run-restore') {
+    await handleStatusRunsRestore([source?.dataset?.runId]);
+  } else if (action === 'archived-run-delete') {
+    await handleArchivedRunsDelete([source?.dataset?.runId]);
   } else if (action === 'fleet-expand-toggle') {
     setFleetExpanded(!state.fleetExpanded);
   }

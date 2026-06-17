@@ -4,6 +4,41 @@ import { localCompactDateTime, text } from './format.js';
 import { state } from './state.js';
 import { makeIcon, makeStatusPill } from './ui.js';
 
+const isFailedStatus = (run) => run.status === 'failed';
+const isStaleStatus = (run) => run.status === 'stale';
+
+function pillTone(status) {
+  if (status === 'completed') return 'ok';
+  if (status === 'failed') return 'fail';
+  if (status === 'stale') return 'neutral';
+  return 'working';
+}
+
+// Resolve the runs shown by the current filter + search. The "archived" filter
+// reads from a separate archived index; every other filter slices the active
+// fleet. Exported so click handling can compute shift-range selections against
+// exactly the order the user sees.
+export function visibleFleetRuns(appState) {
+  const filter = state.fleetFilter;
+  const isArchived = filter === 'archived';
+  const allRuns = isArchived ? (appState.archivedFleet?.runs ?? []) : (appState.fleet?.runs ?? []);
+  const query = state.fleetSearch.trim().toLowerCase();
+  const runs = allRuns.filter((run) => {
+    if (!isArchived) {
+      if (filter === 'active' && (run.status === 'completed' || isFailedStatus(run) || isStaleStatus(run))) return false;
+      if (filter === 'done' && run.status !== 'completed') return false;
+      if (filter === 'failed' && !isFailedStatus(run)) return false;
+      if (filter === 'stale' && !isStaleStatus(run)) return false;
+    }
+    if (query) {
+      const hay = `${run.clientId ?? ''} ${run.runId ?? ''}`.toLowerCase();
+      if (!hay.includes(query)) return false;
+    }
+    return true;
+  });
+  return { runs, allRuns, isArchived };
+}
+
 // ---- Aurora: Fleet view card grid (reuses fleet data) ----
 export function renderFleetCards(appState) {
   if (elements.fleetStatStrip) {
@@ -12,7 +47,8 @@ export function renderFleetCards(appState) {
       [appState.fleet?.total ?? 0, 'Total', ''],
       [counts.running ?? 0, 'Deploying', ''],
       [counts.completed ?? 0, 'Ready', ''],
-      [(counts.failed ?? 0) + (counts.stale ?? 0), 'Failed', 'fail'],
+      [counts.failed ?? 0, 'Failed', 'fail'],
+      [counts.stale ?? 0, 'Stale', ''],
     ];
     elements.fleetStatStrip.replaceChildren();
     for (const [num, lbl, cls] of stats) {
@@ -36,39 +72,61 @@ export function renderFleetCards(appState) {
   if (!elements.fleetCards) {
     return;
   }
-  const allRuns = appState.fleet?.runs ?? [];
-  const query = state.fleetSearch.trim().toLowerCase();
-  const isFailed = (run) => run.status === 'failed' || run.status === 'stale';
-  const runs = allRuns.filter((run) => {
-    if (state.fleetFilter === 'active' && (run.status === 'completed' || isFailed(run))) return false;
-    if (state.fleetFilter === 'done' && run.status !== 'completed') return false;
-    if (state.fleetFilter === 'failed' && !isFailed(run)) return false;
-    if (query) {
-      const hay = `${run.clientId ?? ''} ${run.runId ?? ''}`.toLowerCase();
-      if (!hay.includes(query)) return false;
-    }
-    return true;
-  });
+  const { runs, allRuns, isArchived } = visibleFleetRuns(appState);
+
+  // Keep the bulk selection scoped to what is currently visible.
+  const visibleIds = new Set(runs.map((run) => run.runId));
+  state.selectedRunIds = state.selectedRunIds.filter((id) => visibleIds.has(id));
+  if (state.selectAnchorRunId && !visibleIds.has(state.selectAnchorRunId)) {
+    state.selectAnchorRunId = null;
+  }
+  renderFleetBulkBar(runs, isArchived);
+
   elements.fleetCards.replaceChildren();
   if (!runs.length) {
     const empty = document.createElement('div');
     empty.className = 'fc-stage';
-    empty.textContent = allRuns.length ? 'No clients match the current filter.' : 'No deployment clients have reported status yet.';
+    empty.textContent = isArchived
+      ? (allRuns.length ? 'No archived runs match the current search.' : 'No archived deployment runs.')
+      : (allRuns.length ? 'No clients match the current filter.' : 'No deployment clients have reported status yet.');
     elements.fleetCards.append(empty);
-    renderFleetDetail(null);
+    renderFleetDetail(null, isArchived);
     return;
   }
-  if (!runs.some((run) => run.runId === state.selectedRunId)) {
-    state.selectedRunId = runs[0].runId;
+
+  const focusKey = isArchived ? 'selectedArchivedRunId' : 'selectedRunId';
+  let focusRun = runs.find((run) => run.runId === state[focusKey]);
+  if (!focusRun) {
+    focusRun = runs[0];
+    state[focusKey] = focusRun.runId;
   }
+  const selected = new Set(state.selectedRunIds);
+
   for (const run of runs) {
     const card = document.createElement('div');
     card.className = 'fleet-card';
-    if (run.runId === state.selectedRunId) {
+    if (run.runId === focusRun.runId) {
       card.classList.add('selected');
     }
+    const isChecked = selected.has(run.runId);
+    if (isChecked) {
+      card.classList.add('multi-selected');
+    }
     card.dataset.fleetSelect = run.runId;
-    const pill = makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : run.status === 'stale' ? 'neutral' : 'working');
+
+    const check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'fc-check';
+    check.dataset.fleetCheck = run.runId;
+    check.setAttribute('aria-pressed', String(isChecked));
+    check.setAttribute('aria-label', isChecked ? `Deselect ${run.runId}` : `Select ${run.runId}`);
+    check.title = isChecked ? 'Deselect' : 'Select';
+    if (isChecked) {
+      check.append(makeIcon('check'));
+    }
+    card.append(check);
+
+    const pill = makeStatusPill(text(run.status), pillTone(run.status));
     const name = document.createElement('div');
     name.className = 'fc-name';
     name.textContent = text(run.clientId);
@@ -88,7 +146,53 @@ export function renderFleetCards(appState) {
     card.append(pill, name, ring, stageLabel, stage, runId, started);
     elements.fleetCards.append(card);
   }
-  renderFleetDetail(runs.find((run) => run.runId === state.selectedRunId) ?? runs[0]);
+  renderFleetDetail(focusRun, isArchived);
+}
+
+function makeBulkButton(labelText, icon, action, variant) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `bento-mini ${variant}`.trim();
+  button.dataset.icon = icon;
+  button.dataset.bulkAction = action;
+  button.textContent = labelText;
+  return button;
+}
+
+function renderFleetBulkBar(runs, isArchived) {
+  const bar = elements.fleetBulkBar;
+  if (!bar) {
+    return;
+  }
+  const count = state.selectedRunIds.length;
+  if (count === 0) {
+    bar.hidden = true;
+    bar.replaceChildren();
+    return;
+  }
+  bar.hidden = false;
+  bar.replaceChildren();
+
+  const label = document.createElement('span');
+  label.className = 'fleet-bulk-count';
+  label.textContent = `${count} selected`;
+
+  const actions = document.createElement('div');
+  actions.className = 'fleet-bulk-actions';
+  const allSelected = runs.length > 0 && runs.every((run) => state.selectedRunIds.includes(run.runId));
+  if (!allSelected) {
+    actions.append(makeBulkButton('Select all', 'select_all', 'bulk-select-all', 'ghost'));
+  }
+  if (isArchived) {
+    actions.append(makeBulkButton('Restore', 'unarchive', 'bulk-restore', 'ghost'));
+    actions.append(makeBulkButton('Delete permanently', 'delete_forever', 'bulk-archived-delete', 'danger'));
+  } else {
+    actions.append(makeBulkButton('Archive', 'inventory_2', 'bulk-archive', 'ghost'));
+    actions.append(makeBulkButton('Delete', 'delete', 'bulk-delete', 'danger'));
+  }
+  actions.append(makeBulkButton('Clear', 'close', 'bulk-clear', 'ghost'));
+
+  bar.append(label, actions);
 }
 
 // Resolve a reported stage to its position in FLEET_STAGE_FLOW so the ring
@@ -148,7 +252,7 @@ export function makeFleetRing(run) {
   return ring;
 }
 
-export function renderFleetDetail(run) {
+export function renderFleetDetail(run, isArchived = false) {
   if (!elements.fleetDetail) {
     return;
   }
@@ -157,7 +261,9 @@ export function renderFleetDetail(run) {
     elements.fleetDetail.classList.add('empty');
     const empty = document.createElement('div');
     empty.className = 'fc-stage';
-    empty.textContent = 'Select a client to see deployment detail.';
+    empty.textContent = isArchived
+      ? 'Select an archived run to see deployment detail.'
+      : 'Select a client to see deployment detail.';
     elements.fleetDetail.append(empty);
     return;
   }
@@ -168,7 +274,7 @@ export function renderFleetDetail(run) {
   const title = document.createElement('div');
   title.className = 'fd-name';
   title.textContent = text(run.clientId);
-  head.append(title, makeStatusPill(text(run.status), run.status === 'completed' ? 'ok' : run.status === 'failed' ? 'fail' : run.status === 'stale' ? 'neutral' : 'working'));
+  head.append(title, makeStatusPill(text(run.status), pillTone(run.status)));
   elements.fleetDetail.append(head);
 
   const meta = document.createElement('div');
@@ -222,13 +328,40 @@ export function renderFleetDetail(run) {
   evidence.dataset.runAction = 'evidence';
   evidence.dataset.runId = run.runId;
   evidence.textContent = 'View evidence';
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'bento-mini ghost danger-text';
-  del.dataset.icon = 'delete';
-  del.dataset.action = 'status-run-delete';
-  del.dataset.runId = run.runId;
-  del.textContent = 'Delete run';
-  footer.append(evidence, del);
+  footer.append(evidence);
+
+  if (isArchived) {
+    const restore = document.createElement('button');
+    restore.type = 'button';
+    restore.className = 'bento-mini ghost';
+    restore.dataset.icon = 'unarchive';
+    restore.dataset.action = 'status-run-restore';
+    restore.dataset.runId = run.runId;
+    restore.textContent = 'Restore';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'bento-mini ghost danger-text';
+    del.dataset.icon = 'delete_forever';
+    del.dataset.action = 'archived-run-delete';
+    del.dataset.runId = run.runId;
+    del.textContent = 'Delete permanently';
+    footer.append(restore, del);
+  } else {
+    const archive = document.createElement('button');
+    archive.type = 'button';
+    archive.className = 'bento-mini ghost';
+    archive.dataset.icon = 'inventory_2';
+    archive.dataset.action = 'status-run-archive';
+    archive.dataset.runId = run.runId;
+    archive.textContent = 'Archive';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'bento-mini ghost danger-text';
+    del.dataset.icon = 'delete';
+    del.dataset.action = 'status-run-delete';
+    del.dataset.runId = run.runId;
+    del.textContent = 'Delete run';
+    footer.append(archive, del);
+  }
   elements.fleetDetail.append(footer);
 }

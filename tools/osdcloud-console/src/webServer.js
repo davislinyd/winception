@@ -390,6 +390,30 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/status/runs/delete') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.deleteStatusRuns(body.runIds ?? body.ids ?? []);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/status/runs/archive') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.archiveStatusRuns(body.runIds ?? body.ids ?? []);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/status/runs/restore') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.restoreStatusRuns(body.runIds ?? body.ids ?? []);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/status/archive/delete') {
+      const body = await readJsonBody(req);
+      const result = await this.controller.deleteArchivedRuns(body.runIds ?? body.ids ?? []);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
 
     sendJson(res, 404, { ok: false, error: `Unknown API path: ${pathname}` });
   }

@@ -107,6 +107,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="view-fleet"/);
   assert.match(html, /id="fleet-filter"/);
   assert.match(html, /id="fleet-detail"/);
+  // Activity filters expose stale as a first-class status, plus an archived view
+  assert.match(html, /data-fleet-filter="stale"/);
+  assert.match(html, /data-fleet-filter="archived"/);
+  // bulk multi-select toolbar host
+  assert.match(html, /id="fleet-bulkbar"/);
   assert.doesNotMatch(html, /id="view-endpoints"/);
   assert.doesNotMatch(html, /id="view-sync"/);
   assert.doesNotMatch(html, /id="view-validation"/);
@@ -442,6 +447,22 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /\/api\/status\/run\/delete/);
   assert.match(script, /dataset\.icon = 'delete'/);
   assert.match(script, /If the client is still reporting, this run may appear again/);
+  // Activity multi-select: range/toggle selection + bulk delete/archive/restore endpoints
+  assert.match(script, /export function visibleFleetRuns/);
+  assert.match(script, /export function selectFleetCard/);
+  assert.match(script, /event\?\.shiftKey && state\.selectAnchorRunId/);
+  assert.match(script, /event\.ctrlKey \|\| event\.metaKey/);
+  assert.match(script, /data-fleet-check|dataset\.fleetCheck/);
+  assert.match(script, /data-bulk-action|dataset\.bulkAction/);
+  assert.match(script, /\/api\/status\/runs\/delete/);
+  assert.match(script, /\/api\/status\/runs\/archive/);
+  assert.match(script, /\/api\/status\/runs\/restore/);
+  assert.match(script, /\/api\/status\/archive\/delete/);
+  assert.match(script, /status-run-archive/);
+  assert.match(script, /archived-run-delete/);
+  // CSS for the bulk toolbar + per-card checkbox affordance
+  assert.match(styles, /\.fleet-bulkbar \{/);
+  assert.match(styles, /\.fc-check \{/);
   assert.match(script, /elements\.confirmSubmit\.classList\.toggle\('warning', resolvedSeverity === 'warning'\)/);
   assert.match(script, /severity: 'warning'/);
   assert.match(script, /const softwareKey = \(id\) => `software:\$\{id\}`/);

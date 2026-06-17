@@ -1,4 +1,4 @@
-import { handleAction, handleOsImageDelete, handleOsImageDownload, handleOsImageImport, handleOsImageReexport, handleProfileDelete, handleProfileSelect, handleSoftwareDelete, setFleetExpanded, switchToView } from './actions.js';
+import { clearFleetSelection, handleAction, handleFleetBulkAction, handleOsImageDelete, handleOsImageDownload, handleOsImageImport, handleOsImageReexport, handleProfileDelete, handleProfileSelect, handleSoftwareDelete, selectFleetCard, setFleetExpanded, switchToView, toggleFleetSelection } from './actions.js';
 import { api, refresh } from './api.js';
 import { clearRefineFilters, openValidationEvidenceFromTarget } from './deploy.js';
 import { closeDialog, closeEmbeddedConfig, confirmEndpointSync, enableBackdropCloseForDialogs, handleScriptDelete, showScriptContentViewer, showSoftwareDetails, showSoftwareScriptViewer, suppressBackdropCloseClickThrough } from './dialogs.js';
@@ -23,6 +23,7 @@ document.addEventListener('click', (event) => {
   if (gotoButton) {
     if (gotoButton.dataset.fleetFilter) {
       state.fleetFilter = gotoButton.dataset.fleetFilter;
+      clearFleetSelection();
     }
     if (gotoButton.dataset.goto === 'activity') {
       switchToView('fleet');
@@ -34,7 +35,14 @@ document.addEventListener('click', (event) => {
   const fleetFilterButton = target.closest('[data-fleet-filter]');
   if (fleetFilterButton) {
     state.fleetFilter = fleetFilterButton.dataset.fleetFilter;
+    clearFleetSelection();
     render();
+    return;
+  }
+
+  const bulkButton = target.closest('[data-bulk-action]');
+  if (bulkButton) {
+    handleFleetBulkAction(bulkButton.dataset.bulkAction).catch((error) => window.alert(error.message));
     return;
   }
 
@@ -43,9 +51,16 @@ document.addEventListener('click', (event) => {
     return;
   }
 
+  const fleetCheck = target.closest('[data-fleet-check]');
+  if (fleetCheck) {
+    toggleFleetSelection(fleetCheck.dataset.fleetCheck);
+    render();
+    return;
+  }
+
   const fleetCardSelect = target.closest('[data-fleet-select]');
   if (fleetCardSelect) {
-    state.selectedRunId = fleetCardSelect.dataset.fleetSelect;
+    selectFleetCard(fleetCardSelect.dataset.fleetSelect, event);
     render();
     return;
   }

@@ -1851,11 +1851,13 @@ export function renderDashboardTiles(appState) {
   }
   const counts = appState.fleet?.counts ?? {};
   const total = appState.fleet?.total ?? 0;
-  const failed = (counts.failed ?? 0) + (counts.stale ?? 0);
+  const failed = counts.failed ?? 0;
+  const stale = counts.stale ?? 0;
   const tiles = [
     { num: counts.running ?? 0, label: 'Deploying', tone: (counts.running ?? 0) > 0 ? 'live' : '', filter: 'active' },
     { num: counts.completed ?? 0, label: 'Ready', tone: (counts.completed ?? 0) > 0 ? 'ok' : '', filter: 'done' },
     { num: failed, label: 'Failed', tone: failed > 0 ? 'err' : '', filter: 'failed' },
+    { num: stale, label: 'Stale', tone: stale > 0 ? 'warn' : '', filter: 'stale' },
     { num: total, label: 'Total clients', tone: '', filter: 'all' },
   ];
   elements.dashTiles.replaceChildren();
