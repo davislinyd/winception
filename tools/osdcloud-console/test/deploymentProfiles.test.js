@@ -1700,6 +1700,10 @@ test('installer script stops immediately when a step times out', () => {
 
     assert.notEqual(result.status, 0);
     assert.equal(fs.existsSync(marker), false);
+    const stepLogs = fs.readdirSync(path.join(root, 'logs', 'install-sequence'));
+    assert.equal(stepLogs.length, 1);
+    const stepLog = fs.readFileSync(path.join(root, 'logs', 'install-sequence', stepLogs[0]), 'utf8');
+    assert.doesNotMatch(stepLog, /Warning: process still running after timeout termination request\./u);
     const summary = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'install-sequence-summary.json'), 'utf8'));
     assert.equal(summary.total, 1);
     assert.equal(summary.timedOut, 1);

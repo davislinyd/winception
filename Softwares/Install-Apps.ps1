@@ -365,10 +365,23 @@ catch {
             Stop-StepProcessTree -ProcessId $process.Id
         }
 
-        try {
-            $process.WaitForExit() | Out-Null
+        if ($timedOut) {
+            try {
+                [void] $process.WaitForExit(5000)
+            }
+            catch {
+            }
+            $process.Refresh()
+            if (-not $process.HasExited) {
+                Write-StepLog -Path $LogPath -Message 'Warning: process still running after timeout termination request.'
+            }
         }
-        catch {
+        else {
+            try {
+                $process.WaitForExit() | Out-Null
+            }
+            catch {
+            }
         }
         $process.Refresh()
 
