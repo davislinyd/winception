@@ -42,6 +42,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Keep confirmation gates for DHCP/PXE service start/stop toggles and status-file deletion.
 - Stopped service cards are neutral, not failures. Use red only for actual blocked/error states.
 - Fleet Execution Flow stage matching uses prefix logic: a `FLEET_STAGE_FLOW` key such as `windows-setupcomplete` matches any `latestStage` that equals the key exactly or starts with `key + '-'` (e.g. `windows-setupcomplete-start`, `windows-setupcomplete-finished`). Add new flow steps with the shared prefix key, not the full stage name.
+- `reporter-stop` is the expected WinPE reporter shutdown during the reboot handoff. Map it to the `rebooting` flow step so the progress ring does not reset while Windows starts.
 - Fleet/Activity client records are sorted by `startedAt` descending (newest deployment first). There is no status-based grouping; all runs sort purely by start time.
 - Fleet cards display the deployment start time (`startedAt`) below the run ID, formatted as `YYYY/MM/DD HH:MM UTC+8`. The detail panel shows a `Started …` line below the run ID / IP meta line. All compact date-time values (`localCompactDateTime` in `web/js/format.js`) are fixed to `Asia/Taipei` (UTC+8) and include the `UTC+8` offset label.
 - Stale run status pills use the `neutral` CSS variant (muted gray), not `working` (blue). Both the fleet card pill and the detail panel pill must apply this distinction.

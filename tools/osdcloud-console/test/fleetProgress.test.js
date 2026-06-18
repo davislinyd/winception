@@ -29,6 +29,7 @@ test('flowIndexForStage maps stages and substages to flow positions', () => {
   for (const s of ['drivers', 'post-apply-scripts', 'windows-metadata-written', 'osdcloud-finished']) {
     assert.equal(flowIndexForStage(s), 4, `${s} should map to rebooting`);
   }
+  assert.equal(flowIndexForStage('reporter-stop'), 4);
   // Unknown / empty stages do not map.
   assert.equal(flowIndexForStage('running'), -1);
   assert.equal(flowIndexForStage(null), -1);
@@ -52,9 +53,11 @@ test('ringPercent scales reported percent within the current step slice', () => 
   assert.equal(ringPercent({ latestStage: 'apply-image', latestPercent: 100 }), 57);
   // windows-apps-progress maps into SetupComplete slice [71, 86].
   assert.equal(ringPercent({ latestStage: 'windows-apps-progress', latestPercent: 94.5 }), 85);
+  // The reporter stopping is the expected WinPE reboot handoff, not a reset.
+  assert.equal(ringPercent({ latestStage: 'reporter-stop', latestPercent: null }), 57);
   // Unmatched stage with a reported percent falls back to the raw clamped value.
-  assert.equal(ringPercent({ latestStage: 'reporter-stop', latestPercent: 50 }), 50);
-  assert.equal(ringPercent({ latestStage: 'reporter-stop', latestPercent: 150 }), 100);
+  assert.equal(ringPercent({ latestStage: 'custom-progress', latestPercent: 50 }), 50);
+  assert.equal(ringPercent({ latestStage: 'custom-progress', latestPercent: 150 }), 100);
   // No stage, no percent → 0 (idle).
   assert.equal(ringPercent({ latestStage: null, latestPercent: null }), 0);
 });
@@ -77,6 +80,7 @@ test('the ring never reports backwards across a realistic torrent deployment', (
     { latestStage: 'post-apply-scripts', latestPercent: null },
     { latestStage: 'osdcloud-finished', latestPercent: null },
     { latestStage: 'rebooting', latestPercent: null },
+    { latestStage: 'reporter-stop', latestPercent: null },
     { latestStage: 'windows-setupcomplete-start', latestPercent: 94 },
     { latestStage: 'windows-apps-start', latestPercent: 94.5 },
     { latestStage: 'windows-apps-progress', latestPercent: 94.5 },

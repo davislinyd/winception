@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 修正：Client 重開機時進度環回退
+
+- 將預期的 WinPE `reporter-stop` 對映至 `rebooting` flow step，避免等待 Windows 啟動期間進度環從 57% 回退至 5%
+
 ### 修正：Client 語言、地區格式與時區解耦
 
 - Profile 新增 `displayLanguage`，既有 `locale` 明確只代表 regional format；`timeZone` 不再由語言推導

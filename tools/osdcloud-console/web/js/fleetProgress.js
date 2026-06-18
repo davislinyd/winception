@@ -41,6 +41,7 @@ const STAGE_ALIASES = new Map([
   ['post-apply-scripts', 'rebooting'],
   ['windows-metadata-written', 'rebooting'],
   ['osdcloud-finished', 'rebooting'],
+  ['reporter-stop', 'rebooting'],
   // Driver-pack cache request runs inside the SetupComplete phase.
   ['windows-driverpack-cache-request', 'windows-setupcomplete'],
 ]);
