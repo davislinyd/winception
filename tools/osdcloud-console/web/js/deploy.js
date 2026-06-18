@@ -252,7 +252,7 @@ export function renderProfileSummary(appState) {
   } else {
     software.textContent = 'No client software selected.';
   }
-  const localeParts = [active?.displayLanguage, active?.locale, active?.timeZone].filter(Boolean);
+  const localeParts = [active?.displayLanguage, active?.locale, active?.inputLanguage, active?.timeZone].filter(Boolean);
   if (localeParts.length) {
     const localeMeta = document.createElement('div');
     localeMeta.className = 'profile-meta';
@@ -1650,6 +1650,7 @@ export function renderValidation(appState) {
     ['Culture', evidenceValue(appState, ['Culture', 'culture'])],
     ['TimeZone', evidenceValue(appState, ['TimeZone', 'timeZone'])],
     ['InputLanguages', evidenceValue(appState, ['InputLanguages', 'inputLanguages'])],
+    ['InputMethods', evidenceValue(appState, ['InputMethods', 'inputMethods'])],
   ]);
 
   setDefinitionList(elements.runTiming, [

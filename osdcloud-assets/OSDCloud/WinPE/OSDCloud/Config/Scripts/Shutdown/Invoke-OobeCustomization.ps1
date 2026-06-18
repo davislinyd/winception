@@ -49,6 +49,7 @@ function Get-SelectedOsMetadata {
     [pscustomobject]@{
         uiLanguage = 'zh-TW'
         locale = 'zh-TW'
+        inputLanguage = 'zh-TW'
         language = 'zh-tw'
         timeZone = 'Taipei Standard Time'
     }
@@ -120,12 +121,14 @@ try {
     $selectedOs = Get-SelectedOsMetadata -DeploymentMetadata $deploymentMetadata
     $uiLanguage = if ($selectedOs.uiLanguage) { [string] $selectedOs.uiLanguage } elseif ($selectedOs.language) { [string] $selectedOs.language } else { 'zh-TW' }
     $locale = if ($selectedOs.locale) { [string] $selectedOs.locale } else { $uiLanguage }
+    $inputLanguage = if ($selectedOs.inputLanguage) { [string] $selectedOs.inputLanguage } elseif ($selectedOs.language) { [string] $selectedOs.language } else { $uiLanguage }
     $timeZone = if ($selectedOs.timeZone) { [string] $selectedOs.timeZone } else { '' }
     if ([string]::IsNullOrWhiteSpace($timeZone)) {
         throw 'Deployment metadata is missing an explicit Windows time zone.'
     }
     $localeXml = ConvertTo-XmlText -Value $locale
     $uiLanguageXml = ConvertTo-XmlText -Value $uiLanguage
+    $inputLanguageXml = ConvertTo-XmlText -Value $inputLanguage
     $timeZoneXml = ConvertTo-XmlText -Value $timeZone
     $windowsUsername = Get-DeploymentSecret -JsonName 'windowsUsername' -EnvironmentName 'OSDCLOUD_WINDOWS_USERNAME'
     $windowsPassword = Get-DeploymentSecret -JsonName 'windowsPassword' -EnvironmentName 'OSDCLOUD_WINDOWS_PASSWORD'
@@ -133,6 +136,7 @@ try {
     $windowsPasswordXml = ConvertTo-XmlText -Value $windowsPassword
     Write-Host "OOBE UILanguage: $uiLanguage"
     Write-Host "OOBE regional format (UserLocale): $locale"
+    Write-Host "OOBE input language (InputLocale): $inputLanguage"
     Write-Host "OOBE time zone: $timeZone"
 
     $panther = Join-Path $windowsRoot 'Windows\Panther'
@@ -145,6 +149,7 @@ try {
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <InputLocale>$inputLanguageXml</InputLocale>
       <SystemLocale>$uiLanguageXml</SystemLocale>
       <UILanguage>$uiLanguageXml</UILanguage>
       <UILanguageFallback>$uiLanguageXml</UILanguageFallback>

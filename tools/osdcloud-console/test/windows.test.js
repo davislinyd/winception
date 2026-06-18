@@ -521,13 +521,14 @@ test('desktop-ready status includes resolved dynamic desktop evidence fields', (
   assert.match(facts, /targetUserDesktopPath = \$targetUserDesktopPath/);
   assert.match(facts, /desktopReadyFilePath = \$desktopReadyFilePath/);
   assert.match(facts, /desktopReadyFile = \(-not \[string\]::IsNullOrWhiteSpace\(\$desktopReadyFilePath\)/);
-  assert.match(facts, /displayLanguage = if \(\$uiLanguageOverride\)/);
-  assert.match(facts, /culture = \(Get-Culture\)\.Name/);
+  assert.match(facts, /displayLanguage = if \(\$targetDisplayLanguages\.Count -gt 0\)/);
+  assert.match(facts, /culture = if \(-not \[string\]::IsNullOrWhiteSpace\(\$targetInternational\.culture\)\)/);
   assert.match(facts, /timeZone = \(Get-TimeZone\)\.Id/);
   assert.match(facts, /inputLanguages = \$inputLanguages/);
+  assert.match(facts, /inputMethods = @\(\$targetInternational\.inputMethods\)/);
 });
 
-test('OOBE and SetupComplete keep display language, regional format, time zone, and input methods independent', () => {
+test('OOBE and SetupComplete apply display language, regional format, input language, and time zone independently', () => {
   const shutdown = fs.readFileSync(path.resolve(
     'osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'Shutdown', 'Invoke-OobeCustomization.ps1',
   ), 'utf8');
@@ -538,12 +539,14 @@ test('OOBE and SetupComplete keep display language, regional format, time zone, 
   assert.match(shutdown, /<SystemLocale>\$uiLanguageXml<\/SystemLocale>/);
   assert.match(shutdown, /<UILanguage>\$uiLanguageXml<\/UILanguage>/);
   assert.match(shutdown, /<UserLocale>\$localeXml<\/UserLocale>/);
+  assert.match(shutdown, /<InputLocale>\$inputLanguageXml<\/InputLocale>/);
   assert.match(shutdown, /<TimeZone>\$timeZoneXml<\/TimeZone>/);
-  assert.doesNotMatch(shutdown, /<InputLocale>/);
+  assert.match(setupComplete, /New-WinUserLanguageList -Language \$TargetInputLanguage/);
+  assert.match(setupComplete, /Set-WinUserLanguageList -LanguageList \$TargetUserLanguageList -Force/);
   assert.match(setupComplete, /Set-WinUILanguageOverride -Language \$TargetDisplayLanguage/);
+  assert.match(setupComplete, /Set-Culture \$TargetLocale/);
   assert.match(setupComplete, /Copy-UserInternationalSettingsToSystem -WelcomeScreen \$true -NewUser \$true/);
   assert.match(setupComplete, /Set-TimeZone -Id \$TargetTimeZone/);
-  assert.doesNotMatch(setupComplete, /Set-WinUserLanguageList/);
 });
 
 test('WinPE boot.wim synchronization check uses sync input fingerprints instead of mtimes', () => {

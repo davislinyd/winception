@@ -657,14 +657,14 @@ C:\OSDCloud\PXE-HttpRoot\osdcloud
 13. OSDCloud 直接用 SMB 上的 WIM 執行 DISM 套用 Windows，不再執行 `Download Operating System` 的 HTTP OS image 下載。
 14. WinPE Shutdown script `Invoke-OobeCustomization.ps1` 對新 Windows 離線注入：
     - `Unattend.xml`
-    - 獨立的 `UILanguage` / `UserLocale` / `SystemLocale` / `TimeZone`；不覆寫 `InputLocale`
+    - 獨立的 `UILanguage` / `UserLocale` / `InputLocale` / `SystemLocale` / `TimeZone`
     - OOBE skip registry
     - Winlogon 自動登入
     - Windows Update policy
     - `SetupComplete.cmd/.ps1`
     - client app payload `C:\ProgramData\OSDCloud\Apps`
 15. `Start-OSDCloud-iPXE.ps1` 在 `Invoke-OSDCloud` 返回後送出完成狀態，等待 10 秒並執行 `wpeutil reboot`。
-16. Windows 第一次開機執行 SetupComplete，建立自訂管理員帳號、依 profile 設定 display language/regional format/time zone、把設定複製到新使用者但保留映像輸入法、設定 OOBE registry、靜默安裝 client apps，並寫入桌面 marker。
+16. Windows 第一次開機執行 SetupComplete，建立自訂管理員帳號、依 profile 分別設定 display language/regional format/input language/time zone、把設定複製到新使用者、設定 OOBE registry、靜默安裝 client apps，並寫入桌面 marker。
 17. 在實體筆電或遠端管理通道驗證桌面、`Get-WinUILanguageOverride`、`Get-Culture`、`Get-TimeZone`、`Get-WinUserLanguageList`、OOBE registry、OSDCloud log 與 HTTP access log。
 
 目前實作中特別重要的限制：

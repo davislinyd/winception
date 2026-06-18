@@ -167,6 +167,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
 
     const displayLanguage = normalizeLocaleTag(raw.displayLanguage, `deployment profile ${id} displayLanguage`, { optional: true });
     const locale = normalizeLocaleTag(raw.locale, `deployment profile ${id} locale`, { optional: true });
+    const inputLanguage = normalizeLocaleTag(raw.inputLanguage, `deployment profile ${id} inputLanguage`, { optional: true });
     const timeZone = normalizeWindowsTimeZoneId(raw.timeZone, `deployment profile ${id} timeZone`, { optional: true });
 
     return {
@@ -181,6 +182,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       osImageId,
       displayLanguage,
       locale,
+      inputLanguage,
       timeZone,
       filePath,
     };
@@ -301,6 +303,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
     : (state.activeProfile.hasExplicitExecution ? { ...state.activeProfile.execution } : null);
   const displayLanguage = normalizeLocaleTag(input.displayLanguage, `deployment profile ${id} displayLanguage`, { optional: true });
   const locale = normalizeLocaleTag(input.locale, `deployment profile ${id} locale`, { optional: true });
+  const inputLanguage = normalizeLocaleTag(input.inputLanguage, `deployment profile ${id} inputLanguage`, { optional: true });
   const timeZone = normalizeWindowsTimeZoneId(input.timeZone, `deployment profile ${id} timeZone`, { optional: true });
 
   const raw = {
@@ -324,6 +327,9 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   if (displayLanguage) {
     raw.displayLanguage = displayLanguage;
   }
+  if (inputLanguage) {
+    raw.inputLanguage = inputLanguage;
+  }
   if (timeZone) {
     raw.timeZone = timeZone;
   }
@@ -342,6 +348,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
       osImageId,
       displayLanguage,
       locale,
+      inputLanguage,
       timeZone,
       filePath,
     },
@@ -399,6 +406,10 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const locale = hasLocale
     ? normalizeLocaleTag(input.locale, `deployment profile ${id} locale`, { optional: true })
     : profile.locale ?? null;
+  const hasInputLanguage = Object.prototype.hasOwnProperty.call(input, 'inputLanguage');
+  const inputLanguage = hasInputLanguage
+    ? normalizeLocaleTag(input.inputLanguage, `deployment profile ${id} inputLanguage`, { optional: true })
+    : profile.inputLanguage ?? null;
   const hasTimeZone = Object.prototype.hasOwnProperty.call(input, 'timeZone');
   const timeZone = hasTimeZone
     ? normalizeWindowsTimeZoneId(input.timeZone, `deployment profile ${id} timeZone`, { optional: true })
@@ -438,6 +449,11 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   } else {
     delete raw.displayLanguage;
   }
+  if (inputLanguage) {
+    raw.inputLanguage = inputLanguage;
+  } else {
+    delete raw.inputLanguage;
+  }
   if (timeZone) {
     raw.timeZone = timeZone;
   } else {
@@ -458,6 +474,7 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
       osImageId,
       displayLanguage,
       locale,
+      inputLanguage,
       timeZone,
     },
     filePath,
@@ -526,7 +543,7 @@ export function evaluateDeploymentProfilePayload(config = {}, options = {}) {
     if (manifest.osImageId && manifest.osImageId !== state.activeProfile.osImageId) {
       return fail('Deployment profile', `manifest osImage=${manifest.osImageId} active=${state.activeProfile.osImageId}`);
     }
-    for (const key of ['displayLanguage', 'locale', 'timeZone']) {
+    for (const key of ['displayLanguage', 'locale', 'inputLanguage', 'timeZone']) {
       if (state.activeProfile[key] && manifest[key] !== state.activeProfile[key]) {
         return fail('Deployment profile', `manifest ${key}=${manifest[key] ?? ''} active=${state.activeProfile[key]}`);
       }

@@ -60,6 +60,7 @@ export function profileManifest(state, osImageResult = null) {
     osImageId: state.activeProfile.osImageId,
     ...(international.displayLanguage ? { displayLanguage: international.displayLanguage } : {}),
     ...(international.locale ? { locale: international.locale } : {}),
+    ...(international.inputLanguage ? { inputLanguage: international.inputLanguage } : {}),
     ...(international.timeZone ? { timeZone: international.timeZone } : {}),
   };
   if (osImageResult?.image) {
@@ -75,11 +76,12 @@ export function profileManifest(state, osImageResult = null) {
 export function resolveProfileInternationalSettings(profile, image = null) {
   const displayLanguage = String(profile.displayLanguage ?? image?.language ?? '').trim();
   const locale = String(profile.locale ?? image?.locale ?? image?.language ?? '').trim();
+  const inputLanguage = String(profile.inputLanguage ?? image?.language ?? '').trim();
   const timeZone = String(profile.timeZone ?? image?.timeZone ?? '').trim();
   const imageLanguage = String(image?.language ?? '').trim();
 
   if (!image) {
-    return { displayLanguage, locale, timeZone };
+    return { displayLanguage, locale, inputLanguage, timeZone };
   }
 
   if (!displayLanguage) {
@@ -88,6 +90,9 @@ export function resolveProfileInternationalSettings(profile, image = null) {
   if (!locale) {
     throw new Error('Deployment profile regional format is unresolved. Select a regional format or an OS image with locale metadata.');
   }
+  if (!inputLanguage) {
+    throw new Error('Deployment profile input language is unresolved. Select an input language or an OS image with language metadata.');
+  }
   if (!timeZone) {
     throw new Error('Deployment profile time zone is unresolved. Select an explicit Windows time zone before publishing.');
   }
@@ -95,7 +100,7 @@ export function resolveProfileInternationalSettings(profile, image = null) {
     throw new Error(`Display language ${displayLanguage} is not installed in the selected single-language WIM (${imageLanguage}). Select a matching OS image.`);
   }
 
-  return { displayLanguage, locale, timeZone };
+  return { displayLanguage, locale, inputLanguage, timeZone };
 }
 
 export function removeScriptsRootContents(scriptsRoot) {

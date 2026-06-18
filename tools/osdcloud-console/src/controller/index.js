@@ -1090,6 +1090,7 @@ export class ServiceController extends EventEmitter {
         osImageId: input.osImageId,
         ...(Object.prototype.hasOwnProperty.call(input, 'displayLanguage') ? { displayLanguage: input.displayLanguage } : {}),
         ...(Object.prototype.hasOwnProperty.call(input, 'locale') ? { locale: input.locale } : {}),
+        ...(Object.prototype.hasOwnProperty.call(input, 'inputLanguage') ? { inputLanguage: input.inputLanguage } : {}),
         ...(Object.prototype.hasOwnProperty.call(input, 'timeZone') ? { timeZone: input.timeZone } : {}),
       };
       if (!editingActive) {

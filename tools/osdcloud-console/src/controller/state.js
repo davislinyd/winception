@@ -484,6 +484,7 @@ export function profileSummary(state) {
       osImageId: profile.osImageId,
       ...(profile.displayLanguage ? { displayLanguage: profile.displayLanguage } : {}),
       ...(profile.locale ? { locale: profile.locale } : {}),
+      ...(profile.inputLanguage ? { inputLanguage: profile.inputLanguage } : {}),
       ...(profile.timeZone ? { timeZone: profile.timeZone } : {}),
     })),
   };

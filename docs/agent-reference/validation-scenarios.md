@@ -25,7 +25,7 @@ Read this file when selecting verification for subsystem-specific changes.
 - Software catalog changes must test validation, safe software ids, plain MSI/EXE filenames, duplicate rejection, upload staging cleanup, and that adding catalog software does not mutate active profile or publish live Apps.
 - Custom script changes must test `SC-` id generation, `.ps1` upload validation, duplicate rejection, profile rejection of unknown script ids and invalid phases, publish copying to safe script roots, per-script logs, summary generation, missing-script behavior, and delete-blocked-when-referenced behavior.
 - Deployment profile changes must test catalog/profile validation, add/edit/delete validation, safe publish roots, selected-only ordered payload publishing, empty profiles, selected-only app install behavior, OS image publish integration, and inactive-profile edits that do not stop services or republish live payloads.
-- International profile changes must test independent `displayLanguage` / `locale` / `timeZone` persistence, legacy inheritance, WIM-language mismatch rejection, unresolved-time-zone rejection before live Apps changes, and API/UI field propagation.
+- International profile changes must test independent `displayLanguage` / `locale` / `inputLanguage` / `timeZone` persistence, legacy inheritance, WIM-language mismatch rejection, unresolved-time-zone rejection before live Apps changes, and API/UI field propagation.
 
 ## OS Image Source/Cache
 
@@ -40,6 +40,6 @@ Read this file when selecting verification for subsystem-specific changes.
 ## WinPE And SetupComplete
 
 - WinPE or SetupComplete changes must be tested with the relevant scripts and, when behavior changes inside `C:\OSDCloud` or WinPE, followed by live file update, `boot.wim` mount/commit when needed, and `osdcloud-assets` sync.
-- For language changes, parse the PowerShell scripts, assert OOBE omits `InputLocale`, assert SetupComplete does not call `Set-WinUserLanguageList`, and verify a fresh client reports the expected display language, culture, time zone, and unchanged image-default input language list at `windows-desktop-ready`.
+- For language changes, parse the PowerShell scripts, assert OOBE maps `InputLocale` only from `inputLanguage`, assert SetupComplete builds the user language list only from `TargetInputLanguage`, and verify a fresh client reports the expected display language, culture, time zone, input languages, and input methods at `windows-desktop-ready`.
 - Deployment progress should include explicit lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer or custom-script failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.

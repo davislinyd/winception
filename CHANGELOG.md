@@ -6,14 +6,14 @@
 
 - 將預期的 WinPE `reporter-stop` 對映至 `rebooting` flow step，避免等待 Windows 啟動期間進度環從 57% 回退至 5%
 
-### 修正：Client 語言、地區格式與時區解耦
+### 修正：Client 顯示語言、地區格式、輸入法與時區解耦
 
-- Profile 新增 `displayLanguage`，既有 `locale` 明確只代表 regional format；`timeZone` 不再由語言推導
-- 發布時解析並驗證三項設定；display language 必須符合所選單語言 WIM，且 time zone 不可留空
-- OOBE 分別寫入 `UILanguage`、`UserLocale`、`SystemLocale` 與 `TimeZone`，不再寫入 `InputLocale`
-- SetupComplete 不再改寫 user language list；改用 `Copy-UserInternationalSettingsToSystem` 把 UI/format 套用到新使用者，同時保留映像預設輸入法
-- Desktop-ready evidence 與 Web Validation 新增 display language、culture、time zone、input languages
-- Tracked `All in One` profile 改用 en-US WIM，設定 en-US UI/format 與 `Taipei Standard Time`
+- Profile 新增獨立的 `displayLanguage` 與 `inputLanguage`；既有 `locale` 明確只代表 regional format，`timeZone` 只代表時區
+- 發布時解析並驗證四項設定；display language 必須符合所選單語言 WIM，且 time zone 不可留空
+- OOBE 分別寫入 `UILanguage`、`UserLocale`、`InputLocale`、`SystemLocale` 與 `TimeZone`
+- SetupComplete 以 `inputLanguage` 建立單一 user language list，再重新套用獨立的 UI language/culture，並複製至 Welcome screen 與新使用者
+- Desktop-ready evidence 從 target user registry 讀取 display language、culture、input languages/input methods，避免誤報 SYSTEM 設定
+- Tracked `All in One` profile 使用 en-US WIM，設定 en-US UI/format/input 與 `Taipei Standard Time`
 
 ---
 

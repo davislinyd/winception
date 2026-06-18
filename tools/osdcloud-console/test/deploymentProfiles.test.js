@@ -119,7 +119,7 @@ test('loads active deployment profile with selected software order', () => {
   }
 });
 
-test('loads independent profile display language, regional format, and time zone', () => {
+test('loads independent profile display language, regional format, input language, and time zone', () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root, {
@@ -130,6 +130,7 @@ test('loads independent profile display language, regional format, and time zone
         osImage: 'TEST-OS',
         displayLanguage: 'en-US',
         locale: 'en-US',
+        inputLanguage: 'ja-JP',
         timeZone: 'Taipei Standard Time',
       },
     });
@@ -137,6 +138,7 @@ test('loads independent profile display language, regional format, and time zone
     const profile = resolveDeploymentProfileState(configFor(root)).activeProfile;
     assert.equal(profile.displayLanguage, 'en-US');
     assert.equal(profile.locale, 'en-US');
+    assert.equal(profile.inputLanguage, 'ja-JP');
     assert.equal(profile.timeZone, 'Taipei Standard Time');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -541,25 +543,30 @@ test('creates and updates independent profile international settings', () => {
       name: 'English Taipei',
       displayLanguage: 'en-US',
       locale: 'en-US',
+      inputLanguage: 'en-US',
       timeZone: 'Taipei Standard Time',
     }, { randomInt: () => 26 });
 
     assert.equal(created.profile.displayLanguage, 'en-US');
     assert.equal(created.profile.locale, 'en-US');
+    assert.equal(created.profile.inputLanguage, 'en-US');
     assert.equal(created.profile.timeZone, 'Taipei Standard Time');
 
     const updated = updateDeploymentProfile(configFor(root), created.profile.id, {
       displayLanguage: 'zh-TW',
       locale: 'ja-JP',
+      inputLanguage: 'ko-KR',
       timeZone: 'Tokyo Standard Time',
     });
     assert.equal(updated.profile.displayLanguage, 'zh-TW');
     assert.equal(updated.profile.locale, 'ja-JP');
+    assert.equal(updated.profile.inputLanguage, 'ko-KR');
     assert.equal(updated.profile.timeZone, 'Tokyo Standard Time');
 
     const raw = JSON.parse(fs.readFileSync(created.filePath, 'utf8'));
     assert.equal(raw.displayLanguage, 'zh-TW');
     assert.equal(raw.locale, 'ja-JP');
+    assert.equal(raw.inputLanguage, 'ko-KR');
     assert.equal(raw.timeZone, 'Tokyo Standard Time');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -977,6 +984,7 @@ test('profile publish resolves independent international settings from profile a
         osImage: 'TEST-OS',
         displayLanguage: 'en-US',
         locale: 'en-US',
+        inputLanguage: 'ja-JP',
         timeZone: 'Taipei Standard Time',
       },
     });
@@ -989,6 +997,7 @@ test('profile publish resolves independent international settings from profile a
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
     assert.equal(manifest.displayLanguage, 'en-US');
     assert.equal(manifest.locale, 'en-US');
+    assert.equal(manifest.inputLanguage, 'ja-JP');
     assert.equal(manifest.timeZone, 'Taipei Standard Time');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -1009,6 +1018,7 @@ test('legacy profile inherits OS image language and locale during publish', asyn
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
     assert.equal(manifest.displayLanguage, 'en-us');
     assert.equal(manifest.locale, 'en-US');
+    assert.equal(manifest.inputLanguage, 'en-us');
     assert.equal(manifest.timeZone, 'UTC');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -263,6 +263,7 @@ export function showAddProfileDialog(profile) {
       }
       const displayLanguage = elements.profileDisplayLanguage.value.trim() || null;
       const locale = elements.profileLocale.value.trim() || null;
+      const inputLanguage = elements.profileInputLanguage.value.trim() || null;
       const timeZone = elements.profileTimezone.value.trim() || null;
       done({
         name,
@@ -270,6 +271,7 @@ export function showAddProfileDialog(profile) {
         osImageId,
         ...(displayLanguage ? { displayLanguage } : {}),
         ...(locale ? { locale } : {}),
+        ...(inputLanguage ? { inputLanguage } : {}),
         ...(timeZone ? { timeZone } : {}),
       });
     };
@@ -341,6 +343,7 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
     populateOsImageSelect(elements.softwareProfileOsImage, targetProfile?.osImageId ?? '');
     elements.softwareProfileDisplayLanguage.value = targetProfile?.displayLanguage ?? '';
     elements.softwareProfileLocale.value = targetProfile?.locale ?? '';
+    elements.softwareProfileInputLanguage.value = targetProfile?.inputLanguage ?? '';
     elements.softwareProfileTimezone.value = targetProfile?.timeZone ?? '';
 
     const moveSelected = (id, toIndex) => {
@@ -559,6 +562,7 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
       });
       const displayLanguage = elements.softwareProfileDisplayLanguage.value.trim() || null;
       const locale = elements.softwareProfileLocale.value.trim() || null;
+      const inputLanguage = elements.softwareProfileInputLanguage.value.trim() || null;
       const timeZone = elements.softwareProfileTimezone.value.trim() || null;
       done({
         profileId: targetProfile?.id ?? '',
@@ -570,6 +574,7 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
         osImageId,
         displayLanguage,
         locale,
+        inputLanguage,
         timeZone,
       });
     };

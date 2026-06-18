@@ -68,6 +68,7 @@ function Get-SelectedOsMetadata {
         language = 'zh-tw'
         uiLanguage = 'zh-TW'
         locale = 'zh-TW'
+        inputLanguage = 'zh-TW'
         timeZone = 'Taipei Standard Time'
         edition = 'Pro'
         editionId = 'Professional'
@@ -78,6 +79,7 @@ function Get-SelectedOsMetadata {
 $SelectedOs = Get-SelectedOsMetadata
 $TargetDisplayLanguage = if ($SelectedOs.uiLanguage) { [string] $SelectedOs.uiLanguage } elseif ($SelectedOs.language) { [string] $SelectedOs.language } else { 'zh-TW' }
 $TargetLocale = if ($SelectedOs.locale) { [string] $SelectedOs.locale } else { $TargetDisplayLanguage }
+$TargetInputLanguage = if ($SelectedOs.inputLanguage) { [string] $SelectedOs.inputLanguage } elseif ($SelectedOs.language) { [string] $SelectedOs.language } else { $TargetDisplayLanguage }
 $TargetTimeZone = if ($SelectedOs.timeZone) { [string] $SelectedOs.timeZone } else { '' }
 if ([string]::IsNullOrWhiteSpace($TargetTimeZone)) {
     throw 'Deployment metadata is missing an explicit Windows time zone.'
@@ -597,6 +599,30 @@ function Get-TargetUserDesktopPath {
     return (Join-Path $profilePath 'Desktop')
 }
 
+function Get-TargetUserInternationalFacts {
+    $user = Get-LocalUser -Name $targetUser -ErrorAction SilentlyContinue
+    if (-not $user) {
+        return $null
+    }
+
+    $userRoot = "Registry::HKEY_USERS\$($user.SID.Value)"
+    $userProfile = Get-ItemProperty -LiteralPath (Join-Path $userRoot 'Control Panel\International\User Profile') -ErrorAction SilentlyContinue
+    $international = Get-ItemProperty -LiteralPath (Join-Path $userRoot 'Control Panel\International') -ErrorAction SilentlyContinue
+    $desktop = Get-ItemProperty -LiteralPath (Join-Path $userRoot 'Control Panel\Desktop') -ErrorAction SilentlyContinue
+    $preload = Get-ItemProperty -LiteralPath (Join-Path $userRoot 'Keyboard Layout\Preload') -ErrorAction SilentlyContinue
+    $inputMethods = @($preload.PSObject.Properties |
+        Where-Object { $_.Name -match '^\d+$' } |
+        Sort-Object { [int] $_.Name } |
+        ForEach-Object { [string] $_.Value })
+
+    [ordered]@{
+        displayLanguages = @($desktop.PreferredUILanguages)
+        culture = [string] $international.LocaleName
+        inputLanguages = @($userProfile.Languages)
+        inputMethods = $inputMethods
+    }
+}
+
 function Set-DesktopReadyMarker {
     param([string] $DesktopPath)
 
@@ -623,7 +649,10 @@ function Get-DesktopReadyFacts {
     $targetUserDesktopPath = Get-TargetUserDesktopPath
     $desktopReadyFilePath = $null
     $uiLanguageOverride = Get-WinUILanguageOverride
-    $inputLanguages = @(Get-WinUserLanguageList | ForEach-Object { $_.LanguageTag })
+    $targetInternational = Get-TargetUserInternationalFacts
+    $targetDisplayLanguages = @($targetInternational.displayLanguages | Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) })
+    $targetInputLanguages = @($targetInternational.inputLanguages | Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) })
+    $inputLanguages = if ($targetInputLanguages.Count -gt 0) { $targetInputLanguages } else { @(Get-WinUserLanguageList | ForEach-Object { $_.LanguageTag }) }
 
     if ($interactiveUserIsTarget -and -not [string]::IsNullOrWhiteSpace($targetUserDesktopPath)) {
         $desktopReadyFilePath = Set-DesktopReadyMarker -DesktopPath $targetUserDesktopPath
@@ -648,10 +677,11 @@ function Get-DesktopReadyFacts {
         displayVersion = (Get-ItemProperty -Path $currentVersion -Name DisplayVersion -ErrorAction SilentlyContinue).DisplayVersion
         currentBuild = (Get-ItemProperty -Path $currentVersion -Name CurrentBuild -ErrorAction SilentlyContinue).CurrentBuild
         editionId = (Get-ItemProperty -Path $currentVersion -Name EditionID -ErrorAction SilentlyContinue).EditionID
-        displayLanguage = if ($uiLanguageOverride) { $uiLanguageOverride.Name } else { $null }
-        culture = (Get-Culture).Name
+        displayLanguage = if ($targetDisplayLanguages.Count -gt 0) { $targetDisplayLanguages[0] } elseif ($uiLanguageOverride) { $uiLanguageOverride.Name } else { $null }
+        culture = if (-not [string]::IsNullOrWhiteSpace($targetInternational.culture)) { $targetInternational.culture } else { (Get-Culture).Name }
         timeZone = (Get-TimeZone).Id
         inputLanguages = $inputLanguages
+        inputMethods = @($targetInternational.inputMethods)
     }
 }
 
@@ -717,6 +747,8 @@ try {
     }
 
     Set-WinSystemLocale -SystemLocale $TargetDisplayLanguage
+    $TargetUserLanguageList = New-WinUserLanguageList -Language $TargetInputLanguage
+    Set-WinUserLanguageList -LanguageList $TargetUserLanguageList -Force
     Set-WinUILanguageOverride -Language $TargetDisplayLanguage
     Set-Culture $TargetLocale
     if (-not (Get-Command Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyContinue)) {

@@ -145,10 +145,13 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="software-list" class="software-order-editor"/);
   assert.match(html, /id="profile-display-language" name="displayLanguage"/);
   assert.match(html, /id="profile-locale" name="locale"/);
+  assert.match(html, /id="profile-input-language" name="inputLanguage"/);
   assert.match(html, /id="profile-timezone" name="timeZone"/);
   assert.match(html, /id="software-profile-display-language" name="displayLanguage"/);
+  assert.match(html, /id="software-profile-input-language" name="inputLanguage"/);
   assert.match(html, /Display language/);
   assert.match(html, /Regional format/);
+  assert.match(html, /Input language/);
   assert.doesNotMatch(html, /id="software-add-id"/);
   assert.doesNotMatch(html, /Software ID <input/);
   assert.match(html, /id="software-add-file"[^>]*accept="\.msi,\.exe"/);

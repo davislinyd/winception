@@ -369,6 +369,7 @@ function Get-SelectedOsStatusPayload {
         architecture = [string] $SelectedOs.architecture
         language = [string] $SelectedOs.language
         locale = [string] $SelectedOs.locale
+        inputLanguage = [string] $SelectedOs.inputLanguage
         timeZone = [string] $SelectedOs.timeZone
         edition = [string] $SelectedOs.edition
         editionId = [string] $SelectedOs.editionId
@@ -706,6 +707,10 @@ if (Test-Path -LiteralPath $profileManifestPath -PathType Leaf) {
         if (-not [string]::IsNullOrWhiteSpace([string] $profileManifest.locale)) {
             $SelectedOs | Add-Member -NotePropertyName locale -NotePropertyValue ([string] $profileManifest.locale) -Force
             Write-Host "Profile locale override: $($profileManifest.locale)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string] $profileManifest.inputLanguage)) {
+            $SelectedOs | Add-Member -NotePropertyName inputLanguage -NotePropertyValue ([string] $profileManifest.inputLanguage) -Force
+            Write-Host "Profile input language override: $($profileManifest.inputLanguage)"
         }
         if (-not [string]::IsNullOrWhiteSpace([string] $profileManifest.timeZone)) {
             $SelectedOs | Add-Member -NotePropertyName timeZone -NotePropertyValue ([string] $profileManifest.timeZone) -Force
