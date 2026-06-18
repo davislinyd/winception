@@ -482,6 +482,7 @@ export function profileSummary(state) {
         ...(entry.timeoutSeconds === undefined ? {} : { timeoutSeconds: entry.timeoutSeconds }),
       })),
       osImageId: profile.osImageId,
+      ...(profile.displayLanguage ? { displayLanguage: profile.displayLanguage } : {}),
       ...(profile.locale ? { locale: profile.locale } : {}),
       ...(profile.timeZone ? { timeZone: profile.timeZone } : {}),
     })),

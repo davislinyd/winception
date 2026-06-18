@@ -169,8 +169,8 @@ export function defaultLocale(language) {
   return normalizeLanguage(language).toLowerCase() === 'zh-tw' ? 'zh-TW' : String(language || '').trim();
 }
 
-export function defaultTimeZone(language) {
-  return normalizeLanguage(language).toLowerCase() === 'zh-tw' ? 'Taipei Standard Time' : '';
+export function defaultTimeZone() {
+  return '';
 }
 
 export function defaultEditionId(edition) {

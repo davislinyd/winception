@@ -66,6 +66,7 @@ function Get-SelectedOsMetadata {
     [pscustomobject]@{
         id = 'unpublished'
         language = 'zh-tw'
+        uiLanguage = 'zh-TW'
         locale = 'zh-TW'
         timeZone = 'Taipei Standard Time'
         edition = 'Pro'
@@ -75,8 +76,12 @@ function Get-SelectedOsMetadata {
 }
 
 $SelectedOs = Get-SelectedOsMetadata
-$TargetLocale = if ($SelectedOs.locale) { [string] $SelectedOs.locale } elseif ($SelectedOs.language) { [string] $SelectedOs.language } else { 'zh-TW' }
-$TargetTimeZone = if ($SelectedOs.timeZone) { [string] $SelectedOs.timeZone } else { 'Taipei Standard Time' }
+$TargetDisplayLanguage = if ($SelectedOs.uiLanguage) { [string] $SelectedOs.uiLanguage } elseif ($SelectedOs.language) { [string] $SelectedOs.language } else { 'zh-TW' }
+$TargetLocale = if ($SelectedOs.locale) { [string] $SelectedOs.locale } else { $TargetDisplayLanguage }
+$TargetTimeZone = if ($SelectedOs.timeZone) { [string] $SelectedOs.timeZone } else { '' }
+if ([string]::IsNullOrWhiteSpace($TargetTimeZone)) {
+    throw 'Deployment metadata is missing an explicit Windows time zone.'
+}
 
 function Send-DeploymentStatus {
     param(
@@ -617,6 +622,8 @@ function Get-DesktopReadyFacts {
     $targetUserProfilePath = Get-TargetUserProfilePath
     $targetUserDesktopPath = Get-TargetUserDesktopPath
     $desktopReadyFilePath = $null
+    $uiLanguageOverride = Get-WinUILanguageOverride
+    $inputLanguages = @(Get-WinUserLanguageList | ForEach-Object { $_.LanguageTag })
 
     if ($interactiveUserIsTarget -and -not [string]::IsNullOrWhiteSpace($targetUserDesktopPath)) {
         $desktopReadyFilePath = Set-DesktopReadyMarker -DesktopPath $targetUserDesktopPath
@@ -641,8 +648,10 @@ function Get-DesktopReadyFacts {
         displayVersion = (Get-ItemProperty -Path $currentVersion -Name DisplayVersion -ErrorAction SilentlyContinue).DisplayVersion
         currentBuild = (Get-ItemProperty -Path $currentVersion -Name CurrentBuild -ErrorAction SilentlyContinue).CurrentBuild
         editionId = (Get-ItemProperty -Path $currentVersion -Name EditionID -ErrorAction SilentlyContinue).EditionID
+        displayLanguage = if ($uiLanguageOverride) { $uiLanguageOverride.Name } else { $null }
         culture = (Get-Culture).Name
         timeZone = (Get-TimeZone).Id
+        inputLanguages = $inputLanguages
     }
 }
 
@@ -707,9 +716,13 @@ try {
         Disable-LocalUser -Name $adminUser.Name -ErrorAction SilentlyContinue
     }
 
-    Set-WinSystemLocale -SystemLocale $TargetLocale
-    Set-WinUserLanguageList -LanguageList $TargetLocale -Force
+    Set-WinSystemLocale -SystemLocale $TargetDisplayLanguage
+    Set-WinUILanguageOverride -Language $TargetDisplayLanguage
     Set-Culture $TargetLocale
+    if (-not (Get-Command Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyContinue)) {
+        throw 'Copy-UserInternationalSettingsToSystem is unavailable; Windows 11 or later is required.'
+    }
+    Copy-UserInternationalSettingsToSystem -WelcomeScreen $true -NewUser $true
     Set-TimeZone -Id $TargetTimeZone
 
     $Oobe = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE'

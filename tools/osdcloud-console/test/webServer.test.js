@@ -163,6 +163,9 @@ async function makeServer(root, overrides = {}) {
           softwareIds: input.softwareIds,
           installSequence: input.installSequence,
           osImageId: input.osImageId,
+          displayLanguage: input.displayLanguage,
+          locale: input.locale,
+          timeZone: input.timeZone,
         },
         filePath: path.join(root, `${profileId}.json`),
       }),
@@ -597,6 +600,9 @@ test('runs mutating API actions through the controller', async () => {
         description: 'Chrome build',
         softwareIds: ['chrome', '7zip'],
         execution: { defaultTimeoutSeconds: 1200 },
+        displayLanguage: 'en-US',
+        locale: 'en-US',
+        timeZone: 'Taipei Standard Time',
         installSequence: [
           { type: 'script', id: 'SC-TEST001' },
           { type: 'software', id: 'chrome', timeoutSeconds: 45 },
@@ -608,6 +614,9 @@ test('runs mutating API actions through the controller', async () => {
     payload = await response.json();
     assert.equal(payload.result.profile.name, 'Renamed Default');
     assert.equal(payload.result.profile.description, 'Chrome build');
+    assert.equal(payload.result.profile.displayLanguage, 'en-US');
+    assert.equal(payload.result.profile.locale, 'en-US');
+    assert.equal(payload.result.profile.timeZone, 'Taipei Standard Time');
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome', '7zip']);
     assert.deepEqual(payload.result.profile.installSequence, [
       { type: 'script', id: 'SC-TEST001' },

@@ -93,8 +93,8 @@ GitHub 直接渲染下列 SVG 圖。完整節點說明與安全閘門見
 - 第一次從硬碟開機後自動略過 OOBE
 - 建立自訂的本機管理員帳號與密碼
 - 自動登入桌面
-- 語系為 `zh-TW`
-- 時區為 `Taipei Standard Time`
+- Profile 可獨立設定 display language、regional format 與 Windows time zone；輸入法沿用所選 OS 映像預設
+- tracked `All in One` profile 使用 en-US WIM、`en-US` UI/format 與 `Taipei Standard Time`
 - 停用 OOBE 更新檢查
 
 ## Torrent P2P 映像分發（預設啟用）
@@ -407,7 +407,7 @@ Web Dashboard 主要區塊：
 2. Web console 會要求先停止正在 running 的 HTTP/TFTP/DHCP service，然後自動同步所有受 endpoint 影響的設定與檔案。
 3. 在 Dashboard 的 Preflight Summary 或 Endpoint Sync Progress 看 endpoint update 進度；在 System Log 看同步腳本輸出。
 4. 在 `OS Image Cache` 確認本次要部署的 Windows 映像已完成 cache / export。需要新版本或語言時，先用 Web download catalog 或 browser upload 在 host 端下載/匯入來源 ISO/ESD/WIM，選定 DISM image index，匯出成單一 deployable WIM。部署中不讓 WinPE client 下載 Windows。
-5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。每個可部署 profile 必須綁定一個已匯出的 OS WIM，所以 `Set active` 會同時切換 software payload 與 `selected-os.json`。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise + Notepad++ 8.9.5，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單、安裝順序或 OS image，可按列上的 `Edit`（或上方的 `Edit active` 捷徑）：在 `OS image` 下拉換 image、加入/移除軟體、以上移/下移或拖拉調整 `Selected install order`，存檔後 Web console 會立即重新發佈 live `Apps` payload 與 OS manifest。也可以直接對非 active profile 的列按 `Edit` 預先調整其設定；這類非 active 編輯只改寫該 profile 的 JSON，不停服務、不發佈，等之後對該 profile 按 `Set active` 才會把調整好的內容 publish 出去。若 preflight 顯示 `selected manifest stale`，回 `Deployment Profiles` 再對 active profile 按一次 `Set active` 即可重新發佈。
+5. 選 `Profiles` / `Select deployment profile`，發佈這次要使用的 profile。每個可部署 profile 必須綁定一個已匯出的 OS WIM，所以 `Set active` 會同時切換 software payload 與 `selected-os.json`。Profile 的 `Display language`、`Regional format`、`Time zone` 分別控制 Windows UI、日期/數字格式與系統時區；display language 必須符合所選單語言 WIM，time zone 必須能解析成具體 Windows ID，輸入法不由 profile 改寫。`Default` 會發佈 7-Zip，`All in One` 會發佈 7-Zip + Google Chrome Enterprise + Notepad++ 8.9.5，`Minimal` 不發佈任何 client software。若要調整 active profile 的軟體清單、安裝順序、OS image 或 international settings，可按列上的 `Edit`（或上方的 `Edit active` 捷徑）；存檔後 Web console 會立即重新發佈 live `Apps` payload 與 OS manifest。也可以直接對非 active profile 的列按 `Edit` 預先調整其設定；這類非 active 編輯只改寫該 profile 的 JSON，不停服務、不發佈，等之後對該 profile 按 `Set active` 才會 publish。若 preflight 顯示 `selected manifest stale`，回 `Deployment Profiles` 再對 active profile 按一次 `Set active`。
 6. 在 Web console 選 `Run preflight`。
 7. 如果 service IP、DHCP pool、active OS image、SMB image、HTTP files、profile payload 或 port 檢查失敗，先處理失敗項目，不要啟動 DHCP。
 8. 確認真實 LAN DHCP server 已暫時關閉。
@@ -657,14 +657,15 @@ C:\OSDCloud\PXE-HttpRoot\osdcloud
 13. OSDCloud 直接用 SMB 上的 WIM 執行 DISM 套用 Windows，不再執行 `Download Operating System` 的 HTTP OS image 下載。
 14. WinPE Shutdown script `Invoke-OobeCustomization.ps1` 對新 Windows 離線注入：
     - `Unattend.xml`
+    - 獨立的 `UILanguage` / `UserLocale` / `SystemLocale` / `TimeZone`；不覆寫 `InputLocale`
     - OOBE skip registry
     - Winlogon 自動登入
     - Windows Update policy
     - `SetupComplete.cmd/.ps1`
     - client app payload `C:\ProgramData\OSDCloud\Apps`
 15. `Start-OSDCloud-iPXE.ps1` 在 `Invoke-OSDCloud` 返回後送出完成狀態，等待 10 秒並執行 `wpeutil reboot`。
-16. Windows 第一次開機執行 SetupComplete，建立自訂管理員帳號並使用本機 deployment secret 設定密碼，停用內建 Administrator 帳號（以 SID `-500` 定位），依 selected OS metadata 設定 locale/timezone、OOBE registry，靜默安裝 client apps，並寫入桌面 marker。
-17. 在實體筆電本機或遠端管理通道驗證桌面、版本、語系、時區、OOBE registry、OSDCloud log、HTTP access log。
+16. Windows 第一次開機執行 SetupComplete，建立自訂管理員帳號、依 profile 設定 display language/regional format/time zone、把設定複製到新使用者但保留映像輸入法、設定 OOBE registry、靜默安裝 client apps，並寫入桌面 marker。
+17. 在實體筆電或遠端管理通道驗證桌面、`Get-WinUILanguageOverride`、`Get-Culture`、`Get-TimeZone`、`Get-WinUserLanguageList`、OOBE registry、OSDCloud log 與 HTTP access log。
 
 目前實作中特別重要的限制：
 

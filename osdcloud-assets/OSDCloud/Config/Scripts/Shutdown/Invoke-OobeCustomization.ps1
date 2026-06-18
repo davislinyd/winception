@@ -47,6 +47,7 @@ function Get-SelectedOsMetadata {
     }
 
     [pscustomobject]@{
+        uiLanguage = 'zh-TW'
         locale = 'zh-TW'
         language = 'zh-tw'
         timeZone = 'Taipei Standard Time'
@@ -117,16 +118,12 @@ try {
     Write-Host "Target Windows root: $windowsRoot"
     $deploymentMetadata = Get-DeploymentMetadata -WindowsRoot $windowsRoot
     $selectedOs = Get-SelectedOsMetadata -DeploymentMetadata $deploymentMetadata
-    $locale = if ($selectedOs.locale) { [string] $selectedOs.locale } elseif ($selectedOs.language) { [string] $selectedOs.language } else { 'zh-TW' }
-    # UILanguage must match the language pack baked into the WIM (selectedOs.language).
-    # The profile locale override only affects InputLocale, SystemLocale, and UserLocale
-    # (keyboard layout, date/time/number format) — not the Windows shell display language.
-    $uiLanguage = if ($selectedOs.language) { [string] $selectedOs.language } else { $locale }
-    # Only default to Taipei Standard Time when the locale is zh-TW.
-    # For en-us and other locales, fall through with no timezone so Windows
-    # picks its own default and does NOT add zh-TW to the preferred language list.
-    $defaultTimeZone = if ($locale -match '^zh[-_]TW$') { 'Taipei Standard Time' } else { '' }
-    $timeZone = if (-not [string]::IsNullOrWhiteSpace([string] $selectedOs.timeZone)) { [string] $selectedOs.timeZone } else { $defaultTimeZone }
+    $uiLanguage = if ($selectedOs.uiLanguage) { [string] $selectedOs.uiLanguage } elseif ($selectedOs.language) { [string] $selectedOs.language } else { 'zh-TW' }
+    $locale = if ($selectedOs.locale) { [string] $selectedOs.locale } else { $uiLanguage }
+    $timeZone = if ($selectedOs.timeZone) { [string] $selectedOs.timeZone } else { '' }
+    if ([string]::IsNullOrWhiteSpace($timeZone)) {
+        throw 'Deployment metadata is missing an explicit Windows time zone.'
+    }
     $localeXml = ConvertTo-XmlText -Value $locale
     $uiLanguageXml = ConvertTo-XmlText -Value $uiLanguage
     $timeZoneXml = ConvertTo-XmlText -Value $timeZone
@@ -135,7 +132,7 @@ try {
     $windowsUsernameXml = ConvertTo-XmlText -Value $windowsUsername
     $windowsPasswordXml = ConvertTo-XmlText -Value $windowsPassword
     Write-Host "OOBE UILanguage: $uiLanguage"
-    Write-Host "OOBE locale (InputLocale/SystemLocale/UserLocale): $locale"
+    Write-Host "OOBE regional format (UserLocale): $locale"
     Write-Host "OOBE time zone: $timeZone"
 
     $panther = Join-Path $windowsRoot 'Windows\Panther'
@@ -148,8 +145,7 @@ try {
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-      <InputLocale>$localeXml</InputLocale>
-      <SystemLocale>$localeXml</SystemLocale>
+      <SystemLocale>$uiLanguageXml</SystemLocale>
       <UILanguage>$uiLanguageXml</UILanguage>
       <UILanguageFallback>$uiLanguageXml</UILanguageFallback>
       <UserLocale>$localeXml</UserLocale>

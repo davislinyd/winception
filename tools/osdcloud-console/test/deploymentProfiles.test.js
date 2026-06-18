@@ -119,6 +119,30 @@ test('loads active deployment profile with selected software order', () => {
   }
 });
 
+test('loads independent profile display language, regional format, and time zone', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        osImage: 'TEST-OS',
+        displayLanguage: 'en-US',
+        locale: 'en-US',
+        timeZone: 'Taipei Standard Time',
+      },
+    });
+
+    const profile = resolveDeploymentProfileState(configFor(root)).activeProfile;
+    assert.equal(profile.displayLanguage, 'en-US');
+    assert.equal(profile.locale, 'en-US');
+    assert.equal(profile.timeZone, 'Taipei Standard Time');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('resolves relative deployment profile paths from derived repo root by default', () => {
   const options = deploymentProfileOptions({
     deploymentProfiles: {
@@ -504,6 +528,39 @@ test('creates a deployment profile with optional description', () => {
     const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'AAAAAAA0.json'), 'utf8'));
     assert.equal(raw.description, 'Laptop staging profile');
     assert.deepEqual(raw.software, ['one']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('creates and updates independent profile international settings', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const created = createDeploymentProfile(configFor(root), {
+      name: 'English Taipei',
+      displayLanguage: 'en-US',
+      locale: 'en-US',
+      timeZone: 'Taipei Standard Time',
+    }, { randomInt: () => 26 });
+
+    assert.equal(created.profile.displayLanguage, 'en-US');
+    assert.equal(created.profile.locale, 'en-US');
+    assert.equal(created.profile.timeZone, 'Taipei Standard Time');
+
+    const updated = updateDeploymentProfile(configFor(root), created.profile.id, {
+      displayLanguage: 'zh-TW',
+      locale: 'ja-JP',
+      timeZone: 'Tokyo Standard Time',
+    });
+    assert.equal(updated.profile.displayLanguage, 'zh-TW');
+    assert.equal(updated.profile.locale, 'ja-JP');
+    assert.equal(updated.profile.timeZone, 'Tokyo Standard Time');
+
+    const raw = JSON.parse(fs.readFileSync(created.filePath, 'utf8'));
+    assert.equal(raw.displayLanguage, 'zh-TW');
+    assert.equal(raw.locale, 'ja-JP');
+    assert.equal(raw.timeZone, 'Tokyo Standard Time');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -904,6 +961,90 @@ test('publishes only selected software and removes stale apps', async () => {
     assert.deepEqual(manifest.software.map((software) => software.id), ['two', 'one']);
     assert.equal(manifest.execution.defaultTimeoutSeconds, 900);
     assert.equal(evaluateDeploymentProfilePayload(configFor(root)).ok, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('profile publish resolves independent international settings from profile and OS image', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: [],
+        osImage: 'TEST-OS',
+        displayLanguage: 'en-US',
+        locale: 'en-US',
+        timeZone: 'Taipei Standard Time',
+      },
+    });
+
+    await publishDeploymentProfile(configFor(root), null, {
+      publishOsImage: async () => ({
+        image: { id: 'TEST-OS', language: 'en-us', locale: 'en-US', timeZone: '' },
+      }),
+    });
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
+    assert.equal(manifest.displayLanguage, 'en-US');
+    assert.equal(manifest.locale, 'en-US');
+    assert.equal(manifest.timeZone, 'Taipei Standard Time');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('legacy profile inherits OS image language and locale during publish', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: { id: 'default', name: 'Legacy', software: [], osImage: 'TEST-OS' },
+    });
+    await publishDeploymentProfile(configFor(root), null, {
+      publishOsImage: async () => ({
+        image: { id: 'TEST-OS', language: 'en-us', locale: 'en-US', timeZone: 'UTC' },
+      }),
+    });
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
+    assert.equal(manifest.displayLanguage, 'en-us');
+    assert.equal(manifest.locale, 'en-US');
+    assert.equal(manifest.timeZone, 'UTC');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('profile publish blocks missing time zone and display language mismatch before Apps changes', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Invalid',
+        software: [],
+        osImage: 'TEST-OS',
+        displayLanguage: 'zh-TW',
+        locale: 'en-US',
+      },
+    });
+    fs.mkdirSync(path.join(root, 'Apps', 'keep'), { recursive: true });
+
+    await assert.rejects(
+      publishDeploymentProfile(configFor(root), null, {
+        publishOsImage: async () => ({ image: { id: 'TEST-OS', language: 'en-us', locale: 'en-US', timeZone: '' } }),
+      }),
+      /time zone is unresolved/,
+    );
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'keep')), true);
+
+    await assert.rejects(
+      publishDeploymentProfile(configFor(root), null, {
+        publishOsImage: async () => ({ image: { id: 'TEST-OS', language: 'en-us', locale: 'en-US', timeZone: 'UTC' } }),
+      }),
+      /Display language zh-TW is not installed.*en-us/,
+    );
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'keep')), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

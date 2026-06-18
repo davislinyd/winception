@@ -521,6 +521,29 @@ test('desktop-ready status includes resolved dynamic desktop evidence fields', (
   assert.match(facts, /targetUserDesktopPath = \$targetUserDesktopPath/);
   assert.match(facts, /desktopReadyFilePath = \$desktopReadyFilePath/);
   assert.match(facts, /desktopReadyFile = \(-not \[string\]::IsNullOrWhiteSpace\(\$desktopReadyFilePath\)/);
+  assert.match(facts, /displayLanguage = if \(\$uiLanguageOverride\)/);
+  assert.match(facts, /culture = \(Get-Culture\)\.Name/);
+  assert.match(facts, /timeZone = \(Get-TimeZone\)\.Id/);
+  assert.match(facts, /inputLanguages = \$inputLanguages/);
+});
+
+test('OOBE and SetupComplete keep display language, regional format, time zone, and input methods independent', () => {
+  const shutdown = fs.readFileSync(path.resolve(
+    'osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'Shutdown', 'Invoke-OobeCustomization.ps1',
+  ), 'utf8');
+  const setupComplete = fs.readFileSync(path.resolve(
+    'osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'SetupComplete', 'SetupComplete.ps1',
+  ), 'utf8');
+
+  assert.match(shutdown, /<SystemLocale>\$uiLanguageXml<\/SystemLocale>/);
+  assert.match(shutdown, /<UILanguage>\$uiLanguageXml<\/UILanguage>/);
+  assert.match(shutdown, /<UserLocale>\$localeXml<\/UserLocale>/);
+  assert.match(shutdown, /<TimeZone>\$timeZoneXml<\/TimeZone>/);
+  assert.doesNotMatch(shutdown, /<InputLocale>/);
+  assert.match(setupComplete, /Set-WinUILanguageOverride -Language \$TargetDisplayLanguage/);
+  assert.match(setupComplete, /Copy-UserInternationalSettingsToSystem -WelcomeScreen \$true -NewUser \$true/);
+  assert.match(setupComplete, /Set-TimeZone -Id \$TargetTimeZone/);
+  assert.doesNotMatch(setupComplete, /Set-WinUserLanguageList/);
 });
 
 test('WinPE boot.wim synchronization check uses sync input fingerprints instead of mtimes', () => {

@@ -261,12 +261,14 @@ export function showAddProfileDialog(profile) {
         elements.profileError.textContent = 'Select an OS image for this profile.';
         return;
       }
+      const displayLanguage = elements.profileDisplayLanguage.value.trim() || null;
       const locale = elements.profileLocale.value.trim() || null;
       const timeZone = elements.profileTimezone.value.trim() || null;
       done({
         name,
         description: elements.profileDescription.value.trim(),
         osImageId,
+        ...(displayLanguage ? { displayLanguage } : {}),
         ...(locale ? { locale } : {}),
         ...(timeZone ? { timeZone } : {}),
       });
@@ -337,6 +339,7 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
     elements.softwareProfileName.value = targetProfile?.name ?? '';
     elements.softwareProfileDescription.value = targetProfile?.description ?? '';
     populateOsImageSelect(elements.softwareProfileOsImage, targetProfile?.osImageId ?? '');
+    elements.softwareProfileDisplayLanguage.value = targetProfile?.displayLanguage ?? '';
     elements.softwareProfileLocale.value = targetProfile?.locale ?? '';
     elements.softwareProfileTimezone.value = targetProfile?.timeZone ?? '';
 
@@ -554,6 +557,7 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
         const { type, id } = keyParts(key);
         return { type, id };
       });
+      const displayLanguage = elements.softwareProfileDisplayLanguage.value.trim() || null;
       const locale = elements.softwareProfileLocale.value.trim() || null;
       const timeZone = elements.softwareProfileTimezone.value.trim() || null;
       done({
@@ -564,6 +568,7 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
         softwareIds: selectedSoftwareIds(),
         installSequence,
         osImageId,
+        displayLanguage,
         locale,
         timeZone,
       });

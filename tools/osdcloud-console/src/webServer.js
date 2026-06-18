@@ -358,6 +358,7 @@ export class WebManagementServer {
       const hasInstallSequence = Object.prototype.hasOwnProperty.call(body, 'installSequence');
       const hasExecution = Object.prototype.hasOwnProperty.call(body, 'execution');
       const hasLocale = Object.prototype.hasOwnProperty.call(body, 'locale');
+      const hasDisplayLanguage = Object.prototype.hasOwnProperty.call(body, 'displayLanguage');
       const hasTimeZone = Object.prototype.hasOwnProperty.call(body, 'timeZone');
       const result = await this.controller.updateActiveDeploymentProfile({
         profileId: body.profileId ?? body.id,
@@ -367,6 +368,7 @@ export class WebManagementServer {
         installSequence: hasInstallSequence ? body.installSequence : undefined,
         execution: hasExecution ? body.execution : undefined,
         osImageId: hasOsImage ? (body.osImageId ?? body.osImage) : undefined,
+        ...(hasDisplayLanguage ? { displayLanguage: body.displayLanguage } : {}),
         ...(hasLocale ? { locale: body.locale } : {}),
         ...(hasTimeZone ? { timeZone: body.timeZone } : {}),
       });

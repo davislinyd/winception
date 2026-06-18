@@ -143,6 +143,12 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="software-select-all" data-icon="playlist_add_check"/);
   assert.match(html, /id="software-select-none" data-icon="remove_done"/);
   assert.match(html, /id="software-list" class="software-order-editor"/);
+  assert.match(html, /id="profile-display-language" name="displayLanguage"/);
+  assert.match(html, /id="profile-locale" name="locale"/);
+  assert.match(html, /id="profile-timezone" name="timeZone"/);
+  assert.match(html, /id="software-profile-display-language" name="displayLanguage"/);
+  assert.match(html, /Display language/);
+  assert.match(html, /Regional format/);
   assert.doesNotMatch(html, /id="software-add-id"/);
   assert.doesNotMatch(html, /Software ID <input/);
   assert.match(html, /id="software-add-file"[^>]*accept="\.msi,\.exe"/);
@@ -440,6 +446,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /showValidationEvidence/);
   assert.match(script, /selectedRunEvents/);
   assert.match(script, /Not reported/);
+  assert.match(script, /\['DisplayLanguage', evidenceValue/);
+  assert.match(script, /\['InputLanguages', evidenceValue/);
   assert.match(script, /imageFileDestination', 'imagePath/);
   assert.doesNotMatch(script, /return 'Unknown'/);
   assert.match(script, /status-run-delete/);

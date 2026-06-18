@@ -36,6 +36,7 @@ export function removeAppsRootContents(appsRoot) {
 }
 
 export function profileManifest(state, osImageResult = null) {
+  const international = resolveProfileInternationalSettings(state.activeProfile, osImageResult?.image);
   const selectedScripts = state.selectedScripts ?? [];
   const scriptById = new Map(selectedScripts.map((script) => [script.id, script]));
   const sequence = state.installSequence ?? [];
@@ -57,13 +58,10 @@ export function profileManifest(state, osImageResult = null) {
       ...(entry.timeoutSeconds === undefined ? {} : { timeoutSeconds: entry.timeoutSeconds }),
     })),
     osImageId: state.activeProfile.osImageId,
+    ...(international.displayLanguage ? { displayLanguage: international.displayLanguage } : {}),
+    ...(international.locale ? { locale: international.locale } : {}),
+    ...(international.timeZone ? { timeZone: international.timeZone } : {}),
   };
-  if (state.activeProfile.locale) {
-    manifest.locale = state.activeProfile.locale;
-  }
-  if (state.activeProfile.timeZone) {
-    manifest.timeZone = state.activeProfile.timeZone;
-  }
   if (osImageResult?.image) {
     manifest.osImage = {
       id: osImageResult.image.id,
@@ -72,6 +70,32 @@ export function profileManifest(state, osImageResult = null) {
     };
   }
   return manifest;
+}
+
+export function resolveProfileInternationalSettings(profile, image = null) {
+  const displayLanguage = String(profile.displayLanguage ?? image?.language ?? '').trim();
+  const locale = String(profile.locale ?? image?.locale ?? image?.language ?? '').trim();
+  const timeZone = String(profile.timeZone ?? image?.timeZone ?? '').trim();
+  const imageLanguage = String(image?.language ?? '').trim();
+
+  if (!image) {
+    return { displayLanguage, locale, timeZone };
+  }
+
+  if (!displayLanguage) {
+    throw new Error('Deployment profile display language is unresolved. Select a display language or an OS image with language metadata.');
+  }
+  if (!locale) {
+    throw new Error('Deployment profile regional format is unresolved. Select a regional format or an OS image with locale metadata.');
+  }
+  if (!timeZone) {
+    throw new Error('Deployment profile time zone is unresolved. Select an explicit Windows time zone before publishing.');
+  }
+  if (imageLanguage && displayLanguage.toLowerCase() !== imageLanguage.toLowerCase()) {
+    throw new Error(`Display language ${displayLanguage} is not installed in the selected single-language WIM (${imageLanguage}). Select a matching OS image.`);
+  }
+
+  return { displayLanguage, locale, timeZone };
 }
 
 export function removeScriptsRootContents(scriptsRoot) {
@@ -98,8 +122,6 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
     throw new Error(`Install-Apps.ps1 source not found: ${state.options.installerScript}`);
   }
 
-  const softwarePayloads = await ensureSelectedSoftwarePayloads(state, options);
-
   let osImageResult = null;
   if (typeof options.publishOsImage === 'function') {
     osImageResult = await options.publishOsImage(
@@ -108,6 +130,9 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
       { ...options, validateDism: options.validateDism ?? false },
     );
   }
+
+  resolveProfileInternationalSettings(state.activeProfile, osImageResult?.image);
+  const softwarePayloads = await ensureSelectedSoftwarePayloads(state, options);
 
   const removed = removeAppsRootContents(appsRoot);
   retrySyncOnTransientWindowsError(() =>

@@ -1088,6 +1088,7 @@ export class ServiceController extends EventEmitter {
         installSequence: input.installSequence,
         execution: input.execution,
         osImageId: input.osImageId,
+        ...(Object.prototype.hasOwnProperty.call(input, 'displayLanguage') ? { displayLanguage: input.displayLanguage } : {}),
         ...(Object.prototype.hasOwnProperty.call(input, 'locale') ? { locale: input.locale } : {}),
         ...(Object.prototype.hasOwnProperty.call(input, 'timeZone') ? { timeZone: input.timeZone } : {}),
       };

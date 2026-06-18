@@ -252,11 +252,11 @@ export function renderProfileSummary(appState) {
   } else {
     software.textContent = 'No client software selected.';
   }
-  const localeParts = [active?.locale, active?.timeZone].filter(Boolean);
+  const localeParts = [active?.displayLanguage, active?.locale, active?.timeZone].filter(Boolean);
   if (localeParts.length) {
     const localeMeta = document.createElement('div');
     localeMeta.className = 'profile-meta';
-    localeMeta.textContent = `Locale override: ${localeParts.join(' · ')}`;
+    localeMeta.textContent = `International settings: ${localeParts.join(' · ')}`;
     elements.activeProfileDetails.append(name, description, localeMeta, software);
   } else {
     elements.activeProfileDetails.append(name, description, software);
@@ -1646,8 +1646,10 @@ export function renderValidation(appState) {
     ['DisplayVersion', evidenceValue(appState, ['DisplayVersion', 'displayVersion'])],
     ['CurrentBuild', evidenceValue(appState, ['CurrentBuild', 'currentBuild'])],
     ['EditionID', evidenceValue(appState, ['EditionID', 'editionId'])],
+    ['DisplayLanguage', evidenceValue(appState, ['DisplayLanguage', 'displayLanguage'])],
     ['Culture', evidenceValue(appState, ['Culture', 'culture'])],
     ['TimeZone', evidenceValue(appState, ['TimeZone', 'timeZone'])],
+    ['InputLanguages', evidenceValue(appState, ['InputLanguages', 'inputLanguages'])],
   ]);
 
   setDefinitionList(elements.runTiming, [

@@ -165,6 +165,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
     }
 
+    const displayLanguage = normalizeLocaleTag(raw.displayLanguage, `deployment profile ${id} displayLanguage`, { optional: true });
     const locale = normalizeLocaleTag(raw.locale, `deployment profile ${id} locale`, { optional: true });
     const timeZone = normalizeWindowsTimeZoneId(raw.timeZone, `deployment profile ${id} timeZone`, { optional: true });
 
@@ -178,6 +179,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       hasExplicitExecution: explicitExecution !== null,
       hasInstallSequence: rawInstallSequence !== null,
       osImageId,
+      displayLanguage,
       locale,
       timeZone,
       filePath,
@@ -297,6 +299,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   const explicitExecution = Object.prototype.hasOwnProperty.call(input, 'execution')
     ? normalizeExecutionSettings(input.execution, `deployment profile ${id} execution`)
     : (state.activeProfile.hasExplicitExecution ? { ...state.activeProfile.execution } : null);
+  const displayLanguage = normalizeLocaleTag(input.displayLanguage, `deployment profile ${id} displayLanguage`, { optional: true });
   const locale = normalizeLocaleTag(input.locale, `deployment profile ${id} locale`, { optional: true });
   const timeZone = normalizeWindowsTimeZoneId(input.timeZone, `deployment profile ${id} timeZone`, { optional: true });
 
@@ -318,6 +321,9 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   if (locale) {
     raw.locale = locale;
   }
+  if (displayLanguage) {
+    raw.displayLanguage = displayLanguage;
+  }
   if (timeZone) {
     raw.timeZone = timeZone;
   }
@@ -334,6 +340,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
       hasExplicitExecution: explicitExecution !== null,
       hasInstallSequence: true,
       osImageId,
+      displayLanguage,
       locale,
       timeZone,
       filePath,
@@ -384,6 +391,10 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const execution = hasExecution
     ? resolveExecutionSettings(input.execution, `deployment profile ${id} execution`)
     : profile.execution;
+  const hasDisplayLanguage = Object.prototype.hasOwnProperty.call(input, 'displayLanguage');
+  const displayLanguage = hasDisplayLanguage
+    ? normalizeLocaleTag(input.displayLanguage, `deployment profile ${id} displayLanguage`, { optional: true })
+    : profile.displayLanguage ?? null;
   const hasLocale = Object.prototype.hasOwnProperty.call(input, 'locale');
   const locale = hasLocale
     ? normalizeLocaleTag(input.locale, `deployment profile ${id} locale`, { optional: true })
@@ -422,6 +433,11 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   } else {
     delete raw.locale;
   }
+  if (displayLanguage) {
+    raw.displayLanguage = displayLanguage;
+  } else {
+    delete raw.displayLanguage;
+  }
   if (timeZone) {
     raw.timeZone = timeZone;
   } else {
@@ -440,6 +456,7 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
       hasExplicitExecution: hasExecution ? rawExecution !== null : profile.hasExplicitExecution,
       hasInstallSequence: true,
       osImageId,
+      displayLanguage,
       locale,
       timeZone,
     },
@@ -508,6 +525,11 @@ export function evaluateDeploymentProfilePayload(config = {}, options = {}) {
     }
     if (manifest.osImageId && manifest.osImageId !== state.activeProfile.osImageId) {
       return fail('Deployment profile', `manifest osImage=${manifest.osImageId} active=${state.activeProfile.osImageId}`);
+    }
+    for (const key of ['displayLanguage', 'locale', 'timeZone']) {
+      if (state.activeProfile[key] && manifest[key] !== state.activeProfile[key]) {
+        return fail('Deployment profile', `manifest ${key}=${manifest[key] ?? ''} active=${state.activeProfile[key]}`);
+      }
     }
 
     const expectedIds = state.selectedSoftware.map((software) => software.id);

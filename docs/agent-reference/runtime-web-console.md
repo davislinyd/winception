@@ -56,6 +56,8 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 
 - Fresh clones may have no active OS image, profile OS image, or `selected-os.json`. Web must show a clear no-OS-image state.
 - Profile publish and preflight must fail clearly until a deployable WIM and `selected-os.json` exist.
+- Profile international settings are independent: `displayLanguage` controls Windows UI, `locale` controls regional formatting, and `timeZone` controls only the Windows time zone. Profile publish resolves all three into `selected-profile.json`, rejects a missing time zone, and rejects a display language that does not match the selected single-language WIM.
+- OOBE must not set `InputLocale`, and SetupComplete must not call `Set-WinUserLanguageList`; preserve the image input-language list. SetupComplete runs as SYSTEM, so apply UI/culture to new users with `Copy-UserInternationalSettingsToSystem` before the existing reboot.
 - OS image acquisition is host/Admin Console only.
 - Web OS Image Cache downloads or imports Windows 11 Pro Retail ISO/ESD/WIM sources in any language, inspects DISM indexes, exports one selected index to a deployable WIM, and publishes `selected-os.json` with deploy index `1`. Official-catalog filters must allow future release tags such as 26H1/26H2 and later without code changes when upstream rows exist.
 - `inferEdition` in `src/osimages/inspect.js` derives the edition label from the source image name: names containing 'home' (case-insensitive) map to `'Home'`; all other names default to `'Pro'`. This label is cosmetic — it names the cached WIM file and catalog entry — but a wrong label indicates the wrong source index was selected. DISM export progress is streamed from stdout every 5 percentage points and forwarded as `[DOWNLOAD]` log lines, so the console shows live DISM progress instead of going silent for several minutes.
@@ -78,4 +80,5 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - Screenshot progress evidence is best-effort only. JSON deployment status and logs are the source of truth.
 - Do not install a desktop screenshot Startup helper from `SetupComplete`; the previous approach caused Defender/AMSI blocking.
 - The desktop-ready scheduled task must use an any-user logon trigger with a SYSTEM principal and must keep retrying until `windows-desktop-ready` is successfully POSTed.
+- Desktop-ready evidence must report `displayLanguage`, `culture`, `timeZone`, and `inputLanguages` from the interactive target user.
 - The desktop-ready marker must prove the interactive user is `davis`; do not use `C:\Users\Public\Desktop\OSDCloud-Desktop-Ready.txt` as proof.

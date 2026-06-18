@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### 修正：Client 語言、地區格式與時區解耦
+
+- Profile 新增 `displayLanguage`，既有 `locale` 明確只代表 regional format；`timeZone` 不再由語言推導
+- 發布時解析並驗證三項設定；display language 必須符合所選單語言 WIM，且 time zone 不可留空
+- OOBE 分別寫入 `UILanguage`、`UserLocale`、`SystemLocale` 與 `TimeZone`，不再寫入 `InputLocale`
+- SetupComplete 不再改寫 user language list；改用 `Copy-UserInternationalSettingsToSystem` 把 UI/format 套用到新使用者，同時保留映像預設輸入法
+- Desktop-ready evidence 與 Web Validation 新增 display language、culture、time zone、input languages
+- Tracked `All in One` profile 改用 en-US WIM，設定 en-US UI/format 與 `Taipei Standard Time`
+
+---
+
 ## v0.5.23 — 2026-06-18
 
 ### 變更

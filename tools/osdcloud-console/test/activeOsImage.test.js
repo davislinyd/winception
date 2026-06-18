@@ -66,6 +66,14 @@ test('fresh clone does not commit a preselected Windows image', () => {
   assert.equal(trackedExists('osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/selected-profile.json'), false);
 });
 
+test('All in One profile pins English UI and regional format independently from Taipei time zone', () => {
+  const profile = readJson('config/deployment-profiles/IZVZO7PU.json');
+  assert.match(profile.osImage, /EN-US/u);
+  assert.equal(profile.displayLanguage, 'en-US');
+  assert.equal(profile.locale, 'en-US');
+  assert.equal(profile.timeZone, 'Taipei Standard Time');
+});
+
 test('active custom script is mirrored and handed off to deployed Windows', () => {
   const profile = readJson('config/deployment-profiles/IZVZO7PU.json');
   const scriptEntry = profile.installSequence?.find((entry) => entry.type === 'script' && entry.id === 'SC-J5GF07Y2');

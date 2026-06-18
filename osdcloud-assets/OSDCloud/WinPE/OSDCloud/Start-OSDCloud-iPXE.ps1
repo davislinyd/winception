@@ -692,13 +692,17 @@ if (-not $SelectedOs -or [string]::IsNullOrWhiteSpace([string] $SelectedOs.fileN
     throw "selected-os.json did not produce a usable OS selection from $osRoot"
 }
 
-# Apply profile locale/timezone overrides from selected-profile.json (if present).
-# These override the OS image defaults without changing the UILanguage (which must
-# match the language pack baked into the WIM).
+# Apply independent profile international settings from selected-profile.json.
+# displayLanguage is kept separate from the WIM language metadata and is validated
+# against that single-language WIM before the profile is published.
 $profileManifestPath = 'Z:\OSDCloud\Apps\selected-profile.json'
 if (Test-Path -LiteralPath $profileManifestPath -PathType Leaf) {
     try {
         $profileManifest = Get-Content -LiteralPath $profileManifestPath -Raw | ConvertFrom-Json
+        if (-not [string]::IsNullOrWhiteSpace([string] $profileManifest.displayLanguage)) {
+            $SelectedOs | Add-Member -NotePropertyName uiLanguage -NotePropertyValue ([string] $profileManifest.displayLanguage) -Force
+            Write-Host "Profile display language override: $($profileManifest.displayLanguage)"
+        }
         if (-not [string]::IsNullOrWhiteSpace([string] $profileManifest.locale)) {
             $SelectedOs | Add-Member -NotePropertyName locale -NotePropertyValue ([string] $profileManifest.locale) -Force
             Write-Host "Profile locale override: $($profileManifest.locale)"
@@ -709,7 +713,7 @@ if (Test-Path -LiteralPath $profileManifestPath -PathType Leaf) {
         }
     }
     catch {
-        Write-Warning "Unable to read profile manifest for locale overrides: $($_.Exception.Message)"
+        Write-Warning "Unable to read profile manifest international settings: $($_.Exception.Message)"
     }
 }
 
