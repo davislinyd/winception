@@ -506,6 +506,7 @@ iPXE no-redownload 還要確認：
 | --- | --- |
 | Client 沒拿到 IP | DHCP service 是否 running、真實 LAN DHCP 是否衝突、client 是否接到 `LAN` |
 | secureboot 模式 client 拿到 IP 但卡在 PXE | 看 `pxe-tftp.log`：`bootmgfw.efi`、`Boot/BCD`、`Boot/boot.sdi`、`sources/boot.wim` 應依序 `RRQ`/`SENT`；任何 `MISS` 行表示 bootmgr 要的檔案沒 staged，重跑 Endpoint Sync 或 `tools\Publish-SecureBootTftp.ps1` |
+| Endpoint Sync 失敗並提到 `Get-AuthenticodeSignature` / `Microsoft.PowerShell.Security` | 先確認 Web console 已從 elevated PowerShell 重啟，並已部署含最新 `Publish-SecureBootTftp.ps1` 的 host bundle；舊 bundle 的 child `powershell.exe` 可能繼承錯誤 `PSModulePath` 導致 Secure Boot 簽章驗證失敗。完成 reload 後重跑 Endpoint Sync |
 | ipxe 模式 client 拿到 IP 但沒有下載 `boot.ipxe` | TFTP `snponly.efi` 是否成功、DHCP 是否在 iPXE 階段回傳 boot URL、client Secure Boot 是否已關閉（iPXE 鏈未簽章，SB 開啟會被韌體拒絕） |
 | Client 拿到 LAN IP 但 HTTP 跑去 WAN | live `boot.ipxe` 的 `set base` 是否仍是舊 IP；在 Web console 重新 `Select service interface` |
 | 有 `boot.ipxe` / `boot.wim` 但不套用 Windows | WinPE 是否掛到 `\\<service-ip>\OSDCloudiPXE`，deployable WIM 與 `selected-os.json` 是否存在，SMB firewall 是否允許 |

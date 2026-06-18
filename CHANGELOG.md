@@ -10,6 +10,9 @@
   - Initialization step 的 `objective` / `doneWhen` / `safetyNote` / `nextActionText` 全部改為英文文案
   - Profile 的 locale 下拉選單保留 `zh-TW`、`zh-CN`、`ja-JP` 等 locale code，但顯示名稱統一改為英文
   - 只改 UI 可見文案；中文 Windows 相容 regex、測試 fixture、註解與設計文件不在此版變更範圍
+- **Publish-SecureBootTftp — Security 模組 autoload 失敗**：修復 endpoint sync 內 child `powershell.exe` 可能因繼承到污染過的 `PSModulePath` 而無法載入 `Microsoft.PowerShell.Security`
+  - 原因：`Get-AuthenticodeSignatureIsolated` 雖然已隔離 parent runspace，但仍依賴 autoload；若 Web console 由含 PowerShell 7 路徑的環境啟動，Windows PowerShell 5.1 子進程仍可能在 autoload 時失敗
+  - 解法：在 isolated child 內先以 child `$PSHOME\Modules\Microsoft.PowerShell.Security` 顯式 `Import-Module`，完全繞過繼承的 `PSModulePath`
 
 ---
 

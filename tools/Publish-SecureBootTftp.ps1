@@ -57,6 +57,9 @@ function Get-AuthenticodeSignatureIsolated {
     try {
         $out = & $psExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command {
             $ErrorActionPreference = 'Stop'
+            # Import by the child process's PSHOME path so a polluted inherited
+            # PSModulePath (for example from PowerShell 7) cannot break module autoload.
+            Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security') -ErrorAction Stop
             $sig = Get-AuthenticodeSignature -LiteralPath $env:OSDCLOUD_SIGCHECK_PATH
             [pscustomobject]@{
                 Status  = [string] $sig.Status

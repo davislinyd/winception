@@ -748,6 +748,12 @@ test('restore bootstrap auto-installs ADK prerequisites with signed Microsoft in
   assert.match(script, /NoAdkAutoInstall/);
 });
 
+test('secure boot publish imports Security module by child PSHOME path before Authenticode check', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Publish-SecureBootTftp.ps1'), 'utf8');
+  assert.match(script, /Import-Module \(Join-Path \$PSHOME 'Modules\\Microsoft\.PowerShell\.Security'\) -ErrorAction Stop/);
+  assert.match(script, /Get-AuthenticodeSignature -LiteralPath \$env:OSDCLOUD_SIGCHECK_PATH/);
+});
+
 test('runtime restore requires both OSD modules before WinPE preparation', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
 
