@@ -1,6 +1,6 @@
 # Agent Reference: Validation Scenarios
 
-Read this file when selecting verification for subsystem-specific changes. Also follow `TEST-LOOP.md` for any test, validation, or debug loop.
+Read this file when selecting verification for subsystem-specific changes.
 
 ## General
 

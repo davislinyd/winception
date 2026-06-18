@@ -1,16 +1,7 @@
 # Agent Instructions
 
-This repository documents and validates a Windows 11 zero-touch deployment lab using OSDCloud and iPXE. Keep this file as the always-on operational contract for future agents. Use conditional reference files for task-specific details.
+This repository documents and validates a Windows 11 zero-touch deployment lab using OSDCloud. Keep this file as the always-on operational contract for future agents. Use conditional reference files for task-specific details.
 
-## Current Goal
-
-The working target is a repeatable Web-console-first OSDCloud deployment flow that deploys Windows 11 Pro 25H2 zh-TW and boots directly to the custom Windows account desktop (configured in the Web UI during initialization) with no human interaction inside OOBE.
-
-## 0-to-1 Test Evidence
-
-`TEST-RESULT.md` is the authoritative evidence and no-AI operator runbook for a completed from-zero deployment setup test. If `TEST-RESULT.md` does not exist, treat this repository as having no documented completed 0-to-1 deployment test.
-
-For restored VMs or other deployment computers, use `TEST-RESULT.md` to rebuild from GitHub clone to PXE-ready state without AI assistance. Still read live Web/API/config state before acting; the test result is evidence and a runbook, not a substitute for live state.
 
 ## Startup Checks
 
@@ -21,13 +12,6 @@ At the start of any new session or context switch in this repository:
 3. If `.ai/status.json` exists, inspect it together with live Git state. If it does not exist, report that no status file exists and do not create one during a read-only status check.
 4. Immediately alert the user if `.ai/status.json` is outdated compared to current working tree state, branch/upstream state, remote state, or recent commits.
 
-## Autonomous Test Loop
-
-For any request to test, verify, validate, debug a failing test, run preflight, validate runtime readiness, validate deployment, or exercise the physical-laptop/iPXE path, read and follow `TEST-LOOP.md` before executing the work.
-
-Follow `TEST-LOOP.md` as a bounded autonomous loop: test, collect evidence, classify failures, find root cause, make the smallest safe fix, run focused verification, and continue testing until the completion definition is met or a documented human intervention gate blocks progress.
-
-Do not treat a single failed test, failed preflight, failed deployment phase, or unclear runtime state as the final result unless root cause analysis has been completed and the next step is blocked by a human intervention gate.
 
 ## Reference Files
 
@@ -64,7 +48,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - Workspace: The active Git repository clone directory. Edit code, docs, tests, Git history, `.ai/status.json`, and run tests directly in this directory.
 - Installed host management bundle: `C:\OSDCloud\HostTools\App`. This is the post-setup execution root for the deployment host Web console and helper scripts.
 - Installed host state: `C:\OSDCloud\HostTools\State`. This holds mutable local config, local overlay, deployment secrets, upload staging, and other host-only state.
-- Runtime root: the Web-selected deployment project root, with `C:\OSDCloud` as the proven default. This is product-managed runtime state. Do not manually patch, copy into, or directly edit files there. Never place this root inside the Git clone.
+- Runtime root: the Web-selected deployment project root, with `C:\OSDCloud` as the proven default. Code paths may still allow another absolute path, but it must stay outside the Git clone and outside `C:\OSDCloud\HostTools`. This is product-managed runtime state. Do not manually patch, copy into, or directly edit files there.
 - If deployment testing fails, debug and fix the code directly in the active Git repository workspace.
 
 ## Secrets
@@ -81,6 +65,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - For Runtime Readiness, endpoint sync, Web console, OS image, profile publish, WinPE, SetupComplete, or desktop-ready tasks, read `docs/agent-reference/runtime-web-console.md`.
 - A Git clone alone is not a deployable PXE runtime and must remain an installation/configuration source only. After setup installs `C:\OSDCloud\HostTools`, the original clone may be deleted if no further source edits are needed on that host.
 - Do not manually patch, copy into, or directly edit the Web-selected deployment project root.
+- After changing `tools/osdcloud-console/src/`, reload or restart the Web console before validating behavior. Changes limited to `tools/osdcloud-console/web/js/`, `web/css/`, or `web/index.html` only need a browser reload.
 - Web read-only checks must not mutate live runtime state.
 - Web mutating actions can modify live deployment state.
 - Run preflight before starting services.
@@ -94,14 +79,13 @@ When behavior changes, update the relevant docs in the same workflow:
 ```text
 README.md
 TEST-RESULT.md
-OSDCloud-Win11-Automated-Deployment-Test-Report.md
 AGENTS.md
-TEST-LOOP.md
+CHANGELOG.md
 docs\agent-reference\...
 osdcloud-assets
 ```
 
-Keep `README.md` concise and user-facing. Keep the report detailed and evidence-oriented. Keep `AGENTS.md` focused on always-on operational rules. Keep `TEST-LOOP.md` focused on testing/debug iteration. Keep `docs\agent-reference` focused on conditional task references.
+Keep `README.md` concise and user-facing. Keep `TEST-RESULT.md` as the detailed evidence-oriented 0-to-1 record and no-AI operator runbook. Keep `AGENTS.md` focused on always-on operational rules. Keep `docs\agent-reference` focused on conditional task references.
 
 ## Git And Status Workflow
 
@@ -113,11 +97,10 @@ Before editing, check for unexpected uncommitted changes. If unrelated changes e
 
 After modifying code, docs, config, tests, tracked project behavior, verification state, commit/push state, or when the user asks for a status refresh, update `.ai/status.json` if the repository uses it.
 
-`.ai/status.json` dirty semantics:
+`.ai/status.json` minimum sync semantics:
 
-- `git.dirty` means uncommitted repo-tracked changes excluding `.ai/status.json` itself.
-- Use `git status --porcelain -- ':!.ai/status.json'` to determine dirty state.
-- If only `.ai/status.json` is modified, keep `git.dirty` as `false` and mention that the status file itself is uncommitted.
+- Keep `workspace_state.git_branch`, `workspace_state.git_dirty`, `workspace_state.pending_todo`, and `recent_changes` aligned with live Git state and the current handoff.
+- If `.ai/status.json` says a different branch, upstream state, dirty state, or pending task than the live repo, call that out before acting on the file.
 - Maintain `recent_changes` as at most 5 newest entries, newest first, with concise structured entries and no secrets or long logs.
 
 After code changes, finish by updating related documentation and Git state in the same workflow unless the user explicitly scoped the task differently. For documentation-only or process-only updates, push only when the user requests it, the task is a handoff/release, or another repo rule requires it.
