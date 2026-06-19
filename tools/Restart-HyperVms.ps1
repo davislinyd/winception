@@ -19,27 +19,27 @@ function Get-VmName {
 
 foreach ($index in $StartIndex..$EndIndex) {
     $vmName = Get-VmName -Prefix $VmPrefix -Index $index
-    Write-Host "正在強制處理 $vmName..." -ForegroundColor Cyan
+    Write-Host "Preparing $vmName for a network boot..." -ForegroundColor Cyan
 
     try {
         $vm = Get-VM -Name $vmName
 
         if ($vm.Generation -ne 2) {
-            throw "$vmName 不是第 2 代 VM，無法使用 Set-VMFirmware。"
+            throw "$vmName is not a generation 2 VM; Set-VMFirmware cannot be used."
         }
 
         Stop-VM -Name $vmName -TurnOff -Force -Confirm:$false
 
         $netAdapter = Get-VMNetworkAdapter -VMName $vmName | Select-Object -First 1
         if (-not $netAdapter) {
-            throw "$vmName 找不到可用的網卡。"
+            throw "$vmName has no network adapter."
         }
 
         Set-VMFirmware -VMName $vmName -FirstBootDevice $netAdapter
         Start-VM -Name $vmName
 
-        Write-Host "-> $vmName 已強制關閉並設定為網卡開機" -ForegroundColor Yellow
-        Write-Host "-> $vmName 已重新開機！`n" -ForegroundColor Green
+        Write-Host "-> $vmName was turned off and configured for network boot." -ForegroundColor Yellow
+        Write-Host "-> $vmName restarted.`n" -ForegroundColor Green
 
         if ($PassThru) {
             [pscustomobject]@{
@@ -51,7 +51,7 @@ foreach ($index in $StartIndex..$EndIndex) {
         }
     }
     catch {
-        Write-Host "-> $vmName 失敗：$($_.Exception.Message)`n" -ForegroundColor Red
+        Write-Host "-> $vmName failed: $($_.Exception.Message)`n" -ForegroundColor Red
 
         if ($PassThru) {
             [pscustomobject]@{
