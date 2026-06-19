@@ -185,14 +185,19 @@ export function updateRunSummary(statusRoot, event) {
     rawRunId ? null : 'missing-run-id',
     rawRunId && runId !== String(rawRunId) ? 'run-id-sanitized' : null,
   ]);
+  const preserveCompletedDisplay = summary.status === 'completed'
+    && !runEndStages.has(event.stage)
+    && !failureStages.has(event.stage);
 
   summary.clientId = summary.clientId || event.clientId || null;
   summary.eventCount = Number(summary.eventCount ?? 0) + 1;
   summary.lastReceivedAt = now;
-  summary.latestStage = event.stage ?? null;
-  summary.latestMessage = event.message ?? null;
-  summary.latestPercent = Number.isFinite(event.percent) ? event.percent : null;
-  summary.elapsedSeconds = Number.isFinite(event.elapsedSeconds) ? event.elapsedSeconds : summary.elapsedSeconds;
+  if (!preserveCompletedDisplay) {
+    summary.latestStage = event.stage ?? null;
+    summary.latestMessage = event.message ?? null;
+    summary.latestPercent = Number.isFinite(event.percent) ? event.percent : null;
+    summary.elapsedSeconds = Number.isFinite(event.elapsedSeconds) ? event.elapsedSeconds : summary.elapsedSeconds;
+  }
   if (warnings.length > 0) {
     summary.warnings = warnings;
   }

@@ -55,6 +55,40 @@ test('records deployment run start, WinPE end, Windows start, and final end', ()
   }
 });
 
+test('keeps completed display at 100 when finalizer events arrive later', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-summary-terminal-'));
+  try {
+    updateRunSummary(root, {
+      receivedAt: '2026-05-09T01:15:00Z',
+      runId: 'run-terminal',
+      clientId: 'client-terminal',
+      stage: 'windows-desktop-ready',
+      message: 'desktop ready',
+      percent: 100,
+      elapsedSeconds: 900,
+    });
+    const result = updateRunSummary(root, {
+      receivedAt: '2026-05-09T01:15:05Z',
+      runId: 'run-terminal',
+      clientId: 'client-terminal',
+      stage: 'windows-setupcomplete-finished',
+      message: 'setupcomplete finished',
+      percent: 96,
+      elapsedSeconds: 905,
+    });
+
+    assert.equal(result.summary.status, 'completed');
+    assert.equal(result.summary.latestStage, 'windows-desktop-ready');
+    assert.equal(result.summary.latestMessage, 'desktop ready');
+    assert.equal(result.summary.latestPercent, 100);
+    assert.equal(result.summary.elapsedSeconds, 900);
+    assert.equal(result.summary.lastReceivedAt, '2026-05-09T01:15:05Z');
+    assert.equal(result.summary.eventCount, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('tracks interleaved runs without overwriting summaries', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-summary-fleet-'));
   try {

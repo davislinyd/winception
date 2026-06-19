@@ -14,6 +14,7 @@
 
 - 將 progress JSON helpers 從 Desktop Ready reporter 的產生碼 here-string 移回 `SetupComplete.ps1` 外層作用域，避免四台 client 在 `Initialize-DeploymentProgress` 直接失敗
 - 新增回歸檢查，確保 progress helpers 不會再次落入 reporter here-string
+- 完成事件到達後固定 Validation Evidence 的 terminal stage 與 100%，避免稍晚送達的 SetupComplete finalizer 事件將顯示倒退至 96%
 - 修正 Hyper-V restart helper 的預設 VM prefix，避免把 `winception-client-01` 組成不存在的 `winception-client-001`
 - 將 restart helper 的 console/error 訊息改為 ASCII，避免 Windows PowerShell 5.1 將 UTF-8 no-BOM 中文誤解碼成 parse error
 
