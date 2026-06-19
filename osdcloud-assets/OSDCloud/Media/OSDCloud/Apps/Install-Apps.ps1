@@ -5,6 +5,15 @@ $DefaultTimeoutSeconds = 900
 $StatePath = Join-Path $LogDir 'install-sequence-state.json'
 $SequenceSummaryPath = Join-Path $LogDir 'install-sequence-summary.json'
 $CustomScriptSummaryPath = Join-Path $LogDir 'custom-scripts-summary.json'
+$ProgressPath = if ($env:OSDCloudProgressPath) {
+    $env:OSDCloudProgressPath
+}
+elseif ($env:OSDCloudLogDir) {
+    Join-Path $LogDir 'deployment-progress.json'
+}
+else {
+    'C:\ProgramData\OSDCloud\deployment-progress.json'
+}
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 Start-Transcript -Path (Join-Path $LogDir 'apps-install.log') -Append -ErrorAction SilentlyContinue | Out-Null
 
@@ -15,6 +24,37 @@ function Write-Utf8File {
     )
 
     [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Write-JsonFileAtomic {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)] $Value
+    )
+
+    $directory = Split-Path -Parent $Path
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $temporaryPath = Join-Path $directory ('.{0}.{1}.tmp' -f ([System.IO.Path]::GetFileName($Path)), ([guid]::NewGuid().ToString('N')))
+    $backupPath = Join-Path $directory ('.{0}.{1}.bak' -f ([System.IO.Path]::GetFileName($Path)), ([guid]::NewGuid().ToString('N')))
+    try {
+        Write-Utf8File -Path $temporaryPath -Content ($Value | ConvertTo-Json -Depth 10)
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
+        }
+        else {
+            [System.IO.File]::Move($temporaryPath, $Path)
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $temporaryPath, $backupPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Write-DeploymentProgress {
+    param([Parameter(Mandatory)] $Progress)
+
+    $Progress.updatedAt = (Get-Date).ToString('o')
+    Write-JsonFileAtomic -Path $ProgressPath -Value $Progress
 }
 
 function ConvertTo-PositiveIntegerValue {
@@ -115,15 +155,38 @@ function Get-InstallSequence {
         $Profile
     )
 
-    if ($Profile -and $Profile.installSequence) {
-        return @($Profile.installSequence)
+    $rawSequence = if ($Profile -and $Profile.installSequence) {
+        @($Profile.installSequence)
+    }
+    else {
+        @(Get-SelectedSoftwareIds -AppsRoot $AppsRoot -Profile $Profile | ForEach-Object {
+            [pscustomobject]@{ type = 'software'; id = $_ }
+        })
     }
 
-    $sequence = @()
-    foreach ($softwareId in @(Get-SelectedSoftwareIds -AppsRoot $AppsRoot -Profile $Profile)) {
-        $sequence += [pscustomobject]@{ type = 'software'; id = $softwareId }
-    }
-    return @($sequence)
+    return @($rawSequence | ForEach-Object {
+        $entry = $_
+        $stepType = [string] $entry.type
+        $stepId = [string] $entry.id
+        $stepName = if ($entry.name) { [string] $entry.name } else { $null }
+        if ([string]::IsNullOrWhiteSpace($stepName) -and $Profile) {
+            $catalogRows = if ($stepType -eq 'script') { @($Profile.scripts) } else { @($Profile.software) }
+            $catalogRow = @($catalogRows | Where-Object { [string] $_.id -eq $stepId } | Select-Object -First 1)
+            if ($catalogRow.Count -gt 0 -and $catalogRow[0].name) {
+                $stepName = [string] $catalogRow[0].name
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($stepName)) {
+            $stepName = $stepId
+        }
+
+        [pscustomobject]@{
+            type = $stepType
+            id = $stepId
+            name = $stepName
+            timeoutSeconds = if ($entry.PSObject.Properties['timeoutSeconds']) { $entry.timeoutSeconds } else { $null }
+        }
+    })
 }
 
 function Get-ExecutionConfig {
@@ -365,10 +428,23 @@ catch {
             Stop-StepProcessTree -ProcessId $process.Id
         }
 
-        try {
-            $process.WaitForExit() | Out-Null
+        if ($timedOut) {
+            try {
+                [void] $process.WaitForExit(5000)
+            }
+            catch {
+            }
+            $process.Refresh()
+            if (-not $process.HasExited) {
+                Write-StepLog -Path $LogPath -Message 'Warning: process still running after timeout termination request.'
+            }
         }
-        catch {
+        else {
+            try {
+                $process.WaitForExit() | Out-Null
+            }
+            catch {
+            }
         }
         $process.Refresh()
 
@@ -528,7 +604,7 @@ function Invoke-SequenceStep {
 
 function Write-InstallSequenceSummary {
     param(
-        [Parameter(Mandatory)][System.Collections.ArrayList] $Results,
+        [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.ArrayList] $Results,
         [Parameter(Mandatory)] $Execution,
         [Parameter(Mandatory)][string] $StatePathValue
     )
@@ -552,7 +628,7 @@ function Write-InstallSequenceSummary {
 }
 
 function Write-CustomScriptSummary {
-    param([Parameter(Mandatory)][System.Collections.ArrayList] $Results)
+    param([Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.ArrayList] $Results)
 
     $scripts = @($Results | Where-Object { $_.type -eq 'script' })
     if ($scripts.Count -eq 0) {
@@ -583,6 +659,18 @@ try {
     Initialize-InstallStateFile -Path $StatePath
     Assert-ValidInstallStateFile -Path $StatePath -Label 'Initial'
     $installSequence = @(Get-InstallSequence -AppsRoot $appsRoot -Profile $profile)
+    $progress = [ordered]@{
+        schemaVersion = 1
+        status = 'running'
+        totalSteps = $installSequence.Count
+        completedSteps = @()
+        currentStep = $null
+        failure = $null
+        startedAt = (Get-Date).ToString('o')
+        updatedAt = $null
+        finishedAt = $null
+    }
+    Write-DeploymentProgress -Progress $progress
     if ($installSequence.Count -eq 0) {
         Write-Host 'No client applications selected by deployment profile.'
     }
@@ -591,12 +679,46 @@ try {
     $stepIndex = 0
     foreach ($entry in $installSequence) {
         $stepIndex += 1
+        $progress.currentStep = [ordered]@{
+            index = $stepIndex
+            type = [string] $entry.type
+            id = [string] $entry.id
+            name = [string] $entry.name
+            startedAt = (Get-Date).ToString('o')
+            timeoutSeconds = Get-StepTimeoutSeconds -Entry $entry -Execution $execution
+        }
+        Write-DeploymentProgress -Progress $progress
         $result = Invoke-SequenceStep -AppsRoot $appsRoot -ScriptsRoot $scriptsRoot -Entry $entry -StepIndex $stepIndex -Execution $execution -StatePathValue $StatePath
         [void] $results.Add($result)
+        $safeResult = [ordered]@{
+            index = $result.stepIndex
+            type = $result.stepType
+            id = $result.stepId
+            name = $result.name
+            status = $result.status
+            startedAt = $result.startedAt
+            endedAt = $result.endedAt
+            durationSeconds = $result.durationSeconds
+            timeoutSeconds = $result.timeoutSeconds
+            exitCode = $result.exitCode
+            logPath = $result.logPath
+        }
+        $progress.completedSteps = @($progress.completedSteps) + @($safeResult)
+        $progress.currentStep = $null
         if ($result.status -ne 'succeeded') {
             $failedStep = $result
+            $progress.status = 'failed'
+            $progress.failure = [ordered]@{
+                step = $safeResult
+                category = $result.status
+                exitCode = $result.exitCode
+                logPath = $result.logPath
+            }
+            $progress.finishedAt = (Get-Date).ToString('o')
+            Write-DeploymentProgress -Progress $progress
             break
         }
+        Write-DeploymentProgress -Progress $progress
     }
 
     $summaryPath = Write-InstallSequenceSummary -Results $results -Execution $execution -StatePathValue $StatePath
@@ -609,6 +731,26 @@ try {
     if ($failedStep) {
         throw "Install sequence failed at step $($failedStep.stepIndex) ($($failedStep.type):$($failedStep.id)): $($failedStep.reason)"
     }
+
+    $progress.status = 'succeeded'
+    $progress.currentStep = $null
+    $progress.finishedAt = (Get-Date).ToString('o')
+    Write-DeploymentProgress -Progress $progress
+}
+catch {
+    if ($null -ne $progress -and $progress.status -ne 'failed') {
+        $progress.status = 'failed'
+        $progress.currentStep = $null
+        $progress.failure = [ordered]@{
+            step = $null
+            category = 'runner_error'
+            exitCode = $null
+            logPath = $SequenceSummaryPath
+        }
+        $progress.finishedAt = (Get-Date).ToString('o')
+        Write-DeploymentProgress -Progress $progress
+    }
+    throw
 }
 finally {
     Stop-Transcript -ErrorAction SilentlyContinue | Out-Null

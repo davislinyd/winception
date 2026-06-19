@@ -171,6 +171,7 @@ try {
         @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd'; SourceKind = 'boot.wim:index1' },
         @{ Source = Join-Path $winPeMount 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'; SourceKind = 'boot.wim:index1' },
         @{ Source = Join-Path $winPeMount 'OSDCloud\Report-OSDCloudProgress.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1'; SourceKind = 'boot.wim:index1' },
+        @{ Source = Join-Path $winPeMount 'OSDCloud\Report-TorrentTelemetry.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Report-TorrentTelemetry.ps1'; SourceKind = 'boot.wim:index1' },
         @{ Source = Join-Path $winPeMount 'OSDCloud\Start-OSDCloud-iPXE.ps1'; Target = 'OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1'; SourceKind = 'boot.wim:index1' }
     )
 
@@ -246,6 +247,7 @@ try {
                 'OSDCloud\WinPE\OSDCloud\Maximize-Console.ps1',
                 'OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1',
                 'OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1',
+                'OSDCloud\WinPE\OSDCloud\Report-TorrentTelemetry.ps1',
                 'OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1',
                 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd',
                 'OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1'

@@ -980,6 +980,12 @@ test('endpoint sync injects the torrent telemetry reporter into rebuilt WinPE', 
   assert.match(script, /WinPE\\OSDCloud\\Report-TorrentTelemetry\.ps1/);
 });
 
+test('asset sync exports and restores the torrent telemetry reporter', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Sync-OsdCloudAssets.ps1'), 'utf8');
+  assert.match(script, /OSDCloud\\Report-TorrentTelemetry\.ps1/);
+  assert.match(script, /WinPE\\OSDCloud\\Report-TorrentTelemetry\.ps1/);
+});
+
 test('endpoint sync injects OSD modules into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
   const moduleCheckIndex = script.indexOf("Assert-WinPePowerShellModuleAvailable -Name 'OSDCloud'");
