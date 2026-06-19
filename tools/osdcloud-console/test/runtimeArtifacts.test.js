@@ -944,6 +944,14 @@ test('WinPE torrent download shows local progress and active peers through loopb
   assert.match(script, /--gid=\$aria2Gid/);
   assert.match(script, /aria2\.tellStatus/);
   assert.match(script, /aria2\.getPeers/);
+  assert.match(script, /wpeutil DisableFirewall/);
+  assert.match(script, /--bt-enable-lpd=true/);
+  assert.match(script, /--enable-peer-exchange=true/);
+  assert.match(script, /--bt-tracker-interval=5/);
+  assert.match(script, /--bt-external-ip=\$clientIPv4/);
+  assert.match(script, /--bt-lpd-interface=\$clientIPv4/);
+  assert.match(script, /--listen-port=\$listenPort/);
+  assert.match(script, /uploadedBytes=/);
   assert.match(script, /Write-Progress -Id 22/);
   assert.match(script, /Downloading from:/);
   assert.match(script, /Uploading to:/);

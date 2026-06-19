@@ -91,6 +91,7 @@ test('TorrentTracker starts and stops on an ephemeral port', async () => {
   await tracker.start();
   assert.equal(tracker.running, true);
   assert.ok(tracker.address, 'exposes the bound address while running');
+  assert.equal(tracker.server.intervalMs, 5000, 'clients re-announce during short WinPE downloads');
   await tracker.stop();
   assert.equal(tracker.running, false);
   assert.ok(logs.some((line) => line.startsWith('START tracker')), 'logs the announce URL');
@@ -157,6 +158,48 @@ test('NodeSuperSeeder builds a full bitfield covering all pieces', () => {
   const bf2 = seeder._buildFullBitfield();
   assert.equal(bf2.length, 4);
   assert.equal(bf2[3], 0x80);
+});
+
+test('NodeSuperSeeder assigns disjoint striped pieces that cover a concurrent batch', () => {
+  const seeder = new NodeSuperSeeder({});
+  seeder._totalPieces = 25;
+  const fields = [0, 1, 2, 3].map((slot) => seeder._buildStripedBitfield(slot, 4));
+  const hasPiece = (field, piece) => (field[piece >> 3] & (0x80 >> (piece & 7))) !== 0;
+
+  for (let piece = 0; piece < seeder._totalPieces; piece++) {
+    const owners = fields.filter((field) => hasPiece(field, piece));
+    assert.equal(owners.length, 1, `piece ${piece} has exactly one host-assigned owner`);
+  }
+});
+
+test('NodeSuperSeeder releases pending peers as one striped deployment batch', () => {
+  const seeder = new NodeSuperSeeder({});
+  seeder._totalPieces = 8;
+  const makePeer = () => {
+    const sent = [];
+    return {
+      wire: {
+        bitfield: (value) => sent.push(value),
+        unchoke: () => {},
+        have: () => {},
+      },
+      sent,
+      remoteName: '127.0.0.1:1',
+      closed: false,
+      servedBytes: 0,
+    };
+  };
+  const peers = [makePeer(), makePeer()];
+  seeder._pendingPeers = peers;
+  seeder._releasePendingBatch();
+
+  assert.equal(peers[0].peerCount, 2);
+  assert.equal(peers[1].peerCount, 2);
+  assert.equal(peers[0].slot, 0);
+  assert.equal(peers[1].slot, 1);
+  assert.equal(peers[0].sent[0][0], 0xaa);
+  assert.equal(peers[1].sent[0][0], 0x55);
+  for (const peer of peers) clearTimeout(peer.fallbackTimer);
 });
 
 test('NodeSuperSeeder start is a no-op when disabled', async () => {

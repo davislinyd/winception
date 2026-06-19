@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### 修正：Torrent client 未互傳 piece
+
+- tracker announce interval 由 10 分鐘縮短為 5 秒，WinPE aria2 啟用 peer exchange、固定 listen port 與明確 external IP，並以 `wpeutil` 關閉 firewall，讓同批 client 能在下載期間建立 inbound peer 連線
+- host seeder 改為等待 12 秒收集同批 client，再按實際連線數提供互斥 striped bitfield；正常路徑只供應約一份 WIM，peer path 失效 3 分鐘後才放寬成完整 host fallback
+- client 完成摘要與 `torrent-peers` evidence 改用 aria2 RPC 的實際 endpoints 和累計 `uploadLength`，不再從 log 掃描可能誤判 self IP 的位址
+- 新增雙 aria2 integration test：兩台必須完成、各自上傳 bytes，且 host 供應量不得超過 1.15 份測試映像
+
 ### 新功能：WinPE Torrent 即時傳輸資訊
 
 - WinPE client 在 torrent 下載期間顯示完成百分比、容量、下載/上傳速率與 ETA

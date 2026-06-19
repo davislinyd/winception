@@ -579,10 +579,35 @@ function Invoke-TorrentOsImageDownload {
         # the seeder -> ~Nx, no offload.) Disable the firewall by every available
         # method, add an explicit allow rule, then report the resulting state so
         # the host can confirm inbound is actually open.
+        $clientIPv4 = $null
+        try {
+            $serverPrefix = $server -replace '\.\d+$', '.'
+            $clientIPv4 = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration |
+                Where-Object { $_.IPEnabled } |
+                ForEach-Object { $_.IPAddress } |
+                Where-Object { $_ -match '^\d{1,3}(?:\.\d{1,3}){3}$' -and $_.StartsWith($serverPrefix) -and $_ -ne $server } |
+                Select-Object -First 1
+        } catch {}
+        $listenPort = if ($clientIPv4) { 7000 + [int] (($clientIPv4 -split '\.')[-1]) } else { Get-Random -Minimum 7001 -Maximum 7255 }
+
         $fwReport = @()
-        try { $null = & netsh advfirewall set allprofiles state off 2>&1; $fwReport += 'advfirewall=off' } catch { $fwReport += "advfirewall-err=$($_.Exception.Message)" }
-        try { $null = & netsh advfirewall firewall add rule name='aria2-in' dir=in action=allow protocol=TCP localport=6881-6999 2>&1; $fwReport += 'rule=added' } catch {}
-        try { $null = & netsh firewall set opmode mode=disable 2>&1; $fwReport += 'legacy=disabled' } catch {}
+        try {
+            $fwOutput = & wpeutil DisableFirewall 2>&1
+            $fwReport += "wpeutil=$LASTEXITCODE"
+            if ($LASTEXITCODE -ne 0 -and $fwOutput) { $fwReport += "wpeutil-output=$($fwOutput -join ' ')" }
+        } catch { $fwReport += "wpeutil-err=$($_.Exception.Message)" }
+        try {
+            $null = & netsh advfirewall set allprofiles state off 2>&1
+            $fwReport += "advfirewall=$LASTEXITCODE"
+        } catch { $fwReport += "advfirewall-err=$($_.Exception.Message)" }
+        try {
+            $null = & netsh advfirewall firewall add rule name='aria2-in' dir=in action=allow protocol=TCP localport=7001-7254 2>&1
+            $fwReport += "rule=$LASTEXITCODE"
+        } catch { $fwReport += "rule-err=$($_.Exception.Message)" }
+        try {
+            $null = & netsh firewall set opmode mode=disable 2>&1
+            $fwReport += "legacy=$LASTEXITCODE"
+        } catch { $fwReport += "legacy-err=$($_.Exception.Message)" }
         try {
             $svc = Get-Service -Name MpsSvc -ErrorAction SilentlyContinue
             $fwReport += "MpsSvc=$(if ($svc) { $svc.Status } else { 'absent' })"
@@ -591,6 +616,8 @@ function Invoke-TorrentOsImageDownload {
             $state = (& netsh advfirewall show allprofiles state 2>&1 | Where-Object { $_ -match 'State|ON|OFF' }) -join ' '
             if ($state) { $fwReport += "state: $state" }
         } catch {}
+        $clientEndpoint = if ($clientIPv4) { $clientIPv4 } else { 'unknown' }
+        $fwReport += "client=${clientEndpoint}:$listenPort"
         Send-DeploymentStatus -Stage 'torrent-firewall' -Message ($fwReport -join ' | ')
 
         Send-DeploymentStatus -Stage 'torrent-download' -Message "Starting BitTorrent download of $fileName (tracker + peers + host seed)." -Extra @{ torrentUrl = [string] $BootConfig.torrentUrl }
@@ -610,7 +637,10 @@ function Invoke-TorrentOsImageDownload {
             '--bt-save-metadata=false',
             '--enable-dht=false',
             '--enable-dht6=false',
-            '--listen-port=6881-6999',
+            '--bt-enable-lpd=true',
+            '--enable-peer-exchange=true',
+            '--bt-tracker-interval=5',
+            "--listen-port=$listenPort",
             "--gid=$aria2Gid",
             '--enable-rpc=true',
             '--rpc-listen-all=false',
@@ -622,6 +652,12 @@ function Invoke-TorrentOsImageDownload {
             '--log-level=info',
             $torrentPath
         )
+        if ($clientIPv4) {
+            $aria2Args = @(
+                "--bt-external-ip=$clientIPv4",
+                "--bt-lpd-interface=$clientIPv4"
+            ) + $aria2Args
+        }
         $downloadStartTime = Get-Date
         $proc = Start-Process -FilePath $aria2 -ArgumentList $aria2Args -WindowStyle Hidden -PassThru
         $rpcWarningShown = $false
@@ -629,6 +665,7 @@ function Invoke-TorrentOsImageDownload {
         $lastUploadPeers = $null
         $observedDownloadPeers = @{}
         $observedUploadPeers = @{}
+        $lastUploadLength = [double] 0
 
         # aria2 removes the .aria2 control file once the download completes, then
         # keeps running to seed to peers. Poll for completion; do not block on the
@@ -656,6 +693,7 @@ function Invoke-TorrentOsImageDownload {
                 $completedBytes = [double] $status.completedLength
                 $downloadSpeed = [double] $status.downloadSpeed
                 $uploadSpeed = [double] $status.uploadSpeed
+                $lastUploadLength = [math]::Max($lastUploadLength, [double] $status.uploadLength)
                 $percent = if ($totalBytes -gt 0) { [math]::Min(100, [math]::Floor(($completedBytes / $totalBytes) * 100)) } else { 0 }
                 $eta = if ($downloadSpeed -gt 0 -and $totalBytes -gt $completedBytes) {
                     Format-TorrentEta -Seconds (($totalBytes - $completedBytes) / $downloadSpeed)
@@ -721,24 +759,13 @@ function Invoke-TorrentOsImageDownload {
             throw "SHA-256 mismatch (actual=$actual expected=$expected)."
         }
 
-        # Count VM peer IPs in the aria2 log (info-level records peer IP:port).
-        # Filters to the same /24 as the host seeder ($server) and excludes the
-        # host itself — remaining IPs are other VMs that this client exchanged
-        # pieces with, confirming VM<->VM BT links formed (firewall is open).
-        $peerDiag = 'peers=0'
-        try {
-            $subnet = $server -replace '\.\d+$', '.'
-            $logLines = Get-Content "$logRoot\aria2.log" -ErrorAction SilentlyContinue -TotalCount 100000
-            if ($logLines) {
-                $vmPeerIps = $logLines |
-                    Select-String -Pattern '(\b(?:\d{1,3}\.){3}\d{1,3}\b)' -AllMatches |
-                    ForEach-Object { $_.Matches | ForEach-Object { $_.Groups[1].Value } } |
-                    Where-Object { $_.StartsWith($subnet) -and $_ -ne $server } |
-                    Sort-Object -Unique
-                $n = @($vmPeerIps).Count
-                $peerDiag = "peers=$n$(if ($n -gt 0) { " ips=$(($vmPeerIps | Select-Object -First 8) -join ',')" })"
-            }
-        } catch {}
+        # Completion-only transfer evidence. RPC-observed endpoints avoid the old
+        # aria2 log scan, which could misclassify this client's own address as a peer.
+        $peerSources = @($observedDownloadPeers.Keys | Where-Object { $_ -notmatch "^$([regex]::Escape($server)):" } | Sort-Object)
+        $peerReceivers = @($observedUploadPeers.Keys | Sort-Object)
+        $peerDiag = "peerSources=$($peerSources.Count) receivers=$($peerReceivers.Count) uploadedBytes=$([long] $lastUploadLength)"
+        if ($peerSources.Count) { $peerDiag += " sourceEndpoints=$(($peerSources | Select-Object -First 8) -join ',')" }
+        if ($peerReceivers.Count) { $peerDiag += " receiverEndpoints=$(($peerReceivers | Select-Object -First 8) -join ',')" }
         Send-DeploymentStatus -Stage 'torrent-peers' -Message $peerDiag
 
         $item = Get-Item -LiteralPath $targetWim
@@ -749,6 +776,7 @@ function Invoke-TorrentOsImageDownload {
         Write-Host ''
         Write-Host 'Torrent transfer complete.' -ForegroundColor Green
         Write-Host ("  Downloaded: {0:N2} GiB in {1:N1}s (average {2:N1} MiB/s)" -f ($item.Length / 1GB), $durationSeconds, $avgSpeedMiBps)
+        Write-Host ("  Uploaded: {0:N2} GiB" -f ($lastUploadLength / 1GB))
         Write-Host "  Sources used: $(if ($sourceSummary.Count) { $sourceSummary -join ', ' } else { 'none observed' })"
         Write-Host "  Uploaded to: $(if ($receiverSummary.Count) { $receiverSummary -join ', ' } else { 'none observed' })"
         Send-DeploymentStatus -Stage 'torrent-download' -Message "P2P download complete; seeding to peers (up to $seedMinutes min)." -Percent 100 -Extra @{ fileName = $fileName; bytes = $item.Length; durationSeconds = $durationSeconds; avgSpeedMiBps = $avgSpeedMiBps }
