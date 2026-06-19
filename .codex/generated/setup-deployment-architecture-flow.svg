@@ -1,0 +1,711 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="6200" height="4300" viewBox="0 0 6200 4300" role="img" aria-labelledby="title desc">
+  <title id="title">Winception Set up deployment 完整技術架構與操作流程</title>
+  <desc id="desc">包含使用者操作、Web UI、API、ServiceController、Host runtime、PXE WinPE、Windows finalization、Torrent swarm 與 Validation Evidence 的詳細向量流程圖。</desc>
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1769aa"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#18864b"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c93632"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b66b00"/>
+    </marker>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#d8e1e8" stroke-width="1" opacity="0.5"/>
+    </pattern>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#18324b" flood-opacity="0.12"/>
+    </filter>
+    <style><![CDATA[
+      .bg { fill: #f4f1e9; }
+      .grid { fill: url(#grid); }
+      .title { font: 700 62px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #102f4f; }
+      .subtitle { font: 400 27px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #45627d; }
+      .section-title { font: 700 34px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #102f4f; }
+      .section-sub { font: 400 21px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #587187; }
+      .card { fill: #ffffff; stroke: #9cafbf; stroke-width: 2.2; rx: 18; filter: url(#shadow); }
+      .required { stroke: #0f4f81; stroke-width: 3; }
+      .optional { stroke: #577182; stroke-width: 2.5; }
+      .head { fill: #103f69; }
+      .head-optional { fill: #365d74; }
+      .head-text { font: 700 25px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: white; text-anchor: middle; }
+      .step-no { font: 700 30px "Segoe UI", sans-serif; fill: #b9e4f1; text-anchor: middle; }
+      .label { font: 700 22px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #18324b; }
+      .body { font: 400 19px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #253d52; }
+      .small { font: 400 17px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #354f65; }
+      .tiny { font: 400 15px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #496174; }
+      .mono { font: 500 17px Consolas, "Cascadia Mono", monospace; fill: #103f69; }
+      .mono-small { font: 500 15px Consolas, "Cascadia Mono", monospace; fill: #103f69; }
+      .box { fill: #f8fbfd; stroke: #8ea6b9; stroke-width: 1.8; rx: 12; }
+      .user-box { fill: #fff8e8; stroke: #c79532; stroke-width: 2; rx: 12; }
+      .api-box { fill: #eaf7fa; stroke: #2793a4; stroke-width: 2; rx: 12; }
+      .artifact-box { fill: #eef4f8; stroke: #7693a9; stroke-width: 1.8; rx: 12; }
+      .good-box { fill: #e9f7ed; stroke: #18864b; stroke-width: 2; rx: 12; }
+      .warn-box { fill: #fff4da; stroke: #b66b00; stroke-width: 2; rx: 12; }
+      .bad-box { fill: #fdeceb; stroke: #c93632; stroke-width: 2; rx: 12; }
+      .dark-box { fill: #173a58; stroke: #0f2c46; stroke-width: 2; rx: 14; }
+      .dark-text { font: 500 18px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #eef8fc; }
+      .lane { fill: #fdfdfb; stroke: #a9bac7; stroke-width: 2; rx: 20; }
+      .lane-head { fill: #dcebf2; stroke: #7f9bae; stroke-width: 2; rx: 16; }
+      .lane-title { font: 700 26px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #153d5e; }
+      .flow-blue { fill: none; stroke: #1769aa; stroke-width: 4; marker-end: url(#arrow-blue); }
+      .flow-green { fill: none; stroke: #18864b; stroke-width: 4; marker-end: url(#arrow-green); }
+      .flow-red { fill: none; stroke: #c93632; stroke-width: 4; marker-end: url(#arrow-red); }
+      .flow-amber { fill: none; stroke: #b66b00; stroke-width: 4; marker-end: url(#arrow-amber); }
+      .flow-dashed { fill: none; stroke: #1769aa; stroke-width: 3.5; stroke-dasharray: 14 10; marker-end: url(#arrow-blue); }
+      .divider { stroke: #c5d0d8; stroke-width: 2; }
+      .phase-pill { fill: #dcecf5; stroke: #6b91aa; stroke-width: 1.5; rx: 16; }
+      .phase-text { font: 700 17px "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif; fill: #244c68; text-anchor: middle; }
+      .decision { fill: #fff; stroke: #46687f; stroke-width: 2.4; }
+      .callout { fill: #fffdf6; stroke: #baa36a; stroke-width: 2; rx: 16; }
+    ]]></style>
+  </defs>
+
+  <rect class="bg" width="6200" height="4300"/>
+  <rect class="grid" width="6200" height="4300"/>
+
+  <!-- Header -->
+  <text class="title" x="80" y="92">Winception — Set up deployment 完整技術架構與操作流程</text>
+  <text class="subtitle" x="82" y="145">Technician action → Browser UI → Web API / ServiceController → Host runtime &amp; services → PXE / WinPE → Windows 11 → Validation Evidence</text>
+  <g transform="translate(5030 52)">
+    <rect class="phase-pill" width="330" height="48"/>
+    <text class="phase-text" x="165" y="31">實線：控制／寫入</text>
+    <rect class="phase-pill" x="350" width="330" height="48"/>
+    <text class="phase-text" x="515" y="31">虛線：輪詢／回報</text>
+    <rect class="phase-pill" x="700" width="360" height="48"/>
+    <text class="phase-text" x="880" y="31">紅／橘：阻擋／警告</text>
+  </g>
+  <line class="divider" x1="80" y1="190" x2="6120" y2="190"/>
+
+  <!-- Setup section -->
+  <text class="section-title" x="80" y="258">A. Guided setup：使用者操作與後端 mutation（左至右 01–10）</text>
+  <text class="section-sub" x="1060" y="258">01–07 為 required prerequisites；08–10 由 deploymentReady、deploymentLive、deployment run evidence 接手。</text>
+
+  <!-- Step 01 -->
+  <g transform="translate(80 300)">
+    <rect class="card required" width="500" height="1450"/>
+    <path class="head" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">01</text>
+    <text class="head-text" x="250" y="72">Project root</text>
+    <rect class="user-box" x="18" y="112" width="464" height="176"/>
+    <text class="label" x="38" y="145">Technician</text>
+    <text class="body" x="38" y="177"><tspan x="38">確認 runtime root</tspan><tspan x="38" dy="30">目前 controller 固定套用：</tspan><tspan class="mono" x="38" dy="31">C:\OSDCloud</tspan><tspan x="38" dy="30">按下 Save project root</tspan></text>
+    <path class="flow-blue" d="M250 288 V330"/>
+    <rect class="api-box" x="50" y="332" width="400" height="82"/>
+    <text class="mono" x="250" y="382" text-anchor="middle">POST /api/project-root</text>
+    <path class="flow-blue" d="M250 414 V456"/>
+    <rect class="box" x="18" y="458" width="464" height="270"/>
+    <text class="label" x="38" y="492">ServiceController.updateProjectRoot</text>
+    <text class="body" x="38" y="527"><tspan x="38">1. stopAllServices()</tspan><tspan x="38" dy="30">2. applyProjectRoot(config)</tspan><tspan x="38" dy="30">3. saveConfig(local overlay)</tspan><tspan x="38" dy="30">4. refreshServiceConfigs()</tspan><tspan x="38" dy="30">5. clear preflightResults</tspan></text>
+    <path class="flow-blue" d="M250 728 V770"/>
+    <rect class="artifact-box" x="18" y="772" width="464" height="206"/>
+    <text class="label" x="38" y="808">Host-only output</text>
+    <text class="body" x="38" y="842"><tspan x="38">ignored local config overlay</tspan><tspan x="38" dy="30">derived Media / PXE / logs /</tspan><tspan x="38" dy="30">status / SMB paths refresh</tspan><tspan x="38" dy="30">不寫入 Git clone runtime</tspan></text>
+    <rect class="good-box" x="18" y="1010" width="464" height="188"/>
+    <text class="label" x="38" y="1048">Done when</text>
+    <text class="body" x="38" y="1082"><tspan x="38">rootStatus.ready=true</tspan><tspan x="38" dy="30">absolute path；不得位於</tspan><tspan x="38" dy="30">Git clone 或 HostTools</tspan></text>
+    <rect class="warn-box" x="18" y="1230" width="464" height="174"/>
+    <text class="label" x="38" y="1268">Boundary</text>
+    <text class="body" x="38" y="1302"><tspan x="38">Git clone 是安裝／程式來源，</tspan><tspan x="38" dy="30">不是可部署 PXE runtime。</tspan><tspan x="38" dy="30">不得直接 patch runtime root。</tspan></text>
+  </g>
+
+  <!-- Step 02 -->
+  <g transform="translate(600 300)">
+    <rect class="card required" width="500" height="1450"/>
+    <path class="head" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">02</text>
+    <text class="head-text" x="250" y="72">Web service IP</text>
+    <rect class="user-box" x="18" y="112" width="464" height="176"/>
+    <text class="label" x="38" y="145">Technician</text>
+    <text class="body" x="38" y="177"><tspan x="38">從 elevated PowerShell 啟動</tspan><tspan x="38" dy="30">Web console；確認 entry point</tspan><tspan class="mono" x="38" dy="31">web.host : web.port</tspan><tspan x="38" dy="30">瀏覽器開啟管理 UI</tspan></text>
+    <path class="flow-dashed" d="M250 288 V330"/>
+    <rect class="api-box" x="50" y="332" width="400" height="100"/>
+    <text class="mono" x="250" y="372" text-anchor="middle">GET /api/state</text>
+    <text class="small" x="250" y="405" text-anchor="middle">每 2.5 秒輪詢</text>
+    <path class="flow-dashed" d="M250 432 V474"/>
+    <rect class="box" x="18" y="476" width="464" height="270"/>
+    <text class="label" x="38" y="510">Browser behavior</text>
+    <text class="body" x="38" y="545"><tspan x="38">refresh() → state.current</tspan><tspan x="38" dy="30">render() → initialization steps</tspan><tspan x="38" dy="30">selected run / logs / service state</tspan><tspan x="38" dy="30">read-only GET 不修改 runtime</tspan><tspan x="38" dy="30">mutation 時 UI busy + disable controls</tspan></text>
+    <rect class="artifact-box" x="18" y="780" width="464" height="194"/>
+    <text class="label" x="38" y="818">Web entry point</text>
+    <text class="body" x="38" y="852"><tspan x="38">Node.js ESM Web server</tspan><tspan x="38" dy="30">static HTML/CSS/JS + JSON API</tspan><tspan x="38" dy="30">browser reload picks up web/* changes</tspan></text>
+    <rect class="good-box" x="18" y="1010" width="464" height="188"/>
+    <text class="label" x="38" y="1048">Done when</text>
+    <text class="body" x="38" y="1082"><tspan x="38">Web host/port ready</tspan><tspan x="38" dy="30">需要 Prepare runtime / services</tspan><tspan x="38" dy="30">時 host.elevated=true</tspan></text>
+    <rect class="warn-box" x="18" y="1230" width="464" height="174"/>
+    <text class="label" x="38" y="1268">Runtime rule</text>
+    <text class="body" x="38" y="1302"><tspan x="38">修改 src/* 後必須 restart/reload；</tspan><tspan x="38" dy="30">只改 web/* 則 browser reload 即可。</tspan></text>
+  </g>
+
+  <!-- Step 03 -->
+  <g transform="translate(1120 300)">
+    <rect class="card required" width="500" height="1450"/>
+    <path class="head" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">03</text>
+    <text class="head-text" x="250" y="72">Deployment secrets</text>
+    <rect class="user-box" x="18" y="112" width="464" height="204"/>
+    <text class="label" x="38" y="145">Technician</text>
+    <text class="body" x="38" y="177"><tspan class="mono" x="38">windowsUsername</tspan><tspan class="mono" x="38" dy="31">windowsPassword</tspan><tspan class="mono" x="38" dy="31">pxeinstallPassword</tspan><tspan x="38" dy="32">輸入後按 Save secrets</tspan></text>
+    <path class="flow-blue" d="M250 316 V350"/>
+    <rect class="api-box" x="50" y="352" width="400" height="82"/>
+    <text class="mono" x="250" y="402" text-anchor="middle">POST /api/secrets</text>
+    <path class="flow-blue" d="M250 434 V476"/>
+    <rect class="box" x="18" y="478" width="464" height="220"/>
+    <text class="label" x="38" y="512">Controller flow</text>
+    <text class="body" x="38" y="547"><tspan x="38">writeDeploymentSecrets(config,input)</tspan><tspan x="38" dy="30">→ ignored host-state secrets JSON</tspan><tspan x="38" dy="30">→ immediately runPreflight()</tspan><tspan x="38" dy="30">→ return redacted readiness only</tspan></text>
+    <rect class="artifact-box" x="18" y="732" width="464" height="230"/>
+    <text class="label" x="38" y="770">Storage &amp; fallback</text>
+    <text class="body" x="38" y="804"><tspan x="38">HostTools\State\config (ignored)</tspan><tspan x="38" dy="30">環境變數 fallback：</tspan><tspan class="mono-small" x="38" dy="28">OSDCLOUD_WINDOWS_USERNAME</tspan><tspan class="mono-small" x="38" dy="27">OSDCLOUD_WINDOWS_PASSWORD</tspan><tspan class="mono-small" x="38" dy="27">OSDCLOUD_PXEINSTALL_PASSWORD</tspan></text>
+    <rect class="good-box" x="18" y="1010" width="464" height="188"/>
+    <text class="label" x="38" y="1048">Done when</text>
+    <text class="body" x="38" y="1082"><tspan x="38">secrets.ready=true</tspan><tspan x="38" dy="30">三個 key 都存在且可讀</tspan><tspan x="38" dy="30">不代表 preflight 一定通過</tspan></text>
+    <rect class="bad-box" x="18" y="1230" width="464" height="174"/>
+    <text class="label" x="38" y="1268">Security invariant</text>
+    <text class="body" x="38" y="1302"><tspan x="38">UI、API response、logs、docs、Git、</tspan><tspan x="38" dy="30">status evidence 均不得含 plaintext。</tspan></text>
+  </g>
+
+  <!-- Step 04 -->
+  <g transform="translate(1640 300)">
+    <rect class="card required" width="500" height="1450"/>
+    <path class="head" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">04</text>
+    <text class="head-text" x="250" y="72">Prepare runtime</text>
+    <rect class="user-box" x="18" y="112" width="464" height="162"/>
+    <text class="label" x="38" y="145">Technician</text>
+    <text class="body" x="38" y="177"><tspan x="38">檢視 readiness 缺項</tspan><tspan x="38" dy="30">確認後按 Prepare runtime</tspan><tspan x="38" dy="30">此操作會寫入 runtime artifacts</tspan></text>
+    <path class="flow-blue" d="M250 274 V312"/>
+    <rect class="api-box" x="50" y="314" width="400" height="82"/>
+    <text class="mono" x="250" y="364" text-anchor="middle">POST /api/runtime/prepare</text>
+    <path class="flow-blue" d="M250 396 V438"/>
+    <polygon class="decision" points="250,438 350,508 250,578 150,508"/>
+    <text class="label" x="250" y="502" text-anchor="middle">Elevated?</text>
+    <text class="small" x="250" y="530" text-anchor="middle">Administrator</text>
+    <path class="flow-red" d="M150 508 H62 V618"/>
+    <text class="small" x="88" y="486" fill="#c93632">NO</text>
+    <rect class="bad-box" x="18" y="620" width="210" height="132"/>
+    <text class="body" x="123" y="656" text-anchor="middle"><tspan x="123">BLOCK</tspan><tspan x="123" dy="28">以 elevated Web</tspan><tspan x="123" dy="28">console 重試</tspan></text>
+    <path class="flow-green" d="M350 508 H438 V618"/>
+    <text class="small" x="382" y="486" fill="#18864b">YES</text>
+    <rect class="good-box" x="272" y="620" width="210" height="132"/>
+    <text class="body" x="377" y="656" text-anchor="middle"><tspan x="377">prepareRuntimeArtifacts</tspan><tspan x="377" dy="28">→ PowerShell</tspan><tspan x="377" dy="28">restore pipeline</tspan></text>
+    <rect class="box" x="18" y="788" width="464" height="250"/>
+    <text class="label" x="38" y="824">Host work</text>
+    <text class="body" x="38" y="858"><tspan class="mono-small" x="38">Restore-DeploymentArtifacts.ps1</tspan><tspan x="38" dy="30">runtime catalog → staging/restore</tspan><tspan x="38" dy="30">require modules OSD + OSDCloud</tspan><tspan x="38" dy="30">prepare PXE / iPXE / WinPE files</tspan><tspan class="mono-small" x="38" dy="28">logs\runtime-prepare.log</tspan></text>
+    <rect class="artifact-box" x="18" y="1070" width="464" height="172"/>
+    <text class="label" x="38" y="1108">Required boot artifacts</text>
+    <text class="mono-small" x="38" y="1144"><tspan x="38">Media\sources\boot.wim</tspan><tspan x="38" dy="28">PXE-HttpRoot\osdcloud\boot.wim</tspan></text>
+    <rect class="good-box" x="18" y="1274" width="464" height="130"/>
+    <text class="body" x="38" y="1312"><tspan x="38">Done: runtime.ready=true</tspan><tspan x="38" dy="30">不下載 client software；不啟動 services</tspan></text>
+  </g>
+
+  <!-- Step 05 -->
+  <g transform="translate(2160 300)">
+    <rect class="card required" width="500" height="1450"/>
+    <path class="head" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">05</text>
+    <text class="head-text" x="250" y="72">PXE / service endpoint</text>
+    <rect class="user-box" x="18" y="112" width="464" height="206"/>
+    <text class="label" x="38" y="145">Technician</text>
+    <text class="body" x="38" y="177"><tspan x="38">選 NIC / IPv4 / prefix</tspan><tspan x="38" dy="30">boot mode: secureboot | ipxe</tspan><tspan x="38" dy="30">DHCP mode: server | proxy</tspan><tspan x="38" dy="30">確認 Endpoint Sync</tspan></text>
+    <path class="flow-blue" d="M250 318 V350"/>
+    <rect class="api-box" x="18" y="352" width="464" height="154"/>
+    <text class="mono-small" x="38" y="388"><tspan x="38">GET  /api/interfaces</tspan><tspan x="38" dy="28">POST /api/endpoint</tspan><tspan x="38" dy="28">POST /api/boot-mode</tspan><tspan x="38" dy="28">POST /api/dhcp-mode</tspan></text>
+    <path class="flow-blue" d="M250 506 V540"/>
+    <rect class="box" x="18" y="542" width="464" height="300"/>
+    <text class="label" x="38" y="578">changeEndpoint(choice)</text>
+    <text class="body" x="38" y="612"><tspan x="38">stopAllServices → apply endpoint</tspan><tspan x="38" dy="30">saveConfig → refresh services</tspan><tspan x="38" dy="30">sync boot.ipxe + endpoint files</tspan><tspan x="38" dy="30">SMB firewall + boot.wim</tspan><tspan x="38" dy="30">commitWinPe=true</tspan><tspan x="38" dy="30">hashLargeArtifacts=true</tspan><tspan x="38" dy="30">regenerate torrent → runPreflight</tspan></text>
+    <rect class="artifact-box" x="18" y="874" width="464" height="174"/>
+    <text class="label" x="38" y="912">Published endpoint artifacts</text>
+    <text class="mono-small" x="38" y="948"><tspan x="38">boot.ipxe / boot binaries</tspan><tspan x="38" dy="28">boot.wim + boot.wim.sync.json</tspan><tspan x="38" dy="28">fingerprint: endpoint + secrets + templates</tspan></text>
+    <polygon class="decision" points="250,1074 360,1144 250,1214 140,1144"/>
+    <text class="body" x="250" y="1138" text-anchor="middle"><tspan x="250">blocking</tspan><tspan x="250" dy="27">failure?</tspan></text>
+    <path class="flow-red" d="M140 1144 H60 V1250"/>
+    <rect class="bad-box" x="18" y="1252" width="210" height="152"/>
+    <text class="small" x="123" y="1288" text-anchor="middle"><tspan x="123">NEEDS UPDATE</tspan><tspan x="123" dy="27">修 NIC / prefix /</tspan><tspan x="123" dy="27">binding / sync</tspan></text>
+    <path class="flow-green" d="M360 1144 H440 V1250"/>
+    <rect class="good-box" x="272" y="1252" width="210" height="152"/>
+    <text class="small" x="377" y="1300" text-anchor="middle"><tspan x="377">Endpoint synced</tspan><tspan x="377" dy="28">endpoint.ready=true</tspan></text>
+  </g>
+
+  <!-- Step 06 -->
+  <g transform="translate(2680 300)">
+    <rect class="card required" width="500" height="1450"/>
+    <path class="head" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">06</text>
+    <text class="head-text" x="250" y="72">OS Image Cache</text>
+    <rect class="user-box" x="18" y="112" width="464" height="218"/>
+    <text class="label" x="38" y="145">Technician — two paths</text>
+    <text class="body" x="38" y="177"><tspan x="38">A. official catalog → Download</tspan><tspan x="38" dy="30">B. Upload ISO / ESD / WIM</tspan><tspan x="38" dy="30">　→ Inspect DISM indexes</tspan><tspan x="38" dy="30">　→ Import selected index</tspan><tspan x="38" dy="30">OS acquisition 僅限 Host/Admin UI</tspan></text>
+    <rect class="api-box" x="18" y="362" width="464" height="194"/>
+    <text class="mono-small" x="38" y="398"><tspan x="38">GET  /api/os-download-catalog</tspan><tspan x="38" dy="28">POST /api/os-download</tspan><tspan x="38" dy="28">POST /api/os-image-upload</tspan><tspan x="38" dy="28">POST /api/os-image-upload-import</tspan><tspan x="38" dy="28">POST /api/os-image-reexport</tspan></text>
+    <path class="flow-blue" d="M250 556 V594"/>
+    <rect class="box" x="18" y="596" width="464" height="310"/>
+    <text class="label" x="38" y="632">Host image pipeline</text>
+    <text class="body" x="38" y="666"><tspan x="38">download/upload staging</tspan><tspan x="38" dy="30">→ source validation / metadata</tspan><tspan x="38" dy="30">→ mount ISO or inspect ESD/WIM</tspan><tspan x="38" dy="30">→ DISM enumerate indexes</tspan><tspan x="38" dy="30">→ select Windows edition index</tspan><tspan x="38" dy="30">→ export deployable WIM index 1</tspan><tspan x="38" dy="30">→ catalog + hash / size state</tspan></text>
+    <rect class="artifact-box" x="18" y="938" width="464" height="220"/>
+    <text class="label" x="38" y="976">Output</text>
+    <text class="mono-small" x="38" y="1012"><tspan x="38">Media\OSDCloud\OS\&lt;image&gt;.wim</tspan><tspan x="38" dy="28">cache catalog entry</tspan><tspan x="38" dy="28">sources\&lt;downloaded ESD&gt;</tspan></text>
+    <text class="small" x="38" y="1112">此步不代表 selected-os.json 已更新</text>
+    <rect class="good-box" x="18" y="1190" width="464" height="214"/>
+    <text class="label" x="38" y="1228">Done when</text>
+    <text class="body" x="38" y="1262"><tspan x="38">至少一個 deployable cached WIM</tspan><tspan x="38" dy="30">osImageCached=true</tspan><tspan x="38" dy="30">manifest stale 應回到 step 07，</tspan><tspan x="38" dy="30">不是重新下載 step 06。</tspan></text>
+  </g>
+
+  <!-- Step 07 -->
+  <g transform="translate(3200 300)">
+    <rect class="card required" width="500" height="1450"/>
+    <path class="head" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">07</text>
+    <text class="head-text" x="250" y="72">Publish profile</text>
+    <rect class="user-box" x="18" y="112" width="464" height="286"/>
+    <text class="label" x="38" y="145">Technician</text>
+    <text class="body" x="38" y="177"><tspan x="38">選 OS image / profile</tspan><tspan x="38" dy="30">displayLanguage / locale</tspan><tspan x="38" dy="30">inputLanguage / timeZone</tspan><tspan x="38" dy="30">選 software + custom scripts</tspan><tspan x="38" dy="30">調整 installSequence 順序</tspan><tspan x="38" dy="30">確認 Select active / Save active</tspan></text>
+    <rect class="api-box" x="18" y="430" width="464" height="126"/>
+    <text class="mono-small" x="38" y="470"><tspan x="38">POST /api/profile</tspan><tspan x="38" dy="30">POST /api/profile/software</tspan></text>
+    <path class="flow-blue" d="M250 556 V590"/>
+    <rect class="box" x="18" y="592" width="464" height="274"/>
+    <text class="label" x="38" y="628">Publish transaction</text>
+    <text class="body" x="38" y="662"><tspan x="38">stopAllServices()</tspan><tspan x="38" dy="30">publishDeploymentProfile()</tspan><tspan x="38" dy="30">publish selected OS manifest</tspan><tspan x="38" dy="30">resolve selected payloads only</tspan><tspan x="38" dy="30">save activeProfile</tspan><tspan x="38" dy="30">regenerate torrent → runPreflight</tspan></text>
+    <rect class="artifact-box" x="18" y="898" width="464" height="254"/>
+    <text class="label" x="38" y="936">Published runtime payload</text>
+    <text class="mono-small" x="38" y="972"><tspan x="38">selected-os.json</tspan><tspan x="38" dy="28">selected-profile.json</tspan><tspan x="38" dy="28">Apps\Install-Apps.ps1</tspan><tspan x="38" dy="28">Apps\Show-DeploymentProgress.ps1</tspan><tspan x="38" dy="28">selected software + scripts</tspan><tspan x="38" dy="28">installSequence</tspan></text>
+    <polygon class="decision" points="250,1178 360,1248 250,1318 140,1248"/>
+    <text class="small" x="250" y="1242" text-anchor="middle"><tspan x="250">profile / manifest</tspan><tspan x="250" dy="27">ready?</tspan></text>
+    <path class="flow-red" d="M140 1248 H72 V1372"/>
+    <text class="small" x="32" y="1342" fill="#c93632">NO: NEEDS UPDATE</text>
+    <path class="flow-green" d="M360 1248 H438 V1372"/>
+    <text class="small" x="312" y="1342" fill="#18864b">YES: published</text>
+  </g>
+
+  <!-- Step 08 -->
+  <g transform="translate(3720 300)">
+    <rect class="card optional" width="500" height="1450"/>
+    <path class="head-optional" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">08</text>
+    <text class="head-text" x="250" y="72">Run preflight</text>
+    <rect class="user-box" x="18" y="112" width="464" height="132"/>
+    <text class="label" x="38" y="145">Technician</text>
+    <text class="body" x="38" y="180"><tspan x="38">按 Run preflight</tspan><tspan x="38" dy="30">修復後可重跑，結果會覆寫</tspan></text>
+    <rect class="api-box" x="50" y="274" width="400" height="82"/>
+    <text class="mono" x="250" y="324" text-anchor="middle">POST /api/preflight</text>
+    <path class="flow-blue" d="M250 356 V394"/>
+    <rect class="box" x="18" y="396" width="464" height="406"/>
+    <text class="label" x="38" y="432">runPreflight(config, services)</text>
+    <text class="body" x="38" y="466"><tspan x="38">每個 check 立即 onCheck(result)</tspan><tspan class="mono-small" x="38" dy="29">[PREFLIGHT] ok …</tspan><tspan class="mono-small" x="38" dy="28">[PREFLIGHT] FAIL …</tspan><tspan x="38" dy="31">主要檢查：</tspan><tspan x="38" dy="29">runtime artifacts / endpoint / IP</tspan><tspan x="38" dy="29">TCP 80 + UDP 67/69 / boot files</tspan><tspan x="38" dy="29">boot.wim fingerprint / SMB image</tspan><tspan x="38" dy="29">selected-os / profile / Apps / secrets</tspan></text>
+    <polygon class="decision" points="250,840 370,918 250,996 130,918"/>
+    <text class="small" x="250" y="910" text-anchor="middle"><tspan x="250">Any blocking</tspan><tspan x="250" dy="27">ok:false?</tspan></text>
+    <path class="flow-red" d="M130 918 H58 V1050"/>
+    <rect class="bad-box" x="18" y="1052" width="214" height="190"/>
+    <text class="small" x="125" y="1088" text-anchor="middle"><tspan x="125">YES</tspan><tspan x="125" dy="27">deploymentReady=false</tspan><tspan x="125" dy="27">Start services disabled</tspan><tspan x="125" dy="27">repair → rerun</tspan></text>
+    <path class="flow-green" d="M370 918 H442 V1050"/>
+    <rect class="good-box" x="268" y="1052" width="214" height="190"/>
+    <text class="small" x="375" y="1098" text-anchor="middle"><tspan x="375">NO</tspan><tspan x="375" dy="28">deploymentReady=true</tspan><tspan x="375" dy="28">service gate opens</tspan></text>
+    <rect class="warn-box" x="58" y="1272" width="384" height="132"/>
+    <text class="body" x="250" y="1310" text-anchor="middle"><tspan x="250">ok:true + warn:true</tspan><tspan x="250" dy="30">顯示 warning，但不阻擋啟動</tspan></text>
+  </g>
+
+  <!-- Step 09 -->
+  <g transform="translate(4240 300)">
+    <rect class="card optional" width="500" height="1450"/>
+    <path class="head-optional" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">09</text>
+    <text class="head-text" x="250" y="72">Start services</text>
+    <polygon class="decision" points="250,122 370,198 250,274 130,198"/>
+    <text class="small" x="250" y="188" text-anchor="middle"><tspan x="250">Real LAN DHCP</tspan><tspan x="250" dy="27">disabled?</tspan></text>
+    <path class="flow-red" d="M130 198 H58 V310"/>
+    <rect class="bad-box" x="18" y="312" width="214" height="132"/>
+    <text class="small" x="125" y="352" text-anchor="middle"><tspan x="125">NO → STOP</tspan><tspan x="125" dy="28">不得啟動 DHCP</tspan></text>
+    <path class="flow-green" d="M370 198 H442 V310"/>
+    <rect class="good-box" x="268" y="312" width="214" height="132"/>
+    <text class="small" x="375" y="352" text-anchor="middle"><tspan x="375">YES</tspan><tspan x="375" dy="28">Confirm Start all</tspan></text>
+    <path class="flow-green" d="M375 444 V480"/>
+    <rect class="api-box" x="50" y="482" width="400" height="82"/>
+    <text class="mono-small" x="250" y="532" text-anchor="middle">POST /api/services/start-all</text>
+    <path class="flow-blue" d="M250 564 V602"/>
+    <rect class="box" x="18" y="604" width="464" height="212"/>
+    <text class="label" x="38" y="640">ServiceController.startAll</text>
+    <text class="body" x="38" y="674"><tspan x="38">1. HTTP/status start</tspan><tspan x="38" dy="30">2. TFTP start</tspan><tspan x="38" dy="30">3. DHCP start</tspan><tspan x="38" dy="30">4. Torrent tracker + seeder (optional)</tspan></text>
+    <rect class="artifact-box" x="18" y="848" width="464" height="264"/>
+    <text class="label" x="38" y="884">Network services</text>
+    <text class="body" x="38" y="918"><tspan x="38">HTTP TCP 80 — boot/media/status</tspan><tspan x="38" dy="30">TFTP UDP 69 — bootstrap files</tspan><tspan x="38" dy="30">DHCP UDP 67 — lease/boot target</tspan><tspan x="38" dy="30">SMB TCP 445 — WIM + Apps/scripts</tspan><tspan x="38" dy="30">Tracker TCP 6969 — peer discovery</tspan><tspan x="38" dy="30">Seeder TCP 6881 — WIM pieces</tspan></text>
+    <rect class="warn-box" x="18" y="1144" width="464" height="136"/>
+    <text class="body" x="38" y="1184"><tspan x="38">Torrent 啟動失敗不回滾 core services；</tspan><tspan x="38" dy="30">client 仍可走 SMB fallback。</tspan></text>
+    <rect class="good-box" x="18" y="1312" width="464" height="92"/>
+    <text class="body" x="250" y="1352" text-anchor="middle"><tspan x="250">HTTP + TFTP + DHCP running</tspan><tspan x="250" dy="28">deploymentLive=true</tspan></text>
+  </g>
+
+  <!-- Step 10 -->
+  <g transform="translate(4760 300)">
+    <rect class="card optional" width="500" height="1450"/>
+    <path class="head-optional" d="M18 0 H482 Q500 0 500 18 V92 H0 V18 Q0 0 18 0Z"/>
+    <text class="step-no" x="250" y="36">10</text>
+    <text class="head-text" x="250" y="72">Boot client + monitor</text>
+    <rect class="user-box" x="18" y="112" width="464" height="176"/>
+    <text class="label" x="38" y="145">Technician</text>
+    <text class="body" x="38" y="177"><tspan x="38">Client UEFI Network Boot</tspan><tspan x="38" dy="30">保持 Dashboard / Activity 開啟</tspan><tspan x="38" dy="30">監看 stages、logs、evidence</tspan></text>
+    <rect class="box" x="18" y="320" width="464" height="520"/>
+    <text class="label" x="38" y="356">Client execution summary</text>
+    <text class="body" x="38" y="392"><tspan x="38">A. DHCP offer / boot target</tspan><tspan x="38" dy="32">B. TFTP bootstrap + HTTP boot.wim</tspan><tspan x="38" dy="32">C. WinPE Startnet / OSDCloud init</tspan><tspan x="38" dy="32">D. boot-config + SMB Z: mapping</tspan><tspan x="38" dy="32">E. selected-os/profile manifests</tspan><tspan x="38" dy="32">F. Torrent P2P or SMB fallback</tspan><tspan x="38" dy="32">G. Invoke-OSDCloud apply image</tspan><tspan x="38" dy="32">H. Shutdown OOBE injection / reboot</tspan><tspan x="38" dy="32">I. SetupComplete prepares finalizer</tspan><tspan x="38" dy="32">J. first logon apps/scripts + viewer</tspan><tspan x="38" dy="32">K. desktop-ready reporter → 100%</tspan></text>
+    <rect class="artifact-box" x="18" y="872" width="464" height="268"/>
+    <text class="label" x="38" y="908">Activity stage spine</text>
+    <text class="mono-small" x="38" y="944"><tspan x="38">winpe-start</tspan><tspan x="38" dy="27">smb-mounted</tspan><tspan x="38" dy="27">osdcloud-start → apply-image</tspan><tspan x="38" dy="27">rebooting (includes reporter-stop)</tspan><tspan x="38" dy="27">windows-setupcomplete*</tspan><tspan x="38" dy="27">windows-desktop-ready</tspan></text>
+    <rect class="good-box" x="18" y="1172" width="464" height="148"/>
+    <text class="label" x="38" y="1210">Done when</text>
+    <text class="body" x="38" y="1244"><tspan x="38">fleetHasDeploymentRun=true</tspan><tspan x="38" dy="30">成功終態：desktop-ready 100%</tspan></text>
+    <rect class="bad-box" x="18" y="1350" width="464" height="54"/>
+    <text class="small" x="250" y="1384" text-anchor="middle">FAILED / STALE → inspect evidence + client logs</text>
+  </g>
+
+  <!-- Setup rule sidebar -->
+  <g transform="translate(5300 300)">
+    <rect class="card" width="820" height="1450"/>
+    <rect class="dark-box" x="18" y="18" width="784" height="268"/>
+    <text class="dark-text" x="46" y="58" font-weight="700">Bootstrap（guided setup 之前）</text>
+    <text class="dark-text" x="46" y="96"><tspan x="46">系統管理員執行 Setup-DeploymentServer.cmd</tspan><tspan x="46" dy="32">安裝 Node.js LTS / NuGet / PSGallery / OSD / OSDCloud</tspan><tspan class="mono-small" x="46" dy="30" style="fill:#d6f4ff">C:\OSDCloud\HostTools\App</tspan><tspan class="mono-small" x="46" dy="28" style="fill:#d6f4ff">C:\OSDCloud\HostTools\State</tspan><tspan x="46" dy="32">啟動 elevated Web console；不建立 runtime/secrets/services</tspan></text>
+    <rect class="box" x="18" y="318" width="784" height="330"/>
+    <text class="label" x="46" y="360">initialization.nextStepId 選擇規則</text>
+    <text class="body" x="46" y="402"><tspan x="46">1. 第一個未完成 required step（01–07）</tspan><tspan x="46" dy="38">2. 否則 deploymentReady=false → 08 preflight</tspan><tspan x="46" dy="38">3. 否則 deploymentLive=false → 09 services</tspan><tspan x="46" dy="38">4. 否則尚無 deployment run → 10 client</tspan><tspan x="46" dy="38">5. 全部達成 → nextStepId=null</tspan></text>
+    <rect class="warn-box" x="18" y="682" width="784" height="278"/>
+    <text class="label" x="46" y="724">Staleness / rerun</text>
+    <text class="body" x="46" y="764"><tspan x="46">Prepare runtime、Endpoint、OS Image、Profile 可重跑。</tspan><tspan x="46" dy="35">preflight 偵測 endpoint、runtime artifacts、boot.wim</tspan><tspan x="46" dy="35">fingerprint、manifest、selected OS/profile、Apps payload</tspan><tspan x="46" dy="35">失配時，已完成的步驟顯示 NEEDS UPDATE。</tspan><tspan x="46" dy="35">修復責任歸屬依 failed check 指向最早的 stale step。</tspan></text>
+    <rect class="bad-box" x="18" y="994" width="784" height="206"/>
+    <text class="label" x="46" y="1036">Safety gates</text>
+    <text class="body" x="46" y="1076"><tspan x="46">• 不自動修改 Windows NIC IP。</tspan><tspan x="46" dy="34">• 未確認真實 LAN DHCP 關閉，不得啟動 DHCP。</tspan><tspan x="46" dy="34">• Web console 與 headless services 不得同時控制 ports。</tspan><tspan x="46" dy="34">• mutating actions 可改 live state；read-only GET 不可。</tspan></text>
+    <rect class="artifact-box" x="18" y="1234" width="784" height="170"/>
+    <text class="label" x="46" y="1274">Trust boundaries</text>
+    <text class="body" x="46" y="1314"><tspan x="46">Git workspace ≠ installed HostTools ≠ Web-selected runtime root。</tspan><tspan x="46" dy="34">Host state / secrets / uploads 為 local-only；runtime 為 product-managed。</tspan></text>
+  </g>
+
+  <!-- Completion rail -->
+  <path class="flow-green" d="M580 1778 H600 M1100 1778 H1120 M1620 1778 H1640 M2140 1778 H2160 M2660 1778 H2680 M3180 1778 H3200 M3700 1778 H3720 M4220 1778 H4240 M4740 1778 H4760"/>
+
+  <!-- Architecture section -->
+  <text class="section-title" x="80" y="1848">B. Runtime architecture：control plane、data plane 與狀態邊界</text>
+  <text class="section-sub" x="1130" y="1848">Web API 控制 host services；PXE client 只從 live endpoint 取得 boot/runtime content 並回報 evidence。</text>
+
+  <g transform="translate(80 1890)">
+    <rect class="lane" width="940" height="820"/>
+    <rect class="lane-head" x="18" y="18" width="904" height="70"/>
+    <text class="lane-title" x="46" y="63">1. Browser UI — operator control plane</text>
+    <rect class="user-box" x="28" y="116" width="884" height="154"/>
+    <text class="label" x="52" y="154">User-visible views</text>
+    <text class="body" x="52" y="190"><tspan x="52">Set up deployment / Dashboard / Activity / dialogs</tspan><tspan x="52" dy="32">confirmation gates：Prepare、Endpoint、Profile、DHCP、delete</tspan></text>
+    <rect class="api-box" x="28" y="300" width="884" height="202"/>
+    <text class="label" x="52" y="338">api.js</text>
+    <text class="body" x="52" y="374"><tspan x="52">api(path) → fetch + JSON error handling</tspan><tspan x="52" dy="32">mutate() → busy / controls disabled / state replace / render</tspan><tspan x="52" dy="32">refresh() every 2.5s → GET /api/state?runId=…</tspan><tspan x="52" dy="32">GET interfaces / profiles / OS catalog on demand</tspan></text>
+    <rect class="artifact-box" x="28" y="532" width="884" height="244"/>
+    <text class="label" x="52" y="570">State projection consumed by UI</text>
+    <text class="body" x="52" y="606"><tspan x="52">initialization / runtime / endpoint / osImage / profile</tspan><tspan x="52" dy="32">preflight / services / fleet / logs / validation / torrent peers</tspan><tspan x="52" dy="32">UI never owns source-of-truth files；it renders controller state</tspan><tspan x="52" dy="32">Activity stage mapping keeps ring monotonic across sub-stages</tspan></text>
+  </g>
+
+  <g transform="translate(1060 1890)">
+    <rect class="lane" width="930" height="820"/>
+    <rect class="lane-head" x="18" y="18" width="894" height="70"/>
+    <text class="lane-title" x="46" y="63">2. Node.js Web API — route boundary</text>
+    <rect class="box" x="28" y="116" width="874" height="348"/>
+    <text class="label" x="52" y="154">webServer.js</text>
+    <text class="mono-small" x="52" y="190"><tspan x="52">GET  /api/state | /interfaces | /profiles | /os-images</tspan><tspan x="52" dy="29">POST /api/project-root | /secrets | /runtime/prepare</tspan><tspan x="52" dy="29">POST /api/endpoint | /boot-mode | /dhcp-mode</tspan><tspan x="52" dy="29">POST /api/os-download | /os-image-upload*</tspan><tspan x="52" dy="29">POST /api/profile | /profile/software</tspan><tspan x="52" dy="29">POST /api/preflight | /services/start-all</tspan><tspan x="52" dy="29">POST /api/services/{http,tftp,dhcp}/{start,stop}</tspan><tspan x="52" dy="29">POST /api/status/{clear,runs/*,archive/*}</tspan></text>
+    <rect class="warn-box" x="28" y="494" width="874" height="124"/>
+    <text class="body" x="52" y="534"><tspan x="52">GET state/status 是 read-only；POST routes 可能停止 services、</tspan><tspan x="52" dy="32">改 config、寫 runtime、publish payload、刪除 evidence。</tspan></text>
+    <rect class="artifact-box" x="28" y="648" width="874" height="128"/>
+    <text class="body" x="52" y="688"><tspan x="52">每個 mutation response：{ ok, result, state }</tspan><tspan x="52" dy="32">錯誤由 controller status code → JSON error → UI alert。</tspan></text>
+  </g>
+
+  <g transform="translate(2030 1890)">
+    <rect class="lane" width="970" height="820"/>
+    <rect class="lane-head" x="18" y="18" width="934" height="70"/>
+    <text class="lane-title" x="46" y="63">3. ServiceController — orchestration</text>
+    <rect class="box" x="28" y="116" width="914" height="294"/>
+    <text class="label" x="52" y="154">Single operation boundary</text>
+    <text class="body" x="52" y="190"><tspan x="52">runOperation(label, action) serializes busy operation + logs</tspan><tspan x="52" dy="32">dependency injection：profiles / OS images / network / PowerShell</tspan><tspan x="52" dy="32">service lifecycle：HTTP / TFTP / DHCP / Torrent tracker / seeder</tspan><tspan x="52" dy="32">refreshServiceConfigs after project root / endpoint / mode changes</tspan><tspan x="52" dy="32">preflightResults 與 endpointUpdateStatus 保留於 controller state</tspan></text>
+    <rect class="artifact-box" x="28" y="440" width="914" height="206"/>
+    <text class="label" x="52" y="478">getState() summary projection</text>
+    <text class="body" x="52" y="514"><tspan x="52">buildInitializationState → 01–10 / nextStepId</tspan><tspan x="52" dy="32">readFleetStatus + summarizeValidation + runtime readiness</tspan><tspan x="52" dy="32">serviceSummary + torrent swarm peers + operation logs</tspan><tspan x="52" dy="32">secrets 僅回 ready/missing/redacted fields</tspan></text>
+    <rect class="good-box" x="28" y="676" width="914" height="100"/>
+    <text class="body" x="52" y="716"><tspan x="52">Server-side source changes require reload/restart before live validation。</tspan></text>
+  </g>
+
+  <g transform="translate(3040 1890)">
+    <rect class="lane" width="980" height="820"/>
+    <rect class="lane-head" x="18" y="18" width="944" height="70"/>
+    <text class="lane-title" x="46" y="63">4. Host storage / runtime boundaries</text>
+    <rect class="dark-box" x="28" y="116" width="924" height="146"/>
+    <text class="dark-text" x="52" y="154"><tspan class="mono" x="52" style="fill:#d6f4ff">C:\OSDCloud\HostTools\App</tspan><tspan x="52" dy="32">installed management bundle；Web console + helper scripts</tspan><tspan x="52" dy="32">source update → npm run reload → restart installed server</tspan></text>
+    <rect class="artifact-box" x="28" y="292" width="924" height="170"/>
+    <text class="mono" x="52" y="330">C:\OSDCloud\HostTools\State</text>
+    <text class="body" x="52" y="368"><tspan x="52">local overlay / deployment secrets / upload staging / host-only state</tspan><tspan x="52" dy="32">ignored；不可 commit；不得由 API 洩漏 plaintext secrets</tspan><tspan x="52" dy="32">base config + local overlay merge 後才可執行 runtime helper</tspan></text>
+    <rect class="box" x="28" y="492" width="924" height="284"/>
+    <text class="mono" x="52" y="530">Web-selected runtime root（proven default C:\OSDCloud）</text>
+    <text class="body" x="52" y="568"><tspan x="52">Media\sources\boot.wim / PXE-HttpRoot\osdcloud\boot.wim</tspan><tspan x="52" dy="32">Media\OSDCloud\OS\*.wim / *.torrent / torrent manifest</tspan><tspan x="52" dy="32">Media\OSDCloud\Apps / selected profile / custom scripts</tspan><tspan x="52" dy="32">status\*.jsonl / summaries / screenshots</tspan><tspan x="52" dy="32">logs\runs\&lt;runId&gt;\deployment.log</tspan><tspan x="52" dy="32">不得由 agent 手動 patch；只能走 product workflow</tspan></text>
+  </g>
+
+  <g transform="translate(4060 1890)">
+    <rect class="lane" width="970" height="820"/>
+    <rect class="lane-head" x="18" y="18" width="934" height="70"/>
+    <text class="lane-title" x="46" y="63">5. Network data plane</text>
+    <rect class="api-box" x="28" y="116" width="914" height="160"/>
+    <text class="label" x="52" y="154">HTTP / status — TCP 80</text>
+    <text class="body" x="52" y="190"><tspan x="52">boot.ipxe / boot.wim / static media / boot-config</tspan><tspan x="52" dy="32">POST /osdcloud/status；GET /osdcloud/os/*.torrent</tspan><tspan x="52" dy="32">WIM/.torrent route supports HTTP Range but torrent has no webseed urlList</tspan></text>
+    <rect class="box" x="28" y="306" width="438" height="188"/>
+    <text class="label" x="52" y="344">DHCP — UDP 67</text>
+    <text class="body" x="52" y="380"><tspan x="52">server / proxy mode</tspan><tspan x="52" dy="30">lease range / router / next server</tspan><tspan x="52" dy="30">secureboot or ipxe boot target</tspan></text>
+    <rect class="box" x="504" y="306" width="438" height="188"/>
+    <text class="label" x="528" y="344">TFTP — UDP 69</text>
+    <text class="body" x="528" y="380"><tspan x="528">UEFI/iPXE bootstrap files</tspan><tspan x="528" dy="30">bootmgfw.efi / iPXE loader</tspan><tspan x="528" dy="30">boot chain hands off to HTTP</tspan></text>
+    <rect class="artifact-box" x="28" y="524" width="438" height="208"/>
+    <text class="label" x="52" y="562">SMB — TCP 445</text>
+    <text class="mono-small" x="52" y="598">\\&lt;service-ip&gt;\OSDCloudiPXE</text>
+    <text class="body" x="52" y="632"><tspan x="52">selected-os/profile</tspan><tspan x="52" dy="30">WIM / Apps / scripts</tspan><tspan x="52" dy="30">proven no-redownload fallback</tspan></text>
+    <rect class="warn-box" x="504" y="524" width="438" height="208"/>
+    <text class="label" x="528" y="562">Binding safety</text>
+    <text class="body" x="528" y="598"><tspan x="528">preflight checks assigned IP,</tspan><tspan x="528" dy="30">prefix/interface, Duplicate/Disabled,</tspan><tspan x="528" dy="30">and UDP/TCP port availability。</tspan><tspan x="528" dy="30">Disconnected 可為 non-blocking warning。</tspan></text>
+  </g>
+
+  <!-- Torrent mechanism panel -->
+  <g transform="translate(5070 1890)">
+    <rect class="lane" width="1050" height="820"/>
+    <rect class="lane-head" x="18" y="18" width="1014" height="70"/>
+    <text class="lane-title" x="46" y="63">6. Torrent acceleration — actual mechanism</text>
+    <rect class="box" x="28" y="116" width="994" height="190"/>
+    <text class="label" x="52" y="154">Publish-time metadata</text>
+    <text class="body" x="52" y="190"><tspan x="52">createOsImageTorrent(active WIM) → private torrent</tspan><tspan x="52" dy="30">announceList=[tracker]；pieceLength from config；no BEP19 urlList</tspan><tspan x="52" dy="30">write *.wim.torrent + sidecar manifest</tspan><tspan x="52" dy="30">manifest: WIM SHA-256 / torrent SHA-256 / piece length</tspan></text>
+    <rect class="api-box" x="28" y="334" width="300" height="170"/>
+    <text class="label" x="52" y="372">Tracker</text>
+    <text class="body" x="52" y="408"><tspan x="52">TCP 6969</tspan><tspan x="52" dy="30">peer announce / discovery</tspan><tspan x="52" dy="30">swarm peer map for UI</tspan></text>
+    <rect class="good-box" x="374" y="334" width="300" height="170"/>
+    <text class="label" x="398" y="372">Host seeder</text>
+    <text class="body" x="398" y="408"><tspan x="398">TCP 6881</tspan><tspan x="398" dy="30">full WIM + full bitfield</tspan><tspan x="398" dy="30">respond to piece requests</tspan></text>
+    <rect class="artifact-box" x="720" y="334" width="302" height="170"/>
+    <text class="label" x="744" y="372">WinPE peers</text>
+    <text class="body" x="744" y="408"><tspan x="744">aria2 6881–6999</tspan><tspan x="744" dy="30">download + seed 30 min</tspan><tspan x="744" dy="30">client↔client piece exchange</tspan></text>
+    <path class="flow-blue" d="M328 420 H374"/>
+    <path class="flow-blue" d="M674 420 H720"/>
+    <path class="flow-green" d="M870 504 C870 565 524 565 524 506"/>
+    <rect class="warn-box" x="28" y="540" width="994" height="236"/>
+    <text class="label" x="52" y="578">Why no HTTP webseed?</text>
+    <text class="body" x="52" y="614"><tspan x="52">若 torrent 內嵌 urlList，aria2 可能讓每台 client 從 HTTP host 拉完整 WIM，</tspan><tspan x="52" dy="32">P2P 不會有效 offload。現在由 tracker 建立 swarm，Host seeder 提供 pieces，</tspan><tspan x="52" dy="32">clients 彼此交換並繼續 seed；缺 aria2、metadata mismatch、timeout、</tspan><tspan x="52" dy="32">SHA-256 mismatch 或任一 torrent error → stage torrent-fallback → SMB direct。</tspan><tspan x="52" dy="32">Host-side torrent failure 不影響 HTTP/TFTP/DHCP core deployment services。</tspan></text>
+  </g>
+
+  <!-- Architecture arrows -->
+  <path class="flow-blue" d="M1020 2300 H1060"/>
+  <path class="flow-blue" d="M1990 2300 H2030"/>
+  <path class="flow-blue" d="M3000 2300 H3040"/>
+  <path class="flow-blue" d="M4020 2300 H4060"/>
+  <path class="flow-blue" d="M5030 2300 H5070"/>
+
+  <!-- Client lifecycle section -->
+  <text class="section-title" x="80" y="2800">C. Client end-to-end execution：UEFI PXE → WinPE → Windows 11 → first-logon finalization</text>
+  <text class="section-sub" x="1500" y="2800">每個 major stage 經 HTTP status callback 回 Host；Screenshot 僅 best-effort，JSON status/logs 才是 source of truth。</text>
+
+  <g transform="translate(80 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">1. UEFI PXE discovery</text>
+    <text class="body" x="32" y="116"><tspan x="32">Client 設定 Network Boot</tspan><tspan x="32" dy="32">DHCP discover → offer / proxy offer</tspan><tspan x="32" dy="32">取得 lease、next server、boot target</tspan><tspan x="32" dy="32">bootMode:</tspan><tspan x="32" dy="30">• secureboot → Microsoft-signed chain</tspan><tspan x="32" dy="30">• ipxe → iPXE bootstrap</tspan></text>
+    <rect class="warn-box" x="28" y="340" width="524" height="138"/>
+    <text class="body" x="50" y="378"><tspan x="50">LAN DHCP 必須在核准的</tspan><tspan x="50" dy="30">test window 關閉，避免雙 DHCP。</tspan><tspan x="50" dy="30">NIC IP 由 operator 明確設定。</tspan></text>
+    <rect class="artifact-box" x="28" y="506" width="524" height="138"/>
+    <text class="mono-small" x="50" y="546"><tspan x="50">DHCP UDP 67</tspan><tspan x="50" dy="28">TFTP UDP 69</tspan><tspan x="50" dy="28">latestStage: pxe-booting</tspan></text>
+  </g>
+
+  <g transform="translate(680 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">2. Load published WinPE</text>
+    <text class="body" x="32" y="116"><tspan x="32">TFTP fetch bootstrap</tspan><tspan x="32" dy="32">→ iPXE / Windows boot manager</tspan><tspan x="32" dy="32">→ HTTP published boot.wim</tspan><tspan x="32" dy="32">HTTP server checks adjacent</tspan><tspan class="mono-small" x="32" dy="28">boot.wim.sync.json</tspan><tspan x="32" dy="32">missing marker → host warning</tspan></text>
+    <rect class="artifact-box" x="28" y="340" width="524" height="156"/>
+    <text class="mono-small" x="50" y="378"><tspan x="50">PXE-HttpRoot\osdcloud\boot.wim</tspan><tspan x="50" dy="28">endpoint + secrets + templates</tspan><tspan x="50" dy="28">已由 Endpoint Sync 注入/驗證</tspan></text>
+    <rect class="good-box" x="28" y="524" width="524" height="120"/>
+    <text class="body" x="50" y="562"><tspan x="50">HTTP request 建立 synthetic</tspan><tspan x="50" dy="30">booting-&lt;client-ip&gt; summary</tspan></text>
+  </g>
+
+  <g transform="translate(1280 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">3. WinPE startup</text>
+    <text class="body" x="32" y="116"><tspan class="mono-small" x="32">Startnet.cmd</tspan><tspan x="32" dy="32">→ Maximize-Console.ps1</tspan><tspan x="32" dy="32">→ Initialize-OSDCloudStartnet</tspan><tspan class="mono-small" x="32" dy="30">Start-OSDCloud-iPXE.ps1</tspan><tspan x="32" dy="32">→ POST winpe-start</tspan><tspan x="32" dy="32">start progress reporter</tspan></text>
+    <rect class="api-box" x="28" y="340" width="524" height="176"/>
+    <text class="mono-small" x="50" y="378"><tspan x="50">GET /osdcloud/boot-config</tspan><tspan x="50" dy="28">server / share / SMB credentials</tspan><tspan x="50" dy="28">Windows credentials</tspan><tspan x="50" dy="28">torrentUrl / tracker / WIM hash</tspan></text>
+    <rect class="bad-box" x="28" y="544" width="524" height="100"/>
+    <text class="small" x="50" y="584"><tspan x="50">Trust boundary：boot-config 在隔離測試網</tspan><tspan x="50" dy="28">傳送 client 所需 secrets；不得寫入 logs。</tspan></text>
+  </g>
+
+  <g transform="translate(1880 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">4. SMB manifests</text>
+    <text class="body" x="32" y="116"><tspan class="mono-small" x="32">net use Z: \\server\OSDCloudiPXE</tspan><tspan x="32" dy="34">read Z:\OSDCloud\OS\selected-os.json</tspan><tspan x="32" dy="32">read selected-profile.json</tspan><tspan x="32" dy="32">apply independent:</tspan><tspan x="32" dy="30">displayLanguage / locale /</tspan><tspan x="32" dy="30">inputLanguage / timeZone</tspan><tspan x="32" dy="32">verify selected WIM exists</tspan></text>
+    <rect class="good-box" x="28" y="370" width="524" height="124"/>
+    <text class="mono-small" x="50" y="410"><tspan x="50">POST os-image-selected</tspan><tspan x="50" dy="28">POST smb-mounted</tspan></text>
+    <rect class="artifact-box" x="28" y="522" width="524" height="122"/>
+    <text class="body" x="50" y="560"><tspan x="50">SMB WIM 先作 proven source；</tspan><tspan x="50" dy="30">Torrent 成功才切換 local WIM。</tspan></text>
+  </g>
+
+  <g transform="translate(2480 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">5. Torrent decision</text>
+    <polygon class="decision" points="290,112 430,192 290,272 150,192"/>
+    <text class="small" x="290" y="184" text-anchor="middle"><tspan x="290">torrentEnabled + aria2</tspan><tspan x="290" dy="27">+ metadata valid?</tspan></text>
+    <path class="flow-green" d="M430 192 H526 V310"/>
+    <path class="flow-amber" d="M150 192 H54 V310"/>
+    <rect class="good-box" x="292" y="312" width="260" height="248"/>
+    <text class="small" x="314" y="350"><tspan x="314">YES</tspan><tspan x="314" dy="28">New-OSDisk → C:\OSDCloud\OS</tspan><tspan x="314" dy="28">download .torrent via HTTP</tspan><tspan x="314" dy="28">aria2 tracker + peers + seeder</tspan><tspan x="314" dy="28">verify WIM SHA-256</tspan><tspan x="314" dy="28">continue seeding while apply</tspan><tspan x="314" dy="28">SkipAllDiskSteps=true</tspan></text>
+    <rect class="warn-box" x="28" y="312" width="236" height="248"/>
+    <text class="small" x="50" y="350"><tspan x="50">NO / ERROR</tspan><tspan x="50" dy="28">torrent-fallback</tspan><tspan x="50" dy="28">use SMB WIM directly</tspan><tspan x="50" dy="28">Invoke-OSDCloud performs</tspan><tspan x="50" dy="28">normal disk steps</tspan></text>
+    <rect class="artifact-box" x="28" y="590" width="524" height="54"/>
+    <text class="mono-small" x="290" y="624" text-anchor="middle">torrent-firewall / download / verify / peers</text>
+  </g>
+
+  <g transform="translate(3080 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">6. Apply Windows image</text>
+    <text class="body" x="32" y="116"><tspan class="mono-small" x="32">$Global:StartOSDCloud</tspan><tspan x="32" dy="32">ImageFileDestination = local or SMB FileInfo</tspan><tspan x="32" dy="32">ImageFileUrl = null</tspan><tspan x="32" dy="32">OSImageIndex from selected-os.json</tspan><tspan x="32" dy="32">ZTI=true / SkipAutopilot / SkipODT</tspan><tspan x="32" dy="32">→ Invoke-OSDCloud</tspan></text>
+    <rect class="good-box" x="28" y="340" width="524" height="168"/>
+    <text class="mono-small" x="50" y="378"><tspan x="50">POST osdcloud-start</tspan><tspan x="50" dy="28">apply-image progress (reporter)</tspan><tspan x="50" dy="28">drivers / post-apply-scripts</tspan><tspan x="50" dy="28">POST osdcloud-finished</tspan></text>
+    <rect class="bad-box" x="28" y="536" width="524" height="108"/>
+    <text class="body" x="50" y="574"><tspan x="50">Exception → osdcloud-error</tspan><tspan x="50" dy="30">do not claim deployment completion</tspan></text>
+  </g>
+
+  <g transform="translate(3680 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">7. Shutdown + reboot</text>
+    <text class="body" x="32" y="116"><tspan x="32">OSDCloud Shutdown phase：</tspan><tspan class="mono-small" x="32" dy="30">Invoke-OobeCustomization.ps1</tspan><tspan x="32" dy="32">copy SetupComplete scripts</tspan><tspan x="32" dy="32">copy Apps / selected profile payload</tspan><tspan x="32" dy="32">inject OOBE after Windows apply</tspan><tspan x="32" dy="32">write DeploymentStatus metadata</tspan></text>
+    <rect class="artifact-box" x="28" y="340" width="524" height="164"/>
+    <text class="mono-small" x="50" y="378"><tspan x="50">windows-metadata-written</tspan><tspan x="50" dy="28">reporter-stop → maps to rebooting</tspan><tspan x="50" dy="28">rebooting → 10-second delay</tspan></text>
+    <rect class="warn-box" x="28" y="532" width="524" height="112"/>
+    <text class="body" x="50" y="570"><tspan x="50">reporter-stop 是預期 handoff，</tspan><tspan x="50" dy="30">不是 failure。</tspan></text>
+  </g>
+
+  <g transform="translate(4280 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">8. Windows SetupComplete</text>
+    <text class="body" x="32" y="116"><tspan class="mono-small" x="32">SetupComplete.ps1 as SYSTEM</tspan><tspan x="32" dy="32">create target user / local settings</tspan><tspan x="32" dy="32">prepare Apps under ProgramData</tspan><tspan x="32" dy="32">register any-user logon tasks：</tspan><tspan x="32" dy="30">• OSDCloudPostLogonFinalize</tspan><tspan x="32" dy="30">• OSDCloudDesktopReadyReport</tspan><tspan x="32" dy="30">• interactive RunOnce viewer</tspan></text>
+    <rect class="artifact-box" x="28" y="370" width="524" height="138"/>
+    <text class="mono-small" x="50" y="408"><tspan x="50">C:\ProgramData\OSDCloud\</tspan><tspan x="50" dy="28">deployment-progress.json</tspan><tspan x="50" dy="28">atomic writes；safe fields only</tspan></text>
+    <rect class="good-box" x="28" y="536" width="524" height="108"/>
+    <text class="mono-small" x="50" y="576"><tspan x="50">windows-setupcomplete-start</tspan><tspan x="50" dy="28">windows-setupcomplete-awaiting-logon</tspan></text>
+  </g>
+
+  <g transform="translate(4880 2840)">
+    <rect class="lane" width="580" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="548" height="62"/>
+    <text class="lane-title" x="36" y="57">9. First-logon finalizer</text>
+    <text class="body" x="32" y="116"><tspan x="32">Target user first logon</tspan><tspan x="32" dy="32">RunOnce viewer 顯示全螢幕 progress</tspan><tspan x="32" dy="32">SYSTEM finalizer executes:</tspan><tspan class="mono-small" x="32" dy="29">Install-Apps.ps1 installSequence</tspan><tspan x="32" dy="32">software + custom scripts</tspan><tspan x="32" dy="32">atomic progress updates</tspan><tspan x="32" dy="32">viewer 只讀 progress JSON</tspan></text>
+    <rect class="good-box" x="28" y="370" width="524" height="126"/>
+    <text class="mono-small" x="50" y="408"><tspan x="50">windows-apps-start/progress/finished</tspan><tspan x="50" dy="28">windows-setupcomplete-finished (96)</tspan></text>
+    <rect class="bad-box" x="28" y="524" width="524" height="120"/>
+    <text class="small" x="50" y="562"><tspan x="50">failed / interrupted → apps-error +</tspan><tspan x="50" dy="28">setupcomplete-error；no desktop-ready</tspan></text>
+  </g>
+
+  <g transform="translate(5480 2840)">
+    <rect class="lane" width="640" height="690"/>
+    <rect class="lane-head" x="16" y="16" width="608" height="62"/>
+    <text class="lane-title" x="36" y="57">10. Desktop-ready proof</text>
+    <text class="body" x="32" y="116"><tspan x="32">SYSTEM reporter retries until：</tspan><tspan x="32" dy="32">progress.status=succeeded</tspan><tspan x="32" dy="32">Explorer running + target user</tspan><tspan x="32" dy="32">desktop-ready marker exists</tspan><tspan x="32" dy="32">no OOBE processes</tspan><tspan x="32" dy="32">status POST succeeds</tspan></text>
+    <rect class="api-box" x="28" y="340" width="584" height="152"/>
+    <text class="mono-small" x="50" y="378"><tspan x="50">POST windows-desktop-ready (100)</tspan><tspan x="50" dy="28">displayLanguage / culture / timeZone</tspan><tspan x="50" dy="28">inputLanguages / inputMethods</tspan><tspan x="50" dy="28">facts read from interactive user's hive</tspan></text>
+    <rect class="good-box" x="28" y="520" width="584" height="124"/>
+    <text class="label" x="320" y="564" text-anchor="middle">Validation Evidence</text>
+    <text class="head-text" x="320" y="606" style="fill:#18864b">DONE / 100%</text>
+  </g>
+
+  <!-- Client lifecycle arrows -->
+  <path class="flow-blue" d="M660 3190 H680 M1260 3190 H1280 M1860 3190 H1880 M2460 3190 H2480 M3060 3190 H3080 M3660 3190 H3680 M4260 3190 H4280 M4860 3190 H4880 M5460 3190 H5480"/>
+
+  <!-- Evidence section -->
+  <text class="section-title" x="80" y="3610">D. Evidence feedback loop：client callback → host artifacts → Activity / Validation Evidence</text>
+  <text class="section-sub" x="1670" y="3610">Host evidence 與 client detailed logs 分層；UI 是 read-only projection，不是原始 log 的替代品。</text>
+  <g transform="translate(80 3650)">
+    <rect class="lane" width="1120" height="560"/>
+    <rect class="lane-head" x="18" y="18" width="1084" height="62"/>
+    <text class="lane-title" x="44" y="58">Client → HTTP status service</text>
+    <rect class="api-box" x="28" y="108" width="1064" height="150"/>
+    <text class="mono" x="52" y="148"><tspan x="52">POST http://&lt;service-ip&gt;/osdcloud/status</tspan><tspan x="52" dy="31">POST http://&lt;service-ip&gt;/osdcloud/screenshot  (optional PNG)</tspan><tspan x="52" dy="31">GET  /osdcloud/status | /events | /runs</tspan></text>
+    <text class="body" x="44" y="304"><tspan x="44">Payload：runId / clientId / stage / message / percent / safe extra</tspan><tspan x="44" dy="32">WinPE reporter 解析 OSDCloud transcript；Windows scripts 直接回報 stages。</tspan><tspan x="44" dy="32">Screenshot 是 best-effort；JSON status 與 logs 才是 validation source of truth。</tspan></text>
+    <rect class="bad-box" x="28" y="412" width="1064" height="104"/>
+    <text class="body" x="52" y="452"><tspan x="52">不得回傳 stdout/stderr、raw exceptions、command lines、passwords 或 deployment secrets。</tspan></text>
+  </g>
+
+  <g transform="translate(1240 3650)">
+    <rect class="lane" width="1320" height="560"/>
+    <rect class="lane-head" x="18" y="18" width="1284" height="62"/>
+    <text class="lane-title" x="44" y="58">Host evidence writes</text>
+    <text class="mono-small" x="44" y="126"><tspan x="44">status\progress.jsonl</tspan><tspan x="44" dy="28">status\latest.json</tspan><tspan x="44" dy="28">status\&lt;runId&gt;.jsonl</tspan><tspan x="44" dy="28">status\&lt;runId&gt;.latest.json</tspan><tspan x="44" dy="28">status\&lt;runId&gt;.summary.json + runs-index.json</tspan><tspan x="44" dy="28">status\screenshots\&lt;runId&gt;\*.png + metadata JSONL</tspan></text>
+    <line class="divider" x1="650" y1="108" x2="650" y2="504"/>
+    <text class="mono-small" x="690" y="126"><tspan x="690">logs\runs\&lt;runId&gt;\deployment.log</tspan><tspan x="690" dy="28">logs\runs\&lt;runId&gt;\screenshots\*.png</tspan><tspan x="690" dy="28">logs\runtime-prepare.log</tspan><tspan x="690" dy="28">logs\endpoint-sync.log</tspan><tspan x="690" dy="28">tracker / seeder diagnostic logs</tspan></text>
+    <rect class="artifact-box" x="684" y="302" width="590" height="172"/>
+    <text class="label" x="708" y="340">Client-local detailed logs</text>
+    <text class="mono-small" x="708" y="378"><tspan x="708">C:\Windows\Temp\osdcloud-logs</tspan><tspan x="708" dy="28">C:\ProgramData\OSDCloud\deployment-progress.json</tspan></text>
+    <text class="small" x="708" y="448">Host evidence 不等於 client detailed execution log。</text>
+  </g>
+
+  <g transform="translate(2600 3650)">
+    <rect class="lane" width="980" height="560"/>
+    <rect class="lane-head" x="18" y="18" width="944" height="62"/>
+    <text class="lane-title" x="44" y="58">Summary / state projection</text>
+    <text class="body" x="44" y="126"><tspan x="44">HTTP status event → updateRunSummary()</tspan><tspan x="44" dy="34">→ emit('status') → ServiceController reads fleet</tspan><tspan x="44" dy="34">→ summarizeValidation(selected run)</tspan><tspan x="44" dy="34">→ getState({selectedRunId})</tspan><tspan x="44" dy="34">→ Browser refresh every 2.5 seconds</tspan></text>
+    <rect class="artifact-box" x="28" y="310" width="924" height="206"/>
+    <text class="label" x="52" y="348">Terminal semantics</text>
+    <text class="body" x="52" y="386"><tspan x="52">windows-desktop-ready 100 = successful terminal evidence</tspan><tspan x="52" dy="32">windows-setupcomplete-finished stale = UI effectively done</tspan><tspan x="52" dy="32">windows-logon-start 非 terminal；apps/scripts 仍可能執行中</tspan><tspan x="52" dy="32">completed terminal fields sticky，不被晚到非錯誤事件倒退</tspan></text>
+  </g>
+
+  <g transform="translate(3620 3650)">
+    <rect class="lane" width="1180" height="560"/>
+    <rect class="lane-head" x="18" y="18" width="1144" height="62"/>
+    <text class="lane-title" x="44" y="58">Activity UI execution flow</text>
+    <g transform="translate(36 116)">
+      <rect class="phase-pill" width="156" height="54"/><text class="phase-text" x="78" y="34">winpe-start</text>
+      <path class="flow-blue" d="M156 27 H182"/>
+      <rect class="phase-pill" x="182" width="170" height="54"/><text class="phase-text" x="267" y="34">smb-mounted</text>
+      <path class="flow-blue" d="M352 27 H378"/>
+      <rect class="phase-pill" x="378" width="182" height="54"/><text class="phase-text" x="469" y="34">osdcloud-start</text>
+      <path class="flow-blue" d="M560 27 H586"/>
+      <rect class="phase-pill" x="586" width="170" height="54"/><text class="phase-text" x="671" y="34">apply-image</text>
+      <path class="flow-blue" d="M756 27 H782"/>
+      <rect class="phase-pill" x="782" width="160" height="54"/><text class="phase-text" x="862" y="34">rebooting</text>
+      <path class="flow-blue" d="M942 27 H968"/>
+      <rect class="phase-pill" x="968" width="160" height="54"/><text class="phase-text" x="1048" y="34">Windows</text>
+    </g>
+    <rect class="good-box" x="36" y="224" width="1108" height="104"/>
+    <text class="mono-small" x="590" y="264" text-anchor="middle"><tspan x="590">windows-setupcomplete* → windows-desktop-ready</tspan><tspan x="590" dy="28">sub-stages / aliases map to owning phase so progress never resets</tspan></text>
+    <rect class="box" x="36" y="358" width="530" height="158"/>
+    <text class="label" x="60" y="396">Validation Evidence</text>
+    <text class="body" x="60" y="432"><tspan x="60">read-only drawer；run summary</tspan><tspan x="60" dy="30">stages / latest message / facts / warnings</tspan><tspan x="60" dy="30">refresh does not mutate runtime</tspan></text>
+    <rect class="warn-box" x="600" y="358" width="544" height="158"/>
+    <text class="label" x="624" y="396">Operator diagnosis</text>
+    <text class="body" x="624" y="432"><tspan x="624">1. locate failed/stale stage</tspan><tspan x="624" dy="30">2. inspect host run evidence</tspan><tspan x="624" dy="30">3. inspect client logs if Windows reached</tspan></text>
+  </g>
+
+  <g transform="translate(4840 3650)">
+    <rect class="lane" width="1280" height="560"/>
+    <rect class="lane-head" x="18" y="18" width="1244" height="62"/>
+    <text class="lane-title" x="44" y="58">Outcome and operating notes</text>
+    <rect class="good-box" x="28" y="108" width="590" height="142"/>
+    <text class="label" x="323" y="152" text-anchor="middle">DONE / 100%</text>
+    <text class="body" x="323" y="192" text-anchor="middle"><tspan x="323">desktop-ready callback persisted</tspan><tspan x="323" dy="30">interactive user facts verified</tspan></text>
+    <rect class="bad-box" x="662" y="108" width="590" height="142"/>
+    <text class="label" x="957" y="152" text-anchor="middle">FAILED / STALE</text>
+    <text class="body" x="957" y="192" text-anchor="middle"><tspan x="957">do not infer success from screenshot</tspan><tspan x="957" dy="30">repair source code, republish/reload as needed</tspan></text>
+    <rect class="callout" x="28" y="282" width="1224" height="234"/>
+    <text class="body" x="54" y="324"><tspan x="54">• Prepare runtime 只建立 boot/iPXE/WinPE artifacts；不下載 client software、不啟動 services。</tspan><tspan x="54" dy="34">• Profile publish 才選取並發布 Apps/scripts；Endpoint Sync 才把 endpoint/secrets/templates 注入 boot.wim。</tspan><tspan x="54" dy="34">• Torrent 是 acceleration，不是唯一資料路徑；SMB direct apply 是 correctness fallback。</tspan><tspan x="54" dy="34">• Physical laptop 必須使用 Web-selected live endpoint；VM evidence 不等於 physical path ready。</tspan><tspan x="54" dy="34">• Source fix → verify/commit in workspace → reload/publish/sync → preflight → controlled deployment test。</tspan></text>
+  </g>
+
+  <!-- Evidence arrows -->
+  <path class="flow-dashed" d="M1200 3910 H1240"/>
+  <path class="flow-blue" d="M2560 3910 H2600"/>
+  <path class="flow-dashed" d="M3580 3910 H3620"/>
+  <path class="flow-blue" d="M4800 3910 H4840"/>
+
+  <!-- Footer -->
+  <text class="tiny" x="80" y="4260">Vector artifact generated from live workspace behavior. Primary owners: controller/state.js, controller/index.js, webServer.js, windows/preflight.js, httpServer.js, torrent.js, Start-OSDCloud-iPXE.ps1, SetupComplete.ps1.</text>
+  <text class="tiny" x="6120" y="4260" text-anchor="end">Canvas 6200 × 4300 · scalable SVG · Traditional Chinese + exact technical identifiers</text>
+</svg>
