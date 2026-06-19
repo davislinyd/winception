@@ -105,6 +105,7 @@ GitHub 直接渲染下列 SVG 圖。完整節點說明與安全閘門見
 - **不使用 HTTP webseed**：`.torrent` 刻意不嵌 BEP19 webseed —— aria2 會把 webseed 當主來源，導致每台 client 都從 host 整檔拉、完全不分擔。改走純 BitTorrent（tracker + peers + host 種子）。
 - **offload 機制**：host seeder 對所有 client 提供完整 bitfield（所有 piece 皆可取得），BT 的 tit-for-tat 與 rarest-first 演算法會自然產生 peer 間 piece 交換，實測 4 台同時部署時 host 上傳量 ≈ 1.8–2× WIM（而非 4×）。
 - **host 服務**：啟動服務後多兩個元件（`TorrentTracker` :6969、`NodeSuperSeeder` :6881），隨 `Start all services` 一起啟停。Dashboard 卡片顯示 `… · seeding <檔名>`，部署期間即時列出各 VM IP 與下載進度（%）；完成後顯示 `seeding ✓`。
+- **client 即時畫面**：WinPE 主 console 透過只監聽 `127.0.0.1` 且帶隨機 token 的 aria2 JSON-RPC，每 5 秒更新 WIM 下載百分比、容量、下載/上傳速率與 ETA；active peer 集合改變時列出 `Downloading from` 與 `Uploading to` 的 IP:port 及 Seeder/Peer 身分。下載完成並通過 SHA-256 後留下本次來源與上傳對象摘要，再繼續正常套用 WIM。RPC 顯示失敗只會警告，不會中止 torrent 或觸發 SMB fallback。
 - **種子 log**：`NodeSuperSeeder` 輸出寫到 `C:\OSDCloud\logs\torrent-seeder.log`，記錄每條 peer 連線（`PEER-CONNECT ip:port index=N`）與斷線事件。Tracker announce 記錄在 `C:\OSDCloud\logs\torrent-tracker.log`，含每次 announce 的 IP、`left`（剩餘 bytes）與 swarm 大小。
 - **WIM 落地**：WinPE 先用 `New-OSDisk` 分割目標磁碟，把 WIM 下載到本機 OS 分割區並驗證 SHA-256，再以本機檔案套用（`SkipAllDiskSteps`，不重複分割）。任一環節失敗（缺 `aria2c.exe`、torrent metadata 不全、下載/雜湊失敗、或無 peer/種子可連）會自動回退到既有的 SMB 直接套用路徑。
 - **runtime 需求**：`aria2c.exe`（僅 WinPE client 用，host seeder 已改 Node.js）由 `Prepare runtime` 下載並由 endpoint sync 注入 `boot.wim`。`.torrent` 與 sidecar `os-torrent.json` 在 profile publish / endpoint sync 時重新產生，種子隨之重啟。

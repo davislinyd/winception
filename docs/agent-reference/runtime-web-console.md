@@ -77,6 +77,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - For iPXE custom image deployment, do not mix custom image parameters with catalog OS parameters such as `-OSName`, `-OSLanguage`, `-OSEdition`, or `-OSActivation`.
 - For isolated or restricted networks, remove or bypass external startup update behavior that stalls before `Start-OSDCloud`.
 - WinPE `Startnet.cmd` should maximize the visible OSD/PowerShell console before `Initialize-OSDCloudStartnet` runs so operators can read deployment progress from the first screen.
+- WinPE torrent acquisition keeps `aria2c.exe` hidden but exposes transfer progress through authenticated JSON-RPC bound only to `127.0.0.1:6800`. The visible console updates aggregate progress every five seconds and prints source/receiver peer IPs only when the active sets change. RPC display failures are observability-only and must not change torrent completion, timeout, integrity validation, or SMB fallback behavior.
 - When changing iPXE `SetupComplete`, update live runtime files and the embedded copy inside `boot.wim`.
 - Screenshot progress evidence is best-effort only. JSON deployment status and logs are the source of truth.
 - Do not install a desktop screenshot Startup helper from `SetupComplete`; the previous approach caused Defender/AMSI blocking.

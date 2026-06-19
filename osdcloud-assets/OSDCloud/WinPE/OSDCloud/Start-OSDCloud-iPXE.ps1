@@ -461,6 +461,48 @@ function Save-DeploymentStatusMetadata {
     }
 }
 
+function Invoke-Aria2Rpc {
+    param(
+        [Parameter(Mandatory)][string] $Method,
+        [Parameter(Mandatory)][string] $Secret,
+        [Parameter(Mandatory)][string] $Gid,
+        [string[]] $Keys
+    )
+
+    $rpcParameters = [System.Collections.ArrayList]::new()
+    [void] $rpcParameters.Add("token:$Secret")
+    [void] $rpcParameters.Add($Gid)
+    if ($Keys) {
+        [void] $rpcParameters.Add([string[]] $Keys)
+    }
+
+    $body = [ordered]@{
+        jsonrpc = '2.0'
+        id = [guid]::NewGuid().ToString('N')
+        method = $Method
+        params = $rpcParameters.ToArray()
+    } | ConvertTo-Json -Depth 6 -Compress
+
+    $response = Invoke-RestMethod -Uri 'http://127.0.0.1:6800/jsonrpc' -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 2 -ErrorAction Stop
+    if ($response.error) {
+        throw "aria2 RPC $Method failed: $($response.error.message)"
+    }
+    return $response.result
+}
+
+function Format-TorrentEta {
+    param([double] $Seconds)
+
+    if ($Seconds -le 0 -or [double]::IsInfinity($Seconds) -or [double]::IsNaN($Seconds)) {
+        return '--'
+    }
+    $remaining = [timespan]::FromSeconds([math]::Ceiling($Seconds))
+    if ($remaining.TotalHours -ge 1) {
+        return '{0}:{1:00}:{2:00}' -f [math]::Floor($remaining.TotalHours), $remaining.Minutes, $remaining.Seconds
+    }
+    return '{0}:{1:00}' -f $remaining.Minutes, $remaining.Seconds
+}
+
 function Invoke-TorrentOsImageDownload {
     <#
         Attempt to acquire the OS WIM over BitTorrent so the transfer load is
@@ -557,6 +599,8 @@ function Invoke-TorrentOsImageDownload {
         # No HTTP webseed is embedded in the torrent on purpose; the data comes
         # from the host BitTorrent seeder and from peers, so the host uploads
         # roughly one copy while clients redistribute pieces to each other.
+        $aria2Gid = ([guid]::NewGuid().ToString('N')).Substring(0, 16)
+        $aria2RpcSecret = [guid]::NewGuid().ToString('N')
         $aria2Args = @(
             "--dir=$osDir",
             '--check-integrity=true',
@@ -567,6 +611,11 @@ function Invoke-TorrentOsImageDownload {
             '--enable-dht=false',
             '--enable-dht6=false',
             '--listen-port=6881-6999',
+            "--gid=$aria2Gid",
+            '--enable-rpc=true',
+            '--rpc-listen-all=false',
+            '--rpc-listen-port=6800',
+            "--rpc-secret=$aria2RpcSecret",
             '--console-log-level=warn',
             '--summary-interval=0',
             "--log=$logRoot\aria2.log",
@@ -575,6 +624,11 @@ function Invoke-TorrentOsImageDownload {
         )
         $downloadStartTime = Get-Date
         $proc = Start-Process -FilePath $aria2 -ArgumentList $aria2Args -WindowStyle Hidden -PassThru
+        $rpcWarningShown = $false
+        $lastDownloadPeers = $null
+        $lastUploadPeers = $null
+        $observedDownloadPeers = @{}
+        $observedUploadPeers = @{}
 
         # aria2 removes the .aria2 control file once the download completes, then
         # keeps running to seed to peers. Poll for completion; do not block on the
@@ -587,6 +641,66 @@ function Invoke-TorrentOsImageDownload {
         while ($true) {
             Start-Sleep -Seconds 5
             $downloadComplete = (Test-Path -LiteralPath $targetWim) -and (-not (Test-Path -LiteralPath $controlFile))
+
+            try {
+                $status = Invoke-Aria2Rpc -Method 'aria2.tellStatus' -Secret $aria2RpcSecret -Gid $aria2Gid -Keys @(
+                    'totalLength',
+                    'completedLength',
+                    'uploadLength',
+                    'downloadSpeed',
+                    'uploadSpeed'
+                )
+                $peers = @(Invoke-Aria2Rpc -Method 'aria2.getPeers' -Secret $aria2RpcSecret -Gid $aria2Gid)
+
+                $totalBytes = [double] $status.totalLength
+                $completedBytes = [double] $status.completedLength
+                $downloadSpeed = [double] $status.downloadSpeed
+                $uploadSpeed = [double] $status.uploadSpeed
+                $percent = if ($totalBytes -gt 0) { [math]::Min(100, [math]::Floor(($completedBytes / $totalBytes) * 100)) } else { 0 }
+                $eta = if ($downloadSpeed -gt 0 -and $totalBytes -gt $completedBytes) {
+                    Format-TorrentEta -Seconds (($totalBytes - $completedBytes) / $downloadSpeed)
+                } else {
+                    '--'
+                }
+                $progressStatus = '{0:N2}/{1:N2} GiB | down {2:N1} MiB/s | up {3:N1} MiB/s | ETA {4}' -f (
+                    $completedBytes / 1GB
+                ), (
+                    $totalBytes / 1GB
+                ), (
+                    $downloadSpeed / 1MB
+                ), (
+                    $uploadSpeed / 1MB
+                ), $eta
+                Write-Progress -Id 22 -Activity "Torrent OS image: $fileName" -Status $progressStatus -PercentComplete $percent
+
+                $downloadingFrom = @($peers | Where-Object { [double] $_.downloadSpeed -gt 0 } | ForEach-Object {
+                    '{0}:{1} [{2}]' -f $_.ip, $_.port, $(if ([string] $_.seeder -eq 'true') { 'Seeder' } else { 'Peer' })
+                } | Sort-Object -Unique)
+                $uploadingTo = @($peers | Where-Object { [double] $_.uploadSpeed -gt 0 } | ForEach-Object {
+                    '{0}:{1} [{2}]' -f $_.ip, $_.port, $(if ([string] $_.seeder -eq 'true') { 'Seeder' } else { 'Peer' })
+                } | Sort-Object -Unique)
+
+                foreach ($peer in $downloadingFrom) { $observedDownloadPeers[$peer] = $true }
+                foreach ($peer in $uploadingTo) { $observedUploadPeers[$peer] = $true }
+
+                $downloadPeerKey = $downloadingFrom -join '|'
+                if ($downloadPeerKey -ne $lastDownloadPeers) {
+                    Write-Host "Downloading from: $(if ($downloadingFrom.Count) { $downloadingFrom -join ', ' } else { 'waiting for active sources' })" -ForegroundColor Cyan
+                    $lastDownloadPeers = $downloadPeerKey
+                }
+                $uploadPeerKey = $uploadingTo -join '|'
+                if ($uploadPeerKey -ne $lastUploadPeers) {
+                    Write-Host "Uploading to: $(if ($uploadingTo.Count) { $uploadingTo -join ', ' } else { 'no active receivers' })" -ForegroundColor DarkCyan
+                    $lastUploadPeers = $uploadPeerKey
+                }
+            }
+            catch {
+                if (-not $rpcWarningShown) {
+                    Write-Warning "Torrent progress telemetry unavailable; download continues. $($_.Exception.Message)"
+                    $rpcWarningShown = $true
+                }
+            }
+
             if ($downloadComplete) {
                 break
             }
@@ -597,8 +711,10 @@ function Invoke-TorrentOsImageDownload {
                 throw 'BitTorrent download timed out (30 min).'
             }
         }
+        Write-Progress -Id 22 -Activity "Torrent OS image: $fileName" -Completed
 
         Send-DeploymentStatus -Stage 'torrent-verify' -Message 'Verifying downloaded image SHA-256.'
+        Write-Host 'Verifying downloaded image SHA-256...'
         $actual = (Get-FileHash -LiteralPath $targetWim -Algorithm SHA256).Hash.ToUpperInvariant()
         $expected = ([string] $BootConfig.osWimSha256).ToUpperInvariant()
         if ($actual -ne $expected) {
@@ -628,11 +744,19 @@ function Invoke-TorrentOsImageDownload {
         $item = Get-Item -LiteralPath $targetWim
         $durationSeconds = [math]::Round(((Get-Date) - $downloadStartTime).TotalSeconds, 1)
         $avgSpeedMiBps   = if ($durationSeconds -gt 0) { [math]::Round($item.Length / 1MB / $durationSeconds, 1) } else { 0 }
+        $sourceSummary = @($observedDownloadPeers.Keys | Sort-Object)
+        $receiverSummary = @($observedUploadPeers.Keys | Sort-Object)
+        Write-Host ''
+        Write-Host 'Torrent transfer complete.' -ForegroundColor Green
+        Write-Host ("  Downloaded: {0:N2} GiB in {1:N1}s (average {2:N1} MiB/s)" -f ($item.Length / 1GB), $durationSeconds, $avgSpeedMiBps)
+        Write-Host "  Sources used: $(if ($sourceSummary.Count) { $sourceSummary -join ', ' } else { 'none observed' })"
+        Write-Host "  Uploaded to: $(if ($receiverSummary.Count) { $receiverSummary -join ', ' } else { 'none observed' })"
         Send-DeploymentStatus -Stage 'torrent-download' -Message "P2P download complete; seeding to peers (up to $seedMinutes min)." -Percent 100 -Extra @{ fileName = $fileName; bytes = $item.Length; durationSeconds = $durationSeconds; avgSpeedMiBps = $avgSpeedMiBps }
         Send-Screenshot -Stage 'torrent-download'
         return $item
     }
     catch {
+        Write-Progress -Id 22 -Activity "Torrent OS image: $fileName" -Completed -ErrorAction SilentlyContinue
         Send-DeploymentStatus -Stage 'torrent-fallback' -Message "Torrent path failed; falling back to SMB-direct apply. $($_.Exception.Message)"
         Send-Screenshot -Stage 'torrent-fallback'
         return $null

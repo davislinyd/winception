@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### 新功能：WinPE Torrent 即時傳輸資訊
+
+- WinPE client 在 torrent 下載期間顯示完成百分比、容量、下載/上傳速率與 ETA
+- active peer 集合改變時列出下載來源與上傳對象的 IP:port 及 Seeder/Peer 身分，完成後保留本次傳輸摘要
+- aria2 JSON-RPC 僅監聽 loopback 並使用每次部署隨機 token；RPC 顯示故障不影響既有 torrent、SHA-256 或 SMB fallback 判定
+
 ### 新功能：Client 登入後部署進度畫面
 
 - App/custom script sequence 改由第一次自動登入後的 `OSDCloudPostLogonFinalize` SYSTEM task 執行，保留既有順序、timeout、fail-fast、logs 與 host status events

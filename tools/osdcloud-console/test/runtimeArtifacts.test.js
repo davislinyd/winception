@@ -929,6 +929,29 @@ test('WinPE deployment script maximizes the visible console for deployment reada
   assert.match(script, /Ensure-ConsoleMaximized/);
 });
 
+test('WinPE torrent download shows local progress and active peers through loopback-only aria2 RPC', () => {
+  const script = fs.readFileSync(
+    path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1'),
+    'utf8',
+  );
+
+  assert.match(script, /function Invoke-Aria2Rpc/);
+  assert.match(script, /http:\/\/127\.0\.0\.1:6800\/jsonrpc/);
+  assert.match(script, /--enable-rpc=true/);
+  assert.match(script, /--rpc-listen-all=false/);
+  assert.match(script, /--rpc-listen-port=6800/);
+  assert.match(script, /--rpc-secret=\$aria2RpcSecret/);
+  assert.match(script, /--gid=\$aria2Gid/);
+  assert.match(script, /aria2\.tellStatus/);
+  assert.match(script, /aria2\.getPeers/);
+  assert.match(script, /Write-Progress -Id 22/);
+  assert.match(script, /Downloading from:/);
+  assert.match(script, /Uploading to:/);
+  assert.match(script, /Torrent progress telemetry unavailable; download continues/);
+  assert.match(script, /Start-Process -FilePath \$aria2 -ArgumentList \$aria2Args -WindowStyle Hidden -PassThru/);
+  assert.match(script, /Torrent path failed; falling back to SMB-direct apply/);
+});
+
 test('endpoint sync injects OSD modules into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
   const moduleCheckIndex = script.indexOf("Assert-WinPePowerShellModuleAvailable -Name 'OSDCloud'");
