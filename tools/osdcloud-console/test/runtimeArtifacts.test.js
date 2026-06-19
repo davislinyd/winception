@@ -838,7 +838,12 @@ test('SetupComplete defers client sequence to a SYSTEM logon task and gates desk
   };
 
   assert.match(setup, /\[switch\] \$PostLogonFinalize/);
+  assert.match(setup, /\[long\] \$RegisteredBootTimeUtcTicks = 0/);
   assert.match(setup, /OSDCloudPostLogonFinalize/);
+  assert.match(setup, /LastBootUpTime\.ToUniversalTime\(\)\.Ticks/);
+  assert.match(setup, /-PostLogonFinalize -RegisteredBootTimeUtcTicks \$registeredBootTimeUtcTicks/);
+  assert.match(setup, /\$currentBootTimeUtcTicks -eq \$RegisteredBootTimeUtcTicks/);
+  assert.match(setup, /Client finalization is waiting for the required post-SetupComplete reboot/);
   assert.match(setup, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
   assert.match(setup, /New-ItemProperty -Path \$runOnce -Name '!OSDCloudDeploymentProgress'/);
   assert.match(setup, /Show-DeploymentProgress\.ps1/);

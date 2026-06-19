@@ -83,7 +83,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 - When changing iPXE `SetupComplete`, update live runtime files and the embedded copy inside `boot.wim`.
 - Screenshot progress evidence is best-effort only. JSON deployment status and logs are the source of truth.
 - Do not install a desktop screenshot Startup helper from `SetupComplete`; the previous approach caused Defender/AMSI blocking.
-- SetupComplete must prepare, not execute, the client app/custom-script sequence before first logon. Register one any-user logon task running as SYSTEM for finalization and one interactive RunOnce viewer; preserve the existing `Install-Apps.ps1` pipeline.
+- SetupComplete must prepare, not execute, the client app/custom-script sequence before first logon. Register one any-user logon task running as SYSTEM for finalization and one interactive RunOnce viewer; preserve the existing `Install-Apps.ps1` pipeline. The finalizer records the boot identity at registration and must defer any logon trigger from that same boot, because the required asynchronous SetupComplete reboot may still be pending.
 - The viewer reads only `C:\ProgramData\OSDCloud\deployment-progress.json`. Keep progress writes atomic and exclude stdout/stderr, raw exceptions, command lines, and secrets. A prior `running` state after reboot is `interrupted` and must fail closed without automatic replay.
 - The desktop-ready scheduled task must use an any-user logon trigger with a SYSTEM principal and must keep retrying until `windows-desktop-ready` is successfully POSTed.
 - Desktop-ready must not be reported until deployment progress is `succeeded`; a terminal `failed` state removes the reporter without sending completion.

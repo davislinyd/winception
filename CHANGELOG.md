@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### 修正：SetupComplete 重開機競態中斷 app 安裝
+
+- post-logon finalizer 現在記錄註冊時的 boot identity；同一 boot 提前出現的自動登入只等待既定重開機，不再開始 app/custom script sequence
+- 重開後的新 boot 才允許執行安裝；真正於安裝中斷後再次觸發時仍維持 `interrupted`、不自動重跑非 idempotent step
+
 ### 新功能：Torrent 持續 wave、可中斷 seeding 與 Web 即時監控
 
 - 同批收集窗由 12 秒改為固定 24 秒；origin batch 使用互斥 `i mod n` pieces，晚到 batch 在前批仍在線時採 `peer-only`，reconnect 以 `infoHash + peerId` 沿用 assignment

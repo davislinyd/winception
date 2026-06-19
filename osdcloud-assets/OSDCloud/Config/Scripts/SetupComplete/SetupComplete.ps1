@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch] $PostLogonFinalize
+    [switch] $PostLogonFinalize,
+    [long] $RegisteredBootTimeUtcTicks = 0
 )
 
 $ErrorActionPreference = 'Continue'
@@ -838,7 +839,8 @@ function Install-PostLogonFinalizer {
 
     [void] (Initialize-DeploymentProgress)
     $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $action = New-ScheduledTaskAction -Execute $powerShellPath -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -PostLogonFinalize"
+    $registeredBootTimeUtcTicks = [long] (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
+    $action = New-ScheduledTaskAction -Execute $powerShellPath -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -PostLogonFinalize -RegisteredBootTimeUtcTicks $registeredBootTimeUtcTicks"
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 95) -MultipleInstances IgnoreNew
@@ -857,6 +859,14 @@ function Install-PostLogonFinalizer {
 }
 
 function Invoke-PostLogonFinalization {
+    if ($RegisteredBootTimeUtcTicks -gt 0) {
+        $currentBootTimeUtcTicks = [long] (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
+        if ($currentBootTimeUtcTicks -eq $RegisteredBootTimeUtcTicks) {
+            Write-Host 'Client finalization is waiting for the required post-SetupComplete reboot.'
+            return $true
+        }
+    }
+
     $progress = Get-JsonFileObject -Path $DeploymentProgressPath
     if ($progress -and [string] $progress.status -eq 'running') {
         Set-DeploymentProgressFailure -Category 'interrupted'
