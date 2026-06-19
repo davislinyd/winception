@@ -164,7 +164,8 @@ foreach ($relativeFile in @(
     'package-lock.json',
     'Setup-DeploymentServer.cmd',
     'Deploy-DeploymentServer.cmd',
-    'Softwares\Install-Apps.ps1'
+    'Softwares\Install-Apps.ps1',
+    'Softwares\Show-DeploymentProgress.ps1'
 )) {
     Copy-File `
         -Source (Join-Path $sourceRootFull $relativeFile) `

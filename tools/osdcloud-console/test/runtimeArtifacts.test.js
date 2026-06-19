@@ -61,6 +61,7 @@ function createSetupSourceFixture(root) {
   );
   fs.writeFileSync(path.join(root, 'tools', 'osdcloud-console', 'src', 'webServer.js'), 'export {};\n', 'utf8');
   fs.writeFileSync(path.join(root, 'Softwares', 'Install-Apps.ps1'), "Write-Host 'fixture'\n", 'utf8');
+  fs.writeFileSync(path.join(root, 'Softwares', 'Show-DeploymentProgress.ps1'), "Write-Host 'fixture viewer'\n", 'utf8');
   fs.writeFileSync(path.join(root, 'Setup-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
   fs.writeFileSync(path.join(root, 'Deploy-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
   writeJson(path.join(root, 'config', 'osdcloud-console.json'), {
@@ -816,6 +817,61 @@ test('endpoint sync injects deployment Config scripts from the bundle, not the m
   // The injection must not read these scripts from the mutable live ($ipxeLab) tree.
   assert.doesNotMatch(mountInjection, /\$ipxeLab 'Config\\Scripts\\SetupComplete\\SetupComplete\.ps1'/);
   assert.doesNotMatch(mountInjection, /\$ipxeLab 'Config\\Scripts\\Shutdown\\Invoke-OobeCustomization\.ps1'/);
+});
+
+test('SetupComplete defers client sequence to a SYSTEM logon task and gates desktop-ready', () => {
+  const setupPath = path.join(
+    process.cwd(),
+    'osdcloud-assets',
+    'OSDCloud',
+    'Config',
+    'Scripts',
+    'SetupComplete',
+    'SetupComplete.ps1',
+  );
+  const setup = fs.readFileSync(setupPath, 'utf8');
+  const preLogonBody = setup.slice(setup.indexOf("[void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-start'"));
+  const reporterHereStringStart = setup.indexOf("$reporter = @'");
+  const isOuterFunction = (name) => {
+    const functionIndex = setup.indexOf(`function ${name}`);
+    return functionIndex >= 0 && functionIndex < reporterHereStringStart;
+  };
+
+  assert.match(setup, /\[switch\] \$PostLogonFinalize/);
+  assert.match(setup, /OSDCloudPostLogonFinalize/);
+  assert.match(setup, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
+  assert.match(setup, /New-ItemProperty -Path \$runOnce -Name '!OSDCloudDeploymentProgress'/);
+  assert.match(setup, /Show-DeploymentProgress\.ps1/);
+  assert.match(setup, /if \(\$progressStatus -ne 'succeeded'\)/);
+  assert.match(setup, /Set-DeploymentProgressFailure -Category 'interrupted'/);
+  assert.equal(isOuterFunction('Write-JsonFileAtomic'), true);
+  assert.equal(isOuterFunction('Initialize-DeploymentProgress'), true);
+  assert.equal(isOuterFunction('Set-DeploymentProgressFailure'), true);
+  assert.doesNotMatch(preLogonBody, /\$clientAppsResult = Invoke-ClientAppInstallers/);
+  assert.match(preLogonBody, /\$finalizer = Install-PostLogonFinalizer/);
+
+  const winPeMirror = fs.readFileSync(path.join(
+    process.cwd(),
+    'osdcloud-assets',
+    'OSDCloud',
+    'WinPE',
+    'OSDCloud',
+    'Config',
+    'Scripts',
+    'SetupComplete',
+    'SetupComplete.ps1',
+  ), 'utf8');
+  assert.equal(winPeMirror.replace(/\r\n/gu, '\n'), setup.replace(/\r\n/gu, '\n'));
+});
+
+test('client progress viewer is full-screen, topmost, and has no running close path', () => {
+  const viewer = fs.readFileSync(path.join(process.cwd(), 'Softwares', 'Show-DeploymentProgress.ps1'), 'utf8');
+  assert.match(viewer, /WindowStyle="None" ResizeMode="NoResize" WindowState="Maximized" Topmost="True"/);
+  assert.match(viewer, /if \(-not \$script:allowClose\)/);
+  assert.match(viewer, /Acknowledge and return to desktop/);
+  assert.match(viewer, /Elapsed: \{0:D2\}:\{1:D2\}:\{2:D2\}/);
+  assert.match(viewer, /\$view\.status -eq 'succeeded'/);
+  assert.doesNotMatch(viewer, /rawException|stdoutTailText|stderrTailText/);
 });
 
 test('endpoint sync injects Startnet boot chain into rebuilt WinPE', () => {

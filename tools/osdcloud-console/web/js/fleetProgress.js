@@ -1,13 +1,12 @@
 // Pure (DOM-free) deployment-progress logic shared by the fleet UI.
 // Kept separate from fleet.js so it can be unit-tested in Node without a DOM.
 
-// Stale runs that stopped at these stages have effectively completed Windows
-// setup — SetupComplete finished and the desktop-ready reporter was installed.
+// Stale runs that stopped at this stage have completed post-logon finalization;
+// only the final desktop-ready callback is missing.
 // Treat them as done in the UI (✓ ring, all flow steps green) rather than
 // showing a raw sub-100% percentage.
 export const STALE_DONE_STAGES = new Set([
   'windows-setupcomplete-finished',
-  'windows-logon-start',
 ]);
 
 export const FLEET_STAGE_FLOW = [

@@ -38,6 +38,7 @@ export function removeAppsRootContents(appsRoot) {
 export function profileManifest(state, osImageResult = null) {
   const international = resolveProfileInternationalSettings(state.activeProfile, osImageResult?.image);
   const selectedScripts = state.selectedScripts ?? [];
+  const softwareById = new Map(state.selectedSoftware.map((software) => [software.id, software]));
   const scriptById = new Map(selectedScripts.map((script) => [script.id, script]));
   const sequence = state.installSequence ?? [];
   const manifest = {
@@ -55,7 +56,12 @@ export function profileManifest(state, osImageResult = null) {
     installSequence: sequence.map((entry) => ({
       type: entry.type,
       id: entry.id,
+      name: (entry.type === 'script' ? scriptById.get(entry.id) : softwareById.get(entry.id))?.name ?? entry.id,
       ...(entry.timeoutSeconds === undefined ? {} : { timeoutSeconds: entry.timeoutSeconds }),
+    })),
+    scripts: selectedScripts.map((script) => ({
+      id: script.id,
+      name: script.name,
     })),
     osImageId: state.activeProfile.osImageId,
     ...(international.displayLanguage ? { displayLanguage: international.displayLanguage } : {}),
@@ -126,6 +132,10 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
   if (!fs.existsSync(state.options.installerScript)) {
     throw new Error(`Install-Apps.ps1 source not found: ${state.options.installerScript}`);
   }
+  const progressViewerScript = path.join(path.dirname(state.options.installerScript), 'Show-DeploymentProgress.ps1');
+  if (!fs.existsSync(progressViewerScript)) {
+    throw new Error(`Show-DeploymentProgress.ps1 source not found: ${progressViewerScript}`);
+  }
 
   let osImageResult = null;
   if (typeof options.publishOsImage === 'function') {
@@ -142,6 +152,8 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
   const removed = removeAppsRootContents(appsRoot);
   retrySyncOnTransientWindowsError(() =>
     fs.copyFileSync(state.options.installerScript, path.join(appsRoot, 'Install-Apps.ps1')));
+  retrySyncOnTransientWindowsError(() =>
+    fs.copyFileSync(progressViewerScript, path.join(appsRoot, 'Show-DeploymentProgress.ps1')));
 
   const copied = [];
   for (const software of state.selectedSoftware) {
@@ -184,5 +196,6 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
     osImage: osImageResult,
     customScripts: scriptsPublished,
     softwarePayloads,
+    supportFiles: ['Install-Apps.ps1', 'Show-DeploymentProgress.ps1'],
   };
 }

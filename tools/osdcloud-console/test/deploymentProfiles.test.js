@@ -54,6 +54,7 @@ function writeSoftware(root, id, script = "Write-Host 'installed'\n") {
 function writeInstallerScript(root) {
   const filePath = path.join(root, 'Install-Apps.ps1');
   fs.writeFileSync(filePath, "Write-Host 'profile installer'\n", 'utf8');
+  fs.writeFileSync(path.join(root, 'Show-DeploymentProgress.ps1'), "Write-Host 'progress viewer'\n", 'utf8');
   return filePath;
 }
 
@@ -955,11 +956,13 @@ test('publishes only selected software and removes stale apps', async () => {
 
     assert.equal(result.profile.id, 'default');
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'Install-Apps.ps1')), true);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'Show-DeploymentProgress.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'one', 'install.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'two', 'install.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'stale')), false);
     assert.deepEqual(result.copied, ['two', 'one']);
+    assert.deepEqual(result.supportFiles, ['Install-Apps.ps1', 'Show-DeploymentProgress.ps1']);
     assert.deepEqual(result.softwarePayloads.map((payload) => `${payload.id}:${payload.status}`), ['two:reused', 'one:reused']);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
@@ -1080,6 +1083,7 @@ test('publishes Minimal profile without downloading software payloads', async ()
     assert.deepEqual(result.selectedSoftware, []);
     assert.deepEqual(result.softwarePayloads, []);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'Install-Apps.ps1')), true);
+    assert.equal(fs.existsSync(path.join(root, 'Apps', 'Show-DeploymentProgress.ps1')), true);
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'one')), false);
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'Apps', 'selected-profile.json'), 'utf8'));
     assert.deepEqual(manifest.selectedSoftware, []);
@@ -1321,6 +1325,95 @@ test('installer script installs selected apps in selected-profile order', () => 
     assert.equal(summary.total, 2);
     assert.equal(summary.succeeded, 2);
     assert.equal(summary.failedStep, null);
+    const progress = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'deployment-progress.json'), 'utf8'));
+    assert.equal(progress.status, 'succeeded');
+    assert.equal(progress.totalSteps, 2);
+    assert.deepEqual(progress.completedSteps.map((step) => step.name), ['Two App', 'One App']);
+    assert.equal(progress.currentStep, null);
+    assert.equal(progress.failure, null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installer script records a successful empty sequence', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const root = makeRoot('osdcloud-installer-empty-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const logRoot = path.join(root, 'logs');
+    fs.mkdirSync(appsRoot, { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'minimal',
+      selectedSoftware: [],
+      installSequence: [],
+    });
+
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: logRoot },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const progress = JSON.parse(fs.readFileSync(path.join(logRoot, 'deployment-progress.json'), 'utf8'));
+    assert.equal(progress.status, 'succeeded');
+    assert.equal(progress.totalSteps, 0);
+    assert.deepEqual(progress.completedSteps, []);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('deployment progress viewer headless output exposes safe state only', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const root = makeRoot('osdcloud-progress-viewer-test-');
+  try {
+    const progressPath = path.join(root, 'deployment-progress.json');
+    writeJson(progressPath, {
+      schemaVersion: 1,
+      status: 'failed',
+      totalSteps: 2,
+      completedSteps: [{ index: 1, type: 'software', id: 'one', name: 'One App', status: 'succeeded' }],
+      currentStep: null,
+      startedAt: '2026-06-18T01:00:00Z',
+      finishedAt: '2026-06-18T02:02:03Z',
+      failure: {
+        step: { index: 2, type: 'script', id: 'SC-FAIL001', name: 'Apply policy' },
+        category: 'timed_out',
+        logPath: 'C:\\Windows\\Temp\\osdcloud-logs\\step.log',
+        rawException: 'must-not-render',
+      },
+    });
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.resolve('Softwares', 'Show-DeploymentProgress.ps1'),
+      '-Headless',
+      '-ProgressPath',
+      progressPath,
+    ], { encoding: 'utf8' });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const view = JSON.parse(result.stdout);
+    assert.equal(view.status, 'failed');
+    assert.equal(view.failureName, 'Apply policy');
+    assert.equal(view.failureCategory, 'timed_out');
+    assert.equal(view.elapsedLabel, 'Elapsed: 01:02:03');
+    assert.match(view.failureLogPath, /osdcloud-logs/u);
+    assert.doesNotMatch(result.stdout, /must-not-render/u);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1408,6 +1501,11 @@ test('installer script fails when selected app is missing', () => {
     assert.equal(summary.failedStep.stepType, 'software');
     assert.equal(summary.failedStep.stepId, 'missing');
     assert.equal(summary.failedStep.status, 'missing');
+    const progress = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'deployment-progress.json'), 'utf8'));
+    assert.equal(progress.status, 'failed');
+    assert.equal(progress.failure.category, 'missing');
+    assert.equal(progress.failure.step.name, 'Missing App');
+    assert.equal(Object.prototype.hasOwnProperty.call(progress.failure, 'reason'), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1710,6 +1808,9 @@ test('installer script stops immediately when a step times out', () => {
     assert.equal(summary.failedStep.stepId, 'SC-SLOW001');
     assert.equal(summary.failedStep.status, 'timed_out');
     assert.equal(summary.failedStep.timeoutSeconds, 1);
+    const progress = JSON.parse(fs.readFileSync(path.join(root, 'logs', 'deployment-progress.json'), 'utf8'));
+    assert.equal(progress.status, 'failed');
+    assert.equal(progress.failure.category, 'timed_out');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1952,9 +2053,13 @@ test('publishDeploymentProfile copies scripts and writes installSequence-only ma
     assert.equal(Object.prototype.hasOwnProperty.call(manifest, 'customScripts'), false);
     assert.equal(manifest.execution.defaultTimeoutSeconds, 600);
     assert.deepEqual(manifest.installSequence, [
-      { type: 'script', id: beforeScript.script.id, timeoutSeconds: 90 },
-      { type: 'software', id: 'one' },
-      { type: 'script', id: afterScript.script.id },
+      { type: 'script', id: beforeScript.script.id, name: 'Before Script', timeoutSeconds: 90 },
+      { type: 'software', id: 'one', name: 'One App' },
+      { type: 'script', id: afterScript.script.id, name: 'After Script' },
+    ]);
+    assert.deepEqual(manifest.scripts, [
+      { id: beforeScript.script.id, name: 'Before Script' },
+      { id: afterScript.script.id, name: 'After Script' },
     ]);
     assert.equal(evaluateDeploymentProfilePayload(config).ok, true);
   } finally {

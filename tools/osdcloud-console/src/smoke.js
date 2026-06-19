@@ -48,6 +48,7 @@ fs.mkdirSync(path.join(softwareRoot, 'smoke-extra'), { recursive: true });
 fs.mkdirSync(profilesRoot, { recursive: true });
 fs.mkdirSync(customScriptsRoot, { recursive: true });
 fs.writeFileSync(path.join(root, 'Install-Apps.ps1'), "Write-Host 'smoke installer'\n", 'utf8');
+fs.writeFileSync(path.join(root, 'Show-DeploymentProgress.ps1'), "Write-Host 'smoke viewer'\n", 'utf8');
 fs.writeFileSync(path.join(softwareRoot, 'smoke-app', 'install.ps1'), "Write-Host 'smoke app'\n", 'utf8');
 fs.writeFileSync(path.join(softwareRoot, 'smoke-extra', 'install.ps1'), "Write-Host 'smoke extra'\n", 'utf8');
 fs.writeFileSync(path.join(softwareRoot, 'smoke-app', 'smoke-app.msi'), 'smoke-app installer', 'utf8');

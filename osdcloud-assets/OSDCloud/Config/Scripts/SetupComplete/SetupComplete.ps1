@@ -1,5 +1,12 @@
+[CmdletBinding()]
+param(
+    [switch] $PostLogonFinalize
+)
+
 $ErrorActionPreference = 'Continue'
 $LogDir = 'C:\Windows\Temp\osdcloud-logs'
+$DeploymentProgressPath = 'C:\ProgramData\OSDCloud\deployment-progress.json'
+$PostLogonTaskName = 'OSDCloudPostLogonFinalize'
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 Start-Transcript -Path (Join-Path $LogDir 'oobe-customization-transcript.log') -Append -ErrorAction SilentlyContinue
 
@@ -364,6 +371,7 @@ function Invoke-ClientAppInstallers {
     $AppInstallerTimeoutSeconds = 90 * 60
     $AppInstallerHeartbeatSeconds = 30
 
+    [Environment]::SetEnvironmentVariable('OSDCloudProgressPath', $DeploymentProgressPath, 'Process')
     $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
 
     $pollStart = Get-Date
@@ -438,6 +446,83 @@ function Invoke-ClientAppInstallers {
     return $result
 }
 
+function Write-JsonFileAtomic {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)] $Value
+    )
+
+    $directory = Split-Path -Parent $Path
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $temporaryPath = Join-Path $directory ('.{0}.{1}.tmp' -f ([System.IO.Path]::GetFileName($Path)), ([guid]::NewGuid().ToString('N')))
+    $backupPath = Join-Path $directory ('.{0}.{1}.bak' -f ([System.IO.Path]::GetFileName($Path)), ([guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($temporaryPath, ($Value | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
+        }
+        else {
+            [System.IO.File]::Move($temporaryPath, $Path)
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $temporaryPath, $backupPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Initialize-DeploymentProgress {
+    $profile = Get-JsonFileObject -Path 'C:\ProgramData\OSDCloud\Apps\selected-profile.json'
+    $totalSteps = if ($profile -and $profile.installSequence) {
+        @($profile.installSequence).Count
+    }
+    elseif ($profile -and $profile.selectedSoftware) {
+        @($profile.selectedSoftware).Count
+    }
+    else {
+        0
+    }
+    $now = (Get-Date).ToString('o')
+    $progress = [ordered]@{
+        schemaVersion = 1
+        status = 'pending'
+        totalSteps = $totalSteps
+        completedSteps = @()
+        currentStep = $null
+        failure = $null
+        startedAt = $null
+        updatedAt = $now
+        finishedAt = $null
+    }
+    Write-JsonFileAtomic -Path $DeploymentProgressPath -Value $progress
+    return $progress
+}
+
+function Set-DeploymentProgressFailure {
+    param(
+        [Parameter(Mandatory)][string] $Category,
+        [string] $LogPath = 'C:\Windows\Temp\osdcloud-logs'
+    )
+
+    $current = Get-JsonFileObject -Path $DeploymentProgressPath
+    $progress = [ordered]@{
+        schemaVersion = 1
+        status = 'failed'
+        totalSteps = if ($current) { [int] $current.totalSteps } else { 0 }
+        completedSteps = if ($current -and $current.completedSteps) { @($current.completedSteps) } else { @() }
+        currentStep = $null
+        failure = [ordered]@{
+            step = if ($current) { $current.currentStep } else { $null }
+            category = $Category
+            exitCode = $null
+            logPath = $LogPath
+        }
+        startedAt = if ($current) { $current.startedAt } else { $null }
+        updatedAt = (Get-Date).ToString('o')
+        finishedAt = (Get-Date).ToString('o')
+    }
+    Write-JsonFileAtomic -Path $DeploymentProgressPath -Value $progress
+}
+
 function Install-DesktopReadyReporter {
     $programData = 'C:\ProgramData\OSDCloud'
     New-Item -ItemType Directory -Path $programData -Force | Out-Null
@@ -448,6 +533,7 @@ $ErrorActionPreference = 'Continue'
 $metadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
 $defaultStatusUrl = 'http://192.168.77.1/osdcloud/status'
 $taskName = 'OSDCloudDesktopReadyReport'
+$progressPath = 'C:\ProgramData\OSDCloud\deployment-progress.json'
 $targetUser = 'TARGET_USER_PLACEHOLDER'
 $logDir = 'C:\Windows\Temp\osdcloud-logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
@@ -470,6 +556,19 @@ function Get-Metadata {
 }
 
 $metadata = Get-Metadata
+
+function Get-ProgressStatus {
+    if (-not (Test-Path -LiteralPath $progressPath -PathType Leaf)) {
+        return 'pending'
+    }
+    try {
+        $progress = Get-Content -LiteralPath $progressPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        return [string] $progress.status
+    }
+    catch {
+        return 'pending'
+    }
+}
 
 function Send-Status {
     param(
@@ -690,6 +789,15 @@ try {
     $deadline = (Get-Date).AddMinutes(30)
     $desktopReadyReported = $false
     do {
+        $progressStatus = Get-ProgressStatus
+        if ($progressStatus -eq 'failed') {
+            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+            break
+        }
+        if ($progressStatus -ne 'succeeded') {
+            Start-Sleep -Seconds 5
+            continue
+        }
         $facts = Get-DesktopReadyFacts
         if ($facts.explorerRunning -and $facts.interactiveUserIsTarget -and $facts.desktopReadyFile -and @($facts.oobeProcesses).Count -eq 0) {
             if (Send-Status -Stage 'windows-desktop-ready' -Message 'Windows desktop is ready for TARGET_USER_PLACEHOLDER.' -Percent 100 -Extra $facts) {
@@ -719,6 +827,82 @@ finally {
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 35)
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop | Out-Null
     return $reporterPath
+}
+
+function Install-PostLogonFinalizer {
+    $appsRoot = 'C:\ProgramData\OSDCloud\Apps'
+    $viewerPath = Join-Path $appsRoot 'Show-DeploymentProgress.ps1'
+    if (-not (Test-Path -LiteralPath $viewerPath -PathType Leaf)) {
+        throw "Deployment progress viewer not found: $viewerPath"
+    }
+
+    [void] (Initialize-DeploymentProgress)
+    $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $action = New-ScheduledTaskAction -Execute $powerShellPath -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -PostLogonFinalize"
+    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 95) -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName $PostLogonTaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop | Out-Null
+
+    $runOnce = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'
+    New-Item -Path $runOnce -Force | Out-Null
+    $viewerCommand = "`"$powerShellPath`" -NoLogo -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$viewerPath`""
+    New-ItemProperty -Path $runOnce -Name '!OSDCloudDeploymentProgress' -PropertyType String -Value $viewerCommand -Force | Out-Null
+
+    [ordered]@{
+        taskName = $PostLogonTaskName
+        viewerPath = $viewerPath
+        progressPath = $DeploymentProgressPath
+    }
+}
+
+function Invoke-PostLogonFinalization {
+    $progress = Get-JsonFileObject -Path $DeploymentProgressPath
+    if ($progress -and [string] $progress.status -eq 'running') {
+        Set-DeploymentProgressFailure -Category 'interrupted'
+        [void] (Send-DeploymentStatus -Stage 'windows-apps-error' -Message 'Client finalization was interrupted before completion.' -Percent 94.9 -Extra @{ category = 'interrupted' })
+        [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-error' -Message 'Post-logon client finalization was interrupted.' -Extra @{ script = 'SetupComplete.ps1'; category = 'interrupted' })
+        Unregister-ScheduledTask -TaskName $PostLogonTaskName -Confirm:$false -ErrorAction SilentlyContinue
+        return $false
+    }
+    if ($progress -and [string] $progress.status -eq 'succeeded') {
+        Unregister-ScheduledTask -TaskName $PostLogonTaskName -Confirm:$false -ErrorAction SilentlyContinue
+        return $true
+    }
+    if ($progress -and [string] $progress.status -eq 'failed') {
+        Unregister-ScheduledTask -TaskName $PostLogonTaskName -Confirm:$false -ErrorAction SilentlyContinue
+        return $false
+    }
+
+    try {
+        $targetUserEnvironment = Set-TargetUserEnvironment -TargetUser $UserName
+        $clientAppsResult = Invoke-ClientAppInstallers
+        $driverPackCacheRequestSent = Send-DriverPackCacheRequest
+        [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'Post-logon client finalization finished.' -Percent 96 -Extra @{
+            clientApps = $clientAppsResult
+            targetUserEnvironment = $targetUserEnvironment
+            driverPackCacheRequestSent = $driverPackCacheRequestSent
+            selectedOs = $SelectedOs
+        })
+        return $true
+    }
+    catch {
+        $current = Get-JsonFileObject -Path $DeploymentProgressPath
+        if (-not $current -or [string] $current.status -ne 'failed') {
+            Set-DeploymentProgressFailure -Category 'runner_error'
+        }
+        [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-error' -Message $_.Exception.Message -Extra @{ script = 'SetupComplete.ps1'; phase = 'post-logon-finalize' })
+        return $false
+    }
+    finally {
+        Unregister-ScheduledTask -TaskName $PostLogonTaskName -Confirm:$false -ErrorAction SilentlyContinue
+    }
+}
+
+if ($PostLogonFinalize) {
+    $finalizationSucceeded = Invoke-PostLogonFinalization
+    Stop-Transcript -ErrorAction SilentlyContinue | Out-Null
+    if ($finalizationSucceeded) { exit 0 } else { exit 1 }
 }
 
 [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-start' -Message 'SetupComplete started in deployed Windows.' -Percent 94)
@@ -790,18 +974,19 @@ try {
     }
 
     $targetUserEnvironment = Set-TargetUserEnvironment -TargetUser $UserName
-    $clientAppsResult = Invoke-ClientAppInstallers
+    $finalizer = Install-PostLogonFinalizer
     $reporterPath = Install-DesktopReadyReporter
-    $driverPackCacheRequestSent = Send-DriverPackCacheRequest
-    [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'SetupComplete finished; desktop ready reporter installed.' -Percent 96 -Extra @{
+    [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-awaiting-logon' -Message 'SetupComplete prepared post-logon client finalization.' -Percent 94.2 -Extra @{
         reporterPath = $reporterPath
-        clientApps = $clientAppsResult
+        finalizer = $finalizer
         targetUserEnvironment = $targetUserEnvironment
-        driverPackCacheRequestSent = $driverPackCacheRequestSent
         selectedOs = $SelectedOs
     })
 }
 catch {
+    if (Test-Path -LiteralPath $DeploymentProgressPath -PathType Leaf) {
+        Set-DeploymentProgressFailure -Category 'setupcomplete_error'
+    }
     [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-error' -Message $_.Exception.Message -Extra @{ script = 'SetupComplete.ps1' })
     throw
 }

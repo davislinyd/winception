@@ -3,10 +3,16 @@ import assert from 'node:assert/strict';
 
 import {
   FLEET_STAGE_FLOW,
+  STALE_DONE_STAGES,
   flowIndexForStage,
   estPct,
   ringPercent,
 } from '../web/js/fleetProgress.js';
+
+test('only successful post-logon finalization is effectively done when stale', () => {
+  assert.equal(STALE_DONE_STAGES.has('windows-setupcomplete-finished'), true);
+  assert.equal(STALE_DONE_STAGES.has('windows-logon-start'), false);
+});
 
 test('flowIndexForStage maps stages and substages to flow positions', () => {
   assert.equal(flowIndexForStage('winpe-start'), 0);

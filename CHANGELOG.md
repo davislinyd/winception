@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### 新功能：Client 登入後部署進度畫面
+
+- App/custom script sequence 改由第一次自動登入後的 `OSDCloudPostLogonFinalize` SYSTEM task 執行，保留既有順序、timeout、fail-fast、logs 與 host status events
+- 新增 English 全螢幕置頂 viewer，顯示目前 app/script、步驟與完成項目；執行中不可關閉，成功後自動離開，失敗時需技術人員確認
+- 新增 `C:\ProgramData\OSDCloud\deployment-progress.json` 安全狀態檔；不包含 stdout/stderr、raw exception、命令列或 secrets
+- `selected-profile.json.installSequence[]` 增加 additive `name`，所有 profile（含 Minimal）都發布 `Show-DeploymentProgress.ps1`
+- Desktop-ready reporter 只在 client finalization 成功後回報 `windows-desktop-ready`；意外重開機會標記 `interrupted`，不自動重跑非 idempotent step
+
+### 修正：SetupComplete 無法初始化部署進度
+
+- 將 progress JSON helpers 從 Desktop Ready reporter 的產生碼 here-string 移回 `SetupComplete.ps1` 外層作用域，避免四台 client 在 `Initialize-DeploymentProgress` 直接失敗
+- 新增回歸檢查，確保 progress helpers 不會再次落入 reporter here-string
+
 ### 修正：Client 重開機時進度環回退
 
 - 將預期的 WinPE `reporter-stop` 對映至 `rebooting` flow step，避免等待 Windows 啟動期間進度環從 57% 回退至 5%
