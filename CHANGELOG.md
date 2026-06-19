@@ -14,6 +14,7 @@
 
 - 將 progress JSON helpers 從 Desktop Ready reporter 的產生碼 here-string 移回 `SetupComplete.ps1` 外層作用域，避免四台 client 在 `Initialize-DeploymentProgress` 直接失敗
 - 新增回歸檢查，確保 progress helpers 不會再次落入 reporter here-string
+- 修正 Hyper-V restart helper 的預設 VM prefix，避免把 `winception-client-01` 組成不存在的 `winception-client-001`
 
 ### 修正：Client 重開機時進度環回退
 

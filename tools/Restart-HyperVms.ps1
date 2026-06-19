@@ -1,5 +1,5 @@
 param(
-    [string]$VmPrefix = 'winception-client-0',
+    [string]$VmPrefix = 'winception-client-',
     [int]$StartIndex = 1,
     [int]$EndIndex = 4,
     [switch]$PassThru
