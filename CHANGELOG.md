@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 新功能：Torrent 持續 wave、可中斷 seeding 與 Web 即時監控
+
+- 同批收集窗由 12 秒改為固定 24 秒；origin batch 使用互斥 `i mod n` pieces，晚到 batch 在前批仍在線時採 `peer-only`，reconnect 以 `infoHash + peerId` 沿用 assignment
+- 每個 wave 正常 host budget 固定為 `1.15x WIM`；3 分鐘無下載進展時進入可見的 emergency host fallback，30 秒無 non-host heartbeat 才建立新 wave
+- WinPE 下載後於套用 Windows 期間繼續 seeding；reboot 前等待至 torrent 完成時間加 `seedMinutes`，可用 client Enter、Web 單台或 Web 全部等待中 client 提前結束
+- 新增安全的 5 秒 telemetry、torrent control/release API、HostTools State 原子持久化及 Web wave/client 明細；週期性 telemetry 不寫入 status JSONL
+- Fleet 新增 seed wait/release/emergency stage mapping；endpoint sync 同步注入 `Report-TorrentTelemetry.ps1`
+
 ### 修正：Torrent client 未互傳 piece
 
 - tracker announce interval 由 10 分鐘縮短為 5 秒，WinPE aria2 啟用 peer exchange、固定 listen port 與明確 external IP，並以 `wpeutil` 關閉 firewall，讓同批 client 能在下載期間建立 inbound peer 連線

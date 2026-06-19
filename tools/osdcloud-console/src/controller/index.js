@@ -17,6 +17,7 @@ import { archiveStatusRuns, deleteArchivedRuns, deleteStatusRun, deleteStatusRun
 import { TftpResponder } from '../tftp.js';
 import { formatDisplayLogLine } from '../timeFormat.js';
 import { TorrentSeeder, TorrentTracker, createOsImageTorrent } from '../torrent.js';
+import { TorrentDistributionCoordinator } from '../torrentCoordinator.js';
 import { appVersion } from '../version.js';
 import { syncIpxeEndpoint } from '../windows/bootArtifacts.js';
 import { listIpv4ServiceInterfaces } from '../windows/network.js';
@@ -84,13 +85,16 @@ export class ServiceController extends EventEmitter {
       ...options.dependencies,
     };
     this.config = options.config ?? loadConfig(options.configPath);
+    const torrentConfig = torrentServerConfig(this.config);
+    this.torrentCoordinator = options.torrentCoordinator ?? new TorrentDistributionCoordinator(torrentConfig);
     this.services = options.services ?? {
       dhcp: new DhcpResponder(this.config.dhcp),
       tftp: new TftpResponder(this.config.tftp),
-      http: new MediaHttpServer(mediaHttpServerConfig(this.config)),
-      torrent: new TorrentTracker(torrentServerConfig(this.config)),
-      torrentSeeder: new TorrentSeeder(torrentServerConfig(this.config)),
+      http: new MediaHttpServer(mediaHttpServerConfig(this.config), this.torrentCoordinator),
+      torrent: new TorrentTracker(torrentConfig, this.torrentCoordinator),
+      torrentSeeder: new TorrentSeeder(torrentConfig, this.torrentCoordinator),
     };
+    this.services.http?.setTorrentCoordinator?.(this.torrentCoordinator);
     this.runtimeLog = new RingBuffer(options.logLimit ?? 500);
     this.preflightResults = [];
     this.endpointUpdateStatus = [];
@@ -166,6 +170,8 @@ export class ServiceController extends EventEmitter {
   }
 
   refreshServiceConfigs() {
+    const torrentConfig = torrentServerConfig(this.config);
+    this.torrentCoordinator.updateConfig(torrentConfig);
     if (this.services.dhcp) {
       this.services.dhcp.config = this.config.dhcp;
       this.services.dhcp.refreshLeasePool?.();
@@ -177,10 +183,10 @@ export class ServiceController extends EventEmitter {
       this.services.http.config = mediaHttpServerConfig(this.config);
     }
     if (this.services.torrent) {
-      this.services.torrent.config = torrentServerConfig(this.config);
+      this.services.torrent.config = torrentConfig;
     }
     if (this.services.torrentSeeder) {
-      this.services.torrentSeeder.config = torrentServerConfig(this.config);
+      this.services.torrentSeeder.config = torrentConfig;
     }
   }
 
@@ -267,6 +273,7 @@ export class ServiceController extends EventEmitter {
         seederRunning: Boolean(this.services.torrentSeeder?.running),
         seeding: this.services.torrentSeeder?.seeding ?? null,
         swarmPeers: this.services.torrent?.getSwarmPeers?.() ?? [],
+        distribution: this.torrentCoordinator.state(),
       }),
     };
   }
@@ -559,6 +566,12 @@ export class ServiceController extends EventEmitter {
       this.services.torrent?.stop() ?? Promise.resolve(),
       this.services.torrentSeeder?.stop() ?? Promise.resolve(),
     ]);
+  }
+
+  releaseTorrentClients(payload) {
+    const result = this.torrentCoordinator.release(payload);
+    this.addLog(`[TORRENT] release requested for ${result.count} waiting client${result.count === 1 ? '' : 's'}`);
+    return result;
   }
 
   // Best-effort (re)generation of the active OS image .torrent + sidecar manifest.
@@ -1209,5 +1222,6 @@ export class ServiceController extends EventEmitter {
 
   async shutdown() {
     await this.stopAllServices();
+    this.torrentCoordinator.close();
   }
 }

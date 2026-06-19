@@ -7,6 +7,7 @@ import bencode from 'bencode';
 import Wire from 'bittorrent-protocol';
 import createTorrent from 'create-torrent';
 import { Server as TrackerServer, Client as TrackerClient } from 'bittorrent-tracker';
+import { TorrentDistributionCoordinator } from './torrentCoordinator.js';
 import {
   torrentServerConfig,
   trackerAnnounceUrl,
@@ -97,7 +98,7 @@ export async function createOsImageTorrent(config, options = {}) {
 // Server and exposes the same lifecycle surface the other deployment services use
 // (start/stop/running + 'log'/'error' events) so ServiceController can manage it.
 export class TorrentTracker extends EventEmitter {
-  constructor(config = {}) {
+  constructor(config = {}, coordinator = null) {
     super();
     this.config = config;
     this.server = null;
@@ -106,6 +107,7 @@ export class TorrentTracker extends EventEmitter {
     // Live swarm peer map. Keyed by 'ip:port'; populated from tracker announce events.
     // Provides real-time per-VM download progress for the dashboard UI.
     this._swarmPeers = new Map();
+    this.coordinator = coordinator;
   }
 
   get running() {
@@ -181,6 +183,7 @@ export class TorrentTracker extends EventEmitter {
       server.on(event, (addr, params) => {
         const peer = (params && (params.ip || params.addr)) ? `${params.ip ?? ''}:${params.port ?? ''}` : String(addr ?? '');
         const left = params?.left;
+        this.coordinator?.noteTrackerPeer(params?.peer_id ?? params?.peerId, { complete: Number(left) === 0 });
         this.trackerLog(`${event.toUpperCase()} peer=${peer} left=${left} | swarm: ${this.swarmSummary()}`);
         // Maintain live swarm map for dashboard UI
         const ip = params?.ip ?? '';
@@ -252,7 +255,7 @@ export class TorrentTracker extends EventEmitter {
 // Mirrors the service lifecycle interface so ServiceController can manage it
 // (start/stop/running + 'log'/'error').
 export class NodeSuperSeeder extends EventEmitter {
-  constructor(config = {}) {
+  constructor(config = {}, coordinator = null) {
     super();
     this.config = config;
     this._server = null;
@@ -266,10 +269,12 @@ export class NodeSuperSeeder extends EventEmitter {
     this._infoHash = null;
     this._peerId = null;
     this._pieceLengthBytes = 0;
-    this._pendingPeers = [];
-    this._batchTimer = null;
-    this._batchSequence = 0;
     this._totalServedBytes = 0;
+    this.coordinator = coordinator ?? new TorrentDistributionCoordinator(config);
+    this.coordinator.on('batch-released', ({ batch, peers }) => {
+      for (const assignment of peers) this._advertiseAssignment(assignment, batch);
+    });
+    this.coordinator.on('emergency', (details) => this._activateEmergencyFallback(details));
   }
 
   get running() {
@@ -285,7 +290,7 @@ export class NodeSuperSeeder extends EventEmitter {
   }
 
   get totalServedBytes() {
-    return this._totalServedBytes;
+    return this.coordinator?.state().hostServedBytes ?? this._totalServedBytes;
   }
 
   // Locate the active OS torrent (and its complete WIM) to seed, via the sidecar
@@ -351,55 +356,41 @@ export class NodeSuperSeeder extends EventEmitter {
     return buf;
   }
 
-  _releasePendingBatch() {
-    this._batchTimer = null;
-    const peers = this._pendingPeers.filter((peer) => !peer.closed);
-    this._pendingPeers = [];
-    if (peers.length === 0) return;
-
-    const batch = this._batchSequence++;
-    const peerCount = peers.length;
-    for (let slot = 0; slot < peerCount; slot++) {
-      const peer = peers[slot];
-      peer.batch = batch;
-      peer.slot = slot;
-      peer.peerCount = peerCount;
-      peer.full = peerCount === 1;
-      peer.released = true;
-      peer.wire.bitfield(peer.full
-        ? this._buildFullBitfield()
-        : this._buildStripedBitfield(slot, peerCount));
-      peer.wire.unchoke();
-
-      this._seederLog(
-        `PEER-RELEASE ${peer.remoteName} batch=${batch} slot=${slot}/${peerCount}`
-        + ` mode=${peer.full ? 'full-single' : 'striped'}`,
-      );
-
-      if (!peer.full) {
-        peer.fallbackTimer = setTimeout(() => {
-          if (peer.closed || peer.full) return;
-          peer.full = true;
-          for (let piece = 0; piece < this._totalPieces; piece++) {
-            if (piece % peer.peerCount !== peer.slot) peer.wire.have(piece);
-          }
-          this._seederLog(
-            `PEER-FALLBACK ${peer.remoteName} batch=${batch}`
-            + ` servedBytes=${peer.servedBytes} reason=peer-transfer-timeout`,
-          );
-          this.emit('log', `Torrent seeder: peer ${peer.remoteName} expanded to full host fallback`);
-        }, 3 * 60 * 1000);
-        peer.fallbackTimer.unref?.();
-      }
-    }
+  _advertiseAssignment(assignment, batch = assignment.batch) {
+    const peer = assignment?.wire?.deploymentPeer;
+    if (!peer || peer.closed || !assignment.released) return;
+    peer.key = assignment.key;
+    peer.batch = assignment.batch;
+    peer.slot = assignment.slot;
+    peer.peerCount = assignment.peerCount;
+    const emergency = Boolean(this.coordinator.state().emergency);
+    peer.mode = emergency && assignment.mode !== 'seeder' ? 'emergency-host-fallback' : assignment.mode;
+    peer.released = true;
+    const bitfield = peer.mode === 'full-single' || peer.mode === 'emergency-host-fallback'
+      ? this._buildFullBitfield()
+      : (peer.mode === 'striped'
+        ? this._buildStripedBitfield(assignment.slot, assignment.peerCount)
+        : Buffer.alloc(Math.ceil(this._totalPieces / 8), 0));
+    peer.wire.bitfield(bitfield);
+    peer.wire.unchoke();
+    this._seederLog(
+      `PEER-RELEASE ${peer.remoteName} wave=${this.coordinator.state().waveId}`
+      + ` batch=${batch} slot=${assignment.slot}/${assignment.peerCount} mode=${peer.mode}`,
+    );
   }
 
-  _queuePeer(peer) {
-    this._pendingPeers.push(peer);
-    if (!this._batchTimer) {
-      this._batchTimer = setTimeout(() => this._releasePendingBatch(), 12 * 1000);
-      this._batchTimer.unref?.();
+  _activateEmergencyFallback(details) {
+    for (const wire of this._peers) {
+      const peer = wire.deploymentPeer;
+      if (!peer || peer.closed || !peer.released || peer.mode === 'seeder') continue;
+      peer.mode = 'emergency-host-fallback';
+      for (let piece = 0; piece < this._totalPieces; piece += 1) wire.have(piece);
     }
+    this._seederLog(
+      `EMERGENCY-FALLBACK wave=${details.waveId} reason=${details.reason}`
+      + ` budgetBytes=${details.budgetBytes} servedBytes=${details.servedBytesAtStart}`,
+    );
+    this.emit('log', `Torrent seeder: emergency host fallback active (${details.reason})`);
   }
 
   _seederLog(message) {
@@ -433,19 +424,19 @@ export class NodeSuperSeeder extends EventEmitter {
       servedBytes: 0,
       requests: 0,
       nextStatsBytes: 256 * 1024 * 1024,
-      fallbackTimer: null,
+      key: null,
+      mode: 'pending',
     };
+    wire.deploymentPeer = peer;
     this._peers.push(wire);
 
     const cleanup = () => {
       if (peer.closed) return;
       peer.closed = true;
-      if (peer.fallbackTimer) clearTimeout(peer.fallbackTimer);
       try { if (fd !== null) { fs.closeSync(fd); fd = null; } } catch {}
       const idx = this._peers.indexOf(wire);
       if (idx !== -1) this._peers.splice(idx, 1);
-      const pendingIndex = this._pendingPeers.indexOf(peer);
-      if (pendingIndex !== -1) this._pendingPeers.splice(pendingIndex, 1);
+      if (peer.key) this.coordinator.disconnectPeer(peer.key);
     };
 
     wire.on('error', (err) => {
@@ -462,17 +453,39 @@ export class NodeSuperSeeder extends EventEmitter {
       cleanup();
     });
 
-    wire.on('handshake', (infoHashHex) => {
+    wire.on('handshake', (infoHashHex, peerId) => {
       if (infoHashHex !== this._infoHash.toString('hex')) {
         wire.destroy();
         return;
       }
-      const peerIndex = this._peerIndex++;
-      this._seederLog(`PEER-CONNECT ${remoteName} index=${peerIndex} awaiting-batch`);
-      this.emit('log', `Torrent seeder: peer ${remoteName} connected; awaiting deployment batch`);
-
       wire.handshake(this._infoHash, this._peerId);
-      this._queuePeer(peer);
+      const assignment = this.coordinator.registerPeer({
+        infoHash: infoHashHex,
+        peerId,
+        ip: String(socket.remoteAddress ?? '').replace(/^::ffff:/u, ''),
+        port: socket.remotePort ?? 0,
+        wire,
+      });
+      if (!assignment) {
+        wire.destroy();
+        return;
+      }
+      peer.key = assignment.key;
+      const peerIndex = this._peerIndex++;
+      this._seederLog(
+        `PEER-CONNECT ${remoteName} index=${peerIndex}`
+        + ` reconnect=${assignment.reconnect} batch=${assignment.batch} mode=${assignment.mode}`,
+      );
+      this.emit('log', `Torrent seeder: peer ${remoteName} connected; batch=${assignment.batch}`);
+      if (assignment.released) this._advertiseAssignment({ ...assignment, wire });
+    });
+
+    wire.on('have', (piece) => {
+      if (peer.key) this.coordinator.recordHave(peer.key, piece);
+    });
+
+    wire.on('bitfield', (bitfield) => {
+      if (peer.key) this.coordinator.recordBitfield(peer.key, bitfield);
     });
 
     wire.on('interested', () => {
@@ -480,10 +493,9 @@ export class NodeSuperSeeder extends EventEmitter {
     });
 
     wire.on('request', (pieceIndex, offset, length, respond) => {
-      const assigned = peer.full || (
-        peer.released
-        && pieceIndex % peer.peerCount === peer.slot
-      );
+      const assigned = peer.mode === 'full-single'
+        || peer.mode === 'emergency-host-fallback'
+        || (peer.released && peer.mode === 'striped' && pieceIndex % peer.peerCount === peer.slot);
       if (!assigned) {
         respond(new Error('piece not advertised to this deployment peer'));
         return;
@@ -496,8 +508,13 @@ export class NodeSuperSeeder extends EventEmitter {
           return;
         }
         peer.requests += 1;
+        if (!this.coordinator.allowHostBytes(bytesRead)) {
+          respond(new Error('normal wave host budget exhausted'));
+          return;
+        }
         peer.servedBytes += bytesRead;
         this._totalServedBytes += bytesRead;
+        this.coordinator.recordHostBytes(bytesRead);
         if (peer.servedBytes >= peer.nextStatsBytes) {
           this._seederLog(
             `PEER-STATS ${remoteName} batch=${peer.batch ?? '-'} slot=${peer.slot}/${peer.peerCount}`
@@ -533,9 +550,15 @@ export class NodeSuperSeeder extends EventEmitter {
     const wimStat = fs.statSync(target.wimPath);
     this._totalPieces = Math.ceil(wimStat.size / pieceLengthBytes);
     this._peerIndex = 0;
-    this._batchSequence = 0;
     this._totalServedBytes = 0;
     this._peerId = this._generatePeerId();
+    this.coordinator.updateConfig(this.config);
+    this.coordinator.configureTorrent({
+      infoHash: this._infoHash.toString('hex'),
+      totalPieces: this._totalPieces,
+      wimBytes: wimStat.size,
+    });
+    this.coordinator.setHostPeerId(this._peerId);
 
     const logPath = this.config.seederLogPath;
     if (logPath) {
@@ -544,7 +567,7 @@ export class NodeSuperSeeder extends EventEmitter {
         this._logStream = fs.createWriteStream(logPath, { flags: 'a' });
         this._logStream.write(
           `\n===== seeder start ${new Date().toISOString()} ${target.fileName}`
-          + ` pieces=${this._totalPieces} expectedPeers=${this.config.expectedPeers ?? 4}`
+          + ` pieces=${this._totalPieces} batchWindowSeconds=24 budgetRatio=1.15`
           + ` port=${this.config.seederListenPort ?? 6881} =====\n`,
         );
       } catch (err) {
@@ -595,13 +618,6 @@ export class NodeSuperSeeder extends EventEmitter {
     this._running = false;
     this._seeding = null;
 
-    if (this._batchTimer) clearTimeout(this._batchTimer);
-    this._batchTimer = null;
-    for (const peer of this._pendingPeers) {
-      if (peer.fallbackTimer) clearTimeout(peer.fallbackTimer);
-    }
-    this._pendingPeers = [];
-
     if (this._trackerClient) {
       try { this._trackerClient.stop(); } catch {}
       try { this._trackerClient.destroy(); } catch {}
@@ -625,7 +641,6 @@ export class NodeSuperSeeder extends EventEmitter {
     this._peerId = null;
     this._totalPieces = 0;
     this._peerIndex = 0;
-    this._batchSequence = 0;
     this._totalServedBytes = 0;
 
     this.emit('log', 'Torrent seeder stopped');

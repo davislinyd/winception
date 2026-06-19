@@ -47,6 +47,20 @@ function readWebStyles() {
   return fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
 }
 
+test('torrent card renders live wave telemetry and release controls', () => {
+  const script = readWebScript();
+  const styles = readWebStyles();
+  assert.match(script, /Wave \/ batch/);
+  assert.match(script, /Batch collection/);
+  assert.match(script, /Swarm coverage/);
+  assert.match(script, /Continue to reboot/);
+  assert.match(script, /Continue all waiting/);
+  assert.match(script, /\/api\/torrent\/release/);
+  assert.match(script, /Emergency host fallback/);
+  assert.match(styles, /\.torrent-client-table/);
+  assert.match(styles, /\.torrent-emergency/);
+});
+
 // Slice from a marker to the next function declaration, tolerating `export`/`async`
 // prefixes that appear once the source is split into modules.
 function blockFromMarker(text, startMarker) {

@@ -158,14 +158,13 @@ export function renderServices(appState) {
     elements.servicesGrid.append(row);
   }
 
-  // Read-only status for the BitTorrent tracker. It is started/stopped together
-  // with the core services (Start/Stop all services) and accelerates the OS image
-  // transfer via P2P, so it is surfaced for visibility rather than as a toggle.
+  // Torrent distribution is controlled with the core services. Telemetry is
+  // memory-only and refreshed through /api/state; only release commands mutate it.
   const torrent = appState.services.torrent;
   if (torrent) {
     const torrentEnabled = torrent.enabled !== false;
     const row = document.createElement('div');
-    row.className = 'service-card service-row';
+    row.className = 'service-card service-row torrent-service-card';
     row.dataset.serviceState = torrent.running ? 'running' : 'stopped';
     const head = document.createElement('div');
     head.className = 'service-row-head';
@@ -175,7 +174,10 @@ export function renderServices(appState) {
     const title = document.createElement('strong');
     title.textContent = 'Torrent Tracker';
     titleWrap.append(title);
-    const pill = torrentEnabled
+    const distribution = torrent.distribution ?? {};
+    const pill = distribution.emergency
+      ? makeStatusPill('Emergency fallback', 'warning')
+      : torrentEnabled
       ? makeStatusPill(torrent.running ? 'Running' : 'Stopped', torrent.running ? 'ok' : 'neutral')
       : makeStatusPill('Disabled', 'neutral');
     head.append(titleWrap, pill);
@@ -189,20 +191,104 @@ export function renderServices(appState) {
       : 'P2P OS image distribution';
     row.append(head, address);
 
-    const peers = torrent.swarmPeers ?? [];
-    if (peers.length > 0) {
-      const peerList = document.createElement('div');
-      peerList.className = 'torrent-swarm-peers';
-      for (const peer of peers) {
-        const item = document.createElement('div');
-        item.className = 'torrent-peer-row';
-        const total = peer.left + peer.downloaded;
-        const pct = total > 0 ? Math.round((peer.downloaded / total) * 100) : (peer.complete ? 100 : 0);
-        const status = peer.complete ? 'seeding ✓' : `${pct}%`;
-        item.textContent = `${peer.ip}  ${status}`;
-        peerList.append(item);
+    const summary = document.createElement('div');
+    summary.className = 'torrent-summary-grid';
+    const summaryItems = [
+      ['Wave / batch', distribution.waveId ? `${distribution.waveId} / ${distribution.batch ?? '-'}` : '-'],
+      ['Batch collection', distribution.batchDeadline ? `${distribution.batchSecondsRemaining}s · ${distribution.pendingClients ?? 0} pending` : 'idle'],
+      ['Host served', `${bytes(distribution.hostServedBytes)} / ${bytes(distribution.budgetBytes)} (${Number(distribution.hostRatio ?? 0).toFixed(2)}×)`],
+      ['Swarm coverage', `${distribution.coveragePercent ?? 0}% (${distribution.coveragePieces ?? 0}/${distribution.totalPieces ?? 0})`],
+      ['Clients', `down ${distribution.phases?.downloading ?? 0} · seed ${distribution.phases?.seeding ?? 0} · wait ${distribution.phases?.waiting ?? 0} · stale ${distribution.phases?.stale ?? 0}`],
+    ];
+    for (const [label, value] of summaryItems) {
+      const item = document.createElement('div');
+      const key = document.createElement('span');
+      key.textContent = label;
+      const val = document.createElement('strong');
+      val.textContent = value;
+      item.append(key, val);
+      summary.append(item);
+    }
+    row.append(summary);
+
+    if (distribution.emergency) {
+      const warning = document.createElement('div');
+      warning.className = 'torrent-emergency';
+      warning.textContent = `Emergency host fallback: ${distribution.emergency.reason} · started ${localCompactDateTime(distribution.emergency.startedAt)} · over budget ${bytes(distribution.emergency.exceededBytes)}`;
+      row.append(warning);
+    }
+
+    const clients = distribution.clients ?? [];
+    if (clients.length) {
+      const tableWrap = document.createElement('div');
+      tableWrap.className = 'torrent-client-table-wrap';
+      const table = document.createElement('table');
+      table.className = 'torrent-client-table';
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      for (const label of ['Client', 'Phase', 'Batch', 'Progress', 'Down / up', 'ETA', 'Uploaded', 'Sources / receivers', 'Last seen', '']) {
+        const cell = document.createElement('th');
+        cell.textContent = label;
+        headerRow.append(cell);
       }
-      row.append(peerList);
+      thead.append(headerRow);
+      const tbody = document.createElement('tbody');
+      for (const client of clients) {
+        const tr = document.createElement('tr');
+        if (client.stale) tr.className = 'stale';
+        const progress = client.totalLength > 0 ? Math.min(100, Math.round(client.completedLength * 100 / client.totalLength)) : 0;
+        const values = [
+          `${client.ip} · ${client.clientId || client.runId}`,
+          client.stale ? `${client.phase} (stale)` : client.phase,
+          `${client.batch ?? '-'} / ${client.slot ?? '-'} · ${client.mode ?? '-'}`,
+          `${progress}% · ${bytes(client.completedLength)} / ${bytes(client.totalLength)}`,
+          `${bytes(client.downloadSpeed)}/s · ${bytes(client.uploadSpeed)}/s`,
+          client.etaSeconds ? FormatTorrentEta(client.etaSeconds) : '-',
+          bytes(client.uploadLength),
+          `${client.sources?.join(', ') || '-'} / ${client.receivers?.join(', ') || '-'}`,
+          `${client.lastSeenSeconds ?? 0}s`,
+        ];
+        for (const [index, value] of values.entries()) {
+          const td = document.createElement('td');
+          if (index === 3) {
+            const label = document.createElement('span');
+            label.textContent = value;
+            const track = document.createElement('div');
+            track.className = 'torrent-progress';
+            const fill = document.createElement('span');
+            fill.style.width = `${progress}%`;
+            track.append(fill);
+            td.append(label, track);
+          } else {
+            td.textContent = value;
+          }
+          tr.append(td);
+        }
+        const actionCell = document.createElement('td');
+        if (client.phase === 'waiting' && !client.stale) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'secondary-button torrent-release-button';
+          button.dataset.action = 'torrent-release';
+          button.dataset.runId = client.runId;
+          button.textContent = 'Continue to reboot';
+          actionCell.append(button);
+        }
+        tr.append(actionCell);
+        tbody.append(tr);
+      }
+      table.append(thead, tbody);
+      tableWrap.append(table);
+      row.append(tableWrap);
+    }
+
+    if ((distribution.phases?.waiting ?? 0) > 0) {
+      const allButton = document.createElement('button');
+      allButton.type = 'button';
+      allButton.className = 'secondary-button torrent-release-all';
+      allButton.dataset.action = 'torrent-release-all';
+      allButton.textContent = 'Continue all waiting';
+      row.append(allButton);
     }
 
     elements.servicesGrid.append(row);
@@ -220,6 +306,14 @@ export function renderServices(appState) {
   setActionIcon('all-services-toggle', allServicesRunning ? 'stop' : 'play_arrow');
   setActionRunning('all-services-toggle', allServicesRunning);
   setActionDanger('all-services-toggle', !allServicesRunning);
+}
+
+function FormatTorrentEta(seconds) {
+  const total = Math.max(0, Math.ceil(Number(seconds) || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}` : `${minutes}:${String(secs).padStart(2, '0')}`;
 }
 
 export function renderProfileSummary(appState) {

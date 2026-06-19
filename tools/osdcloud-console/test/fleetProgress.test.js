@@ -28,11 +28,12 @@ test('flowIndexForStage maps stages and substages to flow positions', () => {
   assert.equal(flowIndexForStage('windows-driverpack-cache-request'), 5);
   // Image acquisition / verify / disk prep hold at osdcloud-start (idx 2).
   for (const s of ['os-image-selected', 'torrent-download', 'torrent-peers',
-    'torrent-firewall', 'torrent-fallback', 'torrent-verify', 'disk', 'partition-target']) {
+    'torrent-firewall', 'torrent-fallback', 'torrent-emergency-fallback', 'torrent-verify', 'disk', 'partition-target']) {
     assert.equal(flowIndexForStage(s), 2, `${s} should map to osdcloud-start`);
   }
   // Post-apply WinPE finalization maps to rebooting (idx 4).
-  for (const s of ['drivers', 'post-apply-scripts', 'windows-metadata-written', 'osdcloud-finished']) {
+  for (const s of ['drivers', 'post-apply-scripts', 'windows-metadata-written', 'torrent-seed-wait', 'torrent-release',
+    'torrent-seed-wait-finished', 'osdcloud-finished']) {
     assert.equal(flowIndexForStage(s), 4, `${s} should map to rebooting`);
   }
   assert.equal(flowIndexForStage('reporter-stop'), 4);
@@ -84,6 +85,9 @@ test('the ring never reports backwards across a realistic torrent deployment', (
     { latestStage: 'apply-image', latestPercent: 100 },
     { latestStage: 'drivers', latestPercent: null },
     { latestStage: 'post-apply-scripts', latestPercent: null },
+    { latestStage: 'torrent-seed-wait', latestPercent: null },
+    { latestStage: 'torrent-release', latestPercent: null },
+    { latestStage: 'torrent-seed-wait-finished', latestPercent: null },
     { latestStage: 'osdcloud-finished', latestPercent: null },
     { latestStage: 'rebooting', latestPercent: null },
     { latestStage: 'reporter-stop', latestPercent: null },

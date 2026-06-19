@@ -23,6 +23,7 @@ The repo tracks the small source/config files that define deployment behavior:
   - `OSDCloud\WinPE\Windows\System32\Startnet.cmd`
   - `OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1`
   - `OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1`
+  - `OSDCloud\WinPE\OSDCloud\Report-TorrentTelemetry.ps1`
   - `OSDCloud\WinPE\OSDCloud\Config\Scripts\...`
 
 Large generated or upstream binary artifacts are not committed and must be downloaded, verified, or rebuilt by the owning Web workflow:

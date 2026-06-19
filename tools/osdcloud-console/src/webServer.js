@@ -207,6 +207,12 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/torrent/release') {
+      const body = await readJsonBody(req, 16 * 1024);
+      const result = this.controller.releaseTorrentClients(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/preflight') {
       const result = await this.controller.runPreflight();
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });

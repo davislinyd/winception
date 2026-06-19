@@ -170,10 +170,15 @@ function nextAvailablePath(directory, baseName, extension) {
 }
 
 export class MediaHttpServer extends EventEmitter {
-  constructor(config) {
+  constructor(config, torrentCoordinator = null) {
     super();
     this.config = config;
+    this.torrentCoordinator = torrentCoordinator;
     this.server = null;
+  }
+
+  setTorrentCoordinator(coordinator) {
+    this.torrentCoordinator = coordinator;
   }
 
   get running() {
@@ -492,6 +497,45 @@ export class MediaHttpServer extends EventEmitter {
     this.log(`${remote} GET ${requestUrl.pathname} 200`);
   }
 
+  async handleTorrentTelemetry(req, res) {
+    if (req.method !== 'POST') {
+      res.writeHead(405, { Allow: 'POST' });
+      res.end();
+      return;
+    }
+    if (!this.torrentCoordinator) {
+      sendJson(res, 503, { ok: false, error: 'Torrent coordinator unavailable' });
+      return;
+    }
+    try {
+      const body = await readRequestBody(req, 32 * 1024);
+      const payload = body.trim() ? JSON.parse(body) : {};
+      const inferredIp = String(req.socket.remoteAddress ?? '').replace(/^::ffff:/u, '');
+      const result = this.torrentCoordinator.receiveTelemetry(payload, inferredIp);
+      sendJson(res, 200, { ok: true, ...result });
+    } catch (error) {
+      sendJson(res, 400, { ok: false, error: error.message });
+    }
+  }
+
+  handleTorrentControl(req, res, requestUrl) {
+    if (req.method !== 'GET') {
+      res.writeHead(405, { Allow: 'GET' });
+      res.end();
+      return;
+    }
+    if (!this.torrentCoordinator) {
+      sendJson(res, 503, { ok: false, error: 'Torrent coordinator unavailable' });
+      return;
+    }
+    const runId = requestUrl.searchParams.get('runId');
+    if (!runId) {
+      sendJson(res, 400, { ok: false, error: 'runId is required' });
+      return;
+    }
+    sendJson(res, 200, { ok: true, ...this.torrentCoordinator.getControl(runId) });
+  }
+
   // Advertise P2P details to WinPE clients. Returns torrentEnabled:false unless
   // the torrent feature is on AND a generated torrent + its sidecar manifest exist
   // next to the active OS WIM (so an un-published or torrent-less image cleanly
@@ -646,6 +690,16 @@ export class MediaHttpServer extends EventEmitter {
 
     if (requestUrl.pathname === '/osdcloud/boot-config') {
       await this.handleBootConfig(req, res, remote, requestUrl);
+      return;
+    }
+
+    if (requestUrl.pathname === '/osdcloud/torrent-telemetry') {
+      await this.handleTorrentTelemetry(req, res);
+      return;
+    }
+
+    if (requestUrl.pathname === '/osdcloud/torrent-control') {
+      this.handleTorrentControl(req, res, requestUrl);
       return;
     }
 

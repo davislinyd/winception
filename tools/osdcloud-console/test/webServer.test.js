@@ -383,6 +383,31 @@ test('serves static UI and read-only state', async () => {
   }
 });
 
+test('torrent release API supports one waiting run and all waiting runs', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-torrent-release-'));
+  const server = await makeServer(root);
+  try {
+    const coordinator = server.controller.torrentCoordinator;
+    coordinator.configureTorrent({ infoHash: 'a'.repeat(40), totalPieces: 4, wimBytes: 1024 });
+    coordinator.receiveTelemetry({ runId: 'run-a', clientId: 'a', phase: 'waiting' }, '10.0.0.1');
+    coordinator.receiveTelemetry({ runId: 'run-b', clientId: 'b', phase: 'waiting' }, '10.0.0.2');
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/torrent/release`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runId: 'run-a' }),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).result.released, ['run-a']);
+    response = await fetch(`${base}/api/torrent/release`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ allWaiting: true }),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).result.released.sort(), ['run-a', 'run-b']);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('secrets API writes local secrets and never returns plaintext passwords', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-secrets-'));
   const server = await makeServer(root);

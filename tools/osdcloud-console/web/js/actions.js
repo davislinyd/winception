@@ -644,6 +644,21 @@ export async function handleAction(action, source = null) {
     if (ok) {
       await mutate('/api/services/start-all');
     }
+  } else if (action === 'torrent-release') {
+    const runId = source?.dataset?.runId;
+    if (runId) {
+      await mutate('/api/torrent/release', { runId });
+    }
+  } else if (action === 'torrent-release-all') {
+    const ok = await confirmAction({
+      title: 'Continue all waiting clients',
+      message: 'This stops torrent seeding on every waiting WinPE client and allows them to reboot.',
+      confirmLabel: 'Continue all',
+      severity: 'warning',
+    });
+    if (ok) {
+      await mutate('/api/torrent/release', { allWaiting: true });
+    }
   } else if (action === 'clear-status') {
     const ok = await confirmAction({
       title: 'Clear status files',

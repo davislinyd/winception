@@ -88,6 +88,7 @@ function Get-BootWimTemplateEntries {
         @{ Key = 'OSDCloud/Maximize-Console.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Maximize-Console.ps1') }
         @{ Key = 'OSDCloud/Start-OSDCloud-iPXE.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Start-OSDCloud-iPXE.ps1') }
         @{ Key = 'OSDCloud/Report-OSDCloudProgress.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') }
+        @{ Key = 'OSDCloud/Report-TorrentTelemetry.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-TorrentTelemetry.ps1') }
         @{ Key = 'OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') }
         @{ Key = 'OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd') }
         @{ Key = 'OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1'; Source = (Join-Path $RepoRoot 'osdcloud-assets\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') }
@@ -855,6 +856,9 @@ if ($CommitWinPe) {
             Copy-IfPresent `
                 -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-OSDCloudProgress.ps1') `
                 -Destination (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1') | Out-Null
+            Copy-IfPresent `
+                -Source (Join-Path $repoRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Report-TorrentTelemetry.ps1') `
+                -Destination (Join-Path $mountDir 'OSDCloud\Report-TorrentTelemetry.ps1') | Out-Null
             # aria2c.exe is downloaded to the live runtime (Tools\aria2c.exe) during
             # Prepare runtime, not committed to the repo. Inject it for the WinPE
             # BitTorrent P2P download path; when absent the client falls back to SMB.

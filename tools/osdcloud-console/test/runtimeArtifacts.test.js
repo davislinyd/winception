@@ -958,6 +958,26 @@ test('WinPE torrent download shows local progress and active peers through loopb
   assert.match(script, /Torrent progress telemetry unavailable; download continues/);
   assert.match(script, /Start-Process -FilePath \$aria2 -ArgumentList \$aria2Args -WindowStyle Hidden -PassThru/);
   assert.match(script, /Torrent path failed; falling back to SMB-direct apply/);
+  assert.match(script, /http:\/\/\$server\/osdcloud\/torrent-telemetry/);
+  assert.match(script, /http:\/\/\$server\/osdcloud\/torrent-control/);
+  assert.match(script, /function Wait-TorrentSeedWindow/);
+  assert.match(script, /Press Enter to continue to reboot now/);
+  assert.match(script, /aria2\.shutdown/);
+  assert.match(script, /seedDeadline = \$completedAt\.AddMinutes\(\$seedMinutes\)/);
+  assert.match(script, /Wait-TorrentSeedWindow -Context \$torrentTransfer/);
+  assert.match(script, /Report-TorrentTelemetry\.ps1/);
+  assert.match(script, /torrent-seed-wait/);
+  assert.match(script, /torrent-emergency-fallback/);
+  for (const reason of ['deadline', 'aria2-exit', 'client-enter', 'host-release']) {
+    assert.match(script, new RegExp(reason));
+  }
+  assert.match(script, /catch \{\s*Stop-Process -Id \$Context\.process\.Id -Force/s);
+});
+
+test('endpoint sync injects the torrent telemetry reporter into rebuilt WinPE', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  assert.match(script, /OSDCloud\/Report-TorrentTelemetry\.ps1/);
+  assert.match(script, /WinPE\\OSDCloud\\Report-TorrentTelemetry\.ps1/);
 });
 
 test('endpoint sync injects OSD modules into rebuilt WinPE', () => {

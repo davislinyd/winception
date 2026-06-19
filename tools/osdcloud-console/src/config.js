@@ -150,11 +150,6 @@ export const defaultTorrentConfig = Object.freeze({
   seederListenPort: 6881,
   pieceLengthBytes: 4194304,
   seedMinutes: 30,
-  // How many simultaneous peers to partition pieces across. Each connecting
-  // peer gets 1/N of the torrent's pieces from the host seeder; peers then
-  // trade with each other to fill in the rest, so the host uploads ~1× total
-  // instead of N×. Peers beyond this count get a full bitfield (all pieces).
-  expectedPeers: 4,
 });
 
 // Resolve the host-side torrent/tracker settings, mirroring mediaHttpServerConfig.
@@ -175,10 +170,10 @@ export function torrentServerConfig(config = {}) {
     seederListenPort: Number(torrent.seederListenPort ?? defaultTorrentConfig.seederListenPort),
     pieceLengthBytes: Number(torrent.pieceLengthBytes ?? defaultTorrentConfig.pieceLengthBytes),
     seedMinutes: Number(torrent.seedMinutes ?? defaultTorrentConfig.seedMinutes),
+    stateRoot: stateRootForConfig(config),
     osCacheRoot: config.osImage?.cacheRoot ?? null,
     aria2cPath,
     logPath: config.http?.logPath ?? null,
-    expectedPeers: Number(torrent.expectedPeers ?? defaultTorrentConfig.expectedPeers),
     seederLogPath: torrent.seederLogPath ?? path.join(liveRoot, 'logs', 'torrent-seeder.log'),
     trackerLogPath: torrent.trackerLogPath ?? path.join(liveRoot, 'logs', 'torrent-tracker.log'),
   };

@@ -31,6 +31,7 @@ const STAGE_ALIASES = new Map([
   ['torrent-peers', 'osdcloud-start'],
   ['torrent-firewall', 'osdcloud-start'],
   ['torrent-fallback', 'osdcloud-start'],
+  ['torrent-emergency-fallback', 'osdcloud-start'],
   ['torrent-verify', 'osdcloud-start'],
   ['disk', 'osdcloud-start'],
   ['partition-target', 'osdcloud-start'],
@@ -40,6 +41,9 @@ const STAGE_ALIASES = new Map([
   ['post-apply-scripts', 'rebooting'],
   ['windows-metadata-written', 'rebooting'],
   ['osdcloud-finished', 'rebooting'],
+  ['torrent-seed-wait', 'rebooting'],
+  ['torrent-release', 'rebooting'],
+  ['torrent-seed-wait-finished', 'rebooting'],
   ['reporter-stop', 'rebooting'],
   // Driver-pack cache request runs inside the SetupComplete phase.
   ['windows-driverpack-cache-request', 'windows-setupcomplete'],

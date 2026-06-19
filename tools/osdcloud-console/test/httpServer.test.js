@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { MediaHttpServer, parseRange, resolveRequestPath, sanitizeName } from '../src/httpServer.js';
+import { TorrentDistributionCoordinator } from '../src/torrentCoordinator.js';
 
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -36,6 +37,42 @@ test('keeps HTTP file resolution under root', () => {
   const root = path.join(os.tmpdir(), 'http-root');
   assert.equal(resolveRequestPath(root, '/%5c..%5csecret'), null);
   assert.ok(resolveRequestPath(root, '/osdcloud/boot.ipxe').resolved.startsWith(path.resolve(root)));
+});
+
+test('torrent telemetry and control endpoints stay outside deployment status JSONL', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-torrent-http-'));
+  const statusRoot = path.join(root, 'status');
+  const coordinator = new TorrentDistributionCoordinator({ stateRoot: root });
+  coordinator.configureTorrent({ infoHash: 'a'.repeat(40), totalPieces: 4, wimBytes: 1024 });
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+  }, coordinator);
+  try {
+    await server.start();
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const telemetry = await fetch(`${base}/osdcloud/torrent-telemetry`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runId: 'run-1', clientId: 'client-1', phase: 'waiting', completedLength: 1024, totalLength: 1024 }),
+    });
+    assert.equal(telemetry.status, 200);
+    const body = await telemetry.json();
+    assert.equal(body.telemetry.ip, '127.0.0.1');
+    assert.equal(fs.existsSync(path.join(statusRoot, 'progress.jsonl')), false, 'heartbeat does not append deployment events');
+
+    coordinator.release({ runId: 'run-1' });
+    const control = await fetch(`${base}/osdcloud/torrent-control?runId=run-1`);
+    assert.equal(control.status, 200);
+    assert.equal((await control.json()).released, true);
+  } finally {
+    await server.stop();
+    coordinator.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('serves status and ranged files', async () => {

@@ -141,7 +141,7 @@ test('torrentServerConfig resolves a default seeder log path under the live root
     torrent: { enabled: true },
   });
   assert.equal(resolved.seederLogPath, 'C:\\OSDCloud\\logs\\torrent-seeder.log');
-  assert.equal(resolved.expectedPeers, 4);
+  assert.ok(resolved.stateRoot, 'coordinator persistence root is resolved');
 });
 
 test('NodeSuperSeeder builds a full bitfield covering all pieces', () => {
@@ -160,46 +160,17 @@ test('NodeSuperSeeder builds a full bitfield covering all pieces', () => {
   assert.equal(bf2[3], 0x80);
 });
 
-test('NodeSuperSeeder assigns disjoint striped pieces that cover a concurrent batch', () => {
+test('NodeSuperSeeder assigns disjoint striped pieces with complete coverage for different batch sizes', () => {
   const seeder = new NodeSuperSeeder({});
   seeder._totalPieces = 25;
-  const fields = [0, 1, 2, 3].map((slot) => seeder._buildStripedBitfield(slot, 4));
   const hasPiece = (field, piece) => (field[piece >> 3] & (0x80 >> (piece & 7))) !== 0;
-
-  for (let piece = 0; piece < seeder._totalPieces; piece++) {
-    const owners = fields.filter((field) => hasPiece(field, piece));
-    assert.equal(owners.length, 1, `piece ${piece} has exactly one host-assigned owner`);
+  for (const peerCount of [2, 3, 4, 7]) {
+    const fields = Array.from({ length: peerCount }, (_, slot) => seeder._buildStripedBitfield(slot, peerCount));
+    for (let piece = 0; piece < seeder._totalPieces; piece++) {
+      const owners = fields.filter((field) => hasPiece(field, piece));
+      assert.equal(owners.length, 1, `n=${peerCount} piece ${piece} has exactly one host-assigned owner`);
+    }
   }
-});
-
-test('NodeSuperSeeder releases pending peers as one striped deployment batch', () => {
-  const seeder = new NodeSuperSeeder({});
-  seeder._totalPieces = 8;
-  const makePeer = () => {
-    const sent = [];
-    return {
-      wire: {
-        bitfield: (value) => sent.push(value),
-        unchoke: () => {},
-        have: () => {},
-      },
-      sent,
-      remoteName: '127.0.0.1:1',
-      closed: false,
-      servedBytes: 0,
-    };
-  };
-  const peers = [makePeer(), makePeer()];
-  seeder._pendingPeers = peers;
-  seeder._releasePendingBatch();
-
-  assert.equal(peers[0].peerCount, 2);
-  assert.equal(peers[1].peerCount, 2);
-  assert.equal(peers[0].slot, 0);
-  assert.equal(peers[1].slot, 1);
-  assert.equal(peers[0].sent[0][0], 0xaa);
-  assert.equal(peers[1].sent[0][0], 0x55);
-  for (const peer of peers) clearTimeout(peer.fallbackTimer);
 });
 
 test('NodeSuperSeeder start is a no-op when disabled', async () => {

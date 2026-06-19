@@ -58,6 +58,7 @@ Entry points (run by `package.json` scripts) stay at `src/` root: `webServer.js`
 | Media/status HTTP server | `src/httpServer.js` |
 | DHCP / TFTP responders | `src/dhcp.js` / `src/tftp.js` |
 | Torrent create/tracker/seeder | `src/torrent.js` |
+| Torrent wave/batch coordination, telemetry, budget, release persistence | `src/torrentCoordinator.js` |
 | Fleet status + run queries | `src/status.js` |
 | Runtime artifact readiness | `src/runtimeArtifacts.js` |
 | Driver pack cache | `src/driverPackCache.js` |

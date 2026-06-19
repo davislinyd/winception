@@ -15,6 +15,93 @@
   box-shadow: var(--card-shadow);
 }
 
+.torrent-service-card {
+  grid-column: 1 / -1;
+}
+
+.torrent-summary-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-top: 12px;
+}
+
+.torrent-summary-grid > div {
+  background: var(--surface-container-low);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+}
+
+.torrent-summary-grid span {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+}
+
+.torrent-summary-grid strong {
+  font: 500 12px/16px "JetBrains Mono", Consolas, monospace;
+}
+
+.torrent-emergency {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  margin-top: 10px;
+  padding: 8px;
+}
+
+.torrent-client-table-wrap {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.torrent-client-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  width: 100%;
+}
+
+.torrent-client-table th,
+.torrent-client-table td {
+  border-bottom: 1px solid var(--outline-variant);
+  padding: 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.torrent-client-table td:nth-child(8) {
+  max-width: 280px;
+  overflow-wrap: anywhere;
+}
+
+.torrent-client-table tr.stale {
+  opacity: 0.55;
+}
+
+.torrent-progress {
+  background: var(--surface-container-high);
+  height: 4px;
+  margin-top: 4px;
+  overflow: hidden;
+  width: 120px;
+}
+
+.torrent-progress > span {
+  background: var(--primary);
+  display: block;
+  height: 100%;
+}
+
+.torrent-release-button,
+.torrent-release-all {
+  white-space: nowrap;
+}
+
+.torrent-release-all {
+  align-self: flex-end;
+  margin-top: 10px;
+}
+
 /* Operations sidebar menu list items */
 .operations-panel button {
   background: transparent !important;

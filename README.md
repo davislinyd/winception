@@ -103,12 +103,13 @@ GitHub 直接渲染下列 SVG 圖。完整節點說明與安全閘門見
 
 - **技術**：WinPE 端用單一靜態執行檔 `aria2c.exe`（開源，邊下載邊做種）當 BT leecher/seeder；host 端在既有 Node console 內跑兩個服務：`TorrentTracker`（HTTP tracker，`bittorrent-tracker` MIT）當 announce server，以及 `NodeSuperSeeder`（Node.js 原生 BT wire protocol 實作）當 swarm 來源種子。Host seeder 不再依賴 `aria2c.exe`，直接以 Node.js TCP server 對 VM 提供 piece。
 - **不使用 HTTP webseed**：`.torrent` 刻意不嵌 BEP19 webseed —— aria2 會把 webseed 當主來源，導致每台 client 都從 host 整檔拉、完全不分擔。改走純 BitTorrent（tracker + peers + host 種子）。
-- **offload 機制**：host seeder 先等待同批 client 12 秒，再依實際連線數把 piece 切成互斥條帶；每台只向 host 取得自己的條帶，必須向其他 client 交換其餘 piece。正常批次的 host 上傳目標約一份 WIM；peer path 失效時，3 分鐘後才擴展成完整 host fallback，避免部署永久停住。
-- **host 服務**：啟動服務後多兩個元件（`TorrentTracker` :6969、`NodeSuperSeeder` :6881），隨 `Start all services` 一起啟停。Dashboard 卡片顯示 `… · seeding <檔名>`，部署期間即時列出各 VM IP 與下載進度（%）；完成後顯示 `seeding ✓`。
-- **client 即時畫面**：WinPE 主 console 透過只監聽 `127.0.0.1` 且帶隨機 token 的 aria2 JSON-RPC，每 5 秒更新 WIM 下載百分比、容量、下載/上傳速率與 ETA；active peer 集合改變時列出 `Downloading from` 與 `Uploading to` 的 IP:port 及 Seeder/Peer 身分。Client 每 5 秒向 tracker announce，使用固定的 client listen port，並在 WinPE 關閉 firewall，讓同網段 peer 可建立 inbound 連線。下載完成並通過 SHA-256 後留下來源、接收端與累計上傳量摘要，再繼續正常套用 WIM。RPC 顯示失敗只會警告，不會中止 torrent 或觸發 SMB fallback。
-- **種子 log**：`NodeSuperSeeder` 輸出寫到 `C:\OSDCloud\logs\torrent-seeder.log`，記錄 batch/slot、每條 peer 連線實際供應 bytes，以及是否觸發 3 分鐘 host fallback。Tracker announce 記錄在 `C:\OSDCloud\logs\torrent-tracker.log`，含每次 announce 的 IP、`left`（剩餘 bytes）與 swarm 大小。
+- **wave / batch**：第一個新 peer handshake 後固定收集 24 秒，不因後續加入重置。第一批依實際人數以 `piece i → slot i mod n` 分配互斥條帶；晚到 batch 在前批 peer 仍活躍時使用 `peer-only`，優先從前批取得資料。同一 aria2 的 TCP reconnect 以 `infoHash + peerId` 沿用原 assignment。
+- **host budget 與 fallback**：每個 wave 正常 host 上傳上限為 `1.15x WIM`；30 秒沒有 non-host heartbeat 才結束 wave。若 active client 的 `completedLength` 連續 3 分鐘不增加，會明確進入 emergency host fallback，允許突破 budget 以完成部署；Web、transition event 與 seeder log 都會顯示原因及超額 bytes。
+- **Web 即時監控**：Torrent Tracker card 每 2.5 秒刷新 wave/batch、24 秒倒數、host ratio、active/stale/fallback 數量與 piece coverage，並逐台顯示 phase、batch/slot/mode、進度、上下傳速率、ETA、來源、receivers 與 last seen。15 秒無 telemetry 標示 stale，60 秒後移出 active rows；5 秒 telemetry 不寫入 deployment status JSONL。
+- **client 即時畫面與 seed wait**：WinPE 透過 loopback-only、隨機 token 的 aria2 JSON-RPC 每 5 秒顯示下載狀態與 peers，並回報安全欄位 telemetry。WIM 通過 SHA-256 後，aria2 會在套用 Windows 期間繼續 seeding；套用完成、`osdcloud-finished` 與 reboot 前等待至「torrent 完成時間 + `seedMinutes`」（預設 30 分鐘，套用時間已包含）。Client 可按 Enter，管理員也可在 Web 對單台按 `Continue to reboot` 或以確認式 `Continue all waiting` 提前結束。RPC shutdown 失敗才強制停止 aria2。
+- **持久化與 log**：release request、wave budget 與 peer assignment 原子寫入 `C:\OSDCloud\HostTools\State\torrent\coordinator.json`；Web restart 後由檔案與 client heartbeat 恢復。`torrent-seeder.log` 記錄 wave/batch/slot、host bytes 與 emergency fallback；`torrent-tracker.log` 保留 announce 診斷。
 - **WIM 落地**：WinPE 先用 `New-OSDisk` 分割目標磁碟，把 WIM 下載到本機 OS 分割區並驗證 SHA-256，再以本機檔案套用（`SkipAllDiskSteps`，不重複分割）。任一環節失敗（缺 `aria2c.exe`、torrent metadata 不全、下載/雜湊失敗、或無 peer/種子可連）會自動回退到既有的 SMB 直接套用路徑。
-- **runtime 需求**：`aria2c.exe`（僅 WinPE client 用，host seeder 已改 Node.js）由 `Prepare runtime` 下載並由 endpoint sync 注入 `boot.wim`。`.torrent` 與 sidecar `os-torrent.json` 在 profile publish / endpoint sync 時重新產生，種子隨之重啟。
+- **runtime 需求**：`aria2c.exe` 與 `Report-TorrentTelemetry.ps1` 由 endpoint sync 注入 `boot.wim`。`.torrent` 與 sidecar `os-torrent.json` 在 profile publish / endpoint sync 時重新產生，種子隨之重啟。
 - **設定**：`config\osdcloud-console.json` 的 `torrent` 區塊可調整。停用時設 `"torrent": { "enabled": false }`，client 會直接走 SMB 路徑。
 
 ```json

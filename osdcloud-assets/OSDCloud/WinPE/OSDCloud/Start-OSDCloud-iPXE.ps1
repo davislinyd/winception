@@ -117,6 +117,8 @@ if ($bootConfig -and $bootConfig.ok) {
 
 $statusUrl = "http://$server/osdcloud/status"
 $screenshotUrl = "http://$server/osdcloud/screenshot"
+$torrentTelemetryUrl = "http://$server/osdcloud/torrent-telemetry"
+$torrentControlUrl = "http://$server/osdcloud/torrent-control"
 
 
 function Get-DeploymentSecretPathCandidates {
@@ -465,13 +467,17 @@ function Invoke-Aria2Rpc {
     param(
         [Parameter(Mandatory)][string] $Method,
         [Parameter(Mandatory)][string] $Secret,
-        [Parameter(Mandatory)][string] $Gid,
-        [string[]] $Keys
+        [string] $Gid,
+        [string[]] $Keys,
+        [switch] $Global
     )
 
     $rpcParameters = [System.Collections.ArrayList]::new()
     [void] $rpcParameters.Add("token:$Secret")
-    [void] $rpcParameters.Add($Gid)
+    if (-not $Global) {
+        if ([string]::IsNullOrWhiteSpace($Gid)) { throw "aria2 RPC $Method requires a GID" }
+        [void] $rpcParameters.Add($Gid)
+    }
     if ($Keys) {
         [void] $rpcParameters.Add([string[]] $Keys)
     }
@@ -501,6 +507,130 @@ function Format-TorrentEta {
         return '{0}:{1:00}:{2:00}' -f [math]::Floor($remaining.TotalHours), $remaining.Minutes, $remaining.Seconds
     }
     return '{0}:{1:00}' -f $remaining.Minutes, $remaining.Seconds
+}
+
+function Send-TorrentTelemetry {
+    param(
+        [object] $Status,
+        [object[]] $Peers,
+        [string] $Phase,
+        [bool] $Fallback = $false
+    )
+
+    $total = [double] $Status.totalLength
+    $completed = [double] $Status.completedLength
+    $speed = [double] $Status.downloadSpeed
+    $sources = @($Peers | Where-Object { [double] $_.downloadSpeed -gt 0 } | ForEach-Object {
+        '{0}:{1} [{2}]' -f $_.ip, $_.port, $(if ([string] $_.seeder -eq 'true') { 'Seeder' } else { 'Peer' })
+    } | Sort-Object -Unique | Select-Object -First 16)
+    $receivers = @($Peers | Where-Object { [double] $_.uploadSpeed -gt 0 } | ForEach-Object {
+        '{0}:{1} [{2}]' -f $_.ip, $_.port, $(if ([string] $_.seeder -eq 'true') { 'Seeder' } else { 'Peer' })
+    } | Sort-Object -Unique | Select-Object -First 16)
+    $payload = [ordered]@{
+        runId = $runId
+        clientId = $clientId
+        phase = $Phase
+        totalLength = [long] $total
+        completedLength = [long] $completed
+        uploadLength = [long] ([double] $Status.uploadLength)
+        downloadSpeed = [long] $speed
+        uploadSpeed = [long] ([double] $Status.uploadSpeed)
+        etaSeconds = if ($speed -gt 0 -and $completed -lt $total) { [math]::Ceiling(($total - $completed) / $speed) } else { 0 }
+        sources = $sources
+        receivers = $receivers
+        fallback = $Fallback
+    }
+    Invoke-RestMethod -Uri $torrentTelemetryUrl -Method Post -ContentType 'application/json' -Body ($payload | ConvertTo-Json -Depth 5 -Compress) -TimeoutSec 3 -ErrorAction Stop
+}
+
+function Set-TorrentTransferPhase {
+    param([object] $Context, [string] $Phase, [bool] $Fallback = $false)
+    if (-not $Context) { return }
+    $Context.phase = $Phase
+    $Context.fallback = $Fallback
+    try {
+        $temp = "$($Context.contextPath).tmp"
+        $Context | Select-Object runId, clientId, gid, rpcSecret, phase, fallback, telemetryUrl, controlUrl, statePath, stopPath |
+            ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $temp -Encoding UTF8 -Force
+        Move-Item -LiteralPath $temp -Destination $Context.contextPath -Force
+    }
+    catch {
+        Write-Warning "Unable to update torrent telemetry context; transfer continues. $($_.Exception.Message)"
+    }
+}
+
+function Stop-TorrentTransfer {
+    param([object] $Context)
+    if (-not $Context) { return }
+    New-Item -ItemType File -Path $Context.stopPath -Force | Out-Null
+    if ($Context.reporterProcess -and -not $Context.reporterProcess.HasExited) {
+        [void] $Context.reporterProcess.WaitForExit(7000)
+        if (-not $Context.reporterProcess.HasExited) {
+            Stop-Process -Id $Context.reporterProcess.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if ($Context.process -and -not $Context.process.HasExited) {
+        try {
+            Invoke-Aria2Rpc -Method 'aria2.shutdown' -Secret $Context.rpcSecret -Global | Out-Null
+            [void] $Context.process.WaitForExit(5000)
+        }
+        catch {
+            Stop-Process -Id $Context.process.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Remove-Item -LiteralPath $Context.contextPath, $Context.stopPath -Force -ErrorAction SilentlyContinue
+}
+
+function Wait-TorrentSeedWindow {
+    param([object] $Context)
+    if (-not $Context) { return }
+
+    Set-TorrentTransferPhase -Context $Context -Phase 'waiting'
+    Send-DeploymentStatus -Stage 'torrent-seed-wait' -Message 'Windows apply complete; waiting for torrent receivers before reboot.' -Extra @{
+        seedDeadline = $Context.seedDeadline.ToString('o')
+    }
+    Write-Host ''
+    Write-Host 'Torrent seed wait. Press Enter to continue to reboot now.' -ForegroundColor Cyan
+    $reason = 'deadline'
+    $lastDisplay = [datetime]::MinValue
+    $lastUpload = [double] 0
+    while ((Get-Date) -lt $Context.seedDeadline) {
+        if ($Context.process.HasExited) { $reason = 'aria2-exit'; break }
+        try {
+            if ([Console]::KeyAvailable -and [Console]::ReadKey($true).Key -eq [ConsoleKey]::Enter) {
+                $reason = 'client-enter'
+                break
+            }
+        } catch {}
+        try {
+            $control = Invoke-RestMethod -Uri "$torrentControlUrl`?runId=$([Uri]::EscapeDataString($runId))" -Method Get -TimeoutSec 2 -ErrorAction Stop
+            if ($control.released) { $reason = 'host-release'; break }
+        } catch {}
+        if (((Get-Date) - $lastDisplay).TotalSeconds -ge 5) {
+            try {
+                $status = Invoke-Aria2Rpc -Method 'aria2.tellStatus' -Secret $Context.rpcSecret -Gid $Context.gid -Keys @('uploadLength', 'uploadSpeed')
+                $peers = @(Invoke-Aria2Rpc -Method 'aria2.getPeers' -Secret $Context.rpcSecret -Gid $Context.gid)
+                $lastUpload = [math]::Max($lastUpload, [double] $status.uploadLength)
+                $receivers = @($peers | Where-Object { [double] $_.uploadSpeed -gt 0 } | ForEach-Object { "$($_.ip):$($_.port)" } | Sort-Object -Unique)
+                $remaining = $Context.seedDeadline - (Get-Date)
+                Write-Progress -Id 23 -Activity 'Torrent seed wait' -Status ("remaining {0} | uploaded {1:N2} GiB | receivers {2}" -f (Format-TorrentEta -Seconds $remaining.TotalSeconds), ($lastUpload / 1GB), $receivers.Count) -PercentComplete ([math]::Max(0, [math]::Min(100, 100 - (($remaining.TotalSeconds / [math]::Max(1, $Context.seedMinutes * 60)) * 100))))
+            } catch {}
+            $lastDisplay = Get-Date
+        }
+        Start-Sleep -Seconds 1
+    }
+    Write-Progress -Id 23 -Activity 'Torrent seed wait' -Completed
+    Set-TorrentTransferPhase -Context $Context -Phase 'released'
+    try {
+        $finalStatus = Invoke-Aria2Rpc -Method 'aria2.tellStatus' -Secret $Context.rpcSecret -Gid $Context.gid -Keys @('totalLength', 'completedLength', 'uploadLength', 'downloadSpeed', 'uploadSpeed')
+        $finalPeers = @(Invoke-Aria2Rpc -Method 'aria2.getPeers' -Secret $Context.rpcSecret -Gid $Context.gid)
+        Send-TorrentTelemetry -Status $finalStatus -Peers $finalPeers -Phase 'released' -Fallback ([bool] $Context.fallback) | Out-Null
+    } catch {}
+    Stop-TorrentTransfer -Context $Context
+    if ($reason -eq 'host-release' -or $reason -eq 'client-enter') {
+        Send-DeploymentStatus -Stage 'torrent-release' -Message "Torrent seed wait released early: $reason." -Extra @{ reason = $reason }
+    }
+    Send-DeploymentStatus -Stage 'torrent-seed-wait-finished' -Message "Torrent seed wait ended: $reason." -Extra @{ reason = $reason; uploadedBytes = [long] $lastUpload }
 }
 
 function Invoke-TorrentOsImageDownload {
@@ -661,11 +791,13 @@ function Invoke-TorrentOsImageDownload {
         $downloadStartTime = Get-Date
         $proc = Start-Process -FilePath $aria2 -ArgumentList $aria2Args -WindowStyle Hidden -PassThru
         $rpcWarningShown = $false
+        $hostTelemetryWarningShown = $false
         $lastDownloadPeers = $null
         $lastUploadPeers = $null
         $observedDownloadPeers = @{}
         $observedUploadPeers = @{}
         $lastUploadLength = [double] 0
+        $emergencyFallback = $false
 
         # aria2 removes the .aria2 control file once the download completes, then
         # keeps running to seed to peers. Poll for completion; do not block on the
@@ -688,6 +820,19 @@ function Invoke-TorrentOsImageDownload {
                     'uploadSpeed'
                 )
                 $peers = @(Invoke-Aria2Rpc -Method 'aria2.getPeers' -Secret $aria2RpcSecret -Gid $aria2Gid)
+                try {
+                    $telemetryResponse = Send-TorrentTelemetry -Status $status -Peers $peers -Phase 'downloading' -Fallback $emergencyFallback
+                    if ($telemetryResponse.emergency -and -not $emergencyFallback) {
+                        $emergencyFallback = $true
+                        Send-DeploymentStatus -Stage 'torrent-emergency-fallback' -Message 'Torrent progress stalled for 3 minutes; host emergency fallback enabled.'
+                    }
+                }
+                catch {
+                    if (-not $hostTelemetryWarningShown) {
+                        Write-Warning "Host torrent telemetry unavailable; local progress continues. $($_.Exception.Message)"
+                        $hostTelemetryWarningShown = $true
+                    }
+                }
 
                 $totalBytes = [double] $status.totalLength
                 $completedBytes = [double] $status.completedLength
@@ -779,14 +924,54 @@ function Invoke-TorrentOsImageDownload {
         Write-Host ("  Uploaded: {0:N2} GiB" -f ($lastUploadLength / 1GB))
         Write-Host "  Sources used: $(if ($sourceSummary.Count) { $sourceSummary -join ', ' } else { 'none observed' })"
         Write-Host "  Uploaded to: $(if ($receiverSummary.Count) { $receiverSummary -join ', ' } else { 'none observed' })"
-        Send-DeploymentStatus -Stage 'torrent-download' -Message "P2P download complete; seeding to peers (up to $seedMinutes min)." -Percent 100 -Extra @{ fileName = $fileName; bytes = $item.Length; durationSeconds = $durationSeconds; avgSpeedMiBps = $avgSpeedMiBps }
+        $completedAt = Get-Date
+        $seedDeadline = $completedAt.AddMinutes($seedMinutes)
+        $contextPath = Join-Path $logRoot 'TorrentTransferContext.json'
+        $telemetryStatePath = Join-Path $logRoot 'TorrentTelemetryState.json'
+        $telemetryStopPath = Join-Path $logRoot 'Stop-TorrentTelemetry.txt'
+        Remove-Item -LiteralPath $telemetryStopPath, $telemetryStatePath -Force -ErrorAction SilentlyContinue
+        $transferContext = [pscustomobject]@{
+            imageFile = $item
+            process = $proc
+            rpcSecret = $aria2RpcSecret
+            gid = $aria2Gid
+            completedAt = $completedAt
+            seedDeadline = $seedDeadline
+            seedMinutes = $seedMinutes
+            phase = 'seeding'
+            fallback = $emergencyFallback
+            runId = $runId
+            clientId = $clientId
+            telemetryUrl = $torrentTelemetryUrl
+            controlUrl = $torrentControlUrl
+            contextPath = $contextPath
+            statePath = $telemetryStatePath
+            stopPath = $telemetryStopPath
+            reporterProcess = $null
+        }
+        Set-TorrentTransferPhase -Context $transferContext -Phase 'seeding' -Fallback $emergencyFallback
+        $telemetryReporter = Join-Path $PSScriptRoot 'Report-TorrentTelemetry.ps1'
+        if (Test-Path -LiteralPath $telemetryReporter -PathType Leaf) {
+            try {
+                $transferContext.reporterProcess = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+                    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $telemetryReporter, '-ContextPath', $contextPath
+                ) -WindowStyle Hidden -PassThru
+            }
+            catch {
+                Write-Warning "Torrent telemetry reporter could not start; seeding continues. $($_.Exception.Message)"
+            }
+        }
+        Send-DeploymentStatus -Stage 'torrent-download' -Message "P2P download complete; seeding to peers until $($seedDeadline.ToString('o'))." -Percent 100 -Extra @{ fileName = $fileName; bytes = $item.Length; durationSeconds = $durationSeconds; avgSpeedMiBps = $avgSpeedMiBps; seedDeadline = $seedDeadline.ToString('o') }
         Send-Screenshot -Stage 'torrent-download'
-        return $item
+        return $transferContext
     }
     catch {
         Write-Progress -Id 22 -Activity "Torrent OS image: $fileName" -Completed -ErrorAction SilentlyContinue
         Send-DeploymentStatus -Stage 'torrent-fallback' -Message "Torrent path failed; falling back to SMB-direct apply. $($_.Exception.Message)"
         Send-Screenshot -Stage 'torrent-fallback'
+        if ($proc -and -not $proc.HasExited) {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+        }
         return $null
     }
 }
@@ -899,9 +1084,9 @@ Send-Screenshot -Stage 'smb-mounted'
 # failure we transparently fall back to the proven SMB-direct apply.
 $imageFile = $smbImageFile
 $skipDiskSteps = $false
-$torrentImageFile = Invoke-TorrentOsImageDownload -BootConfig $bootConfig -ExpectedFileName ([string] $SelectedOs.fileName)
-if ($torrentImageFile) {
-    $imageFile = $torrentImageFile
+$torrentTransfer = Invoke-TorrentOsImageDownload -BootConfig $bootConfig -ExpectedFileName ([string] $SelectedOs.fileName)
+if ($torrentTransfer) {
+    $imageFile = $torrentTransfer.imageFile
     $skipDiskSteps = $true
     Write-Host "[$(Get-Date -Format G)] Using P2P-staged local image: $($imageFile.FullName)"
 }
@@ -939,15 +1124,24 @@ if (-not $skipDiskSteps) {
 
 $deploymentSucceeded = $false
 try {
+    if ($torrentTransfer) {
+        Set-TorrentTransferPhase -Context $torrentTransfer -Phase 'applying' -Fallback ([bool] $torrentTransfer.fallback)
+    }
     Send-DeploymentStatus -Stage 'osdcloud-start' -Message 'Invoke-OSDCloud starting.' -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
     Send-Screenshot -Stage 'osdcloud-start'
     Invoke-OSDCloud
     $deploymentSucceeded = $true
     Save-DeploymentStatusMetadata
+    if ($torrentTransfer) {
+        Wait-TorrentSeedWindow -Context $torrentTransfer
+    }
     Send-DeploymentStatus -Stage 'osdcloud-finished' -Message 'Invoke-OSDCloud returned successfully. WinPE will reboot.' -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
     Send-Screenshot -Stage 'osdcloud-finished'
 }
 catch {
+    if ($torrentTransfer) {
+        Stop-TorrentTransfer -Context $torrentTransfer
+    }
     Send-DeploymentStatus -Stage 'osdcloud-error' -Message $_.Exception.Message
     Send-Screenshot -Stage 'osdcloud-error'
     throw
