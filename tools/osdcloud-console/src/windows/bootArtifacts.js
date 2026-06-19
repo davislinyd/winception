@@ -30,6 +30,7 @@ export const BOOT_WIM_TEMPLATE_SOURCES = [
   ['OSDCloud/Maximize-Console.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Maximize-Console.ps1']],
   ['OSDCloud/Start-OSDCloud-iPXE.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1']],
   ['OSDCloud/Report-OSDCloudProgress.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Report-OSDCloudProgress.ps1']],
+  ['OSDCloud/Report-TorrentTelemetry.ps1', ['osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Report-TorrentTelemetry.ps1']],
   ['OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1', ['osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'Shutdown', 'Invoke-OobeCustomization.ps1']],
   ['OSDCloud/Config/Scripts/SetupComplete/SetupComplete.cmd', ['osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'SetupComplete', 'SetupComplete.cmd']],
   ['OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1', ['osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'SetupComplete', 'SetupComplete.ps1']],
