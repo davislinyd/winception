@@ -8,6 +8,7 @@
 - host seeder 改為等待 12 秒收集同批 client，再按實際連線數提供互斥 striped bitfield；正常路徑只供應約一份 WIM，peer path 失效 3 分鐘後才放寬成完整 host fallback
 - client 完成摘要與 `torrent-peers` evidence 改用 aria2 RPC 的實際 endpoints 和累計 `uploadLength`，不再從 log 掃描可能誤判 self IP 的位址
 - 新增雙 aria2 integration test：兩台必須完成、各自上傳 bytes，且 host 供應量不得超過 1.15 份測試映像
+- Secure Boot live 驗證：兩台 client 在未完成時各自上傳約 2.96 GiB；host 對 5.93 GiB WIM 合計供應正好 `1.000x`，兩台皆完成 SHA-256 並到達 `windows-desktop-ready` 100%
 
 ### 新功能：WinPE Torrent 即時傳輸資訊
 
