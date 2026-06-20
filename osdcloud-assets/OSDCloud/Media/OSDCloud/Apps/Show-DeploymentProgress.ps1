@@ -56,14 +56,21 @@ function ConvertTo-ProgressView {
     $failureCategory = if ($failure -and -not [string]::IsNullOrWhiteSpace([string] $failure.category)) { [string] $failure.category } else { 'failed' }
     $failureLogPath = if ($failure -and -not [string]::IsNullOrWhiteSpace([string] $failure.logPath)) { [string] $failure.logPath } else { 'C:\Windows\Temp\osdcloud-logs' }
     $elapsedLabel = 'Elapsed: --'
+    $elapsed = $null
+    $elapsedSeconds = 0.0
+    if ($State -and [double]::TryParse([string] $State.elapsedSeconds, [ref] $elapsedSeconds) -and $elapsedSeconds -ge 0) {
+        $elapsed = [timespan]::FromSeconds($elapsedSeconds)
+    }
     [datetimeoffset] $startedAt = [datetimeoffset]::MinValue
-    if ($State -and [datetimeoffset]::TryParse([string] $State.startedAt, [ref] $startedAt)) {
+    if (-not $elapsed -and $State -and [datetimeoffset]::TryParse([string] $State.startedAt, [ref] $startedAt)) {
         $endAt = [datetimeoffset]::Now
         [datetimeoffset] $finishedAt = [datetimeoffset]::MinValue
         if ([datetimeoffset]::TryParse([string] $State.finishedAt, [ref] $finishedAt)) {
             $endAt = $finishedAt
         }
         $elapsed = $endAt - $startedAt
+    }
+    if ($elapsed) {
         $elapsedLabel = 'Elapsed: {0:D2}:{1:D2}:{2:D2}' -f [int] $elapsed.TotalHours, $elapsed.Minutes, $elapsed.Seconds
     }
 

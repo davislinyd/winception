@@ -53,6 +53,9 @@ function Write-JsonFileAtomic {
 function Write-DeploymentProgress {
     param([Parameter(Mandatory)] $Progress)
 
+    if ($script:SequenceTimer) {
+        $Progress.elapsedSeconds = [Math]::Round($script:SequenceTimer.Elapsed.TotalSeconds, 3)
+    }
     $Progress.updatedAt = (Get-Date).ToString('o')
     Write-JsonFileAtomic -Path $ProgressPath -Value $Progress
 }
@@ -493,6 +496,7 @@ function Invoke-SequenceStep {
     $stepId = [string] $Entry.id
     $timeoutSeconds = Get-StepTimeoutSeconds -Entry $Entry -Execution $Execution
     $started = Get-Date
+    $durationTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $logPath = New-StepLogPath -StepId $stepId -StepType $stepType -StepIndex $StepIndex
     $result = [ordered]@{
         stepIndex = $StepIndex
@@ -586,8 +590,9 @@ function Invoke-SequenceStep {
     }
     finally {
         $ended = Get-Date
+        $durationTimer.Stop()
         $result.endedAt = $ended.ToString('o')
-        $result.durationSeconds = [Math]::Round(($ended - $started).TotalSeconds, 3)
+        $result.durationSeconds = [Math]::Round($durationTimer.Elapsed.TotalSeconds, 3)
         Write-StepLog -Path $logPath -Message "EndedAt: $($result.endedAt)"
         Write-StepLog -Path $logPath -Message "DurationSeconds: $($result.durationSeconds)"
         Write-StepLog -Path $logPath -Message "Status: $($result.status)"
@@ -649,6 +654,7 @@ function Write-CustomScriptSummary {
 }
 
 try {
+    $script:SequenceTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $appsRoot = $PSScriptRoot
     $scriptsRoot = Join-Path (Split-Path -Parent $appsRoot) 'Scripts'
     $results = New-Object System.Collections.ArrayList
@@ -669,6 +675,7 @@ try {
         startedAt = (Get-Date).ToString('o')
         updatedAt = $null
         finishedAt = $null
+        elapsedSeconds = 0
     }
     Write-DeploymentProgress -Progress $progress
     if ($installSequence.Count -eq 0) {
@@ -753,5 +760,6 @@ catch {
     throw
 }
 finally {
+    if ($script:SequenceTimer) { $script:SequenceTimer.Stop() }
     Stop-Transcript -ErrorAction SilentlyContinue | Out-Null
 }
