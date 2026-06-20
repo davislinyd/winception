@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### 修正：四台 Hyper-V 並行部署時 WinPE 記憶體不足
+
+- `Restart-HyperVms.ps1` 在每次 PXE 測試前強制至少 4 GB fixed memory，避免 Dynamic Memory 將 WinPE 壓縮至 1–2 GB 後於 OSD module 載入或 DISM `Expand-WindowsImage` 發生 `System.OutOfMemoryException`
+- restart helper 仍保留 Generation 2、network first boot、四台逐一重啟與 `PassThru` 行為，並回報實際配置的 memory bytes
+
 ### 修正：SetupComplete 重開機競態中斷 app 安裝
 
 - post-logon finalizer 現在記錄註冊時的 boot identity；同一 boot 提前出現的自動登入只等待既定重開機，不再開始 app/custom script sequence

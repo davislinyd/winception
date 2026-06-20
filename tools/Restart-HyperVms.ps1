@@ -2,11 +2,16 @@ param(
     [string]$VmPrefix = 'winception-client-',
     [int]$StartIndex = 1,
     [int]$EndIndex = 4,
+    [long]$MemoryStartupBytes = 4GB,
     [switch]$PassThru
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($MemoryStartupBytes -lt 4GB) {
+    throw 'MemoryStartupBytes must be at least 4 GB for concurrent WinPE image application.'
+}
 
 function Get-VmName {
     param(
@@ -30,6 +35,8 @@ foreach ($index in $StartIndex..$EndIndex) {
 
         Stop-VM -Name $vmName -TurnOff -Force -Confirm:$false
 
+        Set-VMMemory -VMName $vmName -DynamicMemoryEnabled $false -StartupBytes $MemoryStartupBytes
+
         $netAdapter = Get-VMNetworkAdapter -VMName $vmName | Select-Object -First 1
         if (-not $netAdapter) {
             throw "$vmName has no network adapter."
@@ -47,6 +54,7 @@ foreach ($index in $StartIndex..$EndIndex) {
                 Status   = 'Restarted'
                 Adapter  = $netAdapter.Name
                 Started  = $true
+                MemoryBytes = $MemoryStartupBytes
             }
         }
     }

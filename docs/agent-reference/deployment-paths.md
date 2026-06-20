@@ -59,6 +59,7 @@ FinalStatusStage : windows-desktop-ready
 
 Use VM regression only when the user explicitly asks for VM or regression validation.
 
+- Use `tools\Restart-HyperVms.ps1` to prepare `winception-client-01..04` for concurrent PXE validation. It turns each VM off, enforces at least 4 GB fixed startup memory, selects its Generation 2 network adapter as the first boot device, and starts it. Do not lower the memory floor or re-enable Dynamic Memory for concurrent WinPE image application; Hyper-V ballooning below this floor can cause `System.OutOfMemoryException` during module loading or DISM `Expand-WindowsImage`.
 - `tools\osdcloud-console\src\headless.js` is allowed only for VM regression automation and must be stopped after the test so DHCP does not keep responding.
 - VM success proves the WinPE/OOBE/status workflow still works in a VM. It does not prove the physical-laptop path is ready.
 - VM evidence must not overwrite or replace physical-laptop evidence.
