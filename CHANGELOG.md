@@ -7,6 +7,11 @@
 - `Restart-HyperVms.ps1` 在每次 PXE 測試前強制至少 4 GB fixed memory，避免 Dynamic Memory 將 WinPE 壓縮至 1–2 GB 後於 OSD module 載入或 DISM `Expand-WindowsImage` 發生 `System.OutOfMemoryException`
 - restart helper 仍保留 Generation 2、network first boot、四台逐一重啟與 `PassThru` 行為，並回報實際配置的 memory bytes
 
+### 修正：Hyper-V 時間同步造成 desktop-ready 誤判 timeout
+
+- app installer heartbeat、step duration、viewer elapsed 與 desktop-ready 30 分鐘 timeout 改用 monotonic `Stopwatch`，避免 host/guest wall clock 校正向前跳後將正常 app sequence 誤報為 `windows-desktop-timeout`
+- desktop-ready scheduled task 改為 `MultipleInstances IgnoreNew`，避免多次 logon 同時啟動重複 reporter
+
 ### 修正：SetupComplete 重開機競態中斷 app 安裝
 
 - post-logon finalizer 現在記錄註冊時的 boot identity；同一 boot 提前出現的自動登入只等待既定重開機，不再開始 app/custom script sequence

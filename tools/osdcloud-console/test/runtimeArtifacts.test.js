@@ -848,6 +848,11 @@ test('SetupComplete defers client sequence to a SYSTEM logon task and gates desk
   assert.match(setup, /New-ItemProperty -Path \$runOnce -Name '!OSDCloudDeploymentProgress'/);
   assert.match(setup, /Show-DeploymentProgress\.ps1/);
   assert.match(setup, /if \(\$progressStatus -ne 'succeeded'\)/);
+  assert.match(setup, /\$timeoutTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
+  assert.match(setup, /\$timeoutTimer\.Elapsed\.TotalSeconds -lt \$timeoutSeconds/);
+  assert.match(setup, /\$pollTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
+  assert.match(setup, /-MultipleInstances IgnoreNew/);
+  assert.doesNotMatch(setup, /\$deadline = \(Get-Date\)\.AddMinutes\(30\)/);
   assert.match(setup, /Set-DeploymentProgressFailure -Category 'interrupted'/);
   assert.equal(isOuterFunction('Write-JsonFileAtomic'), true);
   assert.equal(isOuterFunction('Initialize-DeploymentProgress'), true);
@@ -875,8 +880,17 @@ test('client progress viewer is full-screen, topmost, and has no running close p
   assert.match(viewer, /if \(-not \$script:allowClose\)/);
   assert.match(viewer, /Acknowledge and return to desktop/);
   assert.match(viewer, /Elapsed: \{0:D2\}:\{1:D2\}:\{2:D2\}/);
+  assert.match(viewer, /\$State\.elapsedSeconds/);
   assert.match(viewer, /\$view\.status -eq 'succeeded'/);
   assert.doesNotMatch(viewer, /rawException|stdoutTailText|stderrTailText/);
+});
+
+test('client installer records elapsed time from monotonic timers', () => {
+  const installer = fs.readFileSync(path.join(process.cwd(), 'Softwares', 'Install-Apps.ps1'), 'utf8');
+  assert.match(installer, /\$script:SequenceTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
+  assert.match(installer, /\$durationTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
+  assert.match(installer, /durationSeconds = \[Math\]::Round\(\$durationTimer\.Elapsed\.TotalSeconds, 3\)/);
+  assert.doesNotMatch(installer, /durationSeconds = \[Math\]::Round\(\(\$ended - \$started\)\.TotalSeconds, 3\)/);
 });
 
 test('endpoint sync injects Startnet boot chain into rebuilt WinPE', () => {

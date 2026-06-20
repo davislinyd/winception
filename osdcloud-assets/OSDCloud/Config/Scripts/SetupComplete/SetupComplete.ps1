@@ -375,10 +375,10 @@ function Invoke-ClientAppInstallers {
     [Environment]::SetEnvironmentVariable('OSDCloudProgressPath', $DeploymentProgressPath, 'Process')
     $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
 
-    $pollStart = Get-Date
+    $pollTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $timedOut = $false
     while (-not $process.HasExited) {
-        $elapsedSeconds = [int] ((Get-Date) - $pollStart).TotalSeconds
+        $elapsedSeconds = [int] $pollTimer.Elapsed.TotalSeconds
         if ($elapsedSeconds -ge $AppInstallerTimeoutSeconds) {
             try { taskkill.exe /PID $process.Id /T /F 2>$null } catch {}
             $timedOut = $true
@@ -389,6 +389,7 @@ function Invoke-ClientAppInstallers {
             -Percent 94.5)
         Start-Sleep -Seconds $AppInstallerHeartbeatSeconds
     }
+    $pollTimer.Stop()
     if (-not $timedOut) {
         $process.WaitForExit()
     }
@@ -787,7 +788,8 @@ function Get-DesktopReadyFacts {
 
 try {
     [void] (Send-Status -Stage 'windows-logon-start' -Message 'Desktop ready reporter started after TARGET_USER_PLACEHOLDER logon.' -Percent 98)
-    $deadline = (Get-Date).AddMinutes(30)
+    $timeoutTimer = [System.Diagnostics.Stopwatch]::StartNew()
+    $timeoutSeconds = 30 * 60
     $desktopReadyReported = $false
     do {
         $progressStatus = Get-ProgressStatus
@@ -809,13 +811,14 @@ try {
         }
 
         Start-Sleep -Seconds 5
-    } while ((Get-Date) -lt $deadline)
+    } while ($timeoutTimer.Elapsed.TotalSeconds -lt $timeoutSeconds)
 
-    if (-not $desktopReadyReported -and (Get-Date) -ge $deadline) {
+    if (-not $desktopReadyReported -and $timeoutTimer.Elapsed.TotalSeconds -ge $timeoutSeconds) {
         [void] (Send-Status -Stage 'windows-desktop-timeout' -Message 'Timed out waiting for Explorer and desktop marker or status upload.' -Extra (Get-DesktopReadyFacts))
     }
 }
 finally {
+    if ($timeoutTimer) { $timeoutTimer.Stop() }
     Stop-Transcript -ErrorAction SilentlyContinue | Out-Null
 }
 '@
@@ -825,7 +828,7 @@ finally {
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$reporterPath`""
     $trigger = New-ScheduledTaskTrigger -AtLogOn
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 35)
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 35) -MultipleInstances IgnoreNew
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop | Out-Null
     return $reporterPath
 }
