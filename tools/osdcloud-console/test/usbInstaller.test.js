@@ -113,6 +113,9 @@ test('driver snapshot excludes cache history and emits current pack metadata onl
 test('USB OOBE customization is injected privately and invoked explicitly', () => {
   assert.match(main, /\$winceptionRoot 'Invoke-OobeCustomization-USB\.ps1'/);
   assert.doesNotMatch(main, /\$shutdownRoot 'Invoke-OobeCustomization\.ps1'/);
+  assert.match(oobe, /\$coreRoot = 'X:\\OSDCloud\\Config\\Scripts\\Shutdown'/);
+  assert.match(oobe, /Copy-Item -LiteralPath \$coreSource -Destination \$coreScript -Force/);
+  assert.match(oobe, /& \$coreScript/);
 });
 
 test('USB local status gate leaves the two PXE SetupComplete copies identical', () => {

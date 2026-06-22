@@ -49,9 +49,13 @@ $metadata = [ordered]@{
 }
 $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $metadataRoot 'DeploymentStatus.json') -Encoding UTF8 -Force
 
-$coreScript = 'X:\OSDCloud\Winception\Invoke-OobeCustomization-Core.ps1'
-if (-not (Test-Path -LiteralPath $coreScript -PathType Leaf)) {
-    throw "USB OOBE customization core is missing: $coreScript"
+$coreSource = 'X:\OSDCloud\Winception\Invoke-OobeCustomization-Core.ps1'
+if (-not (Test-Path -LiteralPath $coreSource -PathType Leaf)) {
+    throw "USB OOBE customization core is missing: $coreSource"
 }
 
+$coreRoot = 'X:\OSDCloud\Config\Scripts\Shutdown'
+$coreScript = Join-Path $coreRoot 'Invoke-OobeCustomization-Core.ps1'
+New-Item -ItemType Directory -Path $coreRoot -Force | Out-Null
+Copy-Item -LiteralPath $coreSource -Destination $coreScript -Force
 & $coreScript
