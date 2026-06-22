@@ -70,6 +70,7 @@ Entry points (run by `package.json` scripts) stay at `src/` root: `webServer.js`
 
 Large operational scripts (`Restore-DeploymentArtifacts.ps1`, `Set-OsdCloudIpxeEndpoint.ps1`,
 `Setup-DeploymentServer.ps1`, `Initialize-DeploymentServer.ps1`, …) are self-contained and invoked directly.
+`New-WinceptionUsbInstaller.ps1` owns the additive active-snapshot USB/ISO export; its root `.cmd` wrapper is included in the installed HostTools bundle.
 Pure shared helpers — `Get-FullPath`, `Assert-ChildPath`, `Join-ChildPath`, `Get-Sha256Hash`,
 `Test-IsAdministrator`, `Write-Step` — live in **`tools/lib/Common.ps1`**, dot-sourced right after each
 script's param block via `. (Join-Path $PSScriptRoot 'lib\Common.ps1')`. The host bundle

@@ -63,6 +63,10 @@ function createSetupSourceFixture(root) {
     path.join(process.cwd(), 'tools', 'Start-InstalledWebConsole.ps1'),
     path.join(root, 'tools', 'Start-InstalledWebConsole.ps1'),
   );
+  fs.copyFileSync(
+    path.join(process.cwd(), 'tools', 'New-WinceptionUsbInstaller.ps1'),
+    path.join(root, 'tools', 'New-WinceptionUsbInstaller.ps1'),
+  );
   // Scripts dot-source tools/lib/Common.ps1; stage it alongside them.
   fs.mkdirSync(path.join(root, 'tools', 'lib'), { recursive: true });
   fs.copyFileSync(
@@ -74,6 +78,7 @@ function createSetupSourceFixture(root) {
   fs.writeFileSync(path.join(root, 'Softwares', 'Show-DeploymentProgress.ps1'), "Write-Host 'fixture viewer'\n", 'utf8');
   fs.writeFileSync(path.join(root, 'Setup-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
   fs.writeFileSync(path.join(root, 'Deploy-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'New-WinceptionUsbInstaller.cmd'), '@echo off\r\n', 'utf8');
   fs.writeFileSync(path.join(root, 'docs', 'winception-operations-manual.html'), '<!doctype html><title>Manual</title>\n', 'utf8');
   for (const fileName of manualAssetNames) {
     fs.writeFileSync(path.join(root, 'docs', 'manual-assets', fileName), 'fixture\n', 'utf8');
@@ -504,6 +509,7 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.doesNotMatch(script, /Start-Pxe|Start-Dhcp|Start-Tftp|Start-Http/);
   assert.match(reloadScript, /docs\\winception-operations-manual\.html/);
   assert.match(reloadScript, /docs\\manual-assets/);
+  assert.match(reloadScript, /New-WinceptionUsbInstaller\.cmd/);
 });
 
 test('setup prerequisite refresh keeps a long inherited PATH within Windows limits', () => {
@@ -587,6 +593,8 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     assert.equal(seededConfig.paths.stateRoot, stateRoot);
     assert.equal(fs.existsSync(stateSecrets), false);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'Start-InstalledWebConsole.ps1')), true);
+    assert.equal(fs.existsSync(path.join(appRoot, 'New-WinceptionUsbInstaller.cmd')), true);
+    assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'New-WinceptionUsbInstaller.ps1')), true);
     assert.equal(fs.existsSync(path.join(appRoot, 'docs', 'winception-operations-manual.html')), true);
     assert.deepEqual(fs.readdirSync(path.join(appRoot, 'docs', 'manual-assets')).sort(), manualAssetNames.slice().sort());
     assert.equal(fs.existsSync(path.join(root, 'HostTools', 'Open-WebConsole.cmd')), true);

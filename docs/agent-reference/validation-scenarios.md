@@ -44,3 +44,11 @@ Read this file when selecting verification for subsystem-specific changes.
 - Deployment progress should include explicit lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer or custom-script failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.
 - Post-logon finalization changes must test success, empty profile, missing/failed/timed-out steps, interrupted reboot, legacy manifest name fallback, atomic safe progress JSON, full-screen viewer state mapping, outer-scope progress helpers outside generated reporter here-strings, and the rule that `windows-desktop-ready` is gated on progress `succeeded`.
+
+## USB/ISO Offline Installer
+
+- Automated tests must cover PowerShell syntax, CLI parameter sets, active-only snapshot inclusion, runtime/cache exclusions, manifest secret/path hygiene, size/headroom calculations, FAT32 file limits, disk identity guards, staging cleanup, local status gating, and Rufus arguments.
+- Hash the live config, runtime `Media`, and source/published `boot.wim` before and after creation; any mutation is a failure.
+- ISO validation must create and mount the ISO, verify every manifest file, and boot a Generation 2 VM with Secure Boot ON and NIC disabled through `windows-desktop-ready`.
+- USB validation must re-read every manifest size/hash from the completed device, then boot one physical UEFI x64 client with Secure Boot ON and no network through `windows-desktop-ready`.
+- PXE regression must run the existing four-client round and confirm network deployment plus HTTP telemetry remain unchanged. Do not record ISO, USB, VM, or PXE success until the corresponding live evidence exists.

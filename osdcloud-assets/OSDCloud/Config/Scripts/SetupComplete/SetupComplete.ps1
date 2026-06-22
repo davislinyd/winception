@@ -101,6 +101,23 @@ function Send-DeploymentStatus {
         [hashtable] $Extra = @{}
     )
 
+    if ([string] $DeploymentMetadata.statusTransport -eq 'local') {
+        $localStatus = [ordered]@{
+            timestamp = (Get-Date).ToString('o')
+            stage = $Stage
+            message = $Message
+            percent = $Percent
+            source = 'windows'
+            computerName = $env:COMPUTERNAME
+        }
+        foreach ($key in $Extra.Keys) {
+            $localStatus[$key] = $Extra[$key]
+        }
+        $DeploymentMetadata | Add-Member -NotePropertyName localStatus -NotePropertyValue ([pscustomobject] $localStatus) -Force
+        Write-JsonFileAtomic -Path $DeploymentMetadataPath -Value $DeploymentMetadata
+        return $true
+    }
+
     $statusUrl = if ($DeploymentMetadata.statusUrl) { [string] $DeploymentMetadata.statusUrl } else { $DefaultStatusUrl }
     $payload = [ordered]@{
         timestamp = (Get-Date).ToString('o')
@@ -572,6 +589,25 @@ function Get-ProgressStatus {
     }
 }
 
+function Write-LocalStatus {
+    param(
+        [Parameter(Mandatory)] $Metadata,
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)] $Value
+    )
+    $directory = Split-Path -Parent $Path
+    $temporaryPath = Join-Path $directory ('.{0}.{1}.tmp' -f ([System.IO.Path]::GetFileName($Path)), ([guid]::NewGuid().ToString('N')))
+    $backupPath = Join-Path $directory ('.{0}.{1}.bak' -f ([System.IO.Path]::GetFileName($Path)), ([guid]::NewGuid().ToString('N')))
+    try {
+        $Metadata | Add-Member -NotePropertyName localStatus -NotePropertyValue ([pscustomobject] $Value) -Force
+        [System.IO.File]::WriteAllText($temporaryPath, ($Metadata | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))
+        [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
+    }
+    finally {
+        Remove-Item -LiteralPath $temporaryPath, $backupPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Send-Status {
     param(
         [string] $Stage,
@@ -579,6 +615,23 @@ function Send-Status {
         [Nullable[double]] $Percent = $null,
         [hashtable] $Extra = @{}
     )
+
+    if ([string] $metadata.statusTransport -eq 'local') {
+        $localStatus = [ordered]@{
+            timestamp = (Get-Date).ToString('o')
+            stage = $Stage
+            message = $Message
+            percent = $Percent
+            source = 'windows'
+            computerName = $env:COMPUTERNAME
+            runAs = "$env:USERDOMAIN\$env:USERNAME"
+        }
+        foreach ($key in $Extra.Keys) {
+            $localStatus[$key] = $Extra[$key]
+        }
+        Write-LocalStatus -Metadata $metadata -Path $metadataPath -Value $localStatus
+        return $true
+    }
 
     $statusUrl = if ($metadata.statusUrl) { [string] $metadata.statusUrl } else { $defaultStatusUrl }
     $payload = [ordered]@{

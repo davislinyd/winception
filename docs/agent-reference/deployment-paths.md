@@ -1,6 +1,6 @@
 # Agent Reference: Deployment Paths
 
-Read this file when a task mentions deployment paths, physical laptop, VM regression, timing runs, ISO, or evidence separation.
+Read this file when a task mentions deployment paths, physical laptop, VM regression, timing runs, USB/ISO, or evidence separation.
 
 ## Live Endpoint Rule
 
@@ -70,4 +70,15 @@ Use VM regression only when the user explicitly asks for VM or regression valida
 
 - `C:\OSDCloud\Win11-Lab` and `OSDCloud_NoPrompt.iso` are retired historical evidence.
 - Do not require or restore the retired ISO path for fresh-host setup, endpoint sync, asset sync, physical deployment, or bundle restore.
-- If an ISO path is needed again, create it as a separate new task.
+- `New-WinceptionUsbInstaller.cmd -Iso` is a separate immutable snapshot export and must not reuse or restore `Win11-Lab`.
+
+## USB/ISO Offline Add-On Path
+
+- Run `New-WinceptionUsbInstaller.cmd` only from elevated PowerShell. Use `-CheckOnly` before destructive USB work.
+- Read merged installed config and active deployment manifests immediately before export. The snapshot owns selected WIM, active profile Apps/Scripts, current driver pack cache, boot files, SetupComplete/Shutdown sources, and local deployment secrets.
+- Staging belongs under installed HostTools State `.staging\winception-usb`; do not patch or copy directly into the live runtime `Media` tree.
+- USB output is GPT/UEFI x64 with FAT32 `WinPE` and NTFS `OSDCloudUSB`. Reject boot/system/non-USB disks and require exact `ERASE DISK <number>` confirmation after displaying model, serial, and size.
+- ISO output is no-prompt UDF and defaults to `<project-root>\Exports`. Generated ISO files remain ignored sensitive artifacts.
+- `-OpenInRufus` may pass only the ISO and NTFS preference. It must not download Rufus, select a target disk, simulate UI, or start writing.
+- Offline boot requires exactly one eligible internal target disk. The client validates the media manifest before disk changes and refuses a second wipe only after deployed Windows contains the same media ID plus completed `appliedAt` marker. Offline Windows progress is read from `DeploymentStatus.json.localStatus`.
+- USB/ISO evidence is media-specific and does not prove physical PXE readiness. PXE regression evidence does not prove offline media readiness.

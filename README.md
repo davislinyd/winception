@@ -151,15 +151,32 @@ notepad 'C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json'
 
 ## 流程分界
 
-本 workspace 有兩條部署路徑，不能混用：
+本 workspace 的 PXE、USB/ISO 與歷史 ISO 路徑彼此獨立，不能混用證據：
 
 | 路徑 | 用途 | Host endpoint | 入口 | 驗證意義 |
 | --- | --- | --- | --- | --- |
 | 實體筆電 iPXE | Active path，用來驗證真實大量部署 | Web console 選定的 service interface / service IP | `npm run web` | 可作為實體部署證據 |
 | VM iPXE | Regression path，用來快速驗證 WinPE、OOBE、status callback | VM 用的 internal switch | `node .\tools\osdcloud-console\src\headless.js` | 只證明 VM regression，不代表實體筆電路徑已準備好 |
+| USB/ISO offline installer | Add-on path，使用目前 active deployment snapshot 離線安裝 | 不使用 host endpoint | `New-WinceptionUsbInstaller.cmd` | 只證明該 immutable media snapshot |
 | ISO VM | Retired historical path，過去用來驗證 ISO zero-touch | retired `C:\OSDCloud\Win11-Lab\OSDCloud_NoPrompt.iso` | VM DVD/ISO boot | 只保留為歷史證據，不屬於 fresh-host runtime |
 
-切換路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-console.json` 與 `osdcloud-assets`。不要把 VM 的 endpoint 當成實體筆電設定，也不要把某一次實體筆電測試使用的 service IP 當成永久設定。
+切換 PXE endpoint 路徑時必須同步 live `C:\OSDCloud`、published `boot.wim`、`config\osdcloud-console.json` 與 `osdcloud-assets`。USB/ISO export 不執行這個 sync，也不改變 live endpoint。不要把 VM 的 endpoint 當成實體筆電設定，也不要把某一次實體筆電測試使用的 service IP 當成永久設定。
+
+### USB/ISO zero-touch installer
+
+在 elevated PowerShell 從 workspace 或 installed `C:\OSDCloud\HostTools\App` 執行：
+
+```powershell
+.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3 -CheckOnly
+.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3
+.\New-WinceptionUsbInstaller.cmd -Iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OutputPath D:\Winception-USB.iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OpenInRufus -RufusPath C:\Tools\rufus.exe
+```
+
+command 先驗證 merged live config、OSD/OSDCloud modules、boot files、active profile、selected WIM hash、selected Apps/Scripts、driver pack cache、三個 deployment secrets、容量與 FAT32 限制。建立流程只讀 live runtime，在 HostTools State 的 `.staging` 產生 immutable snapshot；不修改 `Media\sources\boot.wim`、PXE endpoint、services 或 live boot media。USB 只接受非 boot/system 的 USB disk，顯示 model/serial/size 後要求精確輸入 `ERASE DISK <number>`；輸出為 GPT、UEFI x64、FAT32 `WinPE` + NTFS `OSDCloudUSB`。ISO 預設寫到 `<project-root>\Exports`；`-OpenInRufus` 只預載 ISO 與 NTFS preference，operator 仍須在 Rufus UI 選 disk 並開始寫入。
+
+USB/ISO 內含可擷取的 Windows 與 PXE deployment credentials，必須視為敏感資產。離線 WinPE 只允許一個符合條件的 internal target disk；同一 media ID 完整套用後會以 `appliedAt` marker 拒絕再次清除。Windows 階段把最後進度原子寫入 `DeploymentStatus.json.localStatus`，不呼叫 host telemetry。Zero-touch 從 operator 的 one-time UEFI USB/ISO boot selection 後開始。
 
 實體筆電 endpoint 每次以 Web console 選定的 service interface / service IP 為準。下一次實體筆電測試前，先確認 `config\osdcloud-console.json`、live `boot.ipxe`、published `boot.wim` 內嵌 endpoint 與 host 網卡狀態一致。
 
@@ -1034,9 +1051,9 @@ iPXE 只載入 `boot.wim`。若更新 `C:\OSDCloud\Config\Scripts\SetupComplete`
 - VMConnect 截圖
 - log / transcript
 
-## ISO Path Retired
+## Legacy ISO Path Retired
 
-`C:\OSDCloud\Win11-Lab` 與 `OSDCloud_NoPrompt.iso` 已退役。Active deployment 只支援 Web console + physical-laptop iPXE path；如果之後需要 ISO boot path，請重新建立新的 ISO workspace，而不是恢復舊 `Win11-Lab`。
+`C:\OSDCloud\Win11-Lab` 與 `OSDCloud_NoPrompt.iso` 已退役，不得恢復成 active path。新的 `New-WinceptionUsbInstaller.cmd -Iso` 是獨立、一次性的 active snapshot export，不依賴也不修改舊 `Win11-Lab`。
 
 ## 共通 Windows 完成條件
 

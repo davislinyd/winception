@@ -18,7 +18,7 @@ At the start of any new session or context switch in this repository:
 Read these files only when the task touches the relevant area:
 
 - Changing console code (which file owns a feature, where to make an edit, front-end/back-end module layout): `docs/agent-reference/module-map.md`. Use it to open one focused module instead of reading a whole monolith.
-- Deployment path, physical laptop, VM regression, timing run, ISO, or path evidence questions: `docs/agent-reference/deployment-paths.md`.
+- Deployment path, physical laptop, VM regression, timing run, USB/ISO, or path evidence questions: `docs/agent-reference/deployment-paths.md`.
 - Runtime Readiness, Prepare runtime, endpoint sync, Web console, service controls, OS Image Cache, deployment profile publish, WinPE, SetupComplete, or desktop-ready behavior: `docs/agent-reference/runtime-web-console.md`.
 - Choosing verification for Web, OS image, profile/software/custom script, driver pack, multi-client, WinPE/SetupComplete, or other subsystem changes: `docs/agent-reference/validation-scenarios.md`.
 - Documentation updates, Git file selection, generated artifact handling, handoff, push, or deployment-clone workflow questions: `docs/agent-reference/repo-workflow.md`.
@@ -38,10 +38,11 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 
 ## Path Guardrails
 
-- For deployment path, physical laptop, VM regression, timing, ISO, or path evidence tasks, read `docs/agent-reference/deployment-paths.md`.
+- For deployment path, physical laptop, VM regression, timing, USB/ISO, or path evidence tasks, read `docs/agent-reference/deployment-paths.md`.
 - Physical-laptop work must use the Web-selected live endpoint.
 - VM regression evidence must not be used as proof that the physical-laptop path is ready.
 - The retired ISO path must not be restored as the active deployment path.
+- USB/ISO installer work must remain additive: stage outside the runtime Media tree and do not mutate PXE endpoint, services, published boot media, or the retired `Win11-Lab` path.
 
 ## Workspace Isolation
 

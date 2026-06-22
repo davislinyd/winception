@@ -14,6 +14,7 @@ Copy-Item -Path (Join-Path $SourceRoot "tools") -Destination $AppRoot -Recurse -
 Copy-Item -Path (Join-Path $SourceRoot "Softwares") -Destination $AppRoot -Recurse -Force
 Copy-Item -Path (Join-Path $SourceRoot "osdcloud-assets") -Destination $AppRoot -Recurse -Force
 Copy-Item -Path (Join-Path $SourceRoot "package.json") -Destination $AppRoot -Force
+Copy-Item -Path (Join-Path $SourceRoot 'New-WinceptionUsbInstaller.cmd') -Destination $AppRoot -Force
 $ManualRoot = Join-Path $AppRoot 'docs'
 New-Item -ItemType Directory -Path $ManualRoot -Force | Out-Null
 Copy-Item -Path (Join-Path $SourceRoot 'docs\winception-operations-manual.html') -Destination $ManualRoot -Force

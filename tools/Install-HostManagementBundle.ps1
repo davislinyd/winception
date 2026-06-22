@@ -164,6 +164,7 @@ foreach ($relativeFile in @(
     'package-lock.json',
     'Setup-DeploymentServer.cmd',
     'Deploy-DeploymentServer.cmd',
+    'New-WinceptionUsbInstaller.cmd',
     'docs\winception-operations-manual.html',
     'Softwares\Install-Apps.ps1',
     'Softwares\Show-DeploymentProgress.ps1'
