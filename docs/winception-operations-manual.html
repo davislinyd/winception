@@ -1375,6 +1375,15 @@
       var description = document.querySelector('meta[name="description"]');
       var closeButton = document.getElementById("lightbox-close");
       var applyLocale = function (locale, persist) {
+        var previousLocale = currentLocale;
+        var scrollAnchor = { top: window.scrollY, section: "", offset: 0 };
+        Array.from(localeViews[previousLocale].querySelectorAll("main section[id]")).some(function (section) {
+          var bounds = section.getBoundingClientRect();
+          if (section.hidden || bounds.bottom <= 0 || bounds.top >= window.innerHeight) return false;
+          scrollAnchor.section = section.id.replace(/^en-/, "");
+          scrollAnchor.offset = bounds.top;
+          return true;
+        });
         currentLocale = locale === "en" ? "en" : "zh";
         var config = localeConfig[currentLocale];
         localeViews.zh.hidden = currentLocale !== "zh";
@@ -1392,8 +1401,18 @@
           if (reduced) section.classList.add("visible");
         });
         if (persist) localStorage.setItem("winception-manual-language", currentLocale);
-        window.scrollTo({ top: 0, behavior: "auto" });
-        window.requestAnimationFrame(updateProgress);
+        window.requestAnimationFrame(function () {
+          var targetId = scrollAnchor.section ? (currentLocale === "en" ? "en-" : "") + scrollAnchor.section : "";
+          var target = targetId ? document.getElementById(targetId) : null;
+          if (target && !target.hidden) {
+            var previousId = (previousLocale === "en" ? "en-" : "") + scrollAnchor.section;
+            window.scrollTo({ top: window.scrollY + target.getBoundingClientRect().top - scrollAnchor.offset, behavior: "auto" });
+            if (window.location.hash === "#" + previousId) history.replaceState(null, "", "#" + targetId);
+          } else {
+            window.scrollTo({ top: scrollAnchor.top, behavior: "auto" });
+          }
+          updateProgress();
+        });
       };
       languageToggle.addEventListener("click", function () {
         applyLocale(currentLocale === "zh" ? "en" : "zh", true);

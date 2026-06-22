@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const webRoot = path.resolve('tools', 'osdcloud-console', 'web');
+const manualPath = path.resolve('docs', 'winception-operations-manual.html');
 
 // The web UI source is split into per-page ES modules under web/js and per-region
 // stylesheets under web/css. These helpers reconstruct the full source text so the
@@ -46,6 +47,16 @@ function readWebStyles() {
   }
   return fs.readFileSync(path.join(webRoot, 'styles.css'), 'utf8');
 }
+
+test('manual language switch preserves the current reading position', () => {
+  const manual = fs.readFileSync(manualPath, 'utf8');
+
+  assert.match(manual, /var scrollAnchor = \{ top: window\.scrollY, section: "", offset: 0 \}/);
+  assert.match(manual, /scrollAnchor\.section = section\.id\.replace\(\/\^en-\//);
+  assert.match(manual, /target\.getBoundingClientRect\(\)\.top - scrollAnchor\.offset/);
+  assert.match(manual, /history\.replaceState\(null, "", "#" \+ targetId\)/);
+  assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
+});
 
 test('torrent card renders live wave telemetry and release controls', () => {
   const script = readWebScript();
