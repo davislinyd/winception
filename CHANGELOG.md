@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.6.0 — 2026-06-22
+
+### 文件：單頁 Winception 部署操作手冊
+
+- 新增 `docs/winception-operations-manual.html`，整合技術架構、Secure Boot / iPXE、DHCP Server / PXE Proxy、Guided Setup 點選流程、client deployment、Torrent P2P、監控、完成判定、證據分層、故障排除與 Hyper-V regression
+- 新增可縮放的中／英文 SVG 架構與 operator 流程圖，以及外部連結的 live Web Console PNG；HTML 不內嵌 base64，並支援右上角完整語言切換、雙語導覽／搜尋／lightbox、responsive、print 與 reduced-motion
+- `.gitignore` 只例外允許 `docs/manual-assets/*.png` 的 curated 手冊截圖；一般 troubleshooting screenshots 仍維持忽略
 
 ### 修正：四台 Hyper-V 並行部署時 WinPE 記憶體不足
 

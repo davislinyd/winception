@@ -320,6 +320,8 @@ setup 選擇的 NIC/IP 會寫入 ignored `config\osdcloud-console.local.json`，
 
 ## 使用手冊
 
+v0.6.0 的完整中英雙語單頁技術／操作手冊請開啟 [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)。右上角可即時切換中文／English，內容包含系統架構、DHCP/PXE boot mode、Guided Setup 點選流程、Torrent P2P、監控與完成判定、證據邊界、故障排除及 Hyper-V regression；兩種語言各自使用外部 SVG 流程圖，實機 UI 截圖使用外部 PNG，不在 HTML 內嵌 base64。
+
 本節是給實際操作人員看的流程。日常部署走「實體筆電 iPXE」路徑；VM regression 只在需要驗證 WinPE/OOBE 流程時使用。Host console 現在只使用 Web/GUI 版；舊 Node TUI 已在 `0.3.0` 退役。
 
 ### 操作前檢查

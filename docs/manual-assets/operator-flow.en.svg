@@ -1,0 +1,49 @@
+<svg viewBox="0 0 1100 980" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Winception operator deployment flow</title>
+  <desc id="desc">From host preparation and Guided Setup through preflight, DHCP selection, client boot, and desktop-ready validation.</desc>
+  <style>
+    text{font-family:"Segoe UI",Arial,sans-serif;fill:#27231f}.bg{fill:#f7f2e9}.step{fill:#fffdf8;stroke:#d9cfbf;stroke-width:1.5}.gate{fill:#fff7e6;stroke:#d7b96f;stroke-width:1.6}.done{fill:#2f6d53;stroke:#245740;stroke-width:1.6}.action{fill:#fdf1e6;stroke:#dfb68f;stroke-width:1.5}.h1{font-size:25px;font-weight:700}.sub{font-size:14px;fill:#6e665d}.num{font-size:12px;font-weight:700;fill:#9c4221}.t{font-size:14px;font-weight:700}.s{font-size:12px;fill:#6e665d}.yes{font-size:11px;font-weight:700;fill:#2f6d53}.no{font-size:11px;font-weight:700;fill:#9c4221}.white{fill:#fff;font-size:15px;font-weight:700}.arrow{fill:none;stroke:#81776b;stroke-width:2;marker-end:url(#a)}.loop{fill:none;stroke:#a64b2a;stroke-width:2;stroke-dasharray:6 5;marker-end:url(#r)}
+  </style>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5 0 7Z" fill="#81776b"/></marker><marker id="r" markerWidth="10" markerHeight="10" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5 0 7Z" fill="#a64b2a"/></marker></defs>
+  <rect class="bg" width="1100" height="980" rx="24"/>
+  <text class="h1" x="550" y="42" text-anchor="middle">Operator flow · From a blank host to Windows desktop-ready</text>
+  <text class="sub" x="550" y="67" text-anchor="middle">Orange boxes modify live deployment state; diamonds are mandatory safety decisions</text>
+
+  <rect class="action" x="310" y="92" width="480" height="62" rx="12"/><text class="num" x="335" y="118">HOST</text><text class="t" x="550" y="120" text-anchor="middle">Run Setup-DeploymentServer.cmd elevated</text><text class="s" x="550" y="141" text-anchor="middle">Install HostTools and open http://127.0.0.1:8080</text>
+  <path class="arrow" d="M550 154V178"/>
+
+  <g>
+    <rect class="step" x="110" y="180" width="260" height="74" rx="11"/><text class="num" x="130" y="204">01–03</text><text class="t" x="240" y="211" text-anchor="middle">Root / Web / Secrets</text><text class="s" x="240" y="234" text-anchor="middle">Verify paths, interface, and local secrets</text>
+    <rect class="action" x="420" y="180" width="260" height="74" rx="11"/><text class="num" x="440" y="204">04</text><text class="t" x="550" y="211" text-anchor="middle">Prepare runtime</text><text class="s" x="550" y="234" text-anchor="middle">Build WinPE / PXE artifacts; do not start services</text>
+    <rect class="action" x="730" y="180" width="260" height="74" rx="11"/><text class="num" x="750" y="204">05</text><text class="t" x="860" y="211" text-anchor="middle">Select endpoint + Sync</text><text class="s" x="860" y="234" text-anchor="middle">Choose NIC/IP, DHCP mode, and boot mode</text>
+    <path class="arrow" d="M370 217H418"/><path class="arrow" d="M680 217H728"/>
+  </g>
+  <path class="arrow" d="M860 254V286"/>
+
+  <g>
+    <rect class="action" x="730" y="288" width="260" height="74" rx="11"/><text class="num" x="750" y="312">06</text><text class="t" x="860" y="319" text-anchor="middle">OS Image Cache</text><text class="s" x="860" y="342" text-anchor="middle">Download / Import → select image index</text>
+    <rect class="action" x="420" y="288" width="260" height="74" rx="11"/><text class="num" x="440" y="312">07</text><text class="t" x="550" y="319" text-anchor="middle">Profile → Set active</text><text class="s" x="550" y="342" text-anchor="middle">OS / language / apps / scripts / order</text>
+    <rect class="step" x="110" y="288" width="260" height="74" rx="11"/><text class="num" x="130" y="312">08</text><text class="t" x="240" y="319" text-anchor="middle">Run preflight</text><text class="s" x="240" y="342" text-anchor="middle">Wait for every blocking check to pass</text>
+    <path class="arrow" d="M730 325H682"/><path class="arrow" d="M420 325H372"/>
+  </g>
+  <path class="arrow" d="M240 362V390"/>
+
+  <polygon class="gate" points="240,392 352,452 240,512 128,452"/><text class="t" x="240" y="447" text-anchor="middle">Any blocking</text><text class="t" x="240" y="466" text-anchor="middle">preflight failure?</text>
+  <path class="loop" d="M128 452H64V325H108"/><text class="no" x="75" y="439">YES</text><text class="s" x="55" y="474">Follow How to fix,</text><text class="s" x="55" y="492">then rerun</text>
+  <path class="arrow" d="M352 452H438"/><text class="yes" x="381" y="440">NO</text>
+
+  <polygon class="gate" points="550,392 664,452 550,512 436,452"/><text class="t" x="550" y="446" text-anchor="middle">DHCP mode?</text><text class="s" x="550" y="468" text-anchor="middle">Server or PXE Proxy</text>
+  <path class="arrow" d="M664 452H750"/><text class="yes" x="688" y="438">Server</text>
+  <polygon class="gate" points="860,392 974,452 860,512 746,452"/><text class="t" x="860" y="446" text-anchor="middle">No other DHCP</text><text class="t" x="860" y="465" text-anchor="middle">on isolated LAN?</text>
+  <path class="loop" d="M860 392V382H550V390"/><text class="no" x="660" y="374">NO: use Proxy or stop external DHCP first</text>
+  <path class="arrow" d="M550 512V555"/><text class="yes" x="565" y="538">PXE Proxy: existing LAN DHCP assigns IP</text>
+  <path class="arrow" d="M860 512V555"/><text class="yes" x="874" y="538">YES</text>
+
+  <rect class="action" x="340" y="557" width="420" height="66" rx="12"/><text class="num" x="365" y="582">09</text><text class="t" x="550" y="585" text-anchor="middle">Start all services</text><text class="s" x="550" y="607" text-anchor="middle">Confirm HTTP, TFTP, DHCP/Proxy, and Torrent are Running</text>
+  <path class="arrow" d="M550 623V649"/>
+  <rect class="step" x="340" y="651" width="420" height="66" rx="12"/><text class="num" x="365" y="676">10</text><text class="t" x="550" y="679" text-anchor="middle">Boot client from UEFI IPv4 PXE</text><text class="s" x="550" y="701" text-anchor="middle">secureboot: Secure Boot ON; ipxe fallback: Secure Boot OFF</text>
+  <path class="arrow" d="M550 717V743"/>
+  <rect class="step" x="258" y="745" width="584" height="82" rx="12"/><text class="t" x="550" y="775" text-anchor="middle">Monitor Deploy / Activity</text><text class="s" x="550" y="798" text-anchor="middle">winpe-start → torrent / apply-image → rebooting → SetupComplete → apps / scripts</text><text class="s" x="550" y="818" text-anchor="middle">On failure or timeout, check Validation Evidence, then detailed client-local logs</text>
+  <path class="arrow" d="M550 827V853"/>
+  <rect class="done" x="330" y="855" width="440" height="70" rx="13"/><text class="white" x="550" y="884" text-anchor="middle">✓ windows-desktop-ready</text><text class="white" x="550" y="906" text-anchor="middle">Stop HTTP / TFTP / DHCP; restore normal LAN DHCP</text>
+</svg>

@@ -30,6 +30,8 @@ osdcloud-assets/**/Apps/**/*.exe
 *.png
 !tools/osdcloud-console/web/logo.png
 !src/web/public/logo_W_512x512.png
+!docs/manual-assets/
+!docs/manual-assets/*.png
 *.jpg
 *.jpeg
 

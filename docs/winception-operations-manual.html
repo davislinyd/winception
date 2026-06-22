@@ -1,0 +1,1405 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Winception Windows 11 零接觸部署的技術架構、操作流程、監控、驗證與故障排除單頁手冊。">
+  <title>Winception 部署操作手冊</title>
+  <style>
+    :root {
+      --bg: #f5f0e7;
+      --paper: #fffdf8;
+      --paper-2: #faf5eb;
+      --ink: #26221e;
+      --muted: #6d655c;
+      --line: #ded4c4;
+      --accent: #98411f;
+      --accent-2: #bd6540;
+      --green: #2f6d53;
+      --green-bg: #e9f3ed;
+      --amber: #8d611b;
+      --amber-bg: #fff3d8;
+      --red: #9c332c;
+      --red-bg: #fbeae7;
+      --blue: #416b82;
+      --shadow: 0 18px 50px rgba(55, 43, 31, .09);
+      --radius: 18px;
+      --nav-width: 280px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(152, 65, 31, .08), transparent 28rem),
+        linear-gradient(180deg, #f7f2e9 0, var(--bg) 40rem);
+      font-family: "Segoe UI", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      line-height: 1.72;
+    }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    img, svg { max-width: 100%; }
+    button, input { font: inherit; }
+    code, kbd, pre, .mono { font-family: Consolas, "SFMono-Regular", monospace; }
+    code {
+      overflow-wrap: anywhere;
+      padding: .08rem .34rem;
+      border: 1px solid rgba(152, 65, 31, .13);
+      border-radius: 5px;
+      background: rgba(152, 65, 31, .06);
+      font-size: .9em;
+    }
+    pre {
+      overflow: auto;
+      margin: 1rem 0 0;
+      padding: 1rem 1.1rem;
+      border: 1px solid #3b3835;
+      border-radius: 12px;
+      color: #f8f4ea;
+      background: #252321;
+      font-size: .86rem;
+      line-height: 1.55;
+    }
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: .75rem;
+      left: .75rem;
+      transform: translateY(-200%);
+      padding: .6rem .9rem;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--accent);
+    }
+    .skip-link:focus { transform: none; }
+    #scroll-progress {
+      position: fixed;
+      z-index: 90;
+      inset: 0 auto auto 0;
+      width: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent), #d9935f);
+      box-shadow: 0 0 12px rgba(152, 65, 31, .38);
+    }
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: clamp(3.5rem, 8vw, 7rem) max(1.25rem, calc((100vw - 1220px) / 2));
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(120deg, rgba(255,255,255,.72), rgba(255,253,248,.28)),
+        repeating-linear-gradient(90deg, transparent 0 79px, rgba(152,65,31,.035) 80px);
+    }
+    .hero::after {
+      position: absolute;
+      right: -90px;
+      bottom: -210px;
+      width: 480px;
+      height: 480px;
+      border: 1px solid rgba(152, 65, 31, .15);
+      border-radius: 50%;
+      box-shadow: 0 0 0 44px rgba(152,65,31,.025), 0 0 0 92px rgba(152,65,31,.018);
+      content: "";
+    }
+    .eyebrow {
+      margin: 0 0 .55rem;
+      color: var(--accent);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, h4 { line-height: 1.24; }
+    h1 {
+      max-width: 850px;
+      margin: 0;
+      font-family: Georgia, "Noto Serif TC", serif;
+      font-size: clamp(2.5rem, 6vw, 5.4rem);
+      font-weight: 600;
+      letter-spacing: -.045em;
+    }
+    .hero-lede {
+      max-width: 760px;
+      margin: 1.3rem 0 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2vw, 1.3rem);
+    }
+    .hero-meta, .hero-actions, .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .65rem;
+      align-items: center;
+    }
+    .hero-meta { margin-top: 1.4rem; }
+    .meta-pill, .tag {
+      display: inline-flex;
+      gap: .42rem;
+      align-items: center;
+      padding: .38rem .66rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,253,248,.72);
+      font-size: .78rem;
+      font-weight: 650;
+    }
+    .hero-actions { margin-top: 1.7rem; }
+    .button {
+      display: inline-flex;
+      gap: .45rem;
+      align-items: center;
+      padding: .72rem 1rem;
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 7px 18px rgba(152,65,31,.16);
+    }
+    .button.secondary { color: var(--accent); background: transparent; box-shadow: none; }
+    .layout {
+      display: grid;
+      grid-template-columns: var(--nav-width) minmax(0, 1fr);
+      gap: 2.5rem;
+      width: min(1380px, calc(100% - 2rem));
+      margin: 0 auto;
+    }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      padding: 2rem 0;
+    }
+    .nav-shell {
+      max-height: calc(100vh - 4rem);
+      overflow: auto;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,253,248,.8);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+    }
+    .nav-title {
+      margin: 0 0 .7rem;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .manual-search {
+      width: 100%;
+      margin: 0 0 .8rem;
+      padding: .62rem .72rem;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--ink);
+      background: var(--paper);
+    }
+    .toc { display: grid; gap: .16rem; }
+    .toc a {
+      display: block;
+      padding: .45rem .58rem;
+      border-left: 3px solid transparent;
+      border-radius: 5px;
+      color: var(--muted);
+      font-size: .86rem;
+      text-decoration: none;
+      transition: background .18s ease, color .18s ease, border-color .18s ease;
+    }
+    .toc a:hover, .toc a.active {
+      border-left-color: var(--accent);
+      color: var(--accent);
+      background: rgba(152,65,31,.07);
+    }
+    .nav-note {
+      margin: .9rem 0 0;
+      padding-top: .85rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .74rem;
+    }
+    main { min-width: 0; padding: 2.4rem 0 7rem; }
+    section {
+      margin: 0 0 2rem;
+      padding: clamp(1.25rem, 3vw, 2.2rem);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,253,248,.88);
+      box-shadow: 0 12px 32px rgba(55, 43, 31, .05);
+    }
+    section[hidden] { display: none; }
+    .section-kicker {
+      margin: 0 0 .25rem;
+      color: var(--accent);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 0 0 .75rem;
+      font-family: Georgia, "Noto Serif TC", serif;
+      font-size: clamp(1.7rem, 3vw, 2.45rem);
+      font-weight: 600;
+      letter-spacing: -.02em;
+    }
+    h3 { margin: 1.6rem 0 .55rem; font-size: 1.17rem; }
+    h4 { margin: 1.1rem 0 .4rem; font-size: 1rem; }
+    p { margin: .6rem 0; }
+    ul, ol { padding-left: 1.35rem; }
+    li + li { margin-top: .36rem; }
+    .lede { max-width: 850px; color: var(--muted); font-size: 1.03rem; }
+    .grid-2, .grid-3, .cards, .screenshot-grid {
+      display: grid;
+      gap: 1rem;
+    }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3, .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card, .callout, .step-card {
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--paper);
+    }
+    .card h3, .card h4, .step-card h3 { margin-top: 0; }
+    .callout { border-left: 5px solid var(--blue); }
+    .callout.warning { border-left-color: var(--amber); background: var(--amber-bg); }
+    .callout.danger { border-left-color: var(--red); background: var(--red-bg); }
+    .callout.success { border-left-color: var(--green); background: var(--green-bg); }
+    .callout strong { display: block; margin-bottom: .2rem; }
+    .status {
+      display: inline-block;
+      padding: .16rem .5rem;
+      border-radius: 999px;
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+    .status.pass { color: var(--green); background: var(--green-bg); }
+    .status.warn { color: var(--amber); background: var(--amber-bg); }
+    .status.stop { color: var(--red); background: var(--red-bg); }
+    .status.info { color: var(--blue); background: #e9f1f5; }
+    .table-wrap { overflow-x: auto; margin-top: 1rem; border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; background: var(--paper); font-size: .9rem; }
+    th, td { padding: .78rem .85rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { position: sticky; top: 0; color: var(--muted); background: var(--paper-2); font-size: .76rem; letter-spacing: .06em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .media-frame {
+      position: relative;
+      overflow: hidden;
+      margin-top: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #ede7dc;
+      box-shadow: var(--shadow);
+    }
+    .media-frame img {
+      display: block;
+      width: 100%;
+      transition: transform .55s cubic-bezier(.2,.7,.2,1), filter .3s ease;
+    }
+    .media-frame:hover img { transform: scale(1.018); filter: saturate(1.04); }
+    .media-frame .zoom {
+      position: absolute;
+      right: .8rem;
+      bottom: .8rem;
+      padding: .5rem .72rem;
+      border: 1px solid rgba(255,255,255,.7);
+      border-radius: 999px;
+      color: #fff;
+      background: rgba(31,28,25,.78);
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+    figure { margin: 1rem 0; }
+    figcaption { margin-top: .55rem; color: var(--muted); font-size: .8rem; }
+    .screenshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .screenshot-grid figure { margin: 0; }
+    .steps { display: grid; gap: .85rem; margin-top: 1rem; }
+    .step-card {
+      display: grid;
+      grid-template-columns: 3.3rem minmax(0, 1fr);
+      gap: .8rem;
+      align-items: start;
+    }
+    .step-number {
+      display: grid;
+      place-items: center;
+      width: 3.1rem;
+      height: 3.1rem;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 800;
+      box-shadow: 0 7px 18px rgba(152,65,31,.18);
+    }
+    .step-card h3 { margin-bottom: .25rem; }
+    .step-card p { margin: .2rem 0; }
+    .step-meta { color: var(--muted); font-size: .86rem; }
+    .sequence {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      align-items: center;
+      margin-top: 1rem;
+    }
+    .sequence span {
+      padding: .36rem .58rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      font: .78rem Consolas, monospace;
+    }
+    .sequence i { color: var(--accent); font-style: normal; font-weight: 800; }
+    details {
+      margin-top: .65rem;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--paper);
+    }
+    summary { padding: .72rem .85rem; cursor: pointer; font-weight: 700; }
+    details > div { padding: 0 .85rem .85rem; }
+    .path-list { display: grid; grid-template-columns: minmax(200px, .75fr) minmax(0, 1.25fr); gap: 0; margin-top: 1rem; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .path-list dt, .path-list dd { margin: 0; padding: .72rem .8rem; border-bottom: 1px solid var(--line); }
+    .path-list dt { background: var(--paper-2); font-weight: 700; }
+    .path-list dt:last-of-type, .path-list dd:last-of-type { border-bottom: 0; }
+    .reveal { opacity: 0; transform: translateY(16px); transition: opacity .55s ease, transform .55s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+    .mobile-nav { display: none; }
+    dialog {
+      width: min(1200px, calc(100% - 2rem));
+      max-height: 92vh;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--paper);
+      box-shadow: 0 28px 100px rgba(0,0,0,.3);
+    }
+    dialog::backdrop { background: rgba(31,27,24,.74); backdrop-filter: blur(4px); }
+    .lightbox-bar { display: flex; justify-content: space-between; align-items: center; padding: .7rem .9rem; border-bottom: 1px solid var(--line); }
+    .lightbox-bar button { padding: .4rem .65rem; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); cursor: pointer; }
+    #lightbox-image { display: block; max-height: calc(92vh - 4rem); margin: auto; object-fit: contain; }
+    footer { padding: 2rem; color: var(--muted); text-align: center; font-size: .82rem; }
+    mark { color: inherit; background: #ffe49a; }
+    .locale-view[hidden] { display: none !important; }
+    .language-toggle {
+      position: fixed;
+      z-index: 110;
+      top: 1rem;
+      right: 1rem;
+      display: inline-flex;
+      gap: .5rem;
+      align-items: center;
+      min-width: 7.5rem;
+      justify-content: center;
+      padding: .58rem .82rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink);
+      background: rgba(255,253,248,.94);
+      box-shadow: 0 8px 24px rgba(55,43,31,.14);
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+    }
+    .language-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    .language-toggle:focus-visible { outline: 3px solid rgba(152,65,31,.25); outline-offset: 2px; }
+    .language-toggle .lang-icon { font-size: 1rem; }
+    .locale-view[lang="en"] { line-height: 1.65; }
+    .locale-view[lang="en"] h1 { max-width: 1000px; font-size: clamp(2.35rem, 5.4vw, 5rem); }
+    .locale-view[lang="en"] .hero-lede { max-width: 930px; }
+    .locale-view[lang="en"] .toc a { font-size: .82rem; }
+    .locale-view[lang="en"] h1,
+    .locale-view[lang="en"] h2,
+    .locale-view[lang="en"] h3,
+    .locale-view[lang="en"] th,
+    .locale-view[lang="en"] td { overflow-wrap: anywhere; }
+    .locale-view[lang="en"] table { min-width: 780px; }
+
+    @media (max-width: 980px) {
+      .layout { display: block; width: min(100% - 1.2rem, 900px); }
+      .sidebar { display: none; }
+      .mobile-nav {
+        position: sticky;
+        z-index: 70;
+        top: 3.9rem;
+        display: flex;
+        gap: .6rem;
+        align-items: center;
+        margin: .6rem;
+        padding: .55rem .7rem;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255,253,248,.92);
+        backdrop-filter: blur(10px);
+      }
+      .mobile-nav select { min-width: 0; flex: 1; padding: .45rem; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+      main { padding-top: .6rem; }
+      .grid-3, .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 680px) {
+      .hero { padding-top: 4.7rem; }
+      .language-toggle { top: .65rem; right: .65rem; min-width: 6.8rem; padding: .48rem .66rem; }
+      .grid-2, .grid-3, .cards, .screenshot-grid { grid-template-columns: 1fr; }
+      .step-card { grid-template-columns: 2.6rem minmax(0,1fr); }
+      .step-number { width: 2.45rem; height: 2.45rem; }
+      .path-list { grid-template-columns: 1fr; }
+      .path-list dt { border-bottom: 0; }
+      section { padding: 1rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+    @media print {
+      :root { --bg: #fff; --paper: #fff; --paper-2: #fff; }
+      #scroll-progress, .sidebar, .mobile-nav, .hero-actions, .zoom, dialog, .language-toggle { display: none !important; }
+      .layout { display: block; width: 100%; }
+      .hero { padding: 1.2cm 1cm; }
+      main { padding: .5cm 1cm; }
+      section { break-inside: avoid; margin-bottom: .45cm; box-shadow: none; }
+      .reveal { opacity: 1; transform: none; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="scroll-progress" aria-hidden="true"></div>
+  <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch to English" aria-controls="locale-zh locale-en">
+    <span class="lang-icon" aria-hidden="true">◎</span><span id="language-toggle-label">English</span>
+  </button>
+
+  <div id="locale-zh" class="locale-view" lang="zh-Hant">
+  <a class="skip-link" href="#main">跳到主要內容</a>
+
+  <header class="hero">
+    <p class="eyebrow">Operations &amp; Engineering Manual · v0.6.0</p>
+    <h1>Winception<br>部署操作手冊</h1>
+    <p class="hero-lede">給部署技術人員與現場操作員的單頁指南：從 PXE 開機技術、Web Console 點選流程、Torrent P2P 映像分發，到 <code>windows-desktop-ready</code> 的成功判定與故障排除。</p>
+    <div class="hero-meta" aria-label="手冊資訊">
+      <span class="meta-pill">最後校對：2026-06-21</span>
+      <span class="meta-pill">預設 boot mode：Secure Boot</span>
+      <span class="meta-pill">Active path：實體 client UEFI IPv4 PXE</span>
+      <span class="meta-pill">VM：僅 regression evidence</span>
+    </div>
+    <div class="hero-actions">
+      <a class="button" href="#quick-start">直接開始部署</a>
+      <a class="button secondary" href="#architecture">先看技術架構</a>
+      <a class="button secondary" href="#troubleshooting">故障排除</a>
+    </div>
+  </header>
+
+  <div class="mobile-nav">
+    <label for="mobile-section">導覽</label>
+    <select id="mobile-section" aria-label="跳到手冊段落">
+      <option value="#scope">使用邊界</option>
+      <option value="#quick-start">最短部署路徑</option>
+      <option value="#architecture">技術架構</option>
+      <option value="#boot-modes">Boot / DHCP 模式</option>
+      <option value="#safety">安全閘門</option>
+      <option value="#guided-setup">Guided Setup</option>
+      <option value="#deploy-client">部署 client</option>
+      <option value="#monitoring">監控與完成判定</option>
+      <option value="#torrent">Torrent P2P</option>
+      <option value="#evidence">證據與 logs</option>
+      <option value="#troubleshooting">故障排除</option>
+      <option value="#vm-regression">Hyper-V regression</option>
+      <option value="#handoff">收尾與交接</option>
+    </select>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar" aria-label="手冊導覽">
+      <div class="nav-shell">
+        <p class="nav-title">On this page</p>
+        <input id="manual-search" class="manual-search" type="search" placeholder="搜尋段落…" aria-label="搜尋手冊段落">
+        <nav class="toc">
+          <a href="#scope">使用邊界</a>
+          <a href="#quick-start">最短部署路徑</a>
+          <a href="#architecture">技術架構</a>
+          <a href="#boot-modes">Boot / DHCP 模式</a>
+          <a href="#runtime-boundaries">路徑與責任邊界</a>
+          <a href="#safety">安全閘門</a>
+          <a href="#guided-setup">Guided Setup</a>
+          <a href="#deploy-client">部署 client</a>
+          <a href="#monitoring">監控與完成判定</a>
+          <a href="#torrent">Torrent P2P</a>
+          <a href="#evidence">證據與 logs</a>
+          <a href="#troubleshooting">故障排除</a>
+          <a href="#vm-regression">Hyper-V regression</a>
+          <a href="#handoff">收尾與交接</a>
+          <a href="#glossary">名詞表</a>
+        </nav>
+        <p class="nav-note">按 <kbd>Ctrl</kbd> + <kbd>P</kbd> 可列印。畫面值、IP、profile 與 OS image 僅為示意；每次部署前必須讀 live Web state。</p>
+      </div>
+    </aside>
+
+    <main id="main">
+      <section id="scope" class="reveal">
+        <p class="section-kicker">00 · Scope</p>
+        <h2>先分清楚：什麼是正式部署，什麼只是測試</h2>
+        <div class="grid-3">
+          <article class="card">
+            <span class="status pass">ACTIVE PATH</span>
+            <h3>實體 client</h3>
+            <p>Web Console 選定的實體 NIC / IP，從 client 的 <strong>UEFI IPv4 PXE</strong> 開機。只有這條路徑可作為實體設備可部署的證據。</p>
+          </article>
+          <article class="card">
+            <span class="status info">REGRESSION</span>
+            <h3>Hyper-V VM</h3>
+            <p>快速驗證 WinPE、OS apply、OOBE、SetupComplete、Apps / Scripts 與 callback。VM 成功<strong>不代表</strong>實體 LAN endpoint 已準備好。</p>
+          </article>
+          <article class="card">
+            <span class="status stop">RETIRED</span>
+            <h3>ISO path</h3>
+            <p><code>C:\OSDCloud\Win11-Lab</code> 與舊 ISO 僅是歷史證據。不要把 ISO、USB 或舊 workspace 恢復成 active path。</p>
+          </article>
+        </div>
+        <div class="callout warning">
+          <strong>所有畫面值都是 snapshot，不是永久設定</strong>
+          實體部署前重新確認 service interface、service IP、DHCP mode、boot mode、lease range、router、HTTP base、SMB share、active OS image、active profile 與 preflight。不要直接相信 committed <code>config\osdcloud-console.json</code>。
+        </div>
+      </section>
+
+      <section id="quick-start" class="reveal">
+        <p class="section-kicker">01 · Quick start</p>
+        <h2>最短部署路徑</h2>
+        <p class="lede">以下假設 HostTools 已安裝、runtime 已準備。新主機請先從 elevated shell 執行 <code>Setup-DeploymentServer.cmd</code>。</p>
+        <ol>
+          <li>以系統管理員身分開啟 <code>C:\OSDCloud\HostTools\Open-WebConsole.cmd</code>，瀏覽 <code>http://127.0.0.1:8080</code>。</li>
+          <li>在 <strong>Guided setup</strong> 確認 01–07：root、Web、secrets、runtime、endpoint、OS image、profile 都 ready。</li>
+          <li>按 <strong>Run preflight</strong>；所有 blocking check 必須通過。warning 可啟動服務，但要先理解原因。</li>
+          <li>確認 DHCP 策略：隔離 LAN 用 <strong>DHCP Server</strong>；既有 LAN DHCP 的網路用 <strong>PXE Proxy</strong>。</li>
+          <li>按 <strong>Start all services</strong>，確認 HTTP、TFTP、DHCP/Proxy 與 Torrent Tracker 是 Running。</li>
+          <li>在 client 選 UEFI IPv4 PXE 開機；回 <strong>Activity</strong> 監看單一 run。</li>
+          <li>只有 run 到 <code>windows-desktop-ready</code>，且 Apps / Scripts 沒有 error / timeout，才算完成。</li>
+          <li>部署窗口結束後停止 HTTP / TFTP / DHCP；若先前停用真實 LAN DHCP，立即恢復。</li>
+        </ol>
+        <figure>
+          <div class="media-frame">
+            <img src="manual-assets/operator-flow.svg" alt="Winception operator 從 setup、preflight、DHCP 安全閘門到 desktop-ready 的流程圖">
+            <button class="zoom" type="button" data-zoom-src="manual-assets/operator-flow.svg" data-zoom-alt="Operator 部署流程圖">放大流程圖</button>
+          </div>
+          <figcaption>操作流程的兩道硬閘門：blocking preflight 與 DHCP 模式／外部 DHCP 判斷。</figcaption>
+        </figure>
+      </section>
+
+      <section id="architecture" class="reveal">
+        <p class="section-kicker">02 · Architecture</p>
+        <h2>技術架構：各服務如何交互</h2>
+        <p class="lede">Winception 是 Node.js ESM Web 管理服務加上 PowerShell／OSDCloud deployment pipeline。控制面只負責編排；PXE boot、OS image、status callback 與 client local logs 各有獨立責任。</p>
+        <figure>
+          <div class="media-frame">
+            <img src="manual-assets/system-architecture.svg" alt="Winception Web Console、DHCP、TFTP、HTTP、Torrent、SMB、WinPE、OSDCloud 與 Windows client 的資料流">
+            <button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.svg" data-zoom-alt="Winception 系統架構與資料流">放大架構圖</button>
+          </div>
+          <figcaption>實線是操作／階段交接，藍色虛線是 boot 或 image data，綠色虛線是 status / evidence 回傳。</figcaption>
+        </figure>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>技術／元件</th><th>角色</th><th>如何交互</th><th>在 UI 的呈現</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Web Console</strong><br><code>:8080</code></td><td>技術人員的控制面。</td><td>讀取 live config/state，呼叫 ServiceController 執行 prepare、sync、publish、preflight、start/stop。</td><td>Deploy、Activity、Guided setup、Console。</td></tr>
+              <tr><td><strong>DHCP / PXE Proxy</strong><br><code>UDP 67</code></td><td>分配 client IP，或只注入 PXE boot option。</td><td>Server mode 回 lease＋router＋DNS＋boot file；Proxy mode 不分 IP。</td><td>Endpoint settings、DHCP service card、System Log。</td></tr>
+              <tr><td><strong>TFTP</strong><br><code>UDP 69</code></td><td>提供最早期 boot files。</td><td>Secure Boot path 提供 signed Windows Boot Manager、BCD、boot.sdi、boot.wim；iPXE path 提供 snponly.efi。</td><td>TFTP service card；<code>pxe-tftp.log</code> 顯示 RRQ / SENT / MISS。</td></tr>
+              <tr><td><strong>HTTP media/status</strong><br><code>TCP 80</code></td><td>iPXE fallback boot、metadata/control、client status callback。</td><td>iPXE 下載 boot script/wimboot；client POST deployment events 與安全 telemetry。</td><td>HTTP service card、Client Fleet、Validation Evidence、System Log。</td></tr>
+              <tr><td><strong>OSDCloud / WinPE</strong></td><td>分割磁碟、套用 Windows WIM、準備 OOBE / SetupComplete。</td><td>讀 active metadata，取得並驗證 image，透過 DISM 套用 Windows，寫入 handoff metadata。</td><td><code>winpe-start</code>、<code>apply-image</code>、<code>osdcloud-finished</code>。</td></tr>
+              <tr><td><strong>SMB</strong><br><code>OSDCloudiPXE</code></td><td>提供 authoritative runtime image/metadata 與 direct fallback。</td><td>WinPE 以 local deployment account 唯讀掛載為 <code>Z:</code>；不把 WIM 由 public HTTP 再下載一次。</td><td><code>smb-mounted</code> 與 Validation Evidence 的 image destination。</td></tr>
+              <tr><td><strong>BitTorrent</strong><br><code>6969 / 6881</code></td><td>多 client 同時部署時分散 WIM 傳輸負載。</td><td>tracker 讓 peers 發現彼此；Node super-seeder 供起始 pieces；WinPE aria2c 邊下載邊上傳。</td><td>Torrent Tracker card：wave、host ratio、coverage、clients、rates、ETA、receivers。</td></tr>
+              <tr><td><strong>SetupComplete + finalizer</strong></td><td>Windows 端客製化與 post-logon Apps / Scripts。</td><td>SetupComplete 只準備任務；必要 reboot 後由 SYSTEM task 依 profile 順序執行並更新安全 viewer state。</td><td><code>windows-setupcomplete-*</code>、<code>windows-apps-*</code>、全螢幕進度 viewer。</td></tr>
+              <tr><td><strong>Status / Evidence</strong></td><td>每台 client、每個 run 的狀態來源。</td><td>JSON events 寫入 per-run evidence；截圖 best effort；完整 installer output 留 client。</td><td>Activity card、Execution Flow、Validation Evidence、Console。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="boot-modes" class="reveal">
+        <p class="section-kicker">03 · Boot &amp; DHCP modes</p>
+        <h2>先選對兩個 mode</h2>
+        <div class="grid-2">
+          <article class="card">
+            <span class="status pass">DEFAULT</span>
+            <h3><code>secureboot</code></h3>
+            <p>DHCP 指向 Microsoft-signed <code>bootmgfw.efi</code>。Windows Boot Manager 透過 TFTP 讀 BCD、boot.sdi 與 boot.wim。Client Secure Boot 可保持 <strong>ON</strong>。</p>
+            <p class="step-meta">優點：完整 signed chain。代價：boot.wim 經 TFTP，通常比 HTTP 慢。</p>
+          </article>
+          <article class="card">
+            <span class="status warn">FALLBACK</span>
+            <h3><code>ipxe</code></h3>
+            <p>DHCP 指向未簽章的 <code>snponly.efi</code>，iPXE 再透過 HTTP wimboot 進 WinPE。Client Secure Boot 必須 <strong>OFF</strong>。</p>
+            <p class="step-meta">優點：boot.wim 走 HTTP 較快。代價：無法維持 Secure Boot。</p>
+          </article>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>DHCP mode</th><th>誰分配 IP</th><th>Winception 做什麼</th><th>何時使用</th><th>禁止事項</th></tr></thead>
+            <tbody>
+              <tr><td><strong>DHCP Server</strong></td><td>Winception</td><td>回 OFFER / ACK、lease、router、DNS、PXE boot option。</td><td>隔離 deployment LAN，沒有其他 DHCP responder。</td><td>不能與同網段既有 DHCP 同時對測試 client 回答。</td></tr>
+              <tr><td><strong>PXE Proxy</strong></td><td>現有 LAN DHCP</td><td>只對 PXE client 提供 boot server / boot file，不配置 IP。</td><td>共用 LAN 必須保留既有 DHCP 時。</td><td>不要把 Proxy 當成 lease server；先確認現有 DHCP 可正常配 IP。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout warning">
+          <strong>模式變更必須走 Endpoint Settings → Sync endpoint</strong>
+          單純改 Windows NIC IP、手動改一份 JSON、或只重啟服務，都不會保證 live boot files、boot.wim 內嵌 endpoint、SMB firewall 與 local overlay 一致。
+        </div>
+      </section>
+
+      <section id="runtime-boundaries" class="reveal">
+        <p class="section-kicker">04 · Boundaries</p>
+        <h2>路徑與責任邊界</h2>
+        <dl class="path-list">
+          <dt>Git workspace</dt><dd>Source、tests、docs、config schema。所有修正先在 repo 做。不是 deployment runtime。</dd>
+          <dt><code>HostTools\App</code></dt><dd>安裝後的 Web Console 與 helper scripts。Source 變更需沿既有 reload/install 流程發布，不能手補單檔。</dd>
+          <dt><code>HostTools\State</code></dt><dd>本機 overlay、secrets、profiles、catalogs、uploads、torrent coordinator。Mutable 且不應提交。</dd>
+          <dt>Web-selected runtime root</dt><dd>預設 <code>C:\OSDCloud</code>；包含 Media、PXE roots、status、logs。只能由產品 workflow 管理，不直接 patch/copy。</dd>
+          <dt>Client local logs</dt><dd><code>C:\Windows\Temp\osdcloud-logs</code>。Apps / Scripts 的 stdout、stderr、exception 與逐步診斷留在 client。</dd>
+          <dt>Client safe progress state</dt><dd><code>C:\ProgramData\OSDCloud\deployment-progress.json</code>。只供 viewer；不含 secrets、raw command line 或完整 error output。</dd>
+        </dl>
+        <div class="callout danger">
+          <strong>絕對不要手動修改 runtime root</strong>
+          若 live deployment 行為錯誤，回 Git workspace 修 source、驗證、發布／reload，再由 Endpoint Sync 或 profile publish 產生 runtime state。
+        </div>
+      </section>
+
+      <section id="safety" class="reveal">
+        <p class="section-kicker">05 · Safety gates</p>
+        <h2>按 Start services 前的硬條件</h2>
+        <div class="cards">
+          <article class="card"><h3>Endpoint</h3><p>Selected NIC/IP、prefix、lease range、router、HTTP base、SMB share 必須屬於同一條本次要使用的 deployment path。</p></article>
+          <article class="card"><h3>Runtime</h3><p>Runtime Readiness ready；缺 artifact 時先 Prepare runtime。不要把 <code>size-mismatch</code> 解讀成服務已運行。</p></article>
+          <article class="card"><h3>OS / Profile</h3><p>Active profile 有 deployable WIM、正確 image index、language/time zone 與有序 Apps / Scripts；manifest 不是 stale。</p></article>
+          <article class="card"><h3>Preflight</h3><p>所有 blocking failure 都要修正。Disconnected NIC 可是 warning；Duplicate IP、Disabled NIC、wrong prefix 是 blocker。</p></article>
+          <article class="card"><h3>DHCP</h3><p>Server mode 前確認隔離 LAN 沒有其他 DHCP；否則改 Proxy mode。這是操作員責任，preflight 不能替你證明。</p></article>
+          <article class="card"><h3>Single controller</h3><p>同一時間只允許一個 Web Console 或 headless process 控制 UDP 67/69、TCP 80。不要並行啟動。</p></article>
+        </div>
+      </section>
+
+      <section id="guided-setup" class="reveal">
+        <p class="section-kicker">06 · Guided Setup</p>
+        <h2>第一次設定：逐步點選</h2>
+        <p class="lede">右側 Guided setup 是 10 步 live checklist。已完成的項目仍應在每次實體部署前重新核對，尤其是 endpoint、profile 與 preflight。</p>
+        <div class="steps">
+          <article class="step-card"><div class="step-number">01</div><div><h3>Project root</h3><p>確認 runtime root 在 Git clone 與 <code>HostTools</code> 外；標準環境使用 <code>C:\OSDCloud</code>。</p><p class="step-meta">Done when：Runtime、HostTools App、HostTools State 三條路徑均解析正確。</p></div></article>
+          <article class="step-card"><div class="step-number">02</div><div><h3>Web service IP</h3><p>Web 管理介面預設只聽 <code>127.0.0.1:8080</code>。它與 client 使用的 service IP 不同。</p></div></article>
+          <article class="step-card"><div class="step-number">03</div><div><h3>Deployment secrets</h3><p>填 Windows local account；系統保存於 ignored HostTools State。畫面、log、文件與 screenshots 不應出現 plaintext。</p></div></article>
+          <article class="step-card"><div class="step-number">04</div><div><h3>Prepare runtime</h3><p>按 <strong>Prepare runtime</strong>，確認摘要後執行。此長任務準備 ADK/WinPE/iPXE/boot artifacts，但不啟 HTTP/TFTP/DHCP，也不下載未選 client software。</p><p class="step-meta">等待 operation 顯示 completed 且 Runtime Readiness 重新檢查為 ready；不要只看 PowerShell exit code。</p></div></article>
+          <article class="step-card"><div class="step-number">05</div><div><h3>PXE / service endpoint</h3><p>點上方 <strong>Endpoint</strong> → 選本次 NIC / IPv4 → 選 DHCP mode 與 Client Boot Mode → <strong>Sync endpoint</strong>。</p><p class="step-meta">Sync 會先停 running services，更新 local overlay、DHCP pool、boot files、boot.wim endpoint、SMB firewall 與 assets。</p></div></article>
+          <article class="step-card"><div class="step-number">06</div><div><h3>OS Image Cache</h3><p>點 <strong>OS Image</strong>。選官方 catalog download，或 Local Import ISO/ESD/WIM；檢查 DISM image list，選 Windows 11 Pro Retail 正確 index，匯出單一 deployable WIM。</p></div></article>
+          <article class="step-card"><div class="step-number">07</div><div><h3>Publish profile</h3><p>點 <strong>Profile</strong> → 新增／編輯 profile → 選 OS image、display language、locale、input language、time zone、Apps / Scripts 及順序 → Set active / publish。</p><p class="step-meta">Profile publish 才會補齊 selected payloads 並產生 <code>selected-profile.json</code>、<code>selected-os.json</code>。</p></div></article>
+          <article class="step-card"><div class="step-number">08</div><div><h3>Run preflight</h3><p>按 <strong>Run preflight</strong>。逐條輸出會出現在 Console；Summary 顯示 blocker 時，依 tooltip 的 <strong>How to fix</strong> 修正後重跑。</p></div></article>
+          <article class="step-card"><div class="step-number">09</div><div><h3>Start services</h3><p>確認 DHCP 安全條件後按 <strong>Start all services</strong>。四張服務卡應是 Running；Torrent idle 是正常，client 加入後才形成 wave。</p></div></article>
+          <article class="step-card"><div class="step-number">10</div><div><h3>Boot client</h3><p>Client 選 UEFI IPv4 PXE。第一個 <code>winpe-start</code> 出現後，該次 deployment 會在 Activity 建立獨立 run。</p></div></article>
+        </div>
+        <figure>
+          <div class="media-frame">
+            <img src="manual-assets/web-dashboard.png" alt="Winception Deploy dashboard，顯示 HTTP、TFTP、DHCP、Torrent 與 Guided setup">
+            <button class="zoom" type="button" data-zoom-src="manual-assets/web-dashboard.png" data-zoom-alt="Winception Deploy dashboard">放大畫面</button>
+          </div>
+          <figcaption>Live screenshot：服務已啟動、右側 Guided setup 完成。IP、數量、profile 與 image 會依環境改變。</figcaption>
+        </figure>
+      </section>
+
+      <section id="deploy-client" class="reveal">
+        <p class="section-kicker">07 · Client deployment</p>
+        <h2>現場 client 怎麼開機、看什麼</h2>
+        <div class="grid-2">
+          <article class="card">
+            <h3>實體 client</h3>
+            <ol>
+              <li>接上指定 deployment LAN；不要插 USB、不要掛 ISO。</li>
+              <li>UEFI 設定啟用 IPv4 PXE / Network Stack。</li>
+              <li><code>secureboot</code> 保持 Secure Boot ON；<code>ipxe</code> fallback 才關閉。</li>
+              <li>由一次性 boot menu 選 UEFI IPv4 NIC。</li>
+              <li>WinPE 啟動後不手動操作；讓 Torrent、OS apply、reboot 與 Windows finalization 完成。</li>
+            </ol>
+          </article>
+          <article class="card">
+            <h3>預期 client 畫面</h3>
+            <ul>
+              <li>Secure Boot path：Windows Boot Manager / WinPE 載入。</li>
+              <li>WinPE：最大化 console，顯示 image、Torrent 進度、peer、upload receiver、SHA-256 與 DISM apply。</li>
+              <li>Windows：SetupComplete 後可能自動重開機。</li>
+              <li>下一 boot 的自動登入後：全螢幕 deployment progress viewer 顯示 Apps / Scripts。</li>
+              <li>成功後 viewer 離開並建立 desktop-ready marker。</li>
+            </ul>
+          </article>
+        </div>
+        <div class="callout warning">
+          <strong>不要因 client 看起來進入桌面就宣告完成</strong>
+          Apps / Scripts 可能仍由 SYSTEM 執行。以 Activity 的 <code>windows-apps-finished</code>、<code>windows-setupcomplete-finished</code> 與最終 <code>windows-desktop-ready</code> 為準。
+        </div>
+      </section>
+
+      <section id="monitoring" class="reveal">
+        <p class="section-kicker">08 · Monitoring</p>
+        <h2>Deploy、Activity、Evidence 各看什麼</h2>
+        <div class="screenshot-grid">
+          <figure>
+            <div class="media-frame">
+              <img src="manual-assets/web-activity.png" loading="lazy" alt="Winception Activity cards，顯示 completed client runs 與 execution flow">
+              <button class="zoom" type="button" data-zoom-src="manual-assets/web-activity.png" data-zoom-alt="Winception Activity cards">放大 Activity</button>
+            </div>
+            <figcaption>Activity：按 All / Active / Done / Failed / Stale / Archived 篩選；選一張 card 看 Execution Flow。</figcaption>
+          </figure>
+          <figure>
+            <div class="media-frame">
+              <img src="manual-assets/web-validation-evidence.png" loading="lazy" alt="Winception Validation Evidence drawer，顯示 selected run 與 target system evidence">
+              <button class="zoom" type="button" data-zoom-src="manual-assets/web-validation-evidence.png" data-zoom-alt="Winception Validation Evidence">放大 Evidence</button>
+            </div>
+            <figcaption>Validation Evidence：確認 run ID、final stage、target system、timing、image path 與 installer summary。</figcaption>
+          </figure>
+        </div>
+        <h3>正常事件序列</h3>
+        <div class="sequence" aria-label="正常 deployment event sequence">
+          <span>winpe-start</span><i>→</i><span>smb-mounted</span><i>→</i><span>torrent-download</span><i>→</i><span>torrent-verify</span><i>→</i><span>osdcloud-start</span><i>→</i><span>apply-image</span><i>→</i><span>osdcloud-finished</span><i>→</i><span>reporter-stop</span><i>→</i><span>rebooting</span><i>→</i><span>windows-setupcomplete-*</span><i>→</i><span>windows-apps-finished</span><i>→</i><span>windows-desktop-ready</span>
+        </div>
+        <div class="grid-3">
+          <article class="card"><h3>Deploy</h3><p>看 endpoint、service states、Runtime Readiness、Preflight Summary、Torrent wave 與全 fleet 統計。</p></article>
+          <article class="card"><h3>Activity</h3><p>看每個 run 的 stage、進度、start time、completed/failed/stale，以及 Execution Flow。</p></article>
+          <article class="card"><h3>Validation Evidence</h3><p>對 selected run 讀 per-run history。舊 run 只代表 previous evidence，不是現在正在部署。</p></article>
+        </div>
+        <details>
+          <summary><code>reporter-stop</code> 是失敗嗎？</summary>
+          <div><p>不是。它是 WinPE reporter 在 reboot handoff 前的預期停止；UI 應把它映射到 rebooting。只有長時間沒有後續 Windows event、最終 stale / failed 時才需要調查。</p></div>
+        </details>
+        <details>
+          <summary>Stopped service card 是錯誤嗎？</summary>
+          <div><p>不是。Stopped / idle 是 neutral state。紅色只應代表 blocked / failed；部署窗口外服務停止是正確狀態。</p></div>
+        </details>
+      </section>
+
+      <section id="torrent" class="reveal">
+        <p class="section-kicker">09 · Torrent P2P</p>
+        <h2>為什麼用 Torrent，以及怎麼判讀</h2>
+        <p>多台 client 同時從 host 讀完整 WIM 會讓 host 磁碟與網路成為瓶頸。Winception 預設讓 WinPE 的 <code>aria2c.exe</code> 加入同一 swarm：host 只提供起始 pieces，clients 邊下載邊把 pieces 傳給其他 peers。</p>
+        <div class="grid-3">
+          <article class="card"><h3>24 秒固定 batch</h3><p>Origin batch 依 slot 取得互斥 <code>i mod n</code> piece stripe。晚到 client 在前批仍在線時可成為 peer-only。</p></article>
+          <article class="card"><h3>Host budget</h3><p>正常 wave 的 host 上傳預算約為 <strong>1.15× WIM</strong>；其餘流量應由 peers 互傳。</p></article>
+          <article class="card"><h3>Fail-safe</h3><p>三分鐘無 aggregate progress 才進可見 emergency host fallback；30 秒無 non-host heartbeat 才結束 wave。</p></article>
+        </div>
+        <h3>UI 欄位</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>欄位</th><th>判讀</th><th>正常狀態</th></tr></thead>
+            <tbody>
+              <tr><td>Wave / batch</td><td>目前收集窗與 distribution wave。</td><td>無 client 時 <code>-</code> / idle。</td></tr>
+              <tr><td>Host served ratio</td><td>Host seeder 供應量 ÷ WIM size。</td><td>穩定多 client wave 應接近或低於 1.15×；emergency fallback 例外。</td></tr>
+              <tr><td>Swarm coverage</td><td>Fleet 已持有 pieces 的覆蓋率。</td><td>下載期間上升；完成時 100%。</td></tr>
+              <tr><td>Sources / receivers</td><td>正在下載來源與上傳對象。</td><td>多 client 時應看得到 Peer；只有 Host 代表 offload 不充分。</td></tr>
+              <tr><td>Telemetry stale</td><td>15 秒無安全 telemetry 標記 stale；60 秒從 active rows 移除。</td><td>不直接等於 image download 失敗。</td></tr>
+              <tr><td>Seed wait</td><td>Windows apply 完成後，client 短暫繼續供應 peers。</td><td>期限、client Enter、Web release、aria2 exit 都可結束。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout">
+          <strong>沒有 HTTP webseed 是刻意設計</strong>
+          若把 WIM HTTP URL 放進 torrent，aria2 可能讓每台 client 都從 host 拉完整檔，失去 P2P offload。HTTP 仍提供 <code>.torrent</code> metadata 與 control/status，不當作 WIM webseed。
+        </div>
+      </section>
+
+      <section id="evidence" class="reveal">
+        <p class="section-kicker">10 · Evidence</p>
+        <h2>三種證據不要混為一談</h2>
+        <div class="grid-3">
+          <article class="card">
+            <span class="status info">READ-ONLY UI</span>
+            <h3>Validation Evidence</h3>
+            <p>給 operator 快速判斷 selected run：stage、timing、target system、image destination、installer summary。</p>
+          </article>
+          <article class="card">
+            <span class="status pass">HOST</span>
+            <h3>Per-run evidence</h3>
+            <p>Runtime status root 下的 <code>&lt;runId&gt;.jsonl</code>、summary、run index、TFTP/DHCP/Torrent logs。證明 host 收到什麼。</p>
+          </article>
+          <article class="card">
+            <span class="status warn">CLIENT</span>
+            <h3>Detailed execution logs</h3>
+            <p><code>C:\Windows\Temp\osdcloud-logs</code> 保留 Apps / Scripts 的完整診斷。Host status 只帶 bounded summary。</p>
+          </article>
+        </div>
+        <h3>成功條件</h3>
+        <ul>
+          <li>Run final stage 是 <code>windows-desktop-ready</code>、100%、completed。</li>
+          <li>Explorer running、desktop-ready marker 存在，沒有 CloudExperienceHost / msoobe。</li>
+          <li>Display language、culture、time zone、input languages / methods 來自 target user registry。</li>
+          <li>Apps / Scripts sequence 成功，沒有 <code>windows-apps-error</code>、timeout 或 interrupted。</li>
+          <li>Image source 符合 active selected WIM；沒有不必要的 HTTP WIM/ESD redownload。</li>
+        </ul>
+        <div class="callout warning">
+          <strong>Screenshot 不是成功條件</strong>
+          WinPE screenshot upload 是 best effort。Defender/AMSI 或畫面擷取失敗不可取代 JSON status；也不要在 SetupComplete 再裝互動 screenshot startup helper。
+        </div>
+      </section>
+
+      <section id="troubleshooting" class="reveal">
+        <p class="section-kicker">11 · Troubleshooting</p>
+        <h2>依症狀找第一個可信檢查點</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>症狀</th><th>先看</th><th>常見原因</th><th>正確處理</th></tr></thead>
+            <tbody>
+              <tr><td>Runtime blocked</td><td>Runtime Readiness detail</td><td>artifact 缺失、size mismatch、OSD/OSDCloud module 缺少。</td><td>用 Prepare runtime 修復；不要手動 copy 到 runtime。</td></tr>
+              <tr><td>Preflight：selected manifest stale</td><td>Preflight How to fix</td><td>WIM 比 <code>selected-os.json</code> 新。</td><td>回 Profile 重新 Set active / publish，再 Run preflight。</td></tr>
+              <tr><td>Service IP warning</td><td>adapter state / bind checks</td><td>NIC Disconnected 或 address Deprecated/Tentative，但仍可 bind。</td><td>確認線路；若 IP/prefix/interface 正確，可視為 non-blocking warning。</td></tr>
+              <tr><td>Service IP blocker</td><td>Preflight</td><td>IP 未指派、wrong prefix/interface、Duplicate、Disabled。</td><td>修 Windows NIC 或明確執行 NIC helper，再重新 Select endpoint + Sync。</td></tr>
+              <tr><td>Client 沒拿到 PXE</td><td>DHCP log / mode</td><td>雙 DHCP、Proxy 下 LAN DHCP 未配 IP、boot mode/file 不一致。</td><td>修 DHCP topology；確認 UDP 67、mode-specific boot file 與 client UEFI。</td></tr>
+              <tr><td>Secure Boot violation</td><td>live <code>dhcp.bootMode</code></td><td>client Secure Boot ON 卻走 unsigned iPXE。</td><td>切回 secureboot 並 Sync，或明確關 Secure Boot 使用 ipxe fallback。</td></tr>
+              <tr><td>仍使用舊 IP</td><td>Web endpoint、live logs</td><td>舊 console process 還在跑，或只改 NIC 未 sync。</td><td>停止舊服務；由 Web Select endpoint + Sync；必要時 reload installed console。</td></tr>
+              <tr><td>WinPE 看不到 image</td><td><code>smb-mounted</code>、selected-os、SMB path</td><td>profile 未發布、WIM 缺失、share 權限或 endpoint 不一致。</td><td>重新 publish profile、preflight；不要用 HTTP catalog params 混 custom WIM。</td></tr>
+              <tr><td>Torrent telemetry unavailable</td><td>client console / Tracker card</td><td>觀測 API 暫時斷線。</td><td>若本機 progress、SHA-256、download 繼續，不視為 deployment failure；持續觀察。</td></tr>
+              <tr><td>Torrent 無進展</td><td>coverage、sources、host ratio</td><td>peer 互連、防火牆、tracker heartbeat 問題。</td><td>等待可見 emergency fallback；保留 evidence，檢查 client network。不要取消 SHA-256。</td></tr>
+              <tr><td>停在 rebooting / awaiting-windows</td><td>per-run events、client</td><td>SetupComplete 未開始、舊 boot.wim、Windows callback network。</td><td>確認後續 <code>windows-setupcomplete-*</code>；必要時檢查 embedded scripts 與 client logs。</td></tr>
+              <tr><td><code>windows-apps-error</code></td><td>host bounded summary</td><td>installer/script missing、non-zero exit、timeout、unexpected reboot。</td><td>到 client <code>osdcloud-logs</code> 看完整輸出；修 source/profile 後重新部署，不自動 replay 非 idempotent step。</td></tr>
+              <tr><td>桌面已出現但未 ready</td><td>deployment-progress、reporter</td><td>Apps / Scripts 還在跑、failed、或 callback 尚在 retry。</td><td>不要手動關 viewer；等 finalization succeeded。網路中斷時 reporter 最多重試 30 分鐘。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="vm-regression" class="reveal">
+        <p class="section-kicker">12 · Hyper-V</p>
+        <h2>VM regression 與 Restart-HyperVms.ps1</h2>
+        <p>只在需要回歸 WinPE / OOBE / status pipeline 時使用。四台預設 VM 是 <code>winception-client-01..04</code>，必須是 Generation 2。</p>
+        <div class="grid-2">
+          <article class="card">
+            <h3>腳本會做什麼</h3>
+            <ul>
+              <li>以 <code>TurnOff</code> 強制關機。</li>
+              <li>停用 Dynamic Memory，設定至少 4 GiB fixed startup memory。</li>
+              <li>把第一張 VM network adapter 設為 first boot device。</li>
+              <li>重新啟動 VM；<code>-PassThru</code> 回傳逐台結果。</li>
+            </ul>
+          </article>
+          <article class="callout danger">
+            <strong>這不是無害的 Restart</strong>
+            <code>Stop-VM -TurnOff -Force</code> 等同拔電源，會遺失 guest 未寫入資料。只對 disposable regression VMs 使用；不要對使用者工作站或有狀態 server VM 執行。
+          </article>
+        </div>
+        <pre><code># Elevated PowerShell，從 repo root 執行
+.\tools\Restart-HyperVms.ps1 -PassThru
+
+# 指定範圍；memory 不可低於 4GB
+.\tools\Restart-HyperVms.ps1 -StartIndex 1 -EndIndex 2 -MemoryStartupBytes 4GB -PassThru</code></pre>
+        <h3>驗證順序</h3>
+        <ol>
+          <li>Web Console 已通過 preflight，且沒有另一個 headless/controller process。</li>
+          <li>執行 restart helper；在 Hyper-V Manager 確認四台 VM Running、4096 MB fixed memory。</li>
+          <li>從 VMConnect 看 mode-specific network boot；回 Activity 確認每台都有不同 runId。</li>
+          <li>所有目標 VM 到 <code>windows-desktop-ready</code>；檢查互不覆蓋、Apps / Scripts 與 Torrent peer evidence。</li>
+          <li>測試結束停止 deployment services。VM 結果記為 regression，不能覆蓋 physical-laptop evidence。</li>
+        </ol>
+        <div class="callout">
+          <strong>本手冊截圖時的 live Hyper-V 狀態</strong>
+          Hyper-V Manager 顯示四台 <code>winception-client-01..04</code> 均 Running、4096 MB。VMConnect / Snipping Tool 的自動視窗啟用在本次環境失敗，因此未把 VM console screenshot 嵌入手冊；不以替代方法偽造畫面。
+        </div>
+      </section>
+
+      <section id="handoff" class="reveal">
+        <p class="section-kicker">13 · Shutdown &amp; handoff</p>
+        <h2>部署窗口結束後</h2>
+        <ol>
+          <li>確認所有預定 client 有 terminal state；失敗 run 已保留 runId 與必要 evidence。</li>
+          <li>停止 DHCP/Proxy、TFTP、HTTP。Torrent seeder/tracker 隨 service lifecycle 結束。</li>
+          <li>若測試前停用真實 LAN DHCP，恢復並驗證一般 client 可取得 lease。</li>
+          <li>不要清除 failed/stale runs，直到技術人員完成 evidence 收集；Archive 優先於 Delete。</li>
+          <li>不要把 client logs、runtime screenshots、WIM/ESD/ISO、secrets 或 HostTools State 直接提交 Git。</li>
+          <li>Source 行為有修改時：tests → docs → commit → reload/publish → live read-only verification；需要部署證據的變更再跑 client。</li>
+        </ol>
+        <div class="callout success">
+          <strong>完成判定一句話</strong>
+          選定 run 在 Activity 顯示 completed / 100% / <code>windows-desktop-ready</code>，Validation Evidence 與 client logs 沒有 app/script error，且部署服務已在窗口結束後停止。
+        </div>
+      </section>
+
+      <section id="glossary" class="reveal">
+        <p class="section-kicker">14 · Glossary</p>
+        <h2>名詞表</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>名詞</th><th>意思</th></tr></thead>
+            <tbody>
+              <tr><td>PXE</td><td>Preboot Execution Environment；client 在沒有本機 OS 的情況下由網路取得 boot program。</td></tr>
+              <tr><td>iPXE</td><td>支援 HTTP 等協定的開源 network boot firmware；本專案是 fallback path，因未簽章需關 Secure Boot。</td></tr>
+              <tr><td>WinPE</td><td>Windows Preinstallation Environment；執行 disk partition、OS image acquire/apply 與 deployment scripts。</td></tr>
+              <tr><td>OSDCloud</td><td>Windows deployment automation framework；負責 Windows image apply、drivers 與 OOBE/SetupComplete handoff。</td></tr>
+              <tr><td>WIM</td><td>Windows Imaging Format；部署的 Windows image。Web 會匯出選定 index 成單一 deployable WIM。</td></tr>
+              <tr><td>Endpoint Sync</td><td>把本次 NIC/IP/DHCP/boot mode 同步到 live overlay、boot files、boot.wim、SMB firewall 與 assets。</td></tr>
+              <tr><td>Preflight</td><td>部署前的防呆檢查。blocking failure 禁止啟動；warning 不 gate，但必須理解。</td></tr>
+              <tr><td>Run</td><td>單一 client 的一次 deployment attempt；由 runId 區分，不等於硬體本身。</td></tr>
+              <tr><td>Wave / batch</td><td>Torrent coordinator 將同時到達的 clients 分組並分派 pieces 的單位。</td></tr>
+              <tr><td>SetupComplete</td><td>Windows Setup 完成階段的 SYSTEM script；本專案用來準備 post-logon finalization 與 status reporting。</td></tr>
+              <tr><td>desktop-ready</td><td>finalization succeeded、Explorer/marker/OOBE checks 通過並成功 POST callback 的終態。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    Winception deployment manual · 依 2026-06-22 live code、repo docs、Web v0.6.0 與唯讀 UI 狀態校對。
+  </footer>
+  </div>
+
+  <div id="locale-en" class="locale-view" lang="en" hidden>
+  <a class="skip-link" href="#en-main">Skip to main content</a>
+
+  <header class="hero">
+    <p class="eyebrow">Operations &amp; Engineering Manual · v0.6.0</p>
+    <h1>Winception<br>Deployment Manual</h1>
+    <p class="hero-lede">A single-page guide for deployment technicians and field operators: PXE boot technology, Web Console procedures, Torrent P2P image delivery, success criteria through <code>windows-desktop-ready</code>, and troubleshooting.</p>
+    <div class="hero-meta" aria-label="Manual information">
+      <span class="meta-pill">Last reviewed: 2026-06-21</span>
+      <span class="meta-pill">Default boot mode: Secure Boot</span>
+      <span class="meta-pill">Active path: physical client UEFI IPv4 PXE</span>
+      <span class="meta-pill">VM: regression evidence only</span>
+    </div>
+    <div class="hero-actions">
+      <a class="button" href="#en-quick-start">Start deployment</a>
+      <a class="button secondary" href="#en-architecture">View architecture first</a>
+      <a class="button secondary" href="#en-troubleshooting">Troubleshooting</a>
+    </div>
+  </header>
+
+  <div class="mobile-nav">
+    <label for="mobile-section-en">Navigate</label>
+    <select id="mobile-section-en" aria-label="Jump to a manual section">
+      <option value="#en-scope">Operating boundaries</option>
+      <option value="#en-quick-start">Shortest deployment path</option>
+      <option value="#en-architecture">Architecture</option>
+      <option value="#en-boot-modes">Boot / DHCP modes</option>
+      <option value="#en-safety">Safety gates</option>
+      <option value="#en-guided-setup">Guided Setup</option>
+      <option value="#en-deploy-client">Deploy a client</option>
+      <option value="#en-monitoring">Monitoring and completion</option>
+      <option value="#en-torrent">Torrent P2P</option>
+      <option value="#en-evidence">Evidence and logs</option>
+      <option value="#en-troubleshooting">Troubleshooting</option>
+      <option value="#en-vm-regression">Hyper-V regression</option>
+      <option value="#en-handoff">Shutdown and handoff</option>
+    </select>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar" aria-label="Manual navigation">
+      <div class="nav-shell">
+        <p class="nav-title">On this page</p>
+        <input id="manual-search-en" class="manual-search" type="search" placeholder="Search sections…" aria-label="Search manual sections">
+        <nav class="toc">
+          <a href="#en-scope">Operating boundaries</a>
+          <a href="#en-quick-start">Shortest deployment path</a>
+          <a href="#en-architecture">Architecture</a>
+          <a href="#en-boot-modes">Boot / DHCP modes</a>
+          <a href="#en-runtime-boundaries">Paths and responsibilities</a>
+          <a href="#en-safety">Safety gates</a>
+          <a href="#en-guided-setup">Guided Setup</a>
+          <a href="#en-deploy-client">Deploy a client</a>
+          <a href="#en-monitoring">Monitoring and completion</a>
+          <a href="#en-torrent">Torrent P2P</a>
+          <a href="#en-evidence">Evidence and logs</a>
+          <a href="#en-troubleshooting">Troubleshooting</a>
+          <a href="#en-vm-regression">Hyper-V regression</a>
+          <a href="#en-handoff">Shutdown and handoff</a>
+          <a href="#en-glossary">Glossary</a>
+        </nav>
+        <p class="nav-note">Press <kbd>Ctrl</kbd> + <kbd>P</kbd> to print. Screen values, IPs, profiles, and OS images are examples; read live Web state before every deployment.</p>
+      </div>
+    </aside>
+
+    <main id="en-main">
+      <section id="en-scope" class="reveal">
+        <p class="section-kicker">00 · Scope</p>
+        <h2>Separate production deployment from testing</h2>
+        <div class="grid-3">
+          <article class="card"><span class="status pass">ACTIVE PATH</span><h3>Physical client</h3><p>Boot from <strong>UEFI IPv4 PXE</strong> through the physical NIC/IP selected in the Web Console. Only this path proves that physical devices are deployable.</p></article>
+          <article class="card"><span class="status info">REGRESSION</span><h3>Hyper-V VM</h3><p>Quickly validates WinPE, OS apply, OOBE, SetupComplete, apps, scripts, and callbacks. VM success <strong>does not prove</strong> that the physical LAN endpoint is ready.</p></article>
+          <article class="card"><span class="status stop">RETIRED</span><h3>ISO path</h3><p><code>C:\OSDCloud\Win11-Lab</code> and old ISOs are historical evidence only. Do not restore ISO, USB, or an old workspace as the active path.</p></article>
+        </div>
+        <div class="callout warning"><strong>Every screen value is a snapshot, not permanent configuration</strong>Before physical deployment, recheck the service interface and IP, DHCP and boot modes, lease range, router, HTTP base, SMB share, active OS image and profile, and preflight. Do not blindly trust committed <code>config\osdcloud-console.json</code>.</div>
+      </section>
+
+      <section id="en-quick-start" class="reveal">
+        <p class="section-kicker">01 · Quick start</p>
+        <h2>Shortest deployment path</h2>
+        <p class="lede">This procedure assumes HostTools is installed and the runtime is prepared. On a new host, first run <code>Setup-DeploymentServer.cmd</code> from an elevated shell.</p>
+        <ol>
+          <li>Open <code>C:\OSDCloud\HostTools\Open-WebConsole.cmd</code> as administrator and browse to <code>http://127.0.0.1:8080</code>.</li>
+          <li>In <strong>Guided setup</strong>, confirm steps 01–07: root, Web, secrets, runtime, endpoint, OS image, and profile are ready.</li>
+          <li>Select <strong>Run preflight</strong>. Every blocking check must pass. Warnings do not block service start, but understand each one first.</li>
+          <li>Choose DHCP policy: use <strong>DHCP Server</strong> on an isolated LAN; use <strong>PXE Proxy</strong> where existing LAN DHCP remains active.</li>
+          <li>Select <strong>Start all services</strong> and confirm HTTP, TFTP, DHCP/Proxy, and Torrent Tracker are Running.</li>
+          <li>Boot the client from UEFI IPv4 PXE and monitor its individual run in <strong>Activity</strong>.</li>
+          <li>Completion requires <code>windows-desktop-ready</code> with no app/script error or timeout.</li>
+          <li>After the deployment window, stop HTTP, TFTP, and DHCP. Immediately restore normal LAN DHCP if it was disabled.</li>
+        </ol>
+        <figure><div class="media-frame"><img src="manual-assets/operator-flow.en.svg" alt="Operator flow from setup and preflight through DHCP safety decisions to desktop-ready"><button class="zoom" type="button" data-zoom-src="manual-assets/operator-flow.en.svg" data-zoom-alt="Operator deployment flow">Enlarge flowchart</button></div><figcaption>The two hard gates are blocking preflight checks and the DHCP mode/external DHCP decision.</figcaption></figure>
+      </section>
+
+      <section id="en-architecture" class="reveal">
+        <p class="section-kicker">02 · Architecture</p>
+        <h2>How the services interact</h2>
+        <p class="lede">Winception combines a Node.js ESM Web management service with a PowerShell/OSDCloud deployment pipeline. The control plane orchestrates; PXE boot, OS image delivery, status callbacks, and client-local logs have separate responsibilities.</p>
+        <figure><div class="media-frame"><img src="manual-assets/system-architecture.en.svg" alt="Data flow among the Winception Web Console, DHCP, TFTP, HTTP, Torrent, SMB, WinPE, OSDCloud, and Windows clients"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.en.svg" data-zoom-alt="Winception architecture and data flow">Enlarge architecture</button></div><figcaption>Solid lines show control or stage handoff, blue dashed lines show boot or image data, and green dashed lines show status and evidence.</figcaption></figure>
+        <div class="table-wrap"><table><thead><tr><th>Technology / component</th><th>Role</th><th>Interaction</th><th>UI surface</th></tr></thead><tbody>
+          <tr><td><strong>Web Console</strong><br><code>:8080</code></td><td>Technician control plane.</td><td>Reads live configuration/state and calls ServiceController for prepare, sync, publish, preflight, and start/stop.</td><td>Deploy, Activity, Guided setup, Console.</td></tr>
+          <tr><td><strong>DHCP / PXE Proxy</strong><br><code>UDP 67</code></td><td>Assigns a client IP or injects only PXE boot options.</td><td>Server mode returns lease, router, DNS, and boot file; Proxy mode does not assign IPs.</td><td>Endpoint settings, DHCP service card, System Log.</td></tr>
+          <tr><td><strong>TFTP</strong><br><code>UDP 69</code></td><td>Provides the earliest boot files.</td><td>Secure Boot serves signed Windows Boot Manager, BCD, boot.sdi, and boot.wim; iPXE serves snponly.efi.</td><td>TFTP service card; <code>pxe-tftp.log</code> shows RRQ / SENT / MISS.</td></tr>
+          <tr><td><strong>HTTP media/status</strong><br><code>TCP 80</code></td><td>iPXE fallback, metadata/control, and client status callbacks.</td><td>iPXE downloads boot script/wimboot; clients POST deployment events and safe telemetry.</td><td>HTTP card, Client Fleet, Validation Evidence, System Log.</td></tr>
+          <tr><td><strong>OSDCloud / WinPE</strong></td><td>Partitions disks, applies the Windows WIM, and prepares OOBE/SetupComplete.</td><td>Reads active metadata, obtains and verifies the image, applies Windows with DISM, and writes handoff metadata.</td><td><code>winpe-start</code>, <code>apply-image</code>, <code>osdcloud-finished</code>.</td></tr>
+          <tr><td><strong>SMB</strong><br><code>OSDCloudiPXE</code></td><td>Authoritative runtime image/metadata and direct fallback.</td><td>WinPE mounts it read-only as <code>Z:</code> with the local deployment account; it does not redownload the WIM from public HTTP.</td><td><code>smb-mounted</code> and the image destination in Validation Evidence.</td></tr>
+          <tr><td><strong>BitTorrent</strong><br><code>6969 / 6881</code></td><td>Distributes WIM load across concurrent clients.</td><td>The tracker discovers peers, the Node super-seeder supplies initial pieces, and WinPE aria2c uploads while downloading.</td><td>Torrent Tracker: wave, host ratio, coverage, clients, rates, ETA, receivers.</td></tr>
+          <tr><td><strong>SetupComplete + finalizer</strong></td><td>Windows customization and post-logon apps/scripts.</td><td>SetupComplete prepares the task; after any required reboot, a SYSTEM task follows profile order and updates safe viewer state.</td><td><code>windows-setupcomplete-*</code>, <code>windows-apps-*</code>, full-screen progress viewer.</td></tr>
+          <tr><td><strong>Status / Evidence</strong></td><td>State source for each client and run.</td><td>JSON events populate per-run evidence; screenshots are best effort; complete installer output stays on the client.</td><td>Activity card, Execution Flow, Validation Evidence, Console.</td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section id="en-boot-modes" class="reveal">
+        <p class="section-kicker">03 · Boot &amp; DHCP modes</p><h2>Choose both modes correctly</h2>
+        <div class="grid-2">
+          <article class="card"><span class="status pass">DEFAULT</span><h3><code>secureboot</code></h3><p>DHCP points to Microsoft-signed <code>bootmgfw.efi</code>. Windows Boot Manager loads BCD, boot.sdi, and boot.wim by TFTP. Keep client Secure Boot <strong>ON</strong>.</p><p class="step-meta">Benefit: fully signed chain. Tradeoff: TFTP boot.wim is usually slower than HTTP.</p></article>
+          <article class="card"><span class="status warn">FALLBACK</span><h3><code>ipxe</code></h3><p>DHCP points to unsigned <code>snponly.efi</code>; iPXE enters WinPE with HTTP wimboot. Client Secure Boot must be <strong>OFF</strong>.</p><p class="step-meta">Benefit: faster HTTP boot.wim. Tradeoff: Secure Boot cannot remain enabled.</p></article>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>DHCP mode</th><th>IP allocator</th><th>Winception behavior</th><th>Use when</th><th>Never do this</th></tr></thead><tbody>
+          <tr><td><strong>DHCP Server</strong></td><td>Winception</td><td>Returns OFFER/ACK, lease, router, DNS, and PXE boot options.</td><td>Isolated deployment LAN with no other DHCP responder.</td><td>Do not let it answer the same test client alongside existing DHCP.</td></tr>
+          <tr><td><strong>PXE Proxy</strong></td><td>Existing LAN DHCP</td><td>Provides boot server/file only; does not configure IP.</td><td>A shared LAN where existing DHCP must remain active.</td><td>Do not treat Proxy as a lease server; verify LAN DHCP can assign IPs.</td></tr>
+        </tbody></table></div>
+        <div class="callout warning"><strong>Change modes through Endpoint Settings → Sync endpoint</strong>Changing only the Windows NIC IP, manually editing JSON, or merely restarting services does not keep live boot files, the endpoint embedded in boot.wim, SMB firewall rules, and local overlay consistent.</div>
+      </section>
+
+      <section id="en-runtime-boundaries" class="reveal">
+        <p class="section-kicker">04 · Boundaries</p><h2>Paths and responsibilities</h2>
+        <dl class="path-list">
+          <dt>Git workspace</dt><dd>Source, tests, docs, and configuration schema. Make every fix here first. It is not the deployment runtime.</dd>
+          <dt><code>HostTools\App</code></dt><dd>Installed Web Console and helper scripts. Publish source changes through the existing reload/install path; never patch one installed file manually.</dd>
+          <dt><code>HostTools\State</code></dt><dd>Local overlay, secrets, profiles, catalogs, uploads, and Torrent coordinator. Mutable and not committed.</dd>
+          <dt>Web-selected runtime root</dt><dd>Defaults to <code>C:\OSDCloud</code>; contains Media, PXE roots, status, and logs. Manage it only through product workflows; do not patch or copy into it.</dd>
+          <dt>Client-local logs</dt><dd><code>C:\Windows\Temp\osdcloud-logs</code>. App/script stdout, stderr, exceptions, and detailed diagnostics stay on the client.</dd>
+          <dt>Client safe progress state</dt><dd><code>C:\ProgramData\OSDCloud\deployment-progress.json</code>. Viewer-only; excludes secrets, raw command lines, and full error output.</dd>
+        </dl>
+        <div class="callout danger"><strong>Never modify the runtime root manually</strong>If live deployment behavior is wrong, fix source in the Git workspace, test, publish/reload, then let Endpoint Sync or profile publish generate runtime state.</div>
+      </section>
+
+      <section id="en-safety" class="reveal">
+        <p class="section-kicker">05 · Safety gates</p><h2>Hard requirements before Start services</h2>
+        <div class="cards">
+          <article class="card"><h3>Endpoint</h3><p>Selected NIC/IP, prefix, lease range, router, HTTP base, and SMB share must belong to the deployment path used in this window.</p></article>
+          <article class="card"><h3>Runtime</h3><p>Runtime Readiness must be ready. Use Prepare runtime for missing artifacts. Do not interpret <code>size-mismatch</code> as a running service.</p></article>
+          <article class="card"><h3>OS / Profile</h3><p>The active profile needs a deployable WIM, correct image index, language/time zone, ordered apps/scripts, and a current manifest.</p></article>
+          <article class="card"><h3>Preflight</h3><p>Resolve every blocking failure. A disconnected NIC may be a warning; duplicate IP, disabled NIC, or wrong prefix is a blocker.</p></article>
+          <article class="card"><h3>DHCP</h3><p>Before Server mode, prove the isolated LAN has no other DHCP. Otherwise use Proxy. Preflight cannot prove this operator responsibility.</p></article>
+          <article class="card"><h3>Single controller</h3><p>Only one Web Console or headless process may control UDP 67/69 and TCP 80 at a time. Do not start controllers in parallel.</p></article>
+        </div>
+      </section>
+
+      <section id="en-guided-setup" class="reveal">
+        <p class="section-kicker">06 · Guided Setup</p><h2>First-time setup, click by click</h2>
+        <p class="lede">Guided setup is a ten-step live checklist. Recheck completed items before every physical deployment, especially endpoint, profile, and preflight.</p>
+        <div class="steps">
+          <article class="step-card"><div class="step-number">01</div><div><h3>Project root</h3><p>Keep the runtime root outside the Git clone and <code>HostTools</code>; standard environments use <code>C:\OSDCloud</code>.</p><p class="step-meta">Done when Runtime, HostTools App, and HostTools State resolve correctly.</p></div></article>
+          <article class="step-card"><div class="step-number">02</div><div><h3>Web service IP</h3><p>The management UI listens on <code>127.0.0.1:8080</code> by default. This is distinct from the client-facing service IP.</p></div></article>
+          <article class="step-card"><div class="step-number">03</div><div><h3>Deployment secrets</h3><p>Enter the Windows local account. It is stored in ignored HostTools State. Screens, logs, docs, and screenshots must never expose plaintext.</p></div></article>
+          <article class="step-card"><div class="step-number">04</div><div><h3>Prepare runtime</h3><p>Select <strong>Prepare runtime</strong>, review the summary, and run it. This long task prepares ADK, WinPE, iPXE, and boot artifacts without starting HTTP/TFTP/DHCP or downloading unselected client software.</p><p class="step-meta">Wait for the operation to complete and Runtime Readiness to return ready; a PowerShell exit code alone is insufficient.</p></div></article>
+          <article class="step-card"><div class="step-number">05</div><div><h3>PXE / service endpoint</h3><p>Select <strong>Endpoint Settings</strong> → the current NIC/IPv4 → DHCP mode and Client Boot Mode → <strong>Sync endpoint</strong>.</p><p class="step-meta">Sync stops running services and updates the local overlay, DHCP pool, boot files, boot.wim endpoint, SMB firewall, and assets.</p></div></article>
+          <article class="step-card"><div class="step-number">06</div><div><h3>OS Image Cache</h3><p>Select <strong>OS Image Cache</strong>. Use an official catalog download or Local Import ISO/ESD/WIM, inspect the DISM image list, choose the correct Windows 11 Pro Retail index, and export one deployable WIM.</p></div></article>
+          <article class="step-card"><div class="step-number">07</div><div><h3>Deployment Profile</h3><p>Create or edit a profile, choose the OS image, display language, locale, input language, time zone, apps/scripts and order, then Set active/publish.</p><p class="step-meta">Profile publish materializes selected payloads and generates authoritative runtime metadata.</p></div></article>
+          <article class="step-card"><div class="step-number">08</div><div><h3>Run preflight</h3><p>Select <strong>Run preflight</strong>. Detailed output appears in Console. If Summary shows a blocker, follow <strong>How to fix</strong> and rerun.</p></div></article>
+          <article class="step-card"><div class="step-number">09</div><div><h3>Start services</h3><p>After confirming DHCP safety, select <strong>Start all services</strong>. All four service cards should be Running. Torrent idle is normal until clients form a wave.</p></div></article>
+          <article class="step-card"><div class="step-number">10</div><div><h3>Boot and monitor</h3><p>Boot the client from UEFI IPv4 PXE. The first <code>winpe-start</code> creates an independent run in Activity.</p></div></article>
+        </div>
+        <figure><div class="media-frame"><img src="manual-assets/web-dashboard.png" alt="Winception Deploy dashboard with HTTP, TFTP, DHCP, Torrent, and Guided setup"><button class="zoom" type="button" data-zoom-src="manual-assets/web-dashboard.png" data-zoom-alt="Winception Deploy dashboard">Enlarge screenshot</button></div><figcaption>Live screenshot with services running and Guided setup complete. IPs, counts, profile, and image vary by environment.</figcaption></figure>
+      </section>
+
+      <section id="en-deploy-client" class="reveal">
+        <p class="section-kicker">07 · Client deployment</p><h2>How to boot a field client and what to watch</h2>
+        <ol>
+          <li>Connect the designated deployment LAN. Do not attach USB media or mount an ISO.</li>
+          <li>Enable IPv4 PXE / Network Stack in UEFI settings.</li>
+          <li>For <code>secureboot</code>, keep Secure Boot ON; disable it only for the <code>ipxe</code> fallback.</li>
+          <li>Use the one-time boot menu to select the UEFI IPv4 NIC.</li>
+          <li>After WinPE starts, do not intervene. Let Torrent, OS apply, reboot, and Windows finalization complete.</li>
+        </ol>
+        <h3>Expected client screens</h3>
+        <ul>
+          <li>Secure Boot path: Windows Boot Manager and WinPE load.</li>
+          <li>WinPE: a maximized console shows the image, Torrent progress, peers, upload receiver, SHA-256 verification, and DISM apply.</li>
+          <li>Windows may reboot automatically after SetupComplete.</li>
+          <li>After automatic logon on the next boot, a full-screen deployment progress viewer shows apps and scripts.</li>
+          <li>On success, the viewer closes and creates the desktop-ready marker.</li>
+        </ul>
+        <div class="callout warning"><strong>Do not declare success just because the desktop appears</strong>Apps and scripts may still run as SYSTEM. Use Activity's final status and <code>windows-desktop-ready</code> as the authority.</div>
+      </section>
+
+      <section id="en-monitoring" class="reveal">
+        <p class="section-kicker">08 · Monitoring</p><h2>What Deploy, Activity, and Evidence each mean</h2>
+        <div class="screenshot-grid">
+          <figure><div class="media-frame"><img src="manual-assets/web-activity.png" alt="Winception Activity cards showing completed client runs and execution flow"><button class="zoom" type="button" data-zoom-src="manual-assets/web-activity.png" data-zoom-alt="Winception Activity view">Enlarge Activity</button></div><figcaption>Filter by All, Active, Done, Failed, Stale, or Archived; select a card to inspect Execution Flow.</figcaption></figure>
+          <figure><div class="media-frame"><img src="manual-assets/web-validation-evidence.png" alt="Winception Validation Evidence drawer showing the selected run and target system"><button class="zoom" type="button" data-zoom-src="manual-assets/web-validation-evidence.png" data-zoom-alt="Winception Validation Evidence">Enlarge Evidence</button></div><figcaption>Confirm run ID, final stage, target system, timing, image path, and installer summary.</figcaption></figure>
+        </div>
+        <h3>Normal event sequence</h3>
+        <div class="sequence" aria-label="Normal deployment event sequence"><span>winpe-start</span><i>→</i><span>smb-mounted</span><i>→</i><span>torrent-download</span><i>→</i><span>torrent-verify</span><i>→</i><span>osdcloud-start</span><i>→</i><span>apply-image</span><i>→</i><span>osdcloud-finished</span><i>→</i><span>reporter-stop</span><i>→</i><span>rebooting</span><i>→</i><span>windows-setupcomplete-*</span><i>→</i><span>windows-apps-finished</span><i>→</i><span>windows-desktop-ready</span></div>
+        <div class="grid-3">
+          <article class="card"><h3>Deploy</h3><p>Endpoint, service states, Runtime Readiness, Preflight Summary, Torrent wave, and fleet totals.</p></article>
+          <article class="card"><h3>Activity</h3><p>Each run's stage, progress, start time, completed/failed/stale status, and Execution Flow.</p></article>
+          <article class="card"><h3>Validation Evidence</h3><p>Per-run history for the selected run. An old run is previous evidence, not a current deployment.</p></article>
+        </div>
+        <details><summary>Is <code>reporter-stop</code> a failure?</summary><div><p>No. It is the expected WinPE reporter shutdown before reboot handoff, and the UI should map it to rebooting. Investigate only when no Windows event follows for a long period and the run ends stale or failed.</p></div></details>
+        <details><summary>Is a Stopped service card an error?</summary><div><p>No. Stopped/idle is neutral. Red should represent blocked or failed; stopped services are correct outside a deployment window.</p></div></details>
+      </section>
+
+      <section id="en-torrent" class="reveal">
+        <p class="section-kicker">09 · Torrent P2P</p><h2>Why Torrent is used and how to read it</h2>
+        <p>When many clients read an entire WIM from the host, host disk and network become bottlenecks. WinPE <code>aria2c.exe</code> joins one swarm: the host supplies initial pieces while clients upload downloaded pieces to peers.</p>
+        <div class="grid-3">
+          <article class="card"><h3>Fixed 24-second batch</h3><p>Origin batches receive mutually exclusive <code>i mod n</code> piece stripes. A late client can be peer-only while an earlier batch remains online.</p></article>
+          <article class="card"><h3>Host budget</h3><p>Normal-wave host upload budget is approximately <strong>1.15× WIM</strong>; peers should supply the remaining traffic.</p></article>
+          <article class="card"><h3>Fail-safe</h3><p>Visible emergency host fallback begins only after three minutes without aggregate progress; a wave closes after 30 seconds without a non-host heartbeat.</p></article>
+        </div>
+        <h3>UI fields</h3>
+        <div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th><th>Normal state</th></tr></thead><tbody>
+          <tr><td>Wave / batch</td><td>Current collection window and distribution wave.</td><td><code>-</code> / idle with no client.</td></tr>
+          <tr><td>Host served ratio</td><td>Host seeder bytes divided by WIM size.</td><td>Near or below 1.15× in a stable multi-client wave; emergency fallback is the exception.</td></tr>
+          <tr><td>Swarm coverage</td><td>Percentage of pieces held across the fleet.</td><td>Rises during download and reaches 100%.</td></tr>
+          <tr><td>Sources / receivers</td><td>Current download sources and upload destinations.</td><td>Multi-client waves should show Peer; Host-only means poor offload.</td></tr>
+          <tr><td>Telemetry stale</td><td>Marked stale after 15 seconds without safe telemetry; removed from active rows after 60 seconds.</td><td>Does not by itself mean image download failed.</td></tr>
+          <tr><td>Seed wait</td><td>Client briefly continues serving peers after Windows apply.</td><td>Deadline, client Enter, Web release, or aria2 exit can end it.</td></tr>
+        </tbody></table></div>
+        <div class="callout"><strong>No HTTP webseed is intentional</strong>If a WIM HTTP URL were included, aria2 could make every client pull the full file from the host and defeat P2P offload. HTTP serves <code>.torrent</code> metadata and control/status, not the WIM webseed.</div>
+      </section>
+
+      <section id="en-evidence" class="reveal">
+        <p class="section-kicker">10 · Evidence</p><h2>Do not confuse the three evidence layers</h2>
+        <div class="grid-3">
+          <article class="card"><span class="status info">READ-ONLY UI</span><h3>Validation Evidence</h3><p>Operator summary for the selected run: stage, timing, target system, image destination, and installer summary.</p></article>
+          <article class="card"><span class="status pass">HOST</span><h3>Per-run evidence</h3><p><code>&lt;runId&gt;.jsonl</code>, summaries, run index, and TFTP/DHCP/Torrent logs under the runtime status root prove what the host received.</p></article>
+          <article class="card"><span class="status warn">CLIENT</span><h3>Detailed execution logs</h3><p><code>C:\Windows\Temp\osdcloud-logs</code> retains complete app/script diagnostics. Host status carries only a bounded summary.</p></article>
+        </div>
+        <h3>Success criteria</h3>
+        <ul>
+          <li>Final stage is <code>windows-desktop-ready</code>, 100%, completed.</li>
+          <li>Explorer is running, the desktop-ready marker exists, and CloudExperienceHost/msoobe are absent.</li>
+          <li>Display language, culture, time zone, and input methods come from the target user's registry.</li>
+          <li>The app/script sequence succeeds without <code>windows-apps-error</code>, timeout, or interruption.</li>
+          <li>Image source matches the active selected WIM with no unnecessary HTTP WIM/ESD redownload.</li>
+        </ul>
+        <div class="callout warning"><strong>A screenshot is not a success criterion</strong>WinPE screenshot upload is best effort. Defender/AMSI or capture failure cannot replace JSON status; do not install another interactive screenshot startup helper in SetupComplete.</div>
+      </section>
+
+      <section id="en-troubleshooting" class="reveal">
+        <p class="section-kicker">11 · Troubleshooting</p><h2>Start with the first trustworthy checkpoint</h2>
+        <div class="table-wrap"><table><thead><tr><th>Symptom</th><th>Check first</th><th>Common cause</th><th>Correct action</th></tr></thead><tbody>
+          <tr><td>Runtime blocked</td><td>Runtime Readiness detail</td><td>Missing artifact, size mismatch, or missing OSD/OSDCloud module.</td><td>Repair with Prepare runtime; never copy manually into runtime.</td></tr>
+          <tr><td>Selected manifest stale</td><td>Preflight How to fix</td><td>WIM is newer than <code>selected-os.json</code>.</td><td>Set active/publish the profile again, then rerun preflight.</td></tr>
+          <tr><td>Service IP warning</td><td>Adapter state / bind checks</td><td>NIC disconnected or address Deprecated/Tentative but still bindable.</td><td>Check cabling; if IP/prefix/interface are correct, treat it as non-blocking.</td></tr>
+          <tr><td>Service IP blocker</td><td>Preflight</td><td>IP missing, wrong prefix/interface, Duplicate, or Disabled.</td><td>Fix the Windows NIC or explicitly run the NIC helper, then Select endpoint + Sync.</td></tr>
+          <tr><td>Client receives no PXE</td><td>DHCP log / mode</td><td>Two DHCP servers, no LAN lease in Proxy mode, or mismatched boot mode/file.</td><td>Fix DHCP topology; verify UDP 67, mode-specific boot file, and client UEFI.</td></tr>
+          <tr><td>Secure Boot violation</td><td>Live <code>dhcp.bootMode</code></td><td>Secure Boot ON while booting unsigned iPXE.</td><td>Return to secureboot and Sync, or deliberately disable Secure Boot for the ipxe fallback.</td></tr>
+          <tr><td>Old IP still used</td><td>Web endpoint / live logs</td><td>An old console process remains active, or the NIC changed without sync.</td><td>Stop old services; Select endpoint + Sync in Web; reload the installed console if needed.</td></tr>
+          <tr><td>WinPE cannot see image</td><td><code>smb-mounted</code>, selected-os, SMB path</td><td>Profile unpublished, WIM missing, share permissions, or endpoint mismatch.</td><td>Republish profile and preflight; do not mix HTTP catalog parameters with a custom WIM.</td></tr>
+          <tr><td>Torrent telemetry unavailable</td><td>Client console / Tracker card</td><td>Temporary observation API loss.</td><td>If local progress, SHA-256, and download continue, do not mark deployment failed; keep observing.</td></tr>
+          <tr><td>Torrent makes no progress</td><td>Coverage, sources, host ratio</td><td>Peer connectivity, firewall, or tracker heartbeat.</td><td>Wait for visible emergency fallback, retain evidence, and inspect client networking. Never skip SHA-256.</td></tr>
+          <tr><td>Stuck at rebooting / awaiting-windows</td><td>Per-run events / client</td><td>SetupComplete did not start, old boot.wim, or callback networking.</td><td>Look for <code>windows-setupcomplete-*</code>; inspect embedded scripts and client logs if absent.</td></tr>
+          <tr><td><code>windows-apps-error</code></td><td>Host bounded summary</td><td>Missing installer/script, non-zero exit, timeout, or unexpected reboot.</td><td>Read complete output in client <code>osdcloud-logs</code>; fix source/profile and redeploy. Do not auto-replay non-idempotent steps.</td></tr>
+          <tr><td>Desktop visible but not ready</td><td>deployment-progress / reporter</td><td>Apps/scripts still running, failed, or callback retrying.</td><td>Do not close the viewer; wait for finalization success. Reporter retries for up to 30 minutes after network loss.</td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section id="en-vm-regression" class="reveal">
+        <p class="section-kicker">12 · Hyper-V</p><h2>VM regression and Restart-HyperVms.ps1</h2>
+        <p>Use only for WinPE/OOBE/status pipeline regression. The four default VMs are <code>winception-client-01..04</code> and must be Generation 2.</p>
+        <div class="grid-2">
+          <article class="card"><h3>What the script does</h3><ul><li>Forces power-off with <code>TurnOff</code>.</li><li>Disables Dynamic Memory and sets at least 4 GiB fixed startup memory.</li><li>Makes the first VM network adapter the first boot device.</li><li>Restarts each VM; <code>-PassThru</code> returns per-VM results.</li></ul></article>
+          <article class="callout danger"><strong>This is not a harmless restart</strong><code>Stop-VM -TurnOff -Force</code> is equivalent to pulling power and can lose unwritten guest data. Use only on disposable regression VMs, never user workstations or stateful server VMs.</article>
+        </div>
+        <pre><code># Run from the repository root in elevated PowerShell
+.\tools\Restart-HyperVms.ps1 -PassThru
+
+# Limit the range; memory cannot be below 4 GB
+.\tools\Restart-HyperVms.ps1 -StartIndex 1 -EndIndex 2 -MemoryStartupBytes 4GB -PassThru</code></pre>
+        <h3>Validation order</h3>
+        <ol><li>Web Console preflight passes and no second headless/controller process exists.</li><li>Run the restart helper; in Hyper-V Manager confirm four VMs are Running with 4096 MB fixed memory.</li><li>Use VMConnect to observe mode-specific network boot; in Activity verify a distinct runId for each VM.</li><li>Every target reaches <code>windows-desktop-ready</code>; verify no run overwrite, app/script success, and Torrent peer evidence.</li><li>Stop deployment services after testing. VM results remain regression evidence and cannot replace physical-laptop evidence.</li></ol>
+        <div class="callout"><strong>Live Hyper-V state when this manual was captured</strong>Hyper-V Manager showed <code>winception-client-01..04</code> Running with 4096 MB. Automated VMConnect/Snipping Tool window activation failed in this environment, so no VM console screenshot is embedded; no substitute image was fabricated.</div>
+      </section>
+
+      <section id="en-handoff" class="reveal">
+        <p class="section-kicker">13 · Shutdown &amp; handoff</p><h2>After the deployment window</h2>
+        <ol>
+          <li>Confirm every planned client has a terminal state; retain runId and necessary evidence for failures.</li>
+          <li>Stop DHCP/Proxy, TFTP, and HTTP. Torrent seeder/tracker end with the service lifecycle.</li>
+          <li>If normal LAN DHCP was disabled, restore it and verify an ordinary client can obtain a lease.</li>
+          <li>Do not clear failed/stale runs until evidence collection is complete; prefer Archive over Delete.</li>
+          <li>Do not commit client logs, runtime screenshots, WIM/ESD/ISO files, secrets, or HostTools State.</li>
+          <li>For source behavior changes: tests → docs → commit → reload/publish → live read-only verification. Run a client only when deployment evidence is required.</li>
+        </ol>
+        <div class="callout success"><strong>Completion in one sentence</strong>The selected run is completed / 100% / <code>windows-desktop-ready</code> in Activity, Validation Evidence and client logs contain no app/script error, and deployment services are stopped after the window.</div>
+      </section>
+
+      <section id="en-glossary" class="reveal">
+        <p class="section-kicker">14 · Glossary</p><h2>Glossary</h2>
+        <div class="table-wrap"><table><thead><tr><th>Term</th><th>Meaning</th></tr></thead><tbody>
+          <tr><td>PXE</td><td>Preboot Execution Environment: a client obtains a boot program over the network without a local OS.</td></tr>
+          <tr><td>iPXE</td><td>Open-source network boot firmware with HTTP support. It is the fallback path here and requires Secure Boot OFF because it is unsigned.</td></tr>
+          <tr><td>WinPE</td><td>Windows Preinstallation Environment: runs disk partitioning, OS image acquisition/application, and deployment scripts.</td></tr>
+          <tr><td>OSDCloud</td><td>Windows deployment automation framework for image apply, drivers, and OOBE/SetupComplete handoff.</td></tr>
+          <tr><td>WIM</td><td>Windows Imaging Format. The Web Console exports the selected index into one deployable WIM.</td></tr>
+          <tr><td>Endpoint Sync</td><td>Synchronizes NIC/IP/DHCP/boot mode into the live overlay, boot files, boot.wim, SMB firewall, and assets.</td></tr>
+          <tr><td>Preflight</td><td>Pre-deployment guard checks. Blocking failure prevents start; warnings do not gate but must be understood.</td></tr>
+          <tr><td>Run</td><td>One deployment attempt by one client, distinguished by runId; it is not the hardware identity.</td></tr>
+          <tr><td>Wave / batch</td><td>A Torrent coordinator group of concurrently arriving clients with assigned pieces.</td></tr>
+          <tr><td>SetupComplete</td><td>A SYSTEM script during Windows Setup completion that prepares post-logon finalization and status reporting.</td></tr>
+          <tr><td>desktop-ready</td><td>The terminal state after finalization succeeds, Explorer/marker/OOBE checks pass, and the callback is posted.</td></tr>
+        </tbody></table></div>
+      </section>
+    </main>
+  </div>
+
+  <footer>Winception deployment manual · Reviewed against live code, repository documentation, Web v0.6.0, and read-only UI state on 2026-06-22.</footer>
+  </div>
+
+  <dialog id="lightbox" aria-label="Image preview">
+    <div class="lightbox-bar"><strong id="lightbox-title">圖像預覽</strong><button id="lightbox-close" type="button">關閉</button></div>
+    <img id="lightbox-image" alt="">
+  </dialog>
+
+  <script>
+    (function () {
+      "use strict";
+      var progress = document.getElementById("scroll-progress");
+      var localeViews = {
+        zh: document.getElementById("locale-zh"),
+        en: document.getElementById("locale-en")
+      };
+      var localeConfig = {
+        zh: {
+          lang: "zh-Hant",
+          title: "Winception 部署操作手冊",
+          description: "Winception Windows 11 零接觸部署的技術架構、操作流程、監控、驗證與故障排除單頁手冊。",
+          toggle: "English",
+          toggleLabel: "Switch to English",
+          preview: "圖像預覽",
+          close: "關閉"
+        },
+        en: {
+          lang: "en",
+          title: "Winception Deployment Manual",
+          description: "Single-page technical and operator manual for Winception Windows 11 zero-touch deployment, monitoring, validation, and troubleshooting.",
+          toggle: "中文",
+          toggleLabel: "切換至中文",
+          preview: "Image preview",
+          close: "Close"
+        }
+      };
+      var currentLocale = "zh";
+      var updateProgress = function () {
+        var max = document.documentElement.scrollHeight - window.innerHeight;
+        var ratio = max > 0 ? window.scrollY / max : 0;
+        progress.style.width = Math.max(0, Math.min(100, ratio * 100)) + "%";
+      };
+      updateProgress();
+      window.addEventListener("scroll", updateProgress, { passive: true });
+      window.addEventListener("resize", updateProgress);
+
+      var sections = Array.from(document.querySelectorAll("main section[id]"));
+      var tocLinks = Array.from(document.querySelectorAll(".toc a"));
+      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduced || !("IntersectionObserver" in window)) {
+        sections.forEach(function (section) { section.classList.add("visible"); });
+      } else {
+        var revealObserver = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        }, { threshold: .08 });
+        sections.forEach(function (section) { revealObserver.observe(section); });
+      }
+
+      if ("IntersectionObserver" in window) {
+        var navObserver = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            tocLinks.forEach(function (link) {
+              link.classList.toggle("active", link.getAttribute("href") === "#" + entry.target.id);
+            });
+          });
+        }, { rootMargin: "-18% 0px -72% 0px" });
+        sections.forEach(function (section) { navObserver.observe(section); });
+      }
+
+      document.querySelectorAll(".mobile-nav select").forEach(function (mobile) {
+        mobile.addEventListener("change", function () {
+          var target = document.querySelector(mobile.value);
+          if (target) target.scrollIntoView({ behavior: reduced ? "auto" : "smooth" });
+        });
+      });
+
+      document.querySelectorAll(".manual-search").forEach(function (search) {
+        search.addEventListener("input", function () {
+          var view = search.closest(".locale-view");
+          var locale = view.lang === "en" ? "en" : "zh-Hant";
+          var term = search.value.trim().toLocaleLowerCase(locale);
+          view.querySelectorAll("main section[id]").forEach(function (section) {
+            var match = !term || section.textContent.toLocaleLowerCase(locale).includes(term);
+            section.hidden = !match;
+          });
+          updateProgress();
+        });
+      });
+
+      var lightbox = document.getElementById("lightbox");
+      var lightboxImage = document.getElementById("lightbox-image");
+      var lightboxTitle = document.getElementById("lightbox-title");
+      document.querySelectorAll("[data-zoom-src]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          lightboxImage.src = button.getAttribute("data-zoom-src");
+          lightboxImage.alt = button.getAttribute("data-zoom-alt") || "";
+          lightboxTitle.textContent = button.getAttribute("data-zoom-alt") || localeConfig[currentLocale].preview;
+          lightbox.showModal();
+        });
+      });
+      document.getElementById("lightbox-close").addEventListener("click", function () { lightbox.close(); });
+      lightbox.addEventListener("click", function (event) {
+        if (event.target === lightbox) lightbox.close();
+      });
+
+      var languageToggle = document.getElementById("language-toggle");
+      var languageToggleLabel = document.getElementById("language-toggle-label");
+      var description = document.querySelector('meta[name="description"]');
+      var closeButton = document.getElementById("lightbox-close");
+      var applyLocale = function (locale, persist) {
+        currentLocale = locale === "en" ? "en" : "zh";
+        var config = localeConfig[currentLocale];
+        localeViews.zh.hidden = currentLocale !== "zh";
+        localeViews.en.hidden = currentLocale !== "en";
+        document.documentElement.lang = config.lang;
+        document.title = config.title;
+        description.setAttribute("content", config.description);
+        languageToggleLabel.textContent = config.toggle;
+        languageToggle.setAttribute("aria-label", config.toggleLabel);
+        lightbox.setAttribute("aria-label", config.preview);
+        lightboxTitle.textContent = config.preview;
+        closeButton.textContent = config.close;
+        tocLinks.forEach(function (link) { link.classList.remove("active"); });
+        localeViews[currentLocale].querySelectorAll("main section[id]").forEach(function (section) {
+          if (reduced) section.classList.add("visible");
+        });
+        if (persist) localStorage.setItem("winception-manual-language", currentLocale);
+        window.scrollTo({ top: 0, behavior: "auto" });
+        window.requestAnimationFrame(updateProgress);
+      };
+      languageToggle.addEventListener("click", function () {
+        applyLocale(currentLocale === "zh" ? "en" : "zh", true);
+      });
+      applyLocale(localStorage.getItem("winception-manual-language") === "en" ? "en" : "zh", false);
+    }());
+  </script>
+</body>
+</html>
