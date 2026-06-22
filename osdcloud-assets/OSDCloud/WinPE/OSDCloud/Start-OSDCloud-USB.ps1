@@ -243,6 +243,11 @@ try {
     Write-Host "Profile: $($selectedProfile.profileId)"
     Write-Host "Install disk: $($installDisk.Number) $($installDisk.FriendlyName)"
     Invoke-OSDCloud
+    $oobeScript = 'X:\OSDCloud\Winception\Invoke-OobeCustomization-USB.ps1'
+    if (-not (Test-Path -LiteralPath $oobeScript -PathType Leaf)) {
+        throw "USB OOBE customization script is missing: $oobeScript"
+    }
+    & $oobeScript
     Install-MatchingOfflineDriverPack -DriverPack $driverPack
 
     $targetRoot = Get-PSDrive -PSProvider FileSystem |

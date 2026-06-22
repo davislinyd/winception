@@ -90,8 +90,15 @@ test('offline startup verifies media, selects one internal disk, and prevents re
   assert.match(startup, /metadata\.appliedAt/);
   assert.match(startup, /ImageFileDestination = \$imageFile/);
   assert.match(startup, /DriverPackName = 'None'/);
+  assert.match(startup, /Invoke-OobeCustomization-USB\.ps1/);
+  assert.match(startup, /& \$oobeScript/);
   assert.match(startup, /Install-MatchingOfflineDriverPack/);
   assert.doesNotMatch(startup, /net use|torrent|Invoke-WebRequest|statusUrl/i);
+});
+
+test('USB OOBE customization is injected privately and invoked explicitly', () => {
+  assert.match(main, /\$winceptionRoot 'Invoke-OobeCustomization-USB\.ps1'/);
+  assert.doesNotMatch(main, /\$shutdownRoot 'Invoke-OobeCustomization\.ps1'/);
 });
 
 test('USB local status gate leaves the two PXE SetupComplete copies identical', () => {

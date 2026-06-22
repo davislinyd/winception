@@ -490,7 +490,7 @@ function Inject-UsbBootWim {
         [System.IO.Directory]::CreateDirectory($setupRoot) | Out-Null
         [System.IO.Directory]::CreateDirectory($winceptionRoot) | Out-Null
         Get-ChildItem -LiteralPath $shutdownRoot -File -Filter '*.ps1' -ErrorAction SilentlyContinue | Remove-Item -Force
-        Copy-Item -LiteralPath (Join-Path $SourceRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Invoke-OobeCustomization-USB.ps1') -Destination (Join-Path $shutdownRoot 'Invoke-OobeCustomization.ps1') -Force
+        Copy-Item -LiteralPath (Join-Path $SourceRoot 'osdcloud-assets\OSDCloud\WinPE\OSDCloud\Invoke-OobeCustomization-USB.ps1') -Destination (Join-Path $winceptionRoot 'Invoke-OobeCustomization-USB.ps1') -Force
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'osdcloud-assets\OSDCloud\Config\Scripts\Shutdown\Invoke-OobeCustomization.ps1') -Destination (Join-Path $winceptionRoot 'Invoke-OobeCustomization-Core.ps1') -Force
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'osdcloud-assets\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.ps1') -Destination (Join-Path $setupRoot 'SetupComplete.ps1') -Force
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'osdcloud-assets\OSDCloud\Config\Scripts\SetupComplete\SetupComplete.cmd') -Destination (Join-Path $setupRoot 'SetupComplete.cmd') -Force
