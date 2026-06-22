@@ -174,7 +174,7 @@ notepad 'C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json'
 .\New-WinceptionUsbInstaller.cmd -Iso -OpenInRufus -RufusPath C:\Tools\rufus.exe
 ```
 
-command 先驗證 merged live config、OSD/OSDCloud modules、boot files、active profile、selected WIM hash、selected Apps/Scripts、driver pack cache、三個 deployment secrets、容量與 FAT32 限制。建立流程只讀 live runtime，在 HostTools State 的 `.staging` 產生 immutable snapshot；不修改 `Media\sources\boot.wim`、PXE endpoint、services 或 live boot media。USB 只接受非 boot/system 的 USB disk，顯示 model/serial/size 後要求精確輸入 `ERASE DISK <number>`；輸出為 GPT、UEFI x64、FAT32 `WinPE` + NTFS `OSDCloudUSB`。ISO 預設寫到 `<project-root>\Exports`；`-OpenInRufus` 只預載 ISO 與 NTFS preference，operator 仍須在 Rufus UI 選 disk 並開始寫入。
+command 先驗證 merged live config、OSD/OSDCloud modules、boot files、active profile、selected WIM hash、selected Apps/Scripts、driver pack cache、三個 deployment secrets、容量與 FAT32 限制。建立流程只讀 live runtime，在 HostTools State 的 `.staging` 產生 immutable snapshot；driver cache 只輸出目前存在的 pack 與最小必要 metadata，不帶 run/client/download history，manifest 會對所有 payload（包含標示為 sensitive 的 secrets file）記錄 SHA-256。流程不修改 `Media\sources\boot.wim`、PXE endpoint、services 或 live boot media。USB 只接受非 boot/system 的 USB disk，顯示 model/serial/size 後要求精確輸入 `ERASE DISK <number>`；輸出為 GPT、UEFI x64、FAT32 `WinPE` + NTFS `OSDCloudUSB`。ISO 預設寫到 `<project-root>\Exports`；`-OpenInRufus` 只預載 ISO 與 NTFS preference，operator 仍須在 Rufus UI 選 disk 並開始寫入。
 
 USB/ISO 內含可擷取的 Windows 與 PXE deployment credentials，必須視為敏感資產。離線 WinPE 只允許一個符合條件的 internal target disk；同一 media ID 完整套用後會以 `appliedAt` marker 拒絕再次清除。Windows 階段把最後進度原子寫入 `DeploymentStatus.json.localStatus`，不呼叫 host telemetry。Zero-touch 從 operator 的 one-time UEFI USB/ISO boot selection 後開始。
 

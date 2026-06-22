@@ -75,7 +75,7 @@ Use VM regression only when the user explicitly asks for VM or regression valida
 ## USB/ISO Offline Add-On Path
 
 - Run `New-WinceptionUsbInstaller.cmd` only from elevated PowerShell. Use `-CheckOnly` before destructive USB work.
-- Read merged installed config and active deployment manifests immediately before export. The snapshot owns selected WIM, active profile Apps/Scripts, current driver pack cache, boot files, SetupComplete/Shutdown sources, and local deployment secrets.
+- Read merged installed config and active deployment manifests immediately before export. The snapshot owns selected WIM, active profile Apps/Scripts, current driver pack payloads with sanitized matching metadata, boot files, SetupComplete/Shutdown sources, and local deployment secrets. Do not carry driver run/client/download history into the media.
 - Staging belongs under installed HostTools State `.staging\winception-usb`; do not patch or copy directly into the live runtime `Media` tree.
 - USB output is GPT/UEFI x64 with FAT32 `WinPE` and NTFS `OSDCloudUSB`. Reject boot/system/non-USB disks and require exact `ERASE DISK <number>` confirmation after displaying model, serial, and size.
 - ISO output is no-prompt UDF and defaults to `<project-root>\Exports`. Generated ISO files remain ignored sensitive artifacts.

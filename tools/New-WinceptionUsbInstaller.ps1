@@ -331,15 +331,20 @@ function Get-SourceContext {
         Assert-RequiredDirectory -Path (Join-Path $scriptsRoot ([string] $script.id)) -Label "Selected custom script $($script.id)" | Out-Null
     }
 
+    $driverRecords = @()
     if (Test-Path -LiteralPath $driverRoot -PathType Container) {
         $driverPackFiles = @(Get-ChildItem -LiteralPath $driverRoot -File -Force | Where-Object Extension -in @('.cab', '.zip', '.exe'))
         if ($driverPackFiles.Count -gt 0) {
             $driverCachePath = Join-Path $driverRoot 'driverpack-cache.jsonl'
             Assert-RequiredFile -Path $driverCachePath -Label 'Driver pack cache manifest' | Out-Null
-            $driverRecords = @(Get-Content -LiteralPath $driverCachePath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
+            $driverHistory = @(Get-Content -LiteralPath $driverCachePath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
                 $_ | ConvertFrom-Json
             })
-            foreach ($record in @($driverRecords | Where-Object status -eq 'downloaded')) {
+            $driverRecords = @($driverHistory |
+                Where-Object { $_.status -eq 'downloaded' -and -not [string]::IsNullOrWhiteSpace([string] $_.fileName) } |
+                Group-Object { ([string] $_.fileName).ToLowerInvariant() } |
+                ForEach-Object { $_.Group | Sort-Object { [datetime] $_.timestamp } -Descending | Select-Object -First 1 })
+            foreach ($record in $driverRecords) {
                 $driverPack = Assert-RequiredFile -Path (Join-Path $driverRoot ([string] $record.fileName)) -Label "Cached driver pack $($record.fileName)"
                 if ([int64] $record.bytes -gt 0 -and [int64] $driverPack.Length -ne [int64] $record.bytes) {
                     throw "Cached driver pack size mismatch: $($driverPack.FullName)"
@@ -347,6 +352,11 @@ function Get-SourceContext {
                 if ($driverPack.Extension.ToLowerInvariant() -notin @('.cab', '.zip', '.exe')) {
                     throw "Unsupported cached driver pack format: $($driverPack.FullName)"
                 }
+            }
+            $recordedNames = @($driverRecords | ForEach-Object { ([string] $_.fileName).ToLowerInvariant() })
+            $orphanedPacks = @($driverPackFiles | Where-Object { $_.Name.ToLowerInvariant() -notin $recordedNames })
+            if ($orphanedPacks.Count -gt 0) {
+                throw "Driver pack cache manifest is incomplete: $($orphanedPacks.Name -join ', ')"
             }
         }
     }
@@ -398,8 +408,11 @@ function Get-SourceContext {
     foreach ($script in @($selectedProfile.scripts)) {
         $dataFiles += Get-ChildItem -LiteralPath (Join-Path $scriptsRoot ([string] $script.id)) -File -Recurse -Force
     }
-    if (Test-Path -LiteralPath $driverRoot -PathType Container) {
-        $dataFiles += Get-ChildItem -LiteralPath $driverRoot -File -Recurse -Force
+    if ($driverRecords.Count -gt 0) {
+        $dataFiles += Get-Item -LiteralPath (Join-Path $driverRoot 'driverpack-cache.jsonl')
+        foreach ($record in $driverRecords) {
+            $dataFiles += Get-Item -LiteralPath (Join-Path $driverRoot ([string] $record.fileName))
+        }
     }
     $dataBytes = [int64] (($dataFiles | Sort-Object FullName -Unique | Measure-Object Length -Sum).Sum)
     $bootPartitionBytes = [int64] [math]::Max($BootPartitionMinimumBytes, $bootBytes + $BootPartitionHeadroomBytes)
@@ -418,6 +431,7 @@ function Get-SourceContext {
         AppsRoot = $appsRoot
         ScriptsRoot = $scriptsRoot
         DriverRoot = $driverRoot
+        DriverRecords = $driverRecords
         SecretsPath = $secretsPath
         SelectedOsPath = $selectedOsPath
         SelectedOs = $selectedOs
@@ -541,11 +555,9 @@ function New-UsbManifest {
             path = $relative
             bytes = [int64] $file.Length
         }
+        $record.sha256 = Get-Sha256Hash -LiteralPath $file.FullName
         if ($sensitive) {
             $record.sensitive = $true
-        }
-        else {
-            $record.sha256 = Get-Sha256Hash -LiteralPath $file.FullName
         }
         $files.Add($record)
     }
@@ -604,8 +616,26 @@ function New-StagedMedia {
         foreach ($script in @($Context.SelectedProfile.scripts)) {
             Copy-DirectoryContents -Source (Join-Path $Context.ScriptsRoot ([string] $script.id)) -Destination (Join-Path $stageScriptsRoot ([string] $script.id))
         }
-        if (Test-Path -LiteralPath $Context.DriverRoot -PathType Container) {
-            Copy-DirectoryContents -Source $Context.DriverRoot -Destination $stageDriverRoot
+        if ($Context.DriverRecords.Count -gt 0) {
+            $sanitizedDriverRecords = foreach ($record in $Context.DriverRecords) {
+                Copy-Item -LiteralPath (Join-Path $Context.DriverRoot ([string] $record.fileName)) -Destination $stageDriverRoot -Force
+                [ordered]@{
+                    timestamp = [string] $record.timestamp
+                    status = 'downloaded'
+                    manufacturer = [string] $record.manufacturer
+                    model = [string] $record.model
+                    product = @($record.product)
+                    name = [string] $record.name
+                    packageId = [string] $record.packageId
+                    fileName = [string] $record.fileName
+                    bytes = [int64] $record.bytes
+                } | ConvertTo-Json -Compress -Depth 8
+            }
+            [System.IO.File]::WriteAllLines(
+                (Join-Path $stageDriverRoot 'driverpack-cache.jsonl'),
+                [string[]] @($sanitizedDriverRecords),
+                $Utf8NoBom
+            )
         }
         Copy-Item -LiteralPath $Context.SecretsPath -Destination (Join-Path $stageConfigRoot 'secrets.json') -Force
 
@@ -679,11 +709,9 @@ function Test-MediaFiles {
         if ([int64] $item.Length -ne [int64] $record.bytes) {
             throw "Media verification size mismatch: $($record.path)"
         }
-        if (-not $record.sensitive) {
-            $hash = Get-Sha256Hash -LiteralPath $targetPath
-            if ($hash -ne ([string] $record.sha256).ToUpperInvariant()) {
-                throw "Media verification SHA-256 mismatch: $($record.path)"
-            }
+        $hash = Get-Sha256Hash -LiteralPath $targetPath
+        if ($hash -ne ([string] $record.sha256).ToUpperInvariant()) {
+            throw "Media verification SHA-256 mismatch: $($record.path)"
         }
     }
 }

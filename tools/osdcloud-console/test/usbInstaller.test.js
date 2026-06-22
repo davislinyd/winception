@@ -39,7 +39,8 @@ test('snapshot is active-only, excludes runtime OSDCloud content, and cleans sta
   assert.match(main, /Copy-Item -LiteralPath \$Context\.SelectedWim\.FullName/);
   assert.match(main, /selectedSoftware/);
   assert.match(main, /SelectedProfile\.scripts/);
-  assert.match(main, /Copy-DirectoryContents -Source \$Context\.DriverRoot/);
+  assert.match(main, /\$Context\.DriverRecords/);
+  assert.doesNotMatch(main, /Copy-DirectoryContents -Source \$Context\.DriverRoot/);
   assert.match(main, /Program Files\\WindowsPowerShell\\Modules\\\$moduleName/);
   assert.match(main, /Remove-Item -LiteralPath \$safeStage -Recurse -Force/);
 });
@@ -49,6 +50,7 @@ test('manifest records offline mode without secret values or host paths', () => 
   assert.match(manifestBody, /deploymentMode = 'usb-offline'/);
   assert.match(manifestBody, /path = \$relative/);
   assert.match(manifestBody, /sensitive = \$true/);
+  assert.match(manifestBody, /record\.sha256 = Get-Sha256Hash/);
   assert.doesNotMatch(manifestBody, /windowsPassword|pxeinstallPassword|SecretsPath/);
   assert.doesNotMatch(manifestBody, /FullName\s*=/);
 });
@@ -84,6 +86,10 @@ test('destructive USB path is identity-bound and rejects unsafe disks', () => {
 
 test('offline startup verifies media, selects one internal disk, and prevents reapply', () => {
   assert.match(startup, /Test-UsbMediaManifest/);
+  assert.match(startup, /Get-WinceptionBootRoot -DataRoot \$mediaRoot/);
+  assert.match(startup, /StartsWith\('OSDCloud\\'/);
+  assert.match(startup, /Winception boot and data volumes are not on the same disk/);
+  assert.match(startup, /USB media file hash mismatch/);
   assert.match(startup, /Expected exactly one eligible internal install disk/);
   assert.match(startup, /BusType -notin @\('USB', 'SD', 'MMC', 'File Backed Virtual'\)/);
   assert.match(startup, /Test-MediaAlreadyApplied/);
@@ -94,6 +100,14 @@ test('offline startup verifies media, selects one internal disk, and prevents re
   assert.match(startup, /& \$oobeScript/);
   assert.match(startup, /Install-MatchingOfflineDriverPack/);
   assert.doesNotMatch(startup, /net use|torrent|Invoke-WebRequest|statusUrl/i);
+});
+
+test('driver snapshot excludes cache history and emits current pack metadata only', () => {
+  const staging = main.slice(main.indexOf('function New-StagedMedia'), main.indexOf('function Confirm-UsbErase'));
+  assert.match(staging, /sanitizedDriverRecords/);
+  assert.match(staging, /status = 'downloaded'/);
+  assert.doesNotMatch(staging, /runId|clientId|computerName|\burl\b/);
+  assert.doesNotMatch(staging, /Copy-DirectoryContents -Source \$Context\.DriverRoot/);
 });
 
 test('USB OOBE customization is injected privately and invoked explicitly', () => {

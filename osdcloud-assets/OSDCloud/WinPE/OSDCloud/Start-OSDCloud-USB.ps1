@@ -19,6 +19,41 @@ function Get-WinceptionUsbRoot {
     return $matches[0]
 }
 
+function Get-WinceptionBootRoot {
+    param([Parameter(Mandatory)][string] $DataRoot)
+
+    $hasBootFiles = {
+        param([string] $Root)
+        (Test-Path -LiteralPath (Join-Path $Root 'sources\boot.wim') -PathType Leaf) -and
+            (Test-Path -LiteralPath (Join-Path $Root 'efi\boot\bootx64.efi') -PathType Leaf)
+    }
+    if (& $hasBootFiles $DataRoot) {
+        return $DataRoot
+    }
+
+    $bootRoots = @(Get-PSDrive -PSProvider FileSystem |
+        Where-Object { $_.Name -ne 'X' -and $_.Root -ne $DataRoot } |
+        ForEach-Object { $_.Root } |
+        Where-Object { & $hasBootFiles $_ })
+    if ($bootRoots.Count -ne 1) {
+        throw "Expected exactly one Winception boot volume, found $($bootRoots.Count)."
+    }
+
+    try {
+        $dataPartition = Get-Partition -DriveLetter $DataRoot.Substring(0, 1) -ErrorAction Stop
+        $bootPartition = Get-Partition -DriveLetter $bootRoots[0].Substring(0, 1) -ErrorAction Stop
+        if ($dataPartition.DiskNumber -ne $bootPartition.DiskNumber) {
+            throw 'Winception boot and data volumes are not on the same disk.'
+        }
+    }
+    catch {
+        if ($_.Exception.Message -eq 'Winception boot and data volumes are not on the same disk.') {
+            throw
+        }
+    }
+    return $bootRoots[0]
+}
+
 function Get-UsbInstallDisk {
     param([Parameter(Mandatory)][string] $MediaRoot)
 
@@ -70,13 +105,15 @@ function Test-MediaAlreadyApplied {
 
 function Test-UsbMediaManifest {
     param(
-        [Parameter(Mandatory)][string] $MediaRoot,
+        [Parameter(Mandatory)][string] $DataRoot,
+        [Parameter(Mandatory)][string] $BootRoot,
         [Parameter(Mandatory)] $Manifest
     )
 
     foreach ($record in @($Manifest.files)) {
         $relativePath = ([string] $record.path).Replace('/', '\')
-        $path = Join-Path $MediaRoot $relativePath
+        $root = if ($relativePath.StartsWith('OSDCloud\', [System.StringComparison]::OrdinalIgnoreCase)) { $DataRoot } else { $BootRoot }
+        $path = Join-Path $root $relativePath
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "USB media file is missing: $($record.path)"
         }
@@ -84,11 +121,9 @@ function Test-UsbMediaManifest {
         if ([int64] $item.Length -ne [int64] $record.bytes) {
             throw "USB media file size mismatch: $($record.path)"
         }
-        if (-not $record.sensitive) {
-            $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToUpperInvariant()
-            if ($hash -ne ([string] $record.sha256).ToUpperInvariant()) {
-                throw "USB media file hash mismatch: $($record.path)"
-            }
+        $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToUpperInvariant()
+        if ($hash -ne ([string] $record.sha256).ToUpperInvariant()) {
+            throw "USB media file hash mismatch: $($record.path)"
         }
     }
 }
@@ -180,12 +215,13 @@ function Install-MatchingOfflineDriverPack {
 try {
     Write-Host "[$(Get-Date -Format G)] Winception USB zero-touch installation" -ForegroundColor Cyan
     $mediaRoot = Get-WinceptionUsbRoot
+    $bootRoot = Get-WinceptionBootRoot -DataRoot $mediaRoot
     $manifestPath = Join-Path $mediaRoot 'OSDCloud\winception-usb-manifest.json'
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     if ([int] $manifest.schemaVersion -ne 1 -or [string]::IsNullOrWhiteSpace([string] $manifest.mediaId)) {
         throw "Unsupported or invalid USB manifest: $manifestPath"
     }
-    Test-UsbMediaManifest -MediaRoot $mediaRoot -Manifest $manifest
+    Test-UsbMediaManifest -DataRoot $mediaRoot -BootRoot $bootRoot -Manifest $manifest
     if (Test-MediaAlreadyApplied -MediaId ([string] $manifest.mediaId)) {
         throw "This media ($($manifest.mediaId)) has already been applied to the internal Windows installation. Remove the media and boot Windows."
     }
