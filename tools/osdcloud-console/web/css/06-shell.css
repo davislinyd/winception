@@ -170,8 +170,30 @@ body { overflow: hidden; background: var(--paper); }
 }
 .endpoint-chip { background: var(--surface); color: var(--muted); padding: 4px 9px; border-radius: 2px; border: 1px solid var(--hairline); font-family: "JetBrains Mono", monospace; font-size: 11px; }
 .updated-chip { color: var(--muted); white-space: nowrap; font-size: 11px; font-variant-numeric: tabular-nums; }
+.topbar-manual-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  color: var(--muted);
+  background: transparent;
+  font: 500 12px/1 Inter, sans-serif;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.topbar-manual-link .material-symbols-outlined { font-size: 19px; }
+.topbar-manual-link:hover { color: var(--ink); background: var(--surface); }
 .ctx-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 2px; border: 1px solid var(--hairline); background: transparent; color: var(--muted); cursor: pointer; }
 .ctx-icon-btn:hover { background: var(--surface); color: var(--ink); }
+
+@media (max-width: 1024px) {
+  .topbar-manual-link { width: 30px; padding: 0; }
+  .topbar-manual-label { display: none; }
+}
 
 /* ---- Bottom Console Dock: dark terminal (global, all views) ---- */
 .console-dock {

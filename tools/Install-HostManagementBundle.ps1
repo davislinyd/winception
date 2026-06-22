@@ -164,6 +164,7 @@ foreach ($relativeFile in @(
     'package-lock.json',
     'Setup-DeploymentServer.cmd',
     'Deploy-DeploymentServer.cmd',
+    'docs\winception-operations-manual.html',
     'Softwares\Install-Apps.ps1',
     'Softwares\Show-DeploymentProgress.ps1'
 )) {
@@ -175,6 +176,7 @@ foreach ($relativeFile in @(
 foreach ($relativeDirectory in @(
     'tools',
     'config',
+    'docs\manual-assets',
     'osdcloud-assets'
 )) {
     Copy-DirectoryTree `

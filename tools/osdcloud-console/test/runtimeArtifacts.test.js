@@ -16,6 +16,15 @@ import {
 // Helpers shared by the tools/*.ps1 scripts now live in tools/lib/Common.ps1
 // (dot-sourced by each script); assert their bodies there.
 const commonPs1 = fs.readFileSync(path.join(process.cwd(), 'tools', 'lib', 'Common.ps1'), 'utf8');
+const manualAssetNames = [
+  'operator-flow.en.svg',
+  'operator-flow.svg',
+  'system-architecture.en.svg',
+  'system-architecture.svg',
+  'web-activity.png',
+  'web-dashboard.png',
+  'web-validation-evidence.png',
+];
 
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -33,6 +42,7 @@ function createSetupSourceFixture(root) {
   fs.mkdirSync(path.join(root, 'config', 'deployment-profiles'), { recursive: true });
   fs.mkdirSync(path.join(root, 'osdcloud-assets'), { recursive: true });
   fs.mkdirSync(path.join(root, 'Softwares'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'manual-assets'), { recursive: true });
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
     name: 'fixture',
     version: '0.0.0',
@@ -64,6 +74,10 @@ function createSetupSourceFixture(root) {
   fs.writeFileSync(path.join(root, 'Softwares', 'Show-DeploymentProgress.ps1'), "Write-Host 'fixture viewer'\n", 'utf8');
   fs.writeFileSync(path.join(root, 'Setup-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
   fs.writeFileSync(path.join(root, 'Deploy-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'docs', 'winception-operations-manual.html'), '<!doctype html><title>Manual</title>\n', 'utf8');
+  for (const fileName of manualAssetNames) {
+    fs.writeFileSync(path.join(root, 'docs', 'manual-assets', fileName), 'fixture\n', 'utf8');
+  }
   writeJson(path.join(root, 'config', 'osdcloud-console.json'), {
     adapter: { interfaceAlias: 'LAN', serverIp: '10.10.10.1', prefixLength: 24 },
     dhcp: {
@@ -447,6 +461,7 @@ test('runtime readiness reports dependency order and blocked downstream artifact
 
 test('setup wizard stays lightweight and leaves runtime preparation to Web', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'), 'utf8');
+  const reloadScript = fs.readFileSync(path.join(process.cwd(), 'tools', 'Reload-Console.ps1'), 'utf8');
   assert.match(script, /npm' -ArgumentList @\('install'\)/);
   assert.match(script, /npm' -ArgumentList @\('run', 'smoke'\)/);
   assert.match(script, /Install-HostManagementBundle\.ps1/);
@@ -487,6 +502,8 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.doesNotMatch(script, /Set-OsdCloudIpxeEndpoint\.ps1/);
   assert.doesNotMatch(script, /server:preflight/);
   assert.doesNotMatch(script, /Start-Pxe|Start-Dhcp|Start-Tftp|Start-Http/);
+  assert.match(reloadScript, /docs\\winception-operations-manual\.html/);
+  assert.match(reloadScript, /docs\\manual-assets/);
 });
 
 test('setup prerequisite refresh keeps a long inherited PATH within Windows limits', () => {
@@ -570,6 +587,8 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     assert.equal(seededConfig.paths.stateRoot, stateRoot);
     assert.equal(fs.existsSync(stateSecrets), false);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'Start-InstalledWebConsole.ps1')), true);
+    assert.equal(fs.existsSync(path.join(appRoot, 'docs', 'winception-operations-manual.html')), true);
+    assert.deepEqual(fs.readdirSync(path.join(appRoot, 'docs', 'manual-assets')).sort(), manualAssetNames.slice().sort());
     assert.equal(fs.existsSync(path.join(root, 'HostTools', 'Open-WebConsole.cmd')), true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

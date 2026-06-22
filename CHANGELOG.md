@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### 新功能：Web Console 手冊入口
+
+- 頂部列新增全域 `Manual` utility link；寬螢幕顯示文字與書本圖示，窄螢幕保留具 tooltip / ARIA label 的圖示，並在新分頁開啟手冊而不改變 Deploy / Activity 狀態
+- Web management server 只讀發布 `/manual/` 與 `/manual/manual-assets/*`；fresh-host bundle 與 reload 只複製手冊及七個外部資產，不公開整個 `docs` 目錄
+
 ## v0.6.0 — 2026-06-22
 
 ### 文件：單頁 Winception 部署操作手冊

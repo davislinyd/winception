@@ -14,6 +14,10 @@ Copy-Item -Path (Join-Path $SourceRoot "tools") -Destination $AppRoot -Recurse -
 Copy-Item -Path (Join-Path $SourceRoot "Softwares") -Destination $AppRoot -Recurse -Force
 Copy-Item -Path (Join-Path $SourceRoot "osdcloud-assets") -Destination $AppRoot -Recurse -Force
 Copy-Item -Path (Join-Path $SourceRoot "package.json") -Destination $AppRoot -Force
+$ManualRoot = Join-Path $AppRoot 'docs'
+New-Item -ItemType Directory -Path $ManualRoot -Force | Out-Null
+Copy-Item -Path (Join-Path $SourceRoot 'docs\winception-operations-manual.html') -Destination $ManualRoot -Force
+Copy-Item -Path (Join-Path $SourceRoot 'docs\manual-assets') -Destination $ManualRoot -Recurse -Force
 
 Write-Host "Finding and terminating active Web Console process..."
 # Kill the tray process first — it is the persistent parent that spawns node.

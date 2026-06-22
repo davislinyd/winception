@@ -348,7 +348,13 @@ async function makeServer(root, overrides = {}) {
   const staticRoot = path.join(root, 'web');
   fs.mkdirSync(staticRoot, { recursive: true });
   fs.writeFileSync(path.join(staticRoot, 'index.html'), '<!doctype html><title>Smoke</title>');
-  const server = new WebManagementServer({ controller, staticRoot });
+  const manualRoot = path.join(root, 'docs');
+  const manualAssetsRoot = path.join(manualRoot, 'manual-assets');
+  fs.mkdirSync(manualAssetsRoot, { recursive: true });
+  fs.writeFileSync(path.join(manualRoot, 'winception-operations-manual.html'), '<!doctype html><title>Winception Manual</title>');
+  fs.writeFileSync(path.join(manualAssetsRoot, 'flow.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+  fs.writeFileSync(path.join(manualAssetsRoot, 'screen.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const server = new WebManagementServer({ controller, staticRoot, manualRoot });
   server.osCatalogCalls = osCatalogCalls;
   await server.start({ host: '127.0.0.1', port: 0 });
   return server;
@@ -377,6 +383,46 @@ test('serves static UI and read-only state', async () => {
     assert.equal(secretsStep.action, 'secrets');
     assert.equal(secretsStep.detail, 'Missing: windowsUsername, windowsPassword, pxeinstallPassword');
     assert.equal(fs.existsSync(path.join(root, 'status')), false);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('serves only the packaged manual and its assets', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-manual-'));
+  const server = await makeServer(root);
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/manual/`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /^text\/html/u);
+    assert.match(await response.text(), /Winception Manual/);
+
+    response = await fetch(`${base}/manual/`, { method: 'HEAD' });
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), '');
+
+    response = await fetch(`${base}/manual/manual-assets/flow.svg`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/svg+xml');
+
+    response = await fetch(`${base}/manual/manual-assets/screen.png`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/png');
+
+    response = await fetch(`${base}/manual/manual-assets/missing.png`);
+    assert.equal(response.status, 404);
+
+    response = await fetch(`${base}/manual/manual-assets/%2e%2e%2fwinception-operations-manual.html`);
+    assert.equal(response.status, 403);
+
+    response = await fetch(`${base}/manual/`, { method: 'POST' });
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get('allow'), 'GET, HEAD');
+
+    response = await fetch(`${base}/manual/not-exposed.html`);
+    assert.equal(response.status, 404);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

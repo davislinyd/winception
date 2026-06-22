@@ -26,6 +26,7 @@ Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint 
 
 ## Web Console
 
+- The top-bar `Manual` utility link opens `/manual/` in a new tab without changing Deploy / Activity state. The Web management server exposes only the manual HTML and `/manual/manual-assets/*`; setup and reload copy those files into the installed HostTools bundle without exposing the rest of `docs`.
 - After changing any server-side Node.js module under `tools/osdcloud-console/src/`, the running server must be restarted before the change takes effect — Node.js caches modules in memory and will continue using the old implementation until restarted. For the live console at `C:\OSDCloud\HostTools\App`, run `npm run reload` to deploy and restart. For the preview/dev server, stop and restart it. Changes to `web/js/`, `web/css/`, or `web/*.html` (static assets) take effect on the next browser reload without a server restart.
 - Use the Web console for the active physical-laptop path unless the user explicitly requests lower-level helper scripts.
 - Web owns DHCP, TFTP, HTTP media/status serving, live status display, log tailing, endpoint sync progress, fleet state, and validation summary.

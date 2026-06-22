@@ -7,12 +7,16 @@ import { ServiceController } from './controller/index.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultStaticRoot = path.resolve(moduleDir, '..', 'web');
+const defaultManualRoot = path.resolve(moduleDir, '..', '..', '..', 'docs');
+const manualFileName = 'winception-operations-manual.html';
+const manualAssetsPath = '/manual/manual-assets/';
 
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
   ['.json', 'application/json; charset=utf-8'],
+  ['.png', 'image/png'],
   ['.svg', 'image/svg+xml'],
 ]);
 
@@ -43,6 +47,16 @@ function resolveStaticPath(root, requestPath) {
     return null;
   }
   return resolved;
+}
+
+function resolveManualPath(root, requestPath) {
+  if (requestPath === '/manual/') {
+    return path.join(path.resolve(root), manualFileName);
+  }
+  if (!requestPath.startsWith(manualAssetsPath)) {
+    return null;
+  }
+  return resolveStaticPath(path.join(root, 'manual-assets'), requestPath.slice(manualAssetsPath.length));
 }
 
 async function readJsonBody(req, maxBytes = 1024 * 1024) {
@@ -91,6 +105,7 @@ export class WebManagementServer {
   constructor(options = {}) {
     this.controller = options.controller ?? new ServiceController(options);
     this.staticRoot = options.staticRoot ?? defaultStaticRoot;
+    this.manualRoot = options.manualRoot ?? defaultManualRoot;
     this.server = null;
   }
 
@@ -144,7 +159,26 @@ export class WebManagementServer {
       await this.handleApi(req, res, requestUrl);
       return;
     }
+    if (requestUrl.pathname === '/manual/' || requestUrl.pathname.startsWith(manualAssetsPath)) {
+      await this.handleManual(req, res, requestUrl);
+      return;
+    }
     await this.handleStatic(req, res, requestUrl);
+  }
+
+  async handleManual(req, res, requestUrl) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { Allow: 'GET, HEAD' });
+      res.end();
+      return;
+    }
+
+    const filePath = resolveManualPath(this.manualRoot, requestUrl.pathname);
+    if (!filePath) {
+      sendText(res, 403, 'Forbidden');
+      return;
+    }
+    await this.sendFile(req, res, filePath);
   }
 
   async handleApi(req, res, requestUrl) {
@@ -440,6 +474,11 @@ export class WebManagementServer {
       sendText(res, 403, 'Forbidden');
       return;
     }
+
+    await this.sendFile(req, res, filePath);
+  }
+
+  async sendFile(req, res, filePath) {
 
     const finalPath = fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()
       ? path.join(filePath, 'index.html')
