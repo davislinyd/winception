@@ -99,6 +99,11 @@ test('offline startup verifies media, selects one internal disk, and prevents re
   assert.match(startup, /Invoke-OobeCustomization-USB\.ps1/);
   assert.match(startup, /& \$oobeScript/);
   assert.match(startup, /Install-MatchingOfflineDriverPack/);
+  const driverInstallStart = startup.indexOf('function Install-MatchingOfflineDriverPack');
+  const driverInstallEnd = startup.indexOf('\ntry {', driverInstallStart);
+  const driverInstallBody = startup.slice(driverInstallStart, driverInstallEnd);
+  assert.doesNotMatch(driverInstallBody, /\[Parameter\(Mandatory\)\] \$DriverPack/);
+  assert.match(driverInstallBody, /if \(-not \$DriverPack\) \{\r?\n        return/);
   assert.doesNotMatch(startup, /net use|torrent|Invoke-WebRequest|statusUrl/i);
 });
 

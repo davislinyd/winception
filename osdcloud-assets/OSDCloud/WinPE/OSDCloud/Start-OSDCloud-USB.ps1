@@ -175,7 +175,7 @@ function Get-MatchingOfflineDriverPack {
 }
 
 function Install-MatchingOfflineDriverPack {
-    param([Parameter(Mandatory)] $DriverPack)
+    param($DriverPack)
 
     if (-not $DriverPack) {
         return
