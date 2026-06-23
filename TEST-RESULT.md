@@ -36,6 +36,15 @@ Two consecutive Secure Boot rounds used four concurrent Hyper-V Gen2 clients wit
 - All 8 runs reached `windows-desktop-ready`. Each `windows-setupcomplete-finished` event reported app installer exit code `0`, empty stderr, and successful completion of Chrome, 7-Zip, custom script `SC-J5GF07Y2`, and Notepad++ (`SW-4UT7PDID`). No run contained an `error` or `timeout` terminal stage.
 - The regression covers the Hyper-V WinPE memory reservation and monotonic client timers used across Hyper-V clock corrections.
 
+## USB/ISO Add-On PXE Regression Evidence — 2026-06-23
+
+After adding the independent USB/ISO offline installer, the existing Secure Boot PXE path was revalidated with four concurrent Hyper-V Gen2 clients on `vEthernet (vSwitch)` / `192.168.77.1/24`.
+
+- Preflight passed 29/29 checks, including published `boot.wim` sync, Secure Boot TFTP tree, SMB image access, OS image, and active profile payload.
+- Runs `20260623-090613-3165-2914-1943-0908-5094-0852-36`, `20260623-090613-9139-9236-4890-0748-8921-6350-41`, `20260623-090616-0885-8703-1155-6903-2654-8648-29`, and `20260623-090619-3714-2415-4875-1592-7324-5531-21` all reached `windows-desktop-ready` at 100%.
+- The PXE no-redownload evidence remained unchanged: each `osdcloud-finished` event reported empty `ImageFileUrl`, `ImageFileDestination.PSDrive.DisplayRoot` as `\\192.168.77.1\OSDCloudiPXE`, and `OSImageIndex = 1`.
+- Torrent seed wait was released manually through the Web API after image apply. Services were stopped after completion.
+
 ## Rebuild From Zero (No-AI Runbook)
 
 Steps to bring a fresh Windows host from a clean clone to PXE-ready state.
