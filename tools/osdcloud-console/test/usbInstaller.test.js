@@ -6,12 +6,16 @@ import test from 'node:test';
 
 const root = process.cwd();
 const mainPath = path.join(root, 'tools', 'New-WinceptionUsbInstaller.ps1');
+const pxeStartnetPath = path.join(root, 'osdcloud-assets', 'OSDCloud', 'WinPE', 'Windows', 'System32', 'Startnet.cmd');
+const usbStartnetPath = path.join(root, 'osdcloud-assets', 'OSDCloud', 'WinPE', 'Windows', 'System32', 'Startnet-USB.cmd');
 const startupPath = path.join(root, 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-USB.ps1');
 const oobePath = path.join(root, 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Invoke-OobeCustomization-USB.ps1');
 const setupPath = path.join(root, 'osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'SetupComplete', 'SetupComplete.ps1');
 const stagedSetupPath = path.join(root, 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Config', 'Scripts', 'SetupComplete', 'SetupComplete.ps1');
 
 const main = fs.readFileSync(mainPath, 'utf8');
+const pxeStartnet = fs.readFileSync(pxeStartnetPath, 'utf8');
+const usbStartnet = fs.readFileSync(usbStartnetPath, 'utf8');
 const startup = fs.readFileSync(startupPath, 'utf8');
 const oobe = fs.readFileSync(oobePath, 'utf8');
 const setup = fs.readFileSync(setupPath, 'utf8');
@@ -105,6 +109,14 @@ test('offline startup verifies media, selects one internal disk, and prevents re
   assert.doesNotMatch(driverInstallBody, /\[Parameter\(Mandatory\)\] \$DriverPack/);
   assert.match(driverInstallBody, /if \(-not \$DriverPack\) \{\r?\n        return/);
   assert.doesNotMatch(startup, /net use|torrent|Invoke-WebRequest|statusUrl/i);
+});
+
+test('USB Startnet skips PXE network bootstrap and runs offline installer directly', () => {
+  assert.match(pxeStartnet, /Initialize-OSDCloudStartnet/);
+  assert.match(usbStartnet, /wpeinit/);
+  assert.match(usbStartnet, /Maximize-Console\.ps1/);
+  assert.match(usbStartnet, /Start-OSDCloud-USB\.ps1/);
+  assert.doesNotMatch(usbStartnet, /Initialize-OSDCloudStartnet/);
 });
 
 test('driver snapshot excludes cache history and emits current pack metadata only', () => {

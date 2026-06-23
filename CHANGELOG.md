@@ -8,6 +8,7 @@
 - 從 merged live config 建立 immutable active snapshot，只納入 selected WIM、active profile Apps/Scripts、目前存在的 driver packs、最小必要 driver metadata 與本機 deployment secrets；排除 driver run/client/download history，且不修改既有 PXE services、endpoint 或 live `Media\sources\boot.wim`
 - USB WinPE 會跨 FAT32 boot 與 NTFS data volumes 驗證所有 manifest size/SHA-256，只允許單一 internal target disk，套用相符的離線 driver pack，並以 media marker 防止同一 media 重複清除
 - `deploymentMode: usb-offline` 將最後 stage 原子寫入 `DeploymentStatus.json.localStatus`；既有 PXE HTTP telemetry 在未設定該模式時維持原行為
+- 修正 USB/ISO WinPE Startnet 不再呼叫 PXE/OSDCloud network bootstrap，離線媒體開機後不再等待 DHCP lease，直接進入 USB offline installer
 - 修正沒有相符離線 driver pack 時，USB WinPE 在 OSDCloud 完成後因 `$null` `DriverPack` 參數繫結錯誤而停止
 
 ### 新功能：Web Console 手冊入口
