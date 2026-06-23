@@ -14,6 +14,7 @@ Authoritative evidence and no-AI operator runbook for a completed from-zero depl
 | secureboot mode — Hyper-V Gen2 (`MicrosoftWindows` SB template, `winception-client-sb-01`), Secure Boot ON | ✔ Deployed to `windows-desktop-ready` | 2026-06-12 |
 | secureboot mode — two concurrent Hyper-V clients, striped Torrent P2P offload | ✔ Both clients uploaded while incomplete and reached `windows-desktop-ready` | 2026-06-19 |
 | secureboot mode — four concurrent Hyper-V clients, two consecutive rounds | ✔ 8/8 reached `windows-desktop-ready`; every app/script sequence completed 4/4 with exit code 0 | 2026-06-20 |
+| USB/ISO offline installer — Hyper-V Gen2 ISO boot, Secure Boot ON, no NIC | ✔ Rebuilt ISO deployed offline to `windows-desktop-ready` | 2026-06-24 |
 | secureboot mode — SB OFF (fallback; boot chain still MS-signed, boots without SB enforcement) | ✔ Reached WinPE and apply-image | 2026-06-12 |
 | ipxe mode regression — `snponly.efi` → `boot.ipxe` → wimboot → WinPE | ✔ WinPE callback confirmed | 2026-06-12 |
 
@@ -44,6 +45,33 @@ After adding the independent USB/ISO offline installer, the existing Secure Boot
 - Runs `20260623-090613-3165-2914-1943-0908-5094-0852-36`, `20260623-090613-9139-9236-4890-0748-8921-6350-41`, `20260623-090616-0885-8703-1155-6903-2654-8648-29`, and `20260623-090619-3714-2415-4875-1592-7324-5531-21` all reached `windows-desktop-ready` at 100%.
 - The PXE no-redownload evidence remained unchanged: each `osdcloud-finished` event reported empty `ImageFileUrl`, `ImageFileDestination.PSDrive.DisplayRoot` as `\\192.168.77.1\OSDCloudiPXE`, and `OSImageIndex = 1`.
 - Torrent seed wait was released manually through the Web API after image apply. Services were stopped after completion.
+
+## USB/ISO Offline ISO Validation Evidence — 2026-06-24
+
+The rebuilt offline ISO was validated with a fresh Hyper-V Generation 2 VM and no network adapter:
+
+- ISO: `C:\OSDCloud\Exports\Winception-USB-20260623-143046.iso`
+- ISO SHA-256: `B9C0F461CFA51C5823A2D922C8122DA154B24658D70D4B0D3E7F3EC8DE0F2EE8`
+- VM: `winception-usb-iso-final-01`
+- Firmware: Generation 2, Secure Boot `On`, template `MicrosoftWindows`
+- Network: `0` VM network adapters
+- Boot order: empty dynamic VHDX first, rebuilt ISO second; first boot fell through to ISO, post-install reboot used the installed Windows disk
+
+PowerShell Direct evidence from the deployed Windows guest:
+
+```text
+Computer             : DESKTOP-8PMJK68
+User                 : LabAdmin
+ExplorerRunning      : True
+DesktopReadyFile     : True
+DesktopReadyPath     : C:\Users\LabAdmin\Desktop\OSDCloud-Desktop-Ready.txt
+ProgressStatus       : succeeded
+DeploymentStatusFile : True
+SecureBoot           : True
+OobeProcesses        : <empty>
+```
+
+The run reached `windows-desktop-ready` without a NIC, SMB, torrent, DHCP lease, or host telemetry.
 
 ## Rebuild From Zero (No-AI Runbook)
 
