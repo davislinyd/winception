@@ -22,9 +22,9 @@ Read this file when selecting verification for subsystem-specific changes.
 
 ## Profiles, Software, And Custom Scripts
 
-- Software catalog changes must test validation, safe software ids, plain MSI/EXE filenames, duplicate rejection, upload staging cleanup, and that adding catalog software does not mutate active profile or publish live Apps.
-- Custom script changes must test `SC-` id generation, `.ps1` upload validation, duplicate rejection, profile rejection of unknown script ids and invalid phases, publish copying to safe script roots, per-script logs, summary generation, missing-script behavior, and delete-blocked-when-referenced behavior.
-- Deployment profile changes must test catalog/profile validation, add/edit/delete validation, safe publish roots, selected-only ordered payload publishing, empty profiles, selected-only app install behavior, OS image publish integration, and inactive-profile edits that do not stop services or republish live payloads.
+- Software catalog changes must test human-entered lowercase/hyphen/numeric software id validation, duplicate rejection, plain MSI/EXE filenames, upload staging cleanup, and that adding catalog software does not mutate active profile or publish live Apps.
+- Custom script changes must test human-entered lowercase/hyphen/numeric script id validation, `.ps1` upload validation, duplicate rejection, profile rejection of unknown script ids and invalid phases, publish copying to safe script roots, per-script logs, summary generation, missing-script behavior, and delete-blocked-when-referenced behavior.
+- Deployment profile changes must test catalog/profile validation, unique profile names, add/edit/delete validation, safe publish roots, selected-only ordered payload publishing, empty profiles, selected-only app install behavior, OS image publish integration, and inactive-profile edits that do not stop services or republish live payloads.
 - International profile changes must test independent `displayLanguage` / `locale` / `inputLanguage` / `timeZone` persistence, legacy inheritance, WIM-language mismatch rejection, unresolved-time-zone rejection before live Apps changes, and API/UI field propagation.
 
 ## OS Image Source/Cache

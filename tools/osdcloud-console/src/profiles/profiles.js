@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadCustomScriptCatalog } from './scripts.js';
-import { arrayFrom, assertInside, defaultInstallSequenceTimeoutSeconds, deploymentProfileOptions, generateDeploymentProfileId, inputError, normalizeExecutionSettings, normalizeId, normalizeLocaleTag, normalizePositiveInteger, normalizeProfileDescription, normalizeProfileName, normalizeWindowsTimeZoneId, readJson, resolveExecutionSettings, selectedProfileFileName, writeJson } from './shared.js';
+import { arrayFrom, assertInside, defaultInstallSequenceTimeoutSeconds, deploymentProfileOptions, generateDeploymentProfileId, inputError, normalizeExecutionSettings, normalizeId, normalizeLocaleTag, normalizePositiveInteger, normalizeProfileDescription, normalizeProfileName, normalizeWindowsTimeZoneId, profileNameKey, readJson, resolveExecutionSettings, selectedProfileFileName, writeJson } from './shared.js';
 import { loadSoftwareCatalog } from './software.js';
 
 export function normalizeInstallSequence(value, catalog, scriptCatalog, label) {
@@ -100,6 +100,14 @@ export function validateProfileCustomScriptsRemoved(value, label) {
   }
 }
 
+export function assertUniqueProfileName(profiles, name, options = {}) {
+  const key = profileNameKey(name);
+  const duplicate = profiles.find((profile) => profileNameKey(profile.name) === key && profile.id !== options.excludeId);
+  if (duplicate) {
+    throw inputError(`Duplicate deployment profile name: ${name}`, 409);
+  }
+}
+
 export function loadDeploymentProfiles(config = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const catalog = options.catalog ?? loadSoftwareCatalog(config, options);
@@ -117,6 +125,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const seen = new Set();
+  const seenNames = new Map();
   const profiles = files.map((fileName) => {
     const filePath = path.join(profileOptions.profilesRoot, fileName);
     const raw = readJson(filePath, 'deployment profile');
@@ -170,9 +179,17 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
     const inputLanguage = normalizeLocaleTag(raw.inputLanguage, `deployment profile ${id} inputLanguage`, { optional: true });
     const timeZone = normalizeWindowsTimeZoneId(raw.timeZone, `deployment profile ${id} timeZone`, { optional: true });
 
+    const name = normalizeProfileName(raw.name ?? id, `deployment profile ${id} name`);
+    const nameKey = profileNameKey(name);
+    const existingNameProfile = seenNames.get(nameKey);
+    if (existingNameProfile) {
+      throw new Error(`Duplicate deployment profile name: ${name}`);
+    }
+    seenNames.set(nameKey, id);
+
     return {
       id,
-      name: String(raw.name ?? id),
+      name,
       description: String(raw.description ?? ''),
       softwareIds: selectedIds,
       installSequence,
@@ -282,6 +299,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   const name = normalizeProfileName(input.name);
 
   const state = resolveDeploymentProfileState(config, null, options);
+  assertUniqueProfileName(state.profiles, name);
 
   if (!fs.existsSync(profileOptions.profilesRoot)) {
     throw new Error(`Deployment profile folder not found: ${profileOptions.profilesRoot}`);
@@ -387,6 +405,7 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const name = input.name === undefined
     ? profile.name
     : normalizeProfileName(input.name);
+  assertUniqueProfileName(profiles, name, { excludeId: id });
   const rawOsImageId = input.osImageId === undefined
     ? profile.osImageId
     : String(input.osImageId ?? '').trim();

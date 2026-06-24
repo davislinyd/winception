@@ -61,6 +61,21 @@ export function normalizeId(value, label) {
   return id;
 }
 
+export function normalizeHumanCatalogId(value, label) {
+  const id = String(value ?? '').trim();
+  if (!id) {
+    throw inputError(`${label} is required`);
+  }
+  if (!/^[a-z0-9][a-z0-9-]{0,15}$/u.test(id)) {
+    throw inputError(`${label} must use lowercase letters, numbers, and hyphens only, max 16 characters`);
+  }
+  return id;
+}
+
+export function profileNameKey(value) {
+  return String(value ?? '').trim().toLowerCase();
+}
+
 export function cleanSoftwareInstallerFileName(value, label = 'software installer fileName') {
   const raw = String(value ?? '').trim();
   if (!raw || raw.includes('/') || raw.includes('\\') || raw.includes('..')) {

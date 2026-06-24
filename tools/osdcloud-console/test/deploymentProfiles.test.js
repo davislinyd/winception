@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, loadDeploymentProfiles, resolveDeploymentProfileState, updateDeploymentProfile, updateDeploymentProfileSoftware } from '../src/profiles/profiles.js';
 import { publishDeploymentProfile } from '../src/profiles/publish.js';
 import { createCustomScript, deleteCustomScript, loadCustomScriptCatalog, readCustomScriptContent, uploadCustomScript } from '../src/profiles/scripts.js';
-import { deploymentProfileOptions, generateCustomScriptId, generateDeploymentProfileId, generateSoftwareId } from '../src/profiles/shared.js';
+import { deploymentProfileOptions, generateDeploymentProfileId } from '../src/profiles/shared.js';
 import { createSoftwarePackage, deleteSoftwarePackage, loadSoftwareCatalog, openSoftwareInstallScript, readSoftwareInstallScript, uploadSoftwareInstaller } from '../src/profiles/software.js';
 
 function makeRoot(prefix = 'osdcloud-profile-test-') {
@@ -293,21 +293,20 @@ test('uploads and creates software package without publishing or changing active
 
     const created = await createSoftwarePackage(config, {
       uploadId: 'upload-tool',
+      softwareId: 'tool-app',
       name: 'Tool App',
       scriptMode: 'template',
       installerType: 'msi',
       silentArgs: '/qn /norestart REBOOT=ReallySuppress',
       successExitCodes: '0,1641,3010',
       verifyPath: 'C:\\Program Files\\Tool\\tool.exe',
-    }, {
-      randomInt: () => 26,
     });
 
-    assert.equal(created.software.id, 'SW-AAAAAAA0');
+    assert.equal(created.software.id, 'tool-app');
     assert.equal(created.software.installerFileName, 'ToolSetup.msi');
     assert.equal(created.sha256.length, 64);
-    assert.equal(fs.existsSync(path.join(root, 'Softwares', 'SW-AAAAAAA0', 'ToolSetup.msi')), true);
-    const installScript = fs.readFileSync(path.join(root, 'Softwares', 'SW-AAAAAAA0', 'install.ps1'), 'utf8');
+    assert.equal(fs.existsSync(path.join(root, 'Softwares', 'tool-app', 'ToolSetup.msi')), true);
+    const installScript = fs.readFileSync(path.join(root, 'Softwares', 'tool-app', 'install.ps1'), 'utf8');
     assert.match(installScript, /\$ErrorActionPreference = 'Stop'/);
     assert.match(installScript, /msiexec\.exe/);
     assert.match(installScript, /C:\\Program Files\\Tool\\tool\.exe/);
@@ -315,8 +314,8 @@ test('uploads and creates software package without publishing or changing active
     assert.equal(fs.existsSync(path.join(root, '.osdcloud-console', 'software-uploads', 'upload-tool')), false);
 
     const catalog = JSON.parse(fs.readFileSync(path.join(root, 'software-catalog.json'), 'utf8'));
-    assert.deepEqual(catalog.software.map((software) => software.id), ['one', 'two', 'SW-AAAAAAA0']);
-    const catalogEntry = catalog.software.find((software) => software.id === 'SW-AAAAAAA0');
+    assert.deepEqual(catalog.software.map((software) => software.id), ['one', 'two', 'tool-app']);
+    const catalogEntry = catalog.software.find((software) => software.id === 'tool-app');
     assert.equal(catalogEntry.scriptMode, 'template');
     assert.equal(catalogEntry.installerType, 'msi');
     assert.equal(catalogEntry.installerFileName, 'ToolSetup.msi');
@@ -379,17 +378,16 @@ test('creates template software package without installed-file verification', as
 
     const created = await createSoftwarePackage(config, {
       uploadId: 'upload-exit-code-only',
+      softwareId: 'exit-code-app',
       name: 'Exit Code Only App',
       scriptMode: 'template',
       installerType: 'msi',
       silentArgs: '/qn /norestart REBOOT=ReallySuppress',
       successExitCodes: '0,1641,3010',
-    }, {
-      randomInt: () => 27,
     });
 
-    assert.equal(created.software.id, 'SW-AAAAAAA1');
-    const installScript = fs.readFileSync(path.join(root, 'Softwares', 'SW-AAAAAAA1', 'install.ps1'), 'utf8');
+    assert.equal(created.software.id, 'exit-code-app');
+    const installScript = fs.readFileSync(path.join(root, 'Softwares', 'exit-code-app', 'install.ps1'), 'utf8');
     assert.match(installScript, /Installer not found/);
     assert.match(installScript, /msiexec\.exe/);
     assert.match(installScript, /\$successExitCodes = @\(0, 1641, 3010\)/);
@@ -416,16 +414,15 @@ test('creates software package with raw install script', async () => {
 
     await createSoftwarePackage(config, {
       uploadId: 'upload-raw',
+      softwareId: 'raw-tool',
       name: 'Raw Tool',
       scriptMode: 'raw',
       installerType: 'exe',
       rawScript: "$ErrorActionPreference = 'Stop'\nWrite-Host 'raw install'\n",
-    }, {
-      randomInt: () => 27,
     });
 
     assert.equal(
-      fs.readFileSync(path.join(root, 'Softwares', 'SW-AAAAAAA1', 'install.ps1'), 'utf8'),
+      fs.readFileSync(path.join(root, 'Softwares', 'raw-tool', 'install.ps1'), 'utf8'),
       "$ErrorActionPreference = 'Stop'\nWrite-Host 'raw install'\n",
     );
   } finally {
@@ -433,7 +430,7 @@ test('creates software package with raw install script', async () => {
   }
 });
 
-test('software package onboarding rejects unsafe inputs and user supplied ids', async () => {
+test('software package onboarding rejects unsafe inputs and invalid human ids', async () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root);
@@ -456,17 +453,39 @@ test('software package onboarding rejects unsafe inputs and user supplied ids', 
     });
     await assert.rejects(() => createSoftwarePackage(config, {
       uploadId: 'upload-explicit',
-      id: 'one',
+      softwareId: 'one',
       name: 'Explicit One',
       scriptMode: 'template',
       installerType: 'msi',
       verifyPath: 'C:\\Program Files\\One\\one.exe',
-    }), /generated by the server/);
+    }), /Duplicate software id or source/);
     assert.equal(fs.existsSync(path.join(root, 'Softwares', 'one')), true);
     assert.equal(fs.existsSync(path.join(root, '.osdcloud-console', 'software-uploads', 'upload-explicit')), true);
 
     await assert.rejects(() => createSoftwarePackage(config, {
+      uploadId: 'upload-explicit',
+      name: 'Missing ID',
+      scriptMode: 'template',
+      installerType: 'msi',
+    }), /Software id is required/);
+    await assert.rejects(() => createSoftwarePackage(config, {
+      uploadId: 'upload-explicit',
+      softwareId: 'Bad_ID',
+      name: 'Bad ID',
+      scriptMode: 'template',
+      installerType: 'msi',
+    }), /lowercase letters, numbers, and hyphens only/);
+    await assert.rejects(() => createSoftwarePackage(config, {
+      uploadId: 'upload-explicit',
+      softwareId: 'abcdefghijklmnopq',
+      name: 'Too Long',
+      scriptMode: 'template',
+      installerType: 'msi',
+    }), /max 16 characters/);
+
+    await assert.rejects(() => createSoftwarePackage(config, {
       uploadId: 'bad\\upload',
+      softwareId: 'bad-upload',
       name: 'Bad ID',
       scriptMode: 'raw',
       installerType: 'msi',
@@ -475,16 +494,6 @@ test('software package onboarding rejects unsafe inputs and user supplied ids', 
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
-});
-
-test('software id generation avoids reserved catalog ids and source folders', () => {
-  assert.equal(
-    generateSoftwareId(['SW-AAAAAAA0', 'sw-aaaaaaa1'], {
-      randomInt: () => 26,
-      maxAttempts: 1,
-    }),
-    'SW-AAAAAAA2',
-  );
 });
 
 test('creates a deployment profile by copying active profile software', () => {
@@ -628,6 +637,37 @@ test('create deployment profile rejects missing names', () => {
   }
 });
 
+test('deployment profile names must be unique after trim and casefold', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+
+    assert.throws(
+      () => createDeploymentProfile(configFor(root), { name: ' default ' }),
+      /Duplicate deployment profile name/,
+    );
+
+    writeJson(path.join(root, 'profiles', 'second.json'), {
+      id: 'second',
+      name: 'Field Tech',
+      software: [],
+      osImage: 'TEST-OS',
+    });
+    writeJson(path.join(root, 'profiles', 'third.json'), {
+      id: 'third',
+      name: ' field tech ',
+      software: [],
+      osImage: 'TEST-OS',
+    });
+    assert.throws(
+      () => loadDeploymentProfiles(configFor(root)),
+      /Duplicate deployment profile name: field tech/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('updates deployment profile software while preserving other fields', () => {
   const root = makeRoot();
   try {
@@ -712,6 +752,12 @@ test('update deployment profile rejects id changes and empty names', () => {
   const root = makeRoot();
   try {
     writeBaseFiles(root);
+    writeJson(path.join(root, 'profiles', 'field.json'), {
+      id: 'field',
+      name: 'Field Tech',
+      software: [],
+      osImage: 'TEST-OS',
+    });
 
     assert.throws(
       () => updateDeploymentProfile(configFor(root), 'default', { id: 'renamed', name: 'Renamed' }),
@@ -720,6 +766,10 @@ test('update deployment profile rejects id changes and empty names', () => {
     assert.throws(
       () => updateDeploymentProfile(configFor(root), 'default', { name: '   ' }),
       /name is required/,
+    );
+    assert.throws(
+      () => updateDeploymentProfile(configFor(root), 'default', { name: ' field tech ' }),
+      /Duplicate deployment profile name/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -1649,20 +1699,19 @@ test('uploads and creates a custom script package', async () => {
 
     const created = await createCustomScript(config, {
       uploadId: 'upload-script',
+      scriptId: 'firewall',
       name: 'Firewall Tweaks',
-    }, {
-      randomInt: () => 26,
     });
-    assert.equal(created.script.id, 'SC-AAAAAAA0');
+    assert.equal(created.script.id, 'firewall');
     assert.equal(created.script.fileName, 'firewall.ps1');
-    const runScriptPath = path.join(root, 'Scripts', 'SC-AAAAAAA0', 'run.ps1');
+    const runScriptPath = path.join(root, 'Scripts', 'firewall', 'run.ps1');
     assert.equal(fs.existsSync(runScriptPath), true);
     assert.equal(fs.readFileSync(runScriptPath, 'utf8'), "Write-Host 'firewall rule'\n");
 
     const catalog = JSON.parse(fs.readFileSync(path.join(root, 'scripts-catalog.json'), 'utf8'));
-    assert.deepEqual(catalog.scripts.map((script) => script.id), ['SC-AAAAAAA0']);
+    assert.deepEqual(catalog.scripts.map((script) => script.id), ['firewall']);
 
-    const content = readCustomScriptContent(config, 'SC-AAAAAAA0');
+    const content = readCustomScriptContent(config, 'firewall');
     assert.equal(content.content, "Write-Host 'firewall rule'\n");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -1991,8 +2040,9 @@ test('resolveDeploymentProfileState exposes selected custom scripts from install
     }, { uploadId: 'upload-fw' });
     const created = await createCustomScript(config, {
       uploadId: 'upload-fw',
+      scriptId: 'firewall',
       name: 'Firewall',
-    }, { randomInt: () => 26 });
+    });
 
     const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
     profile.installSequence = [
@@ -2022,8 +2072,9 @@ test('publishDeploymentProfile copies scripts and writes installSequence-only ma
     }, { uploadId: 'upload-before' });
     const beforeScript = await createCustomScript(config, {
       uploadId: 'upload-before',
+      scriptId: 'before-script',
       name: 'Before Script',
-    }, { randomInt: () => 26 });
+    });
 
     await uploadCustomScript(config, {
       fileName: 'after.ps1',
@@ -2031,8 +2082,9 @@ test('publishDeploymentProfile copies scripts and writes installSequence-only ma
     }, { uploadId: 'upload-after' });
     const afterScript = await createCustomScript(config, {
       uploadId: 'upload-after',
+      scriptId: 'after-script',
       name: 'After Script',
-    }, { randomInt: () => 27 });
+    });
 
     const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
     profile.execution = { defaultTimeoutSeconds: 600 };
@@ -2079,8 +2131,9 @@ test('deleteCustomScript refuses when a profile still references it', async () =
     }, { uploadId: 'upload-fw' });
     const created = await createCustomScript(config, {
       uploadId: 'upload-fw',
+      scriptId: 'firewall',
       name: 'Firewall',
-    }, { randomInt: () => 26 });
+    });
 
     const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8'));
     profile.installSequence = [
@@ -2101,9 +2154,50 @@ test('deleteCustomScript refuses when a profile still references it', async () =
   }
 });
 
-test('generateCustomScriptId produces SC- prefixed ids', () => {
-  const id = generateCustomScriptId([], { randomInt: () => 26 });
-  assert.match(id, /^SC-/);
+test('createCustomScript rejects missing invalid and duplicate human ids', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+
+    await uploadCustomScript(config, {
+      fileName: 'firewall.ps1',
+      buffer: Buffer.from("Write-Host 'firewall'\n"),
+    }, { uploadId: 'upload-fw' });
+
+    await assert.rejects(() => createCustomScript(config, {
+      uploadId: 'upload-fw',
+      name: 'Missing ID',
+    }), /Custom script id is required/);
+    await assert.rejects(() => createCustomScript(config, {
+      uploadId: 'upload-fw',
+      scriptId: 'Bad_ID',
+      name: 'Bad ID',
+    }), /lowercase letters, numbers, and hyphens only/);
+    await assert.rejects(() => createCustomScript(config, {
+      uploadId: 'upload-fw',
+      scriptId: 'abcdefghijklmnopq',
+      name: 'Too Long',
+    }), /max 16 characters/);
+    const created = await createCustomScript(config, {
+      uploadId: 'upload-fw',
+      scriptId: 'firewall',
+      name: 'Firewall',
+    });
+    assert.equal(created.script.id, 'firewall');
+
+    await uploadCustomScript(config, {
+      fileName: 'other.ps1',
+      buffer: Buffer.from("Write-Host 'other'\n"),
+    }, { uploadId: 'upload-other' });
+    await assert.rejects(() => createCustomScript(config, {
+      uploadId: 'upload-other',
+      scriptId: 'firewall',
+      name: 'Duplicate',
+    }), /Duplicate custom script id or source/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('loadCustomScriptCatalog returns empty when no catalog file exists', () => {

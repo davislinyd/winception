@@ -261,9 +261,9 @@ async function makeServer(root, overrides = {}) {
         }
         return {
           software: {
-            id: 'SW-TEST001',
+            id: input.softwareId,
             name: input.name,
-            source: 'SW-TEST001',
+            source: input.softwareId,
             installerFileName: 'tool.msi',
           },
           bytes: 4,
@@ -741,6 +741,7 @@ test('runs mutating API actions through the controller', async () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         uploadId: 'SOFTWARE-UPLOAD',
+        softwareId: 'tool-app',
         name: 'Tool App',
         scriptMode: 'template',
         installerType: 'msi',
@@ -748,7 +749,7 @@ test('runs mutating API actions through the controller', async () => {
     });
     assert.equal(response.status, 200);
     payload = await response.json();
-    assert.equal(payload.result.software.id, 'SW-TEST001');
+    assert.equal(payload.result.software.id, 'tool-app');
     assert.equal(payload.result.uploadRemoved, true);
 
     response = await fetch(`${base}/api/software/script?softwareId=chrome`);

@@ -676,7 +676,7 @@ export function renderOsImages(appState) {
         : `WIM image index ${image.imageIndex}`;
       const cacheText = image.cached ? `${bytes(image.bytes)} cached` : 'missing';
       const usageText = inUse
-        ? ` · used by ${usedBy.map((profile) => profile.name ?? profile.id).join(', ')}`
+        ? ` · used by ${usedBy.map((profile) => profile.name).join(', ')}`
         : '';
       appendTextCell(tr, `${cacheText}${usageText}`);
       const actionCell = document.createElement('td');
@@ -1228,7 +1228,6 @@ export function renderProfiles(appState) {
       ? (osImage ? `${profile.osImageId} — ${osImageLabel(osImage)}` : `${profile.osImageId} (missing)`)
       : '-';
     for (const value of [
-      profile.id,
       profile.name,
       osLabel,
       profile.softwareIds?.length ? profile.softwareIds.join(', ') : 'none',
@@ -1296,10 +1295,10 @@ export function renderSoftwareCatalog(appState) {
   for (const item of software) {
     const tr = document.createElement('tr');
     const selectedProfiles = item.usedByProfiles?.length
-      ? item.usedByProfiles.map((profile) => profile.name || profile.id)
+      ? item.usedByProfiles.map((profile) => profile.name)
       : (profileState.profiles ?? [])
         .filter((profile) => profile.softwareIds?.includes(item.id))
-        .map((profile) => profile.name || profile.id);
+        .map((profile) => profile.name);
     for (const value of [
       item.id,
       item.name,
@@ -1362,7 +1361,7 @@ export function renderScriptCatalog(appState) {
   for (const item of scripts) {
     const tr = document.createElement('tr');
     const selectedProfiles = item.usedByProfiles?.length
-      ? item.usedByProfiles.map((profile) => profile.name || profile.id)
+      ? item.usedByProfiles.map((profile) => profile.name)
       : [];
     for (const value of [
       item.id,

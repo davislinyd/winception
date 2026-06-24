@@ -185,8 +185,15 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /Display language/);
   assert.match(html, /Regional format/);
   assert.match(html, /Input language/);
-  assert.doesNotMatch(html, /id="software-add-id"/);
-  assert.doesNotMatch(html, /Software ID <input/);
+  assert.doesNotMatch(html, /id="profile-id-preview"/);
+  assert.doesNotMatch(html, /id="software-profile-id"/);
+  assert.doesNotMatch(html, /Profile ID <input/);
+  assert.doesNotMatch(html, /Active profile ID <input/);
+  assert.match(html, /Software ID <input id="software-add-id" name="softwareId"[^>]*pattern="\[a-z0-9\]\[a-z0-9-\]\{0,15\}"/);
+  assert.match(html, /Script ID <input id="script-add-id" name="scriptId"[^>]*pattern="\[a-z0-9\]\[a-z0-9-\]\{0,15\}"/);
+  assert.match(script, /validateHumanCatalogId/);
+  assert.match(script, /softwareId: elements\.softwareAddId\.value\.trim\(\)/);
+  assert.match(script, /scriptId: elements\.scriptAddId\.value\.trim\(\)/);
   assert.match(html, /id="software-add-file"[^>]*accept="\.msi,\.exe"/);
   assert.match(html, /id="software-add-script-mode"/);
   assert.match(html, /value="template"/);
@@ -401,8 +408,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /function showAddSoftwareDialog\(\)/);
   assert.match(script, /function handleSoftwareAdd\(input\)/);
   assert.match(script, /function updateAddSoftwareSelectedInstallerDefaults\(\)/);
-  assert.doesNotMatch(script, /softwareAddId/);
-  assert.doesNotMatch(script, /safeSoftwareId/);
+  assert.match(script, /softwareAddId/);
+  assert.match(script, /Software ID: \$\{input\.softwareId\}/);
   assert.match(script, /\/api\/software-upload\?fileName=/);
   assert.match(script, /\/api\/software\/create/);
   assert.match(script, /It does not publish Apps or change the active profile/);

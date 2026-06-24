@@ -732,7 +732,7 @@ export class ServiceController extends EventEmitter {
       this.config.deploymentProfiles ??= {};
       this.config.deploymentProfiles.activeProfile = result.profile.id;
       const savedPath = this.dependencies.saveConfig(this.config);
-      this.addLog(`Published deployment profile ${result.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+      this.addLog(`Published deployment profile ${result.profile.name}: ${formatSoftwareList(result.selectedSoftware)}`);
       for (const line of softwarePayloadLogLines(result.softwarePayloads)) {
         this.addLog(line);
       }
@@ -1015,7 +1015,7 @@ export class ServiceController extends EventEmitter {
   async addDeploymentProfile(input) {
     return this.runOperation('Creating deployment profile', async () => {
       const created = this.dependencies.createDeploymentProfile(this.config, input);
-      this.addLog(`Created deployment profile ${created.profile.id}: ${created.profile.softwareIds.join(', ') || 'none'}`);
+      this.addLog(`Created deployment profile ${created.profile.name}: ${created.profile.softwareIds.join(', ') || 'none'}`);
       return created;
     });
   }
@@ -1108,7 +1108,7 @@ export class ServiceController extends EventEmitter {
       };
       if (!editingActive) {
         const updated = this.dependencies.updateDeploymentProfile(this.config, targetId, updateInput);
-        this.addLog(`Saved inactive deployment profile ${updated.profile.id}: ${updated.profile.softwareIds.join(', ') || 'none'}`);
+        this.addLog(`Saved inactive deployment profile ${updated.profile.name}: ${updated.profile.softwareIds.join(', ') || 'none'}`);
         return { profile: updated.profile };
       }
       await this.stopAllServices();
@@ -1117,7 +1117,7 @@ export class ServiceController extends EventEmitter {
       const result = await this.dependencies.publishDeploymentProfile(this.config, updated.profile.id, {
         publishOsImage: this.dependencies.publishSelectedOsImage,
       });
-      this.addLog(`Saved deployment profile ${updated.profile.id}: ${formatSoftwareList(result.selectedSoftware)}`);
+      this.addLog(`Saved deployment profile ${updated.profile.name}: ${formatSoftwareList(result.selectedSoftware)}`);
       for (const line of softwarePayloadLogLines(result.softwarePayloads)) {
         this.addLog(line);
       }
@@ -1143,7 +1143,7 @@ export class ServiceController extends EventEmitter {
   async removeDeploymentProfile(profileId) {
     return this.runOperation('Deleting deployment profile', async () => {
       const deleted = this.dependencies.deleteDeploymentProfile(this.config, profileId);
-      this.addLog(`Deleted deployment profile ${deleted.profile.id}`);
+      this.addLog(`Deleted deployment profile ${deleted.profile.name}`);
       return deleted;
     });
   }

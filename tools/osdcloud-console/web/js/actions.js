@@ -33,7 +33,7 @@ export async function handleProfileDelete(profile) {
   const ok = await confirmAction({
     title: 'Delete inactive profile',
     message: 'This removes only an inactive deployment profile JSON file. Active profiles cannot be deleted.',
-    details: [`Profile: ${profile.name} (${profile.id})`],
+    details: [`Profile: ${profile.name}`],
     confirmLabel: 'Delete',
     danger: true,
   });
@@ -46,7 +46,7 @@ export async function handleProfileSelect(profile) {
   const ok = await confirmAction({
     title: 'Select deployment profile',
     message: 'This stops services, writes the active profile, replaces the live Apps payload, and reruns preflight.',
-    details: [`Profile: ${profile.name} (${profile.id})`, `Software: ${profile.softwareIds?.join(', ') || 'none'}`],
+    details: [`Profile: ${profile.name}`, `Software: ${profile.softwareIds?.join(', ') || 'none'}`],
     confirmLabel: 'Set active',
     severity: 'warning',
   });
@@ -199,7 +199,7 @@ export async function handleSoftwareAdd(input) {
     message: 'This writes a new Softwares folder and catalog entry only. It does not publish Apps or change the active profile.',
     details: [
       `Software: ${input.name}`,
-      'Software ID: generated automatically',
+      `Software ID: ${input.softwareId}`,
       `Installer: ${input.file.name}`,
       `Script mode: ${input.scriptMode}`,
       `Post-install verification: ${
@@ -227,6 +227,7 @@ export async function handleSoftwareAdd(input) {
       method: 'POST',
       body: JSON.stringify({
         uploadId: uploadPayload.result.uploadId,
+        softwareId: input.softwareId,
         name: input.name,
         scriptMode: input.scriptMode,
         installerType: input.installerType,
@@ -249,7 +250,7 @@ export async function handleSoftwareAdd(input) {
 }
 
 export async function handleSoftwareDelete(software) {
-  const usedByProfiles = software.usedByProfiles?.map((profile) => profile.name || profile.id) ?? [];
+  const usedByProfiles = software.usedByProfiles?.map((profile) => profile.name) ?? [];
   if (usedByProfiles.length) {
     window.alert(`Remove ${software.name || software.id} from profiles first: ${usedByProfiles.join(', ')}`);
     return;
@@ -575,7 +576,7 @@ export async function handleAction(action, source = null) {
             title: 'Save deployment profile',
             message: 'This updates the profile JSON only. Services and the live Apps payload are not touched.',
             details: [
-              `Profile: ${profileUpdate.name} (${profileUpdate.profileId})`,
+              `Profile: ${profileUpdate.name}`,
               `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`,
               `Custom scripts: ${scriptDetail}`,
             ],
@@ -594,7 +595,7 @@ export async function handleAction(action, source = null) {
       return;
     }
     await showPicker('Delete deployment profile', candidates.map((profile) => ({
-      title: `${profile.name} (${profile.id})`,
+      title: profile.name,
       detail: profile.softwareIds.length ? profile.softwareIds.join(', ') : 'no client software',
       value: profile,
     })), (profile) => {

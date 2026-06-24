@@ -608,7 +608,7 @@ test('software package actions upload and add catalog entry without publishing',
           createInput = input;
           return {
             software: {
-              id: 'SW-TOOL001',
+              id: input.softwareId,
               name: input.name,
               installerFileName: 'tool.msi',
             },
@@ -635,13 +635,14 @@ test('software package actions upload and add catalog entry without publishing',
     });
     const created = await controller.addSoftwarePackage({
       uploadId: uploaded.uploadId,
+      softwareId: 'tool-app',
       name: 'Tool App',
       scriptMode: 'template',
     });
 
     assert.equal(uploadedInput.fileName, 'tool.msi');
-    assert.equal(Object.prototype.hasOwnProperty.call(createInput, 'id'), false);
-    assert.equal(created.software.id, 'SW-TOOL001');
+    assert.equal(createInput.softwareId, 'tool-app');
+    assert.equal(created.software.id, 'tool-app');
     assert.equal(publishCalled, false);
     assert.equal(services.http.running, true);
     assert.equal(services.tftp.running, true);
