@@ -9,6 +9,7 @@
 # Local download and cache folders
 downloads/
 .downloads/
+.codex/generated/
 deployment-server-bundle/
 *.deployment-server.zip
 node_modules/
@@ -25,6 +26,9 @@ osdcloud-assets/**/Apps/**/*.msi
 osdcloud-assets/**/Apps/**/*.exe
 *.tmp
 *.temp
+.tmp-*.json
+tools/.tmp-*.ps1
+docs/* - 複製.html
 
 # Screenshots captured during interactive troubleshooting
 *.png
@@ -40,6 +44,7 @@ osdcloud-assets/**/Apps/**/*.exe
 *.etl
 *.evtx
 client_osdcloud/
+client_logs/
 
 # Windows metadata
 Thumbs.db
