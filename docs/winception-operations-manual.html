@@ -478,11 +478,11 @@
   <a class="skip-link" href="#main">跳到主要內容</a>
 
   <header class="hero">
-    <p class="eyebrow">Operations &amp; Engineering Manual · v0.6.0</p>
+    <p class="eyebrow">Operations &amp; Engineering Manual · v0.6.1</p>
     <h1>Winception<br>部署操作手冊</h1>
     <p class="hero-lede">給部署技術人員與現場操作員的單頁指南：從 PXE 開機技術、Web Console 點選流程、Torrent P2P 映像分發，到 <code>windows-desktop-ready</code> 的成功判定與故障排除。</p>
     <div class="hero-meta" aria-label="手冊資訊">
-      <span class="meta-pill">最後校對：2026-06-21</span>
+      <span class="meta-pill">最後校對：2026-06-24</span>
       <span class="meta-pill">預設 boot mode：Secure Boot</span>
       <span class="meta-pill">Active path：實體 client UEFI IPv4 PXE</span>
       <span class="meta-pill">VM：僅 regression evidence</span>
@@ -557,7 +557,7 @@
           <article class="card">
             <span class="status stop">RETIRED</span>
             <h3>ISO path</h3>
-            <p><code>C:\OSDCloud\Win11-Lab</code> 與舊 ISO 僅是歷史證據。不要把 ISO、USB 或舊 workspace 恢復成 active path。</p>
+            <p><code>C:\OSDCloud\Win11-Lab</code> 與舊 ISO 僅是歷史證據。新的 <code>New-WinceptionUsbInstaller.cmd -Iso</code> 是獨立 add-on，不可和舊 ISO path 混用。</p>
           </article>
         </div>
         <div class="callout warning">
@@ -665,6 +665,19 @@
         <div class="callout danger">
           <strong>絕對不要手動修改 runtime root</strong>
           若 live deployment 行為錯誤，回 Git workspace 修 source、驗證、發布／reload，再由 Endpoint Sync 或 profile publish 產生 runtime state。
+        </div>
+
+        <h3>USB / ISO offline add-on</h3>
+        <p>USB/ISO 路徑是 additive snapshot export，不取代實體 PXE active path，也不讀取 host endpoint。它從目前 active deployment state 匯出 immutable media：selected WIM、active profile 的 Apps / Scripts、目前存在的 driver packs、boot files 與 deployment secrets。</p>
+        <pre><code>.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3 -CheckOnly
+.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3
+.\New-WinceptionUsbInstaller.cmd -Iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OutputPath D:\Winception-USB.iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OpenInRufus -RufusPath C:\Tools\rufus.exe</code></pre>
+        <p><code>-CheckOnly</code> 只做前置檢查與容量/安全驗證，不寫磁碟。USB 只接受非 boot/system 的 USB disk，建立時會要求精確輸入 <code>ERASE DISK &lt;number&gt;</code>；輸出為 GPT、UEFI x64、FAT32 <code>WinPE</code> 與 NTFS <code>OSDCloudUSB</code>。ISO 預設寫到 <code>&lt;project-root&gt;\Exports</code>；<code>-OpenInRufus</code> 只預載 ISO 與 NTFS preference，不會替 operator 選 disk 或開始寫入。</p>
+        <div class="callout warning">
+          <strong>USB / ISO 是敏感媒體</strong>
+          內容包含可部署 Windows 的 local secrets。離線 WinPE 只允許一個 internal target disk；部署完成後以 media ID + <code>appliedAt</code> 阻止同一媒體再次清除。這條路徑只證明該次 snapshot，不可拿來替代 PXE readiness 證據。
         </div>
       </section>
 
@@ -944,7 +957,7 @@
   </div>
 
   <footer>
-    Winception deployment manual · 依 2026-06-22 live code、repo docs、Web v0.6.0 與唯讀 UI 狀態校對。
+    Winception deployment manual · 依 2026-06-24 live code、repo docs、Web v0.6.1 與唯讀 UI 狀態校對。
   </footer>
   </div>
 
@@ -952,11 +965,11 @@
   <a class="skip-link" href="#en-main">Skip to main content</a>
 
   <header class="hero">
-    <p class="eyebrow">Operations &amp; Engineering Manual · v0.6.0</p>
+    <p class="eyebrow">Operations &amp; Engineering Manual · v0.6.1</p>
     <h1>Winception<br>Deployment Manual</h1>
     <p class="hero-lede">A single-page guide for deployment technicians and field operators: PXE boot technology, Web Console procedures, Torrent P2P image delivery, success criteria through <code>windows-desktop-ready</code>, and troubleshooting.</p>
     <div class="hero-meta" aria-label="Manual information">
-      <span class="meta-pill">Last reviewed: 2026-06-21</span>
+      <span class="meta-pill">Last reviewed: 2026-06-24</span>
       <span class="meta-pill">Default boot mode: Secure Boot</span>
       <span class="meta-pill">Active path: physical client UEFI IPv4 PXE</span>
       <span class="meta-pill">VM: regression evidence only</span>
@@ -1020,7 +1033,7 @@
         <div class="grid-3">
           <article class="card"><span class="status pass">ACTIVE PATH</span><h3>Physical client</h3><p>Boot from <strong>UEFI IPv4 PXE</strong> through the physical NIC/IP selected in the Web Console. Only this path proves that physical devices are deployable.</p></article>
           <article class="card"><span class="status info">REGRESSION</span><h3>Hyper-V VM</h3><p>Quickly validates WinPE, OS apply, OOBE, SetupComplete, apps, scripts, and callbacks. VM success <strong>does not prove</strong> that the physical LAN endpoint is ready.</p></article>
-          <article class="card"><span class="status stop">RETIRED</span><h3>ISO path</h3><p><code>C:\OSDCloud\Win11-Lab</code> and old ISOs are historical evidence only. Do not restore ISO, USB, or an old workspace as the active path.</p></article>
+          <article class="card"><span class="status stop">RETIRED</span><h3>ISO path</h3><p><code>C:\OSDCloud\Win11-Lab</code> and old ISOs are historical evidence only. The new <code>New-WinceptionUsbInstaller.cmd -Iso</code> export is a separate add-on path and must not be mixed with the retired ISO workspace.</p></article>
         </div>
         <div class="callout warning"><strong>Every screen value is a snapshot, not permanent configuration</strong>Before physical deployment, recheck the service interface and IP, DHCP and boot modes, lease range, router, HTTP base, SMB share, active OS image and profile, and preflight. Do not blindly trust committed <code>config\osdcloud-console.json</code>.</div>
       </section>
@@ -1084,6 +1097,15 @@
           <dt>Client safe progress state</dt><dd><code>C:\ProgramData\OSDCloud\deployment-progress.json</code>. Viewer-only; excludes secrets, raw command lines, and full error output.</dd>
         </dl>
         <div class="callout danger"><strong>Never modify the runtime root manually</strong>If live deployment behavior is wrong, fix source in the Git workspace, test, publish/reload, then let Endpoint Sync or profile publish generate runtime state.</div>
+        <h3>USB / ISO offline add-on</h3>
+        <p>The USB/ISO path is an additive snapshot export. It does not replace the physical PXE active path and does not read the host endpoint at deployment time. It exports immutable media from the current active deployment state: the selected WIM, active profile apps/scripts, current driver packs, boot files, and deployment secrets.</p>
+        <pre><code>.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3 -CheckOnly
+.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3
+.\New-WinceptionUsbInstaller.cmd -Iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OutputPath D:\Winception-USB.iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OpenInRufus -RufusPath C:\Tools\rufus.exe</code></pre>
+        <p><code>-CheckOnly</code> performs prerequisite, capacity, and safety validation without writing a disk. USB accepts only non-boot, non-system USB disks and requires the exact confirmation text <code>ERASE DISK &lt;number&gt;</code>; output is GPT, UEFI x64, FAT32 <code>WinPE</code>, and NTFS <code>OSDCloudUSB</code>. ISO defaults to <code>&lt;project-root&gt;\Exports</code>; <code>-OpenInRufus</code> only preloads the ISO and NTFS preference and does not choose a disk or start writing.</p>
+        <div class="callout warning"><strong>USB / ISO media is sensitive</strong>It contains deployable local Windows secrets. Offline WinPE allows only one eligible internal target disk and uses media ID + <code>appliedAt</code> to prevent the same media from wiping the device twice. This path proves only that specific snapshot and does not replace PXE readiness evidence.</div>
       </section>
 
       <section id="en-safety" class="reveal">
@@ -1259,7 +1281,7 @@
     </main>
   </div>
 
-  <footer>Winception deployment manual · Reviewed against live code, repository documentation, Web v0.6.0, and read-only UI state on 2026-06-22.</footer>
+  <footer>Winception deployment manual · Reviewed against live code, repository documentation, Web v0.6.1, and read-only UI state on 2026-06-24.</footer>
   </div>
 
   <dialog id="lightbox" aria-label="Image preview">

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.1 — 2026-06-24
 
 ### 新功能：USB/ISO 離線 zero-touch installer
 
@@ -10,6 +10,7 @@
 - `deploymentMode: usb-offline` 將最後 stage 原子寫入 `DeploymentStatus.json.localStatus`；既有 PXE HTTP telemetry 在未設定該模式時維持原行為
 - 修正 USB/ISO WinPE Startnet 不再呼叫 PXE/OSDCloud network bootstrap，離線媒體開機後不再等待 DHCP lease，直接進入 USB offline installer
 - 修正沒有相符離線 driver pack 時，USB WinPE 在 OSDCloud 完成後因 `$null` `DriverPack` 參數繫結錯誤而停止
+- 新增正式驗收證據：重建後的 ISO 已以 Hyper-V Gen2、Secure Boot ON、無 NIC 路徑部署到 `windows-desktop-ready`
 
 ### 新功能：Web Console 手冊入口
 

@@ -2,7 +2,7 @@
 
 Authoritative evidence and no-AI operator runbook for a completed from-zero deployment setup test.
 
-**Date validated**: 2026-06-20
+**Date validated**: 2026-06-24
 **Boot mode**: `secureboot` (default) — Microsoft-signed `bootmgfw.efi` → network BCD → TFTP windowed `boot.wim` → WinPE
 **Hardware validated**: Dell physical laptop (Latitude series); Hyper-V Gen2 with Secure Boot ON
 
