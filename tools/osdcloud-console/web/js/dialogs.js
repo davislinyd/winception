@@ -35,6 +35,11 @@ export function isEmbeddedConfigDialog(dialog) {
   return embeddedConfigDialogs().includes(dialog);
 }
 
+export function isInsideStandaloneDialog(target) {
+  const dialog = target?.closest?.('dialog');
+  return Boolean(dialog && !dialog.classList.contains('embedded-open'));
+}
+
 export function closeEmbeddedConfig(except = null) {
   const host = document.getElementById('config-embed');
   for (const dialog of embeddedConfigDialogs()) {

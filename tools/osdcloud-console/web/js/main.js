@@ -1,7 +1,7 @@
 import { clearFleetSelection, handleAction, handleFleetBulkAction, handleOsImageDelete, handleOsImageDownload, handleOsImageImport, handleOsImageReexport, handleProfileDelete, handleProfileSelect, handleSoftwareDelete, selectFleetCard, setFleetExpanded, switchToView, toggleFleetSelection } from './actions.js';
 import { api, refresh } from './api.js';
 import { clearRefineFilters, openValidationEvidenceFromTarget } from './deploy.js';
-import { closeDialog, closeEmbeddedConfig, confirmEndpointSync, enableBackdropCloseForDialogs, handleScriptDelete, showScriptContentViewer, showSoftwareDetails, showSoftwareScriptViewer, suppressBackdropCloseClickThrough } from './dialogs.js';
+import { closeDialog, closeEmbeddedConfig, confirmEndpointSync, enableBackdropCloseForDialogs, handleScriptDelete, isInsideStandaloneDialog, showScriptContentViewer, showSoftwareDetails, showSoftwareScriptViewer, suppressBackdropCloseClickThrough } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
 import { renderFleetCards } from './fleet.js';
 import { render } from './render.js';
@@ -200,6 +200,7 @@ document.addEventListener('mousedown', (event) => {
   if (!target) return;
   // deploy-seg segment buttons have their own toggle logic — don't interfere
   if (target.closest('.deploy-seg[data-action]')) return;
+  if (isInsideStandaloneDialog(target)) return;
   if (!target.closest('#config-embed')) {
     closeEmbeddedConfig();
   }

@@ -551,6 +551,16 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /```html/);
 });
 
+test('embedded config click-away ignores child dialogs', () => {
+  const script = readWebScript();
+
+  assert.match(script, /function isInsideStandaloneDialog\(target\)/);
+  assert.match(script, /target\?\.closest\?\.\('dialog'\)/);
+  assert.match(script, /!dialog\.classList\.contains\('embedded-open'\)/);
+  assert.match(script, /if \(isInsideStandaloneDialog\(target\)\) return;/);
+  assert.match(script, /if \(!target\.closest\('#config-embed'\)\) \{\s*closeEmbeddedConfig\(\);\s*\}/);
+});
+
 test('preflight failed rows expose hover fix hints', () => {
   const script = readWebScript();
 
