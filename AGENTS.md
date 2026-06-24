@@ -1,6 +1,6 @@
 # Agent Instructions
 
-This repository documents and validates a Windows 11 zero-touch deployment lab using OSDCloud. Keep this file as the always-on operational contract for future agents. Use conditional reference files for task-specific details.
+This repository documents and validates the Winception Windows 11 zero-touch deployment product using OSDCloud. Keep this file as the always-on operational contract for future agents. Use conditional reference files for task-specific details.
 
 
 ## Startup Checks
@@ -23,7 +23,7 @@ Read these files only when the task touches the relevant area:
 - Choosing verification for Web, OS image, profile/software/custom script, driver pack, multi-client, WinPE/SetupComplete, or other subsystem changes: `docs/agent-reference/validation-scenarios.md`.
 - Documentation updates, Git file selection, generated artifact handling, handoff, push, or deployment-clone workflow questions: `docs/agent-reference/repo-workflow.md`.
 - Completed 0-to-1 deployment setup evidence, restored-VM rebuild steps, or no-AI operator runbook questions: `TEST-RESULT.md`.
-- Human operator instructions: `README.md`.
+- Product technician instructions: `README.md`.
 
 ## Live State Rules
 
@@ -33,7 +33,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 
 - Read the active deployment project root / working directory, service interface, service IP, DHCP lease range, router, HTTP base, SMB share, active OS image, driver cache summary, and active deployment profile from live Web/API/config state.
 - Inspect `config\osdcloud-console.json`, any ignored local overlay, the active client boot mode (`dhcp.bootMode`: `secureboot` or `ipxe`), live `boot.ipxe`, host adapter state, and relevant Web state immediately before acting.
-- Treat `config\osdcloud-console.json` as the last synced lab snapshot, not guaranteed production truth.
+- Treat `config\osdcloud-console.json` as the last synced deployment snapshot, not guaranteed production truth.
 - If the repo or runtime appears to be on a non-production endpoint, switch deliberately before physical-laptop validation.
 
 ## Path Guardrails
@@ -86,7 +86,7 @@ docs\agent-reference\...
 osdcloud-assets
 ```
 
-Keep `README.md` concise and user-facing. Keep `TEST-RESULT.md` as the detailed evidence-oriented 0-to-1 record and no-AI operator runbook. Keep `AGENTS.md` focused on always-on operational rules. Keep `docs\agent-reference` focused on conditional task references.
+Keep `README.md` concise, bilingual, and product-facing. Keep `TEST-RESULT.md` as the detailed evidence-oriented 0-to-1 record and no-AI operator runbook. Keep `AGENTS.md` focused on always-on operational rules. Keep `docs\agent-reference` focused on conditional task references.
 
 ## Git And Status Workflow
 

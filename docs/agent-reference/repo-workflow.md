@@ -7,7 +7,7 @@ Read this file when a task touches documentation updates, Git file selection, ge
 - `AGENTS.md` is the always-on global hardening contract for future agents.
 - `TEST-RESULT.md` is the detailed evidence-oriented 0-to-1 deployment record and no-AI operator runbook.
 - `docs\agent-reference\...` contains conditional task references that agents should read only when relevant.
-- `README.md` is the concise human operator runbook.
+- `README.md` is the concise bilingual product technician guide.
 - `CHANGELOG.md` is the concise history of tracked product/documentation changes when the workflow calls for it.
 
 When behavior changes, update the relevant docs in the same workflow:
@@ -21,7 +21,7 @@ docs\agent-reference\...
 osdcloud-assets
 ```
 
-For deployment flow, Web console behavior, service-interface selection, endpoint synchronization, network topology, validation criteria, or failure triage changes, update the README user manual sections so a human operator can run the workflow without reading agent-only files.
+For deployment flow, Web console behavior, service-interface selection, endpoint synchronization, network topology, validation criteria, or failure triage changes, update the README product guide sections so a technician can run the workflow without reading agent-only files.
 
 For portability/setup changes, update the README handoff/fresh-clone flow, `osdcloud-assets\README.md`, and `TEST-RESULT.md` when the 0-to-1 operator path or fresh-clone readiness evidence changes.
 

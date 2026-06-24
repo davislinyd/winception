@@ -1,7 +1,7 @@
 # 技術流程圖 (Technical Flow)
 
-OSDCloud + iPXE 零接觸部署的系統架構與資料流。從部署主機安裝、服務編排，到目標電腦
-PXE 開機、套用影像、回報狀態的完整路徑。
+Winception Windows 11 zero-touch deployment 的系統架構與資料流。從部署主機安裝、
+服務編排，到目標電腦 PXE 開機、套用映像、回報狀態的完整路徑。
 
 ![技術流程圖：OSDCloud 部署架構與資料流](technical-flow.svg)
 
@@ -16,4 +16,4 @@ PXE 開機、套用影像、回報狀態的完整路徑。
 | Boot mode | 預設 `secureboot`（微軟簽章 Windows Boot Manager 走 TFTP）；`iPXE` 為替代路徑。 |
 | 狀態回報 | client 以 JSONL POST 到 `/osdcloud/status`；生命週期：`run-start → winpe-end → windows-start → windows-apps-finished → windows-setupcomplete-finished → windows-desktop-ready`。 |
 
-> 安全閘門：`Run preflight` 必須全綠、且確認測試 LAN 無其他 DHCP，才可 `Start services`。
+> 安全閘門：`Run preflight` 必須全綠，且部署網段的 DHCP mode 已確認正確，才可 `Start services`。
