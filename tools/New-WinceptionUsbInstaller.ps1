@@ -189,6 +189,42 @@ function Get-AdkIsoTools {
     return $tools
 }
 
+function Get-AuthenticodeSignatureIsolated {
+    param([Parameter(Mandatory)][string] $Path)
+
+    # Run the signature check in a clean Windows PowerShell child process.
+    # This avoids parent runspace module/type state breaking
+    # Microsoft.PowerShell.Security autoload in the current session.
+    $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (-not (Test-Path -LiteralPath $psExe -PathType Leaf)) {
+        $psExe = Join-Path $PSHOME 'powershell.exe'
+    }
+    $previous = $env:OSDCLOUD_SIGCHECK_PATH
+    $env:OSDCLOUD_SIGCHECK_PATH = $Path
+    try {
+        $out = & $psExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command {
+            $ErrorActionPreference = 'Stop'
+            Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security') -ErrorAction Stop
+            $sig = Get-AuthenticodeSignature -LiteralPath $env:OSDCLOUD_SIGCHECK_PATH
+            [pscustomobject]@{
+                Status  = [string] $sig.Status
+                Subject = [string] $sig.SignerCertificate.Subject
+            } | ConvertTo-Json -Compress
+        } 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Isolated Authenticode check failed (exit ${LASTEXITCODE}) for ${Path}: $out"
+        }
+        $json = @($out | Where-Object { "$_".Trim().StartsWith('{') })[-1]
+        if ([string]::IsNullOrWhiteSpace($json)) {
+            throw "Isolated Authenticode check returned no result for ${Path}: $out"
+        }
+        return ($json | ConvertFrom-Json)
+    }
+    finally {
+        $env:OSDCLOUD_SIGCHECK_PATH = $previous
+    }
+}
+
 function Get-RufusExecutable {
     param([string] $RequestedPath)
     if (-not [string]::IsNullOrWhiteSpace($RequestedPath)) {
@@ -380,7 +416,7 @@ function Get-SourceContext {
     foreach ($relative in $requiredBootFiles) {
         Assert-RequiredFile -Path (Join-Path $mediaRoot $relative) -Label "UEFI boot file $relative" | Out-Null
     }
-    $efiSignature = Get-AuthenticodeSignature -LiteralPath (Join-Path $mediaRoot 'efi\boot\bootx64.efi')
+    $efiSignature = Get-AuthenticodeSignatureIsolated -Path (Join-Path $mediaRoot 'efi\boot\bootx64.efi')
     if ($efiSignature.Status -ne 'Valid') {
         throw "EFI boot loader signature is not valid: $($efiSignature.Status)"
     }

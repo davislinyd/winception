@@ -78,6 +78,13 @@ test('capacity and FAT32 guards include explicit headroom', () => {
   assert.match(main, /Assert-AvailableSpace/);
 });
 
+test('USB installer imports Security module by child PSHOME path before Authenticode check', () => {
+  assert.match(main, /function Get-AuthenticodeSignatureIsolated/);
+  assert.match(main, /Import-Module \(Join-Path \$PSHOME 'Modules\\Microsoft\.PowerShell\.Security'\) -ErrorAction Stop/);
+  assert.match(main, /Get-AuthenticodeSignature -LiteralPath \$env:OSDCLOUD_SIGCHECK_PATH/);
+  assert.match(main, /\$efiSignature = Get-AuthenticodeSignatureIsolated -Path \(Join-Path \$mediaRoot 'efi\\boot\\bootx64\.efi'\)/);
+});
+
 test('destructive USB path is identity-bound and rejects unsafe disks', () => {
   assert.match(main, /Refusing system\/boot disk/);
   assert.match(main, /Refusing non-USB disk/);

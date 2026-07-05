@@ -12,6 +12,12 @@
 - 修正沒有相符離線 driver pack 時，USB WinPE 在 OSDCloud 完成後因 `$null` `DriverPack` 參數繫結錯誤而停止
 - 新增正式驗收證據：重建後的 ISO 已以 Hyper-V Gen2、Secure Boot ON、無 NIC 路徑部署到 `windows-desktop-ready`
 
+### 修正：USB/ISO exporter 的 EFI 簽章檢查在部分 PowerShell session 失敗
+
+- `New-WinceptionUsbInstaller.ps1` 不再直接在目前 runspace 呼叫 `Get-AuthenticodeSignature`
+- 改為使用 Windows PowerShell child process，並從 child `$PSHOME\Modules\Microsoft.PowerShell.Security` 明確載入模組後再驗證 `bootx64.efi`
+- 避免目前 session 的 module/type state 或 inherited `PSModulePath` 讓 `-Iso` / `-Usb` 前置檢查在 EFI 簽章驗證階段提前中止
+
 ### 新功能：Web Console 手冊入口
 
 - 頂部列新增全域 `Manual` utility link；寬螢幕顯示文字與書本圖示，窄螢幕保留具 tooltip / ARIA label 的圖示，並在新分頁開啟手冊而不改變 Deploy / Activity 狀態
