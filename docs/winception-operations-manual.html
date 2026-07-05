@@ -319,6 +319,7 @@
       <div class="hero-actions">
         <a href="#product-overview">開始部署</a>
         <a href="#architecture">服務架構</a>
+        <a href="#usb-iso">USB / ISO 模式</a>
         <a href="#deploy-client">部署電腦</a>
       </div>
     </header>
@@ -333,6 +334,7 @@
             <a href="#architecture">服務如何運作</a>
             <a href="#boundaries">Runtime/State/Secrets 邊界</a>
             <a href="#readiness">部署前準備</a>
+            <a href="#usb-iso">USB / ISO 離線模式</a>
             <a href="#deploy-client">部署一台電腦</a>
             <a href="#monitoring">監控與完成判定</a>
             <a href="#maintenance">日常維護與故障排除</a>
@@ -419,8 +421,28 @@ cd '&lt;repo-root&gt;'
           </div>
         </section>
 
+        <section id="usb-iso">
+          <p class="section-kicker">06 · Offline media</p>
+          <h2>USB / ISO 離線模式</h2>
+          <p>手冊原本只描述 PXE active path。若要製作離線安裝媒體，請使用 <code>New-WinceptionUsbInstaller.cmd</code>。它會從目前 active deployment state 匯出 immutable snapshot：selected WIM、active profile 的 Apps / Scripts、目前存在的 driver packs、boot files 與 deployment secrets；不會修改既有 PXE endpoint、services、published <code>boot.wim</code> 或 retired ISO path。</p>
+          <pre><code>.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3 -CheckOnly
+.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3
+.\New-WinceptionUsbInstaller.cmd -Iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OutputPath D:\Winception-USB.iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OpenInRufus -RufusPath C:\Tools\rufus.exe</code></pre>
+          <ul>
+            <li><code>-CheckOnly</code> 只做前置檢查，不寫磁碟。會驗證 merged live config、OSD / OSDCloud modules、boot files、active profile、selected WIM、Apps / Scripts、driver packs、deployment secrets、容量與 FAT32 限制。</li>
+            <li><code>-Usb</code> 只接受非 boot/system 的 USB disk，執行前會顯示 model、serial、size，並要求精確輸入 <code>ERASE DISK &lt;number&gt;</code>。</li>
+            <li>輸出 USB 為 GPT、UEFI x64、FAT32 <code>WinPE</code> 與 NTFS <code>OSDCloudUSB</code>；<code>-Iso</code> 則輸出 no-prompt UDF ISO 到 <code>&lt;project-root&gt;\Exports</code>。</li>
+            <li><code>-OpenInRufus</code> 只預載 ISO 與 NTFS preference；Rufus 仍由 operator 選目標 disk 並開始寫入。</li>
+            <li>離線 WinPE 只允許一個 internal target disk；同一 media 完整套用後會以 media ID + <code>appliedAt</code> 阻止再次清除。</li>
+          </ul>
+          <div class="callout warning"><strong>敏感媒體</strong>USB / ISO 內含可部署 Windows 的 local secrets，必須視為敏感資產。這條路徑的證據只證明該次 snapshot，不可替代 PXE readiness。</div>
+          <div class="callout"><strong>目前驗收</strong>正式離線驗收已完成 ISO 路徑：rebuild 後的 ISO 在 Hyper-V Gen2、Secure Boot ON、無 NIC 的條件下部署到 <code>windows-desktop-ready</code>。</div>
+        </section>
+
         <section id="deploy-client">
-          <p class="section-kicker">06 · Client deployment</p>
+          <p class="section-kicker">07 · Client deployment</p>
           <h2>部署一台電腦</h2>
           <ol>
             <li>在 Web Console 按 <strong>Start all services</strong>。</li>
@@ -434,7 +456,7 @@ cd '&lt;repo-root&gt;'
         </section>
 
         <section id="monitoring">
-          <p class="section-kicker">07 · Monitoring</p>
+          <p class="section-kicker">08 · Monitoring</p>
           <h2>監控與完成判定</h2>
           <div class="grid-2">
             <figure><div class="media-frame"><img src="manual-assets/web-activity.png" loading="lazy" alt="Winception Activity cards，顯示 completed client runs 與 execution flow"><button class="zoom" type="button" data-zoom-src="manual-assets/web-activity.png" data-zoom-alt="Winception Activity cards">放大 Activity</button></div><figcaption>Activity 用於追蹤每台 target 的 execution flow 與結果。</figcaption></figure>
@@ -449,7 +471,7 @@ User               : &lt;target-computer&gt;\&lt;windowsUsername&gt;</code></pre
         </section>
 
         <section id="maintenance">
-          <p class="section-kicker">08 · Maintenance</p>
+          <p class="section-kicker">09 · Maintenance</p>
           <h2>日常維護與故障排除</h2>
           <div class="table-wrap"><table><thead><tr><th>現象</th><th>優先檢查</th><th>動作</th></tr></thead><tbody>
             <tr><td>Runtime blocked</td><td>Runtime Readiness detail</td><td>執行 Prepare runtime。</td></tr>
@@ -462,7 +484,7 @@ User               : &lt;target-computer&gt;\&lt;windowsUsername&gt;</code></pre
         </section>
 
         <section id="handoff">
-          <p class="section-kicker">09 · Handoff</p>
+          <p class="section-kicker">10 · Handoff</p>
           <h2>停止服務與交接</h2>
           <ol>
             <li>停止 DHCP、TFTP、HTTP services。</li>
@@ -482,7 +504,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
         </section>
 
         <section id="references">
-          <p class="section-kicker">10 · References</p>
+          <p class="section-kicker">11 · References</p>
           <h2>參考文件</h2>
           <ul>
             <li><a href="../README.md">README.md</a>：同檔雙語產品文件。</li>
@@ -503,6 +525,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
       <div class="hero-actions">
         <a href="#en-product-overview">Start deployment</a>
         <a href="#en-architecture">Service architecture</a>
+        <a href="#en-usb-iso">USB / ISO mode</a>
         <a href="#en-deploy-client">Deploy a computer</a>
       </div>
     </header>
@@ -517,6 +540,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
             <a href="#en-architecture">How The Services Work</a>
             <a href="#en-boundaries">Runtime/State/Secrets Boundaries</a>
             <a href="#en-readiness">Pre-Deployment Preparation</a>
+            <a href="#en-usb-iso">USB / ISO Offline Mode</a>
             <a href="#en-deploy-client">Deploy One Computer</a>
             <a href="#en-monitoring">Monitoring And Completion Criteria</a>
             <a href="#en-maintenance">Routine Maintenance And Troubleshooting</a>
@@ -603,8 +627,28 @@ cd '&lt;repo-root&gt;'
           </div>
         </section>
 
+        <section id="en-usb-iso">
+          <p class="section-kicker">06 · Offline media</p>
+          <h2>USB / ISO Offline Mode</h2>
+          <p>This manual originally described only the PXE active path. To create offline installation media, use <code>New-WinceptionUsbInstaller.cmd</code>. It exports an immutable snapshot from the current active deployment state: the selected WIM, active profile Apps / Scripts, current driver packs, boot files, and deployment secrets. It does not modify the existing PXE endpoint, services, published <code>boot.wim</code>, or the retired ISO path.</p>
+          <pre><code>.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3 -CheckOnly
+.\New-WinceptionUsbInstaller.cmd -Usb -DiskNumber 3
+.\New-WinceptionUsbInstaller.cmd -Iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OutputPath D:\Winception-USB.iso
+.\New-WinceptionUsbInstaller.cmd -Iso -OpenInRufus -RufusPath C:\Tools\rufus.exe</code></pre>
+          <ul>
+            <li><code>-CheckOnly</code> runs prerequisite checks without writing a disk. It validates merged live config, OSD / OSDCloud modules, boot files, the active profile, selected WIM, Apps / Scripts, driver packs, deployment secrets, capacity, and FAT32 limits.</li>
+            <li><code>-Usb</code> accepts only non-boot, non-system USB disks. Before writing, it shows model, serial, and size, then requires the exact text <code>ERASE DISK &lt;number&gt;</code>.</li>
+            <li>USB output is GPT, UEFI x64, a FAT32 <code>WinPE</code> partition, and an NTFS <code>OSDCloudUSB</code> partition. <code>-Iso</code> exports a no-prompt UDF ISO to <code>&lt;project-root&gt;\Exports</code>.</li>
+            <li><code>-OpenInRufus</code> only preloads the ISO and NTFS preference. The operator still chooses the target disk and starts the write in Rufus.</li>
+            <li>Offline WinPE allows one internal target disk only. After a successful deployment, the same media is blocked from wiping the machine again by media ID + <code>appliedAt</code>.</li>
+          </ul>
+          <div class="callout warning"><strong>Sensitive media</strong>USB / ISO media contains deployable local Windows secrets and must be handled as a sensitive asset. Evidence from this path proves only that specific snapshot and does not replace PXE readiness.</div>
+          <div class="callout"><strong>Current validation</strong>Formal offline validation is complete for the ISO path: the rebuilt ISO reached <code>windows-desktop-ready</code> on Hyper-V Gen2 with Secure Boot ON and no NIC.</div>
+        </section>
+
         <section id="en-deploy-client">
-          <p class="section-kicker">06 · Client deployment</p>
+          <p class="section-kicker">07 · Client deployment</p>
           <h2>Deploy One Computer</h2>
           <ol>
             <li>Click <strong>Start all services</strong> in the Web Console.</li>
@@ -618,7 +662,7 @@ cd '&lt;repo-root&gt;'
         </section>
 
         <section id="en-monitoring">
-          <p class="section-kicker">07 · Monitoring</p>
+          <p class="section-kicker">08 · Monitoring</p>
           <h2>Monitoring And Completion Criteria</h2>
           <div class="grid-2">
             <figure><div class="media-frame"><img src="manual-assets/web-activity.png" loading="lazy" alt="Winception Activity cards showing completed client runs and execution flow"><button class="zoom" type="button" data-zoom-src="manual-assets/web-activity.png" data-zoom-alt="Winception Activity view">Enlarge Activity</button></div><figcaption>Activity tracks each target execution flow and result.</figcaption></figure>
@@ -633,7 +677,7 @@ User               : &lt;target-computer&gt;\&lt;windowsUsername&gt;</code></pre
         </section>
 
         <section id="en-maintenance">
-          <p class="section-kicker">08 · Maintenance</p>
+          <p class="section-kicker">09 · Maintenance</p>
           <h2>Routine Maintenance And Troubleshooting</h2>
           <div class="table-wrap"><table><thead><tr><th>Symptom</th><th>First check</th><th>Action</th></tr></thead><tbody>
             <tr><td>Runtime blocked</td><td>Runtime Readiness detail</td><td>Run Prepare runtime.</td></tr>
@@ -646,7 +690,7 @@ User               : &lt;target-computer&gt;\&lt;windowsUsername&gt;</code></pre
         </section>
 
         <section id="en-handoff">
-          <p class="section-kicker">09 · Handoff</p>
+          <p class="section-kicker">10 · Handoff</p>
           <h2>Stop Services And Handoff</h2>
           <ol>
             <li>Stop DHCP, TFTP, and HTTP services.</li>
@@ -666,7 +710,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
         </section>
 
         <section id="en-references">
-          <p class="section-kicker">10 · References</p>
+          <p class="section-kicker">11 · References</p>
           <h2>Reference Documents</h2>
           <ul>
             <li><a href="../README.md">README.md</a>: bilingual product document in one file.</li>
