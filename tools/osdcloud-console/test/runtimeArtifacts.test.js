@@ -727,6 +727,10 @@ test('installed Web console launcher escapes environment assignment and reads lo
   assert.match(script, /`\$env:OSDCLOUD_CONSOLE_CONFIG/);
   assert.match(script, /State\\config\\osdcloud-console\.local\.json/);
   assert.match(script, /\$overlay\.web/);
+  assert.match(script, /\$argumentList = @\(/);
+  assert.match(script, /if \(\$NoBrowser\) \{\s*\$argumentList \+= '-NoBrowser'/);
+  assert.match(script, /ArgumentList = \$argumentList/);
+  assert.doesNotMatch(script, /\$\(if \(\$NoBrowser\) \{ '-NoBrowser' \}\)/);
 });
 
 test('checked-in runtime artifact catalog is valid', () => {

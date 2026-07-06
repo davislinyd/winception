@@ -56,25 +56,28 @@ if ($runningTray) {
 
 $trayScript = Join-Path $AppRoot 'tools\Start-WebConsoleTray.ps1'
 Write-Host "Starting Web console System Tray application in background..."
+$argumentList = @(
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    $trayScript,
+    '-AppRoot',
+    $AppRoot,
+    '-StateConfigPath',
+    $StateConfigPath,
+    '-WebHost',
+    $webHost,
+    '-WebPort',
+    $webPort
+)
+if ($NoBrowser) {
+    $argumentList += '-NoBrowser'
+}
 $startParams = @{
     FilePath = 'powershell.exe'
     WindowStyle = 'Hidden'
-    ArgumentList = @(
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        $trayScript,
-        '-AppRoot',
-        $AppRoot,
-        '-StateConfigPath',
-        $StateConfigPath,
-        '-WebHost',
-        $webHost,
-        '-WebPort',
-        $webPort,
-        $(if ($NoBrowser) { '-NoBrowser' })
-    )
+    ArgumentList = $argumentList
 }
 if (-not (Test-IsAdministrator)) {
     $startParams.Add('Verb', 'RunAs')
