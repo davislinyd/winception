@@ -39,6 +39,7 @@ function makeCatalog(root, body) {
 
 function createSetupSourceFixture(root) {
   fs.mkdirSync(path.join(root, 'tools', 'osdcloud-console', 'src'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'tools', 'osdcloud-console', 'web'), { recursive: true });
   fs.mkdirSync(path.join(root, 'config', 'deployment-profiles'), { recursive: true });
   fs.mkdirSync(path.join(root, 'osdcloud-assets'), { recursive: true });
   fs.mkdirSync(path.join(root, 'Softwares'), { recursive: true });
@@ -74,6 +75,10 @@ function createSetupSourceFixture(root) {
     path.join(root, 'tools', 'lib', 'Common.ps1'),
   );
   fs.writeFileSync(path.join(root, 'tools', 'osdcloud-console', 'src', 'webServer.js'), 'export {};\n', 'utf8');
+  fs.copyFileSync(
+    path.join(process.cwd(), 'tools', 'osdcloud-console', 'web', 'logo.ico'),
+    path.join(root, 'tools', 'osdcloud-console', 'web', 'logo.ico'),
+  );
   fs.writeFileSync(path.join(root, 'Softwares', 'Install-Apps.ps1'), "Write-Host 'fixture'\n", 'utf8');
   fs.writeFileSync(path.join(root, 'Softwares', 'Show-DeploymentProgress.ps1'), "Write-Host 'fixture viewer'\n", 'utf8');
   fs.writeFileSync(path.join(root, 'Setup-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
@@ -593,6 +598,7 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     assert.equal(seededConfig.paths.stateRoot, stateRoot);
     assert.equal(fs.existsSync(stateSecrets), false);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'Start-InstalledWebConsole.ps1')), true);
+    assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'osdcloud-console', 'web', 'logo.ico')), true);
     assert.equal(fs.existsSync(path.join(appRoot, 'New-WinceptionUsbInstaller.cmd')), true);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'New-WinceptionUsbInstaller.ps1')), true);
     assert.equal(fs.existsSync(path.join(appRoot, 'docs', 'winception-operations-manual.html')), true);
@@ -731,6 +737,16 @@ test('installed Web console launcher escapes environment assignment and reads lo
   assert.match(script, /if \(\$NoBrowser\) \{\s*\$argumentList \+= '-NoBrowser'/);
   assert.match(script, /ArgumentList = \$argumentList/);
   assert.doesNotMatch(script, /\$\(if \(\$NoBrowser\) \{ '-NoBrowser' \}\)/);
+});
+
+test('Web console tray prefers checked-in Web logo icon with host fallback', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Start-WebConsoleTray.ps1'), 'utf8');
+  assert.match(script, /function Get-TrayIcon/);
+  assert.match(script, /tools\\osdcloud-console\\web\\logo\.ico/);
+  assert.match(script, /\[System\.Drawing\.Icon\]::new\(\$webIconPath\)/);
+  assert.match(script, /\[System\.Drawing\.Icon\]::ExtractAssociatedIcon\(\$currentProcessPath\)/);
+  assert.match(script, /\[System\.Drawing\.SystemIcons\]::Application/);
+  assert.match(script, /\$global:NotifyIcon\.Icon = Get-TrayIcon/);
 });
 
 test('checked-in runtime artifact catalog is valid', () => {

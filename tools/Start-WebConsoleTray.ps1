@@ -23,6 +23,26 @@ function Start-NodeServer {
     return $nodeProcess
 }
 
+function Get-TrayIcon {
+    $webIconPath = Join-Path $AppRoot 'tools\osdcloud-console\web\logo.ico'
+    if (Test-Path -LiteralPath $webIconPath -PathType Leaf) {
+        try {
+            return [System.Drawing.Icon]::new($webIconPath)
+        }
+        catch {
+            # Fall through to host icon fallback.
+        }
+    }
+
+    try {
+        $currentProcessPath = (Get-Process -Id $PID).Path
+        return [System.Drawing.Icon]::ExtractAssociatedIcon($currentProcessPath)
+    }
+    catch {
+        return [System.Drawing.SystemIcons]::Application
+    }
+}
+
 # Start the Node.js server
 $global:NodeProcess = Start-NodeServer
 
@@ -30,15 +50,7 @@ $global:NodeProcess = Start-NodeServer
 try {
     $global:NotifyIcon = New-Object System.Windows.Forms.NotifyIcon
     $global:NotifyIcon.Text = "OSDCloud Web Console"
-
-    # Try to extract the icon from the current PowerShell/pwsh host executable
-    try {
-        $currentProcessPath = (Get-Process -Id $PID).Path
-        $global:NotifyIcon.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($currentProcessPath)
-    }
-    catch {
-        $global:NotifyIcon.Icon = [System.Drawing.SystemIcons]::Application
-    }
+    $global:NotifyIcon.Icon = Get-TrayIcon
 
     $global:NotifyIcon.Visible = $true
 
