@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.2 — 2026-07-06
+
+### 修正：Web Console tray 重複 icon 與 stale instance
+
+- `Start-WebConsoleTray.ps1` 改為每個 installed `AppRoot` 使用 named mutex，避免同一套 HostTools 啟動第二個 tray instance
+- tray 會寫入 `C:\OSDCloud\HostTools\State\run\web-console-tray.json`，記錄目前 tray/node PID，並透過 `web-console-tray.stop.json` 接受 graceful shutdown request
+- `Start-InstalledWebConsole.ps1` 改為先檢查 `/api/state` 健康度與 tray state；若 server healthy 但沒有 tray state，會視為 orphan server，先清掉再重建 tray wrapper
+- `Reload-Console.ps1` 改為先請 tray 自行 dispose `NotifyIcon`，只有 graceful stop 失敗時才 fallback 停止 recorded PID / 8080 port owner，降低 Explorer 留下舊 tray icon 的機率
+- 新增 regression assertions，涵蓋 single-instance mutex、tray state、stop request、reload fallback 與 orphan server recovery；live 驗證確認連續開啟 launcher 不會多開 instance，連續 reload 只保留單一 8080 listener
+
 ## v0.6.1 — 2026-06-24
 
 ### 新功能：USB/ISO 離線 zero-touch installer

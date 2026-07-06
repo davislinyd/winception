@@ -733,20 +733,59 @@ test('installed Web console launcher escapes environment assignment and reads lo
   assert.match(script, /`\$env:OSDCLOUD_CONSOLE_CONFIG/);
   assert.match(script, /State\\config\\osdcloud-console\.local\.json/);
   assert.match(script, /\$overlay\.web/);
+  assert.match(script, /function Test-WebConsoleHealthy/);
+  assert.match(script, /Invoke-RestMethod -Uri "http:\/\/\$\{webHost\}:\$webPort\/api\/state"/);
+  assert.match(script, /function Request-TrayStop/);
+  assert.match(script, /web-console-tray\.json/);
+  assert.match(script, /web-console-tray\.stop\.json/);
+  assert.match(script, /Web Console server is running without tray state; restarting tray wrapper\./);
+  assert.match(script, /function Wait-WebPortClosed/);
+  assert.match(script, /function Stop-StaleWebConsole/);
+  assert.match(script, /function Stop-WebPortOwner/);
+  assert.match(script, /Get-NetTCPConnection -LocalPort \$webPort -State Listen/);
+  assert.match(script, /ParentProcessId/);
+  assert.match(script, /Wait-Process -Id \$process\.Id -Timeout 5/);
   assert.match(script, /\$argumentList = @\(/);
   assert.match(script, /if \(\$NoBrowser\) \{\s*\$argumentList \+= '-NoBrowser'/);
   assert.match(script, /ArgumentList = \$argumentList/);
   assert.doesNotMatch(script, /\$\(if \(\$NoBrowser\) \{ '-NoBrowser' \}\)/);
+  assert.doesNotMatch(script, /CommandLine like '%Start-WebConsoleTray\.ps1%'/);
 });
 
 test('Web console tray prefers checked-in Web logo icon with host fallback', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Start-WebConsoleTray.ps1'), 'utf8');
+  assert.match(script, /Get-AppRootMutexName/);
+  assert.match(script, /Local\\Winception\.OSDCloud\.WebConsoleTray\./);
+  assert.match(script, /web-console-tray\.json/);
+  assert.match(script, /web-console-tray\.stop\.json/);
+  assert.match(script, /function Write-TrayState/);
+  assert.match(script, /function Stop-TrayApplication/);
+  assert.match(script, /\$global:StopTimer = New-Object System\.Windows\.Forms\.Timer/);
+  assert.match(script, /ReleaseMutex/);
   assert.match(script, /function Get-TrayIcon/);
   assert.match(script, /tools\\osdcloud-console\\web\\logo\.ico/);
   assert.match(script, /\[System\.Drawing\.Icon\]::new\(\$webIconPath\)/);
   assert.match(script, /\[System\.Drawing\.Icon\]::ExtractAssociatedIcon\(\$currentProcessPath\)/);
   assert.match(script, /\[System\.Drawing\.SystemIcons\]::Application/);
   assert.match(script, /\$global:NotifyIcon\.Icon = Get-TrayIcon/);
+});
+
+test('reload stops the Web console tray gracefully before process fallback', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Reload-Console.ps1'), 'utf8');
+  assert.match(script, /function Request-TrayStop/);
+  assert.match(script, /function Wait-TrayStop/);
+  assert.match(script, /function Wait-WebPortClosed/);
+  assert.match(script, /function Stop-WebConsoleFallback/);
+  assert.match(script, /function Stop-WebPortOwner/);
+  assert.match(script, /web-console-tray\.json/);
+  assert.match(script, /web-console-tray\.stop\.json/);
+  assert.match(script, /Get-NetTCPConnection -LocalPort \$webPort -State Listen/);
+  assert.match(script, /Timed out waiting for Web Console port/);
+  assert.match(script, /ParentProcessId/);
+  assert.match(script, /Wait-Process -Id \$process\.Id -Timeout 5/);
+  assert.match(script, /powershell\.exe', 'pwsh\.exe'/);
+  assert.doesNotMatch(script, /CommandLine like '%Start-WebConsoleTray\.ps1%'/);
+  assert.doesNotMatch(script, /CommandLine like '%webServer\.js%'/);
 });
 
 test('checked-in runtime artifact catalog is valid', () => {
