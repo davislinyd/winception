@@ -184,6 +184,12 @@ C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json
 | DHCP Server | Winception 管理獨立部署網段的 lease | 同一網段不應有其他 DHCP responder |
 | PXE Proxy | 既有網路已提供 DHCP，Winception 只提供 PXE boot options | 需要確認既有 DHCP 與路由設定可讓 client 回到 `<service-ip>` |
 
+Client 網路邊界：
+
+- Deployment 階段只需要連到 Winception server 的 DHCP、TFTP、HTTP、SMB、Torrent 與 status endpoints；client 不需要外部 Internet。
+- WinPE / OSDCloud / OOBE injection / SetupComplete staging 會停用 OSDCloud 的 external module update、Microsoft Update Catalog、Windows Update 與 Windows Update driver 分支。
+- 外部 Internet 只在 post-logon finalizer 開始執行 active profile 的 software/custom script sequence 後才屬於允許範圍。
+
 Boot mode 決策：
 
 | Boot mode | 開機鏈 | Secure Boot |
@@ -232,7 +238,7 @@ windows-logon-start
 windows-desktop-ready
 ```
 
-`Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。
+`Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。若 custom script 需要 Internet，請把該依賴放在這個 post-logon sequence 內處理；deployment 階段不應依賴 client 外網。SetupComplete 會在 deployment 完成前停用 Windows Update / BITS 自動活動，因此依賴 BITS 或 Windows Update 的 custom script 必須自行啟動必要服務，或改用直接下載工具。
 
 ### 07. 監控與完成判定
 
@@ -505,6 +511,12 @@ Service network decision:
 | DHCP Server | Winception owns leases on an isolated deployment network | No other DHCP responder should answer on the same segment |
 | PXE Proxy | Existing network DHCP is already present and Winception only supplies PXE boot options | Confirm existing DHCP and routing let clients reach `<service-ip>` |
 
+Client network boundary:
+
+- The deployment phase only needs access to Winception server DHCP, TFTP, HTTP, SMB, Torrent, and status endpoints; the client does not need external Internet.
+- WinPE / OSDCloud / OOBE injection / SetupComplete staging disables OSDCloud external module update, Microsoft Update Catalog, Windows Update, and Windows Update driver branches.
+- External Internet is allowed only after the post-logon finalizer starts the active profile software/custom script sequence.
+
 Boot mode decision:
 
 | Boot mode | Boot chain | Secure Boot |
@@ -553,7 +565,7 @@ windows-logon-start
 windows-desktop-ready
 ```
 
-The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage.
+The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage. If a custom script needs Internet, put that dependency inside this post-logon sequence; the deployment phase must not depend on client external Internet. SetupComplete disables automatic Windows Update / BITS activity before deployment completion, so custom scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.
 
 ### 07. Monitoring And Completion Criteria
 

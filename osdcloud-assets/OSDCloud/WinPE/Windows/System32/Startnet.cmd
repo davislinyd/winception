@@ -3,7 +3,6 @@ wpeinit
 cd\
 title OSD 26.4.23.1
 PowerShell -NoL -NoP -ExecutionPolicy Bypass -File X:\OSDCloud\Maximize-Console.ps1
-PowerShell -Nol -C Initialize-OSDCloudStartnet
 @ECHO OFF
 ECHO Start-OSDCloud
 PowerShell -NoL -NoP -ExecutionPolicy Bypass -File X:\OSDCloud\Start-OSDCloud-iPXE.ps1

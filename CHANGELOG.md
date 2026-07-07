@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### 修正：client deployment 階段不再依賴外部 Internet
+
+- PXE WinPE `Startnet.cmd` 不再呼叫上游 `Initialize-OSDCloudStartnet`，避免部署啟動前先碰 PowerShell Gallery 或自動更新 OSD module
+- PXE `Start-OSDCloud-iPXE.ps1` 明確關閉 OSDCloud 的 Microsoft Update Catalog、Windows Update、Windows Update driver 與 driver pack download 分支，並維持 OS WIM 只從 Winception server SMB/Torrent 取得
+- WinPE deployment server detection 加入 DHCP renew + retry，只探測 Winception server 候選端點，不需要外部 Internet
+- 文件補清楚 client 網路邊界：deployment 階段只依賴 Winception server；外部 Internet 只允許 post-logon software/custom script sequence 使用
+
 ## v0.6.2 — 2026-07-06
 
 ### 修正：Web Console tray 重複 icon 與 stale instance

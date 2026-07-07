@@ -979,6 +979,14 @@ test('client installer records elapsed time from monotonic timers', () => {
   assert.doesNotMatch(installer, /durationSeconds = \[Math\]::Round\(\(\$ended - \$started\)\.TotalSeconds, 3\)/);
 });
 
+test('client installer keeps post-logon app and custom script execution unrestricted', () => {
+  const installer = fs.readFileSync(path.join(process.cwd(), 'Softwares', 'Install-Apps.ps1'), 'utf8');
+  assert.match(installer, /Resolve-PackageScript -Root \$AppsRoot -PackageId \$stepId -ScriptName 'install\.ps1'/);
+  assert.match(installer, /Resolve-PackageScript -Root \$ScriptsRoot -PackageId \$stepId -ScriptName 'run\.ps1'/);
+  assert.match(installer, /Invoke-StepProcess -ScriptPath \$scriptPath/);
+  assert.doesNotMatch(installer, /New-NetFirewallRule|netsh winhttp|OSDCloudNoInternet|BlockExternalInternet/);
+});
+
 test('endpoint sync injects Startnet boot chain into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
   const startnet = fs.readFileSync(
@@ -990,6 +998,7 @@ test('endpoint sync injects Startnet boot chain into rebuilt WinPE', () => {
   assert.match(script, /Windows\\System32\\Startnet\.cmd/);
   assert.match(startnet, /PowerShell -NoL -NoP -ExecutionPolicy Bypass -File X:\\OSDCloud\\Maximize-Console\.ps1/);
   assert.match(startnet, /PowerShell -NoL -NoP -ExecutionPolicy Bypass -File X:\\OSDCloud\\Start-OSDCloud-iPXE\.ps1/);
+  assert.doesNotMatch(startnet, /Initialize-OSDCloudStartnet/);
 });
 
 test('endpoint sync injects WinPE console maximize helper into rebuilt WinPE', () => {
@@ -1017,6 +1026,26 @@ test('WinPE deployment script uses a lab-scoped selected OS manifest helper', ()
   assert.match(script, /\$SelectedOs = Get-LabSelectedOsManifest -OsRoot \$osRoot/);
   assert.match(script, /selected-os\.json did not produce a usable OS selection/);
   assert.doesNotMatch(script, /function Get-SelectedOsManifest/);
+});
+
+test('WinPE PXE deployment disables client-side external update and catalog branches', () => {
+  const script = fs.readFileSync(
+    path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1'),
+    'utf8',
+  );
+
+  assert.match(script, /function Get-DeploymentServerCandidates/);
+  assert.match(script, /function Test-DeploymentServer/);
+  assert.match(script, /ipconfig \/renew/);
+  assert.match(script, /DriverPackName\s+= 'None'/);
+  assert.match(script, /MSCatalogFirmware\s+= \$false/);
+  assert.match(script, /MSCatalogDiskDrivers\s+= \$false/);
+  assert.match(script, /MSCatalogNetDrivers\s+= \$false/);
+  assert.match(script, /MSCatalogScsiDrivers\s+= \$false/);
+  assert.match(script, /WindowsUpdate\s+= \$false/);
+  assert.match(script, /WindowsUpdateDrivers\s+= \$false/);
+  assert.match(script, /SkipAutopilot\s+= \$true/);
+  assert.match(script, /SkipODT\s+= \$true/);
 });
 
 test('WinPE deployment script maximizes the visible console for deployment readability', () => {

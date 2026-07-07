@@ -118,8 +118,9 @@ test('offline startup verifies media, selects one internal disk, and prevents re
   assert.doesNotMatch(startup, /net use|torrent|Invoke-WebRequest|statusUrl/i);
 });
 
-test('USB Startnet skips PXE network bootstrap and runs offline installer directly', () => {
-  assert.match(pxeStartnet, /Initialize-OSDCloudStartnet/);
+test('Startnet scripts skip upstream online bootstrap before running installer flows', () => {
+  assert.doesNotMatch(pxeStartnet, /Initialize-OSDCloudStartnet/);
+  assert.match(pxeStartnet, /Start-OSDCloud-iPXE\.ps1/);
   assert.match(usbStartnet, /wpeinit/);
   assert.match(usbStartnet, /Maximize-Console\.ps1/);
   assert.match(usbStartnet, /Start-OSDCloud-USB\.ps1/);

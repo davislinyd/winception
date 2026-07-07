@@ -49,34 +49,65 @@ public static extern bool IsZoomed(System.IntPtr hWnd);
 Ensure-ConsoleMaximized
 Write-Host "[$(Get-Date -Format G)] Start-OSDCloud iPXE custom image deployment"
 
-# Dynamic deployment server detection
-$candidates = [System.Collections.Generic.List[string]]::new()
-try {
-    # Check active interfaces DHCP/Gateway/DNS
-    $adapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled }
-    foreach ($adapter in $adapters) {
-        if ($adapter.DHCPServer) { $candidates.Add($adapter.DHCPServer) }
-        if ($adapter.DefaultIPGateway) { $candidates.AddRange($adapter.DefaultIPGateway) }
-        if ($adapter.DNSServerSearchOrder) { $candidates.AddRange($adapter.DNSServerSearchOrder) }
+function Get-DeploymentServerCandidates {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    try {
+        $adapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled }
+        foreach ($adapter in $adapters) {
+            if ($adapter.DHCPServer) { $candidates.Add($adapter.DHCPServer) }
+            if ($adapter.DefaultIPGateway) { $candidates.AddRange($adapter.DefaultIPGateway) }
+            if ($adapter.DNSServerSearchOrder) { $candidates.AddRange($adapter.DNSServerSearchOrder) }
+        }
+    } catch {
+        Write-Warning "Unable to query network adapter configuration: $($_.Exception.Message)"
     }
-} catch {
-    Write-Warning "Unable to query network adapter configuration: $($_.Exception.Message)"
+
+    $candidates.Add('192.168.100.1')
+    $candidates.Add('192.168.88.1')
+    $candidates.Add('192.168.77.1')
+    return @($candidates | Where-Object {
+        -not [string]::IsNullOrWhiteSpace([string] $_) -and [string] $_ -ne '0.0.0.0'
+    } | Select-Object -Unique)
 }
-# Fallback to standard defaults
-$candidates.Add('192.168.100.1')
-$candidates.Add('192.168.88.1')
+
+function Test-DeploymentServer {
+    param([Parameter(Mandatory)][string] $IpAddress)
+
+    try {
+        $testUrl = "http://$IpAddress/osdcloud/status"
+        $resp = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
 
 $server = '192.168.77.1' # Default fallback
-foreach ($ip in ($candidates | Select-Object -Unique)) {
-    if ([string]::IsNullOrWhiteSpace($ip) -or $ip -eq '0.0.0.0') { continue }
-    try {
-        $testUrl = "http://$ip/osdcloud/status"
-        # Test connection quickly
-        $resp = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
-        $server = $ip
-        Write-Host "Detected active deployment server at $server"
+$serverDetected = $false
+$maxDetectionAttempts = 6
+for ($attempt = 1; $attempt -le $maxDetectionAttempts; $attempt++) {
+    foreach ($ip in (Get-DeploymentServerCandidates)) {
+        if (Test-DeploymentServer -IpAddress $ip) {
+            $server = $ip
+            $serverDetected = $true
+            Write-Host "Detected active deployment server at $server"
+            break
+        }
+    }
+
+    if ($serverDetected) {
         break
-    } catch {}
+    }
+
+    if ($attempt -lt $maxDetectionAttempts) {
+        Write-Host "Deployment server not detected yet; renewing DHCP and retrying ($attempt/$maxDetectionAttempts)."
+        try { ipconfig /renew | Out-Null } catch {}
+        Start-Sleep -Seconds 5
+    }
+}
+
+if (-not $serverDetected) {
+    Write-Warning "Using fallback deployment server at $server."
 }
 
 # Fetch dynamic boot configuration from the detected server
@@ -1101,6 +1132,13 @@ $Global:StartOSDCloud = [ordered]@{
     OSEditionId          = [string] $SelectedOs.editionId
     OSLanguage           = [string] $SelectedOs.language
     OSActivation         = [string] $SelectedOs.activation
+    DriverPackName       = 'None'
+    MSCatalogFirmware    = $false
+    MSCatalogDiskDrivers = $false
+    MSCatalogNetDrivers  = $false
+    MSCatalogScsiDrivers = $false
+    WindowsUpdate        = $false
+    WindowsUpdateDrivers = $false
     ZTI                  = $true
     SkipAllDiskSteps     = $skipDiskSteps
     SkipAutopilot        = $true

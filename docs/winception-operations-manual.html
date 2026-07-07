@@ -452,6 +452,7 @@ cd '&lt;repo-root&gt;'
             <li>Windows finalizer 執行 active profile 的 software/custom scripts。</li>
             <li>Web Console 收到 <code>windows-desktop-ready</code>。</li>
           </ol>
+          <div class="callout"><strong>Client 網路邊界</strong>WinPE、OSDCloud、OOBE injection 與 SetupComplete staging 只需要連到 Winception server，不需要外部 Internet。外部 Internet 只在 post-logon finalizer 開始執行 software/custom scripts 後才屬於允許範圍；若腳本依賴 BITS 或 Windows Update，腳本需自行啟動必要服務或改用直接下載工具。</div>
           <div class="sequence" aria-label="正常 deployment event sequence"><span>winpe-start</span><span>smb-mounted</span><span>torrent-download</span><span>torrent-verify</span><span>osdcloud-start</span><span>apply-image</span><span>osdcloud-finished</span><span>rebooting</span><span>windows-setupcomplete-start</span><span>windows-apps-finished</span><span>windows-desktop-ready</span></div>
         </section>
 
@@ -658,6 +659,7 @@ cd '&lt;repo-root&gt;'
             <li>The Windows finalizer runs the active profile software/custom scripts.</li>
             <li>The Web Console receives <code>windows-desktop-ready</code>.</li>
           </ol>
+          <div class="callout"><strong>Client network boundary</strong>WinPE, OSDCloud, OOBE injection, and SetupComplete staging only need to reach the Winception server and do not require external Internet. External Internet is allowed only after the post-logon finalizer starts software/custom scripts; scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.</div>
           <div class="sequence" aria-label="Normal deployment event sequence"><span>winpe-start</span><span>smb-mounted</span><span>torrent-download</span><span>torrent-verify</span><span>osdcloud-start</span><span>apply-image</span><span>osdcloud-finished</span><span>rebooting</span><span>windows-setupcomplete-start</span><span>windows-apps-finished</span><span>windows-desktop-ready</span></div>
         </section>
 
