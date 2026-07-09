@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## v0.6.3 — 2026-07-09
+
+### 新功能：Web Console 離線 UI、API token gate、local torrent tracker
+
+- Web Console 移除 Google Fonts、Material Symbols 與 Tailwind CDN runtime 依賴，改用本機 CSS utility layer、system font fallback 與 repo-local SVG icon helper
+- 頂部工作區改為 `Prepare` / `Deploy` / `Monitor`；`Prepare` 展開 guided setup rail，`Deploy` 保留 runtime/preflight/services/diagnostics 操作面，`Monitor` 聚焦 Activity fleet/evidence
+- Web management API 新增 `/api/auth/status`；loopback 預設免 token，非 loopback host 的 `/api/*` 需 `X-Winception-Token`，token 存在 HostTools State `config\web-console-token.json` 且不進 API response
+- `bittorrent-tracker` dependency 已移除，改為 repo-local minimal HTTP tracker，支援 aria2/host seeder 需要的 announce、compact peers 與 stale peer eviction；`npm audit --omit=dev` 已無 production vulnerabilities
+- 新增 `npm run check`，串接前端 ES module syntax、外部 runtime asset scan、CSS/design invariant scan 與 dependency surface scan
+- diagnostics 前端 render 拆成 feature module，並保留 `/api/diagnostics/latest|run|download` 既有行為
+
+### 修正：Deploy summary 可讀性
+
+- `Profile` 與 `OS Image` summary 改為短摘要，完整 profile、software、OS image 與 cache file 資訊改由本機 hover/focus tooltip 呈現
+- `Deploy` tab 會明確收起 Prepare rail，並保留 `Profile`、`OS Image`、`Endpoint` 的原本點擊入口
 
 ### 修正：client deployment 階段不再依賴外部 Internet
 

@@ -125,8 +125,8 @@ export function mediaHttpServerConfig(config) {
 // endpoint) can advertise torrent details without re-hashing the multi-GB image.
 export const osTorrentManifestName = 'os-torrent.json';
 
-// HTTP tracker announce endpoint. bittorrent-tracker serves announce/scrape on
-// its own HTTP listener bound to the service IP and tracker port.
+// HTTP tracker announce endpoint. The repo-local tracker serves announce on its
+// own HTTP listener bound to the service IP and tracker port.
 export function trackerAnnounceUrl(serverIp, trackerPort) {
   return `http://${serverIp}:${trackerPort}/announce`;
 }

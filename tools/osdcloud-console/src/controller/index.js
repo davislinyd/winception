@@ -26,6 +26,7 @@ import { prepareRuntimeArtifacts, removeStatusFiles, runPreflight } from '../win
 import { EventEmitter } from 'node:events';
 import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
 import { buildInitializationState, osImageSummary, osImageUsageFromProfiles, profileSummary, retailOnlyCatalogFilters, runtimeReadinessFailureMessage } from './state.js';
+import { readLatestDiagnostics, resolveDiagnosticsBundlePath, runDiagnostics } from '../diagnostics/index.js';
 
 export class ServiceController extends EventEmitter {
   constructor(options = {}) {
@@ -82,6 +83,9 @@ export class ServiceController extends EventEmitter {
       uploadOsImageFile,
       writeDeploymentSecrets,
       applyProjectRoot,
+      runDiagnostics,
+      readLatestDiagnostics,
+      resolveDiagnosticsBundlePath,
       ...options.dependencies,
     };
     this.config = options.config ?? loadConfig(options.configPath);
@@ -103,6 +107,9 @@ export class ServiceController extends EventEmitter {
     this.osDownloadPromise = null;
     this.osImportStatus = null;
     this.operation = null;
+    this.latestDiagnostics = safeRead(() => this.dependencies.readLatestDiagnostics(this.config), null).value;
+    this.autoDiagnosticsKeys = new Set();
+    this.diagnosticsPromise = null;
     this.bindServiceEvents();
     for (const line of this.initialLogTail()) {
       this.runtimeLog.push(line);
@@ -118,6 +125,9 @@ export class ServiceController extends EventEmitter {
       for (const record of records ?? []) {
         this.addLog(`[RUN] ${record.type} run=${record.runId} stage=${record.stage ?? ''} message=${record.message ?? ''}`);
       }
+    });
+    this.services.http.on?.('status', ({ summary }) => {
+      this.maybeAutoDiagnoseRun(summary);
     });
     this.services.http.on?.('screenshot', (metadata) => {
       this.addLog(`[SHOT] run=${metadata.runId} stage=${metadata.stage} file=${metadata.filePath}`);
@@ -282,6 +292,11 @@ export class ServiceController extends EventEmitter {
     return this.runtimeLog.lines().slice(-maxLines);
   }
 
+  diagnosticsSummary() {
+    this.latestDiagnostics = safeRead(() => this.dependencies.readLatestDiagnostics(this.config), this.latestDiagnostics).value ?? this.latestDiagnostics;
+    return this.latestDiagnostics;
+  }
+
   getProfiles() {
     const state = this.dependencies.resolveDeploymentProfileState(this.config);
     return profileSummary(state);
@@ -298,13 +313,18 @@ export class ServiceController extends EventEmitter {
   }
 
   async getOsDownloadCatalog(filters = {}) {
-    const rows = await this.dependencies.listOsDownloadCatalog(this.config, {
-      filters: retailOnlyCatalogFilters(filters),
-    });
-    return rows.map((image) => ({
-      ...image,
-      label: formatOsImageLabel(image),
-    }));
+    try {
+      const rows = await this.dependencies.listOsDownloadCatalog(this.config, {
+        filters: retailOnlyCatalogFilters(filters),
+      });
+      return rows.map((image) => ({
+        ...image,
+        label: formatOsImageLabel(image),
+      }));
+    } catch (error) {
+      await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'os-catalog-failure' });
+      throw error;
+    }
   }
 
   getState(options = {}) {
@@ -427,6 +447,7 @@ export class ServiceController extends EventEmitter {
       selectedRunEventsError: selectedRunEventsResult.error,
       selectedRunEvents: selectedRunEventsResult.value,
       logs: this.getLogs(options.logLines ?? 160),
+      diagnostics: this.diagnosticsSummary(),
     };
     state.initialization = buildInitializationState({
       config: this.config,
@@ -450,42 +471,52 @@ export class ServiceController extends EventEmitter {
 
   async runPreflight() {
     return this.runOperation('Running preflight', async () => {
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
-        onCheck: (result) => {
-          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
-        },
-      });
-      const passed = this.preflightResults.filter((r) => r.ok).length;
-      const failed = this.preflightResults.filter((r) => !r.ok).length;
-      this.addLog(`[PREFLIGHT] ${passed} passed, ${failed} failed`);
-      return this.preflightResults;
+      try {
+        this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+          onCheck: (result) => {
+            this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+          },
+        });
+        const passed = this.preflightResults.filter((r) => r.ok).length;
+        const failed = this.preflightResults.filter((r) => !r.ok).length;
+        this.addLog(`[PREFLIGHT] ${passed} passed, ${failed} failed`);
+        return this.preflightResults;
+      } catch (error) {
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'preflight-failure' });
+        throw error;
+      }
     });
   }
 
   async prepareRuntime() {
     return this.runOperation('Preparing runtime artifacts', async () => {
-      if (this.dependencies.isElevated() !== true) {
-        throw errorWithStatus('Prepare runtime requires an elevated Web console session. Restart the Web console from an elevated PowerShell window and try again.', 400);
-      }
-      const logsDir = this.config.paths?.logsDir || path.join(this.config.paths?.osdCloudRoot || 'C:\\OSDCloud', 'logs');
-      const prepareLogPath = path.join(logsDir, 'runtime-prepare.log');
-      const stream = makeOutputLogger((line) => this.addOperationVerboseLog(line, prepareLogPath, 'WEB-OP-PREPARE'), '[runtime]', {
-        ignoreLine: isBenignObjectSecurityTypeDataLine,
-      });
       try {
-        const output = await this.dependencies.prepareRuntimeArtifacts(this.config, {
-          onOutput: stream.write,
-        });
-        const readiness = this.dependencies.getRuntimeReadiness(this.config);
-        if (readiness.ready !== true) {
-          throw errorWithStatus(runtimeReadinessFailureMessage(readiness), 500);
+        if (this.dependencies.isElevated() !== true) {
+          throw errorWithStatus('Prepare runtime requires an elevated Web console session. Restart the Web console from an elevated PowerShell window and try again.', 400);
         }
-        return {
-          output,
-          readiness,
-        };
-      } finally {
-        stream.flush();
+        const logsDir = this.config.paths?.logsDir || path.join(this.config.paths?.osdCloudRoot || 'C:\\OSDCloud', 'logs');
+        const prepareLogPath = path.join(logsDir, 'runtime-prepare.log');
+        const stream = makeOutputLogger((line) => this.addOperationVerboseLog(line, prepareLogPath, 'WEB-OP-PREPARE'), '[runtime]', {
+          ignoreLine: isBenignObjectSecurityTypeDataLine,
+        });
+        try {
+          const output = await this.dependencies.prepareRuntimeArtifacts(this.config, {
+            onOutput: stream.write,
+          });
+          const readiness = this.dependencies.getRuntimeReadiness(this.config);
+          if (readiness.ready !== true) {
+            throw errorWithStatus(runtimeReadinessFailureMessage(readiness), 500);
+          }
+          return {
+            output,
+            readiness,
+          };
+        } finally {
+          stream.flush();
+        }
+      } catch (error) {
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'runtime-prepare-failure' });
+        throw error;
       }
     });
   }
@@ -520,34 +551,49 @@ export class ServiceController extends EventEmitter {
 
   async startService(name) {
     return this.runOperation(`Starting ${name}`, async () => {
-      await this.serviceByName(name).start();
-      return this.servicesState()[name];
+      try {
+        await this.serviceByName(name).start();
+        return this.servicesState()[name];
+      } catch (error) {
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: `${name}-start-failure` });
+        throw error;
+      }
     });
   }
 
   async stopService(name) {
     return this.runOperation(`Stopping ${name}`, async () => {
-      await this.serviceByName(name).stop();
-      return this.servicesState()[name];
+      try {
+        await this.serviceByName(name).stop();
+        return this.servicesState()[name];
+      } catch (error) {
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: `${name}-stop-failure` });
+        throw error;
+      }
     });
   }
 
   async startAll() {
     return this.runOperation('Starting all services', async () => {
-      await this.services.http.start();
-      await this.services.tftp.start();
-      await this.services.dhcp.start();
-      // Torrent is an accelerator with SMB fallback; a tracker start failure must
-      // not abort the core deployment services that already came up.
-      if (this.config.torrent?.enabled !== false) {
-        try {
-          await this.services.torrent?.start();
-          await this.services.torrentSeeder?.start();
-        } catch (error) {
-          this.addLog(`[TORRENT] start failed (continuing with SMB fallback): ${error.message}`);
+      try {
+        await this.services.http.start();
+        await this.services.tftp.start();
+        await this.services.dhcp.start();
+        // Torrent is an accelerator with SMB fallback; a tracker start failure must
+        // not abort the core deployment services that already came up.
+        if (this.config.torrent?.enabled !== false) {
+          try {
+            await this.services.torrent?.start();
+            await this.services.torrentSeeder?.start();
+          } catch (error) {
+            this.addLog(`[TORRENT] start failed (continuing with SMB fallback): ${error.message}`);
+          }
         }
+        return this.servicesState();
+      } catch (error) {
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'start-services-failure' });
+        throw error;
       }
-      return this.servicesState();
     });
   }
 
@@ -616,54 +662,57 @@ export class ServiceController extends EventEmitter {
 
   async changeEndpoint(choice) {
     return this.runOperation('Applying service endpoint', async () => {
-      this.endpointUpdateStatus = [];
-      this.addEndpointStatus(`Selected ${choice.interfaceAlias ?? choice.InterfaceAlias} ${choice.ipAddress ?? choice.IPAddress}/${choice.prefixLength ?? choice.PrefixLength}`, 'run');
-      await this.stopAllServices();
-      this.addEndpointStatus('Stopped running services before endpoint sync', 'ok');
-      const previousEndpoint = `${this.config.adapter.interfaceAlias} ${this.config.adapter.serverIp}/${this.config.adapter.prefixLength}`;
-      const previousBootUrl = this.config.dhcp.ipxeBootUrl;
-
-      this.addEndpointStatus('Updating config for DHCP, TFTP, HTTP/status, and SMB', 'run');
-      this.dependencies.applyServiceEndpoint(this.config, choice);
-      const savedPath = this.dependencies.saveConfig(this.config);
-      this.refreshServiceConfigs();
-      this.addEndpointStatus(`Saved ${savedPath}`, 'ok');
-      this.addEndpointStatus(`Endpoint ${previousEndpoint} -> ${this.config.adapter.interfaceAlias} ${this.config.adapter.serverIp}/${this.config.adapter.prefixLength}`, 'ok');
-      this.addEndpointStatus(`iPXE boot URL ${previousBootUrl} -> ${this.config.dhcp.ipxeBootUrl}`, 'ok');
-
-      this.addEndpointStatus('Syncing boot.ipxe, repo-sourced endpoint files, SMB firewall, and boot.wim', 'run');
-      const logsDir = this.config.paths?.logsDir || path.join(this.config.paths?.osdCloudRoot || 'C:\\OSDCloud', 'logs');
-      const syncLogPath = path.join(logsDir, 'endpoint-sync.log');
-      const stream = makeOutputLogger((line) => this.addOperationVerboseLog(line, syncLogPath, 'WEB-OP-SYNC'), '[endpoint-sync]');
       try {
-        await this.dependencies.syncIpxeEndpoint(this.config, {
-          commitWinPe: true,
-          syncAssets: false,
-          hashLargeArtifacts: true,
-          onOutput: stream.write,
+        this.endpointUpdateStatus = [];
+        this.addEndpointStatus(`Selected ${choice.interfaceAlias ?? choice.InterfaceAlias} ${choice.ipAddress ?? choice.IPAddress}/${choice.prefixLength ?? choice.PrefixLength}`, 'run');
+        await this.stopAllServices();
+        this.addEndpointStatus('Stopped running services before endpoint sync', 'ok');
+        const previousEndpoint = `${this.config.adapter.interfaceAlias} ${this.config.adapter.serverIp}/${this.config.adapter.prefixLength}`;
+        const previousBootUrl = this.config.dhcp.ipxeBootUrl;
+
+        this.addEndpointStatus('Updating config for DHCP, TFTP, HTTP/status, and SMB', 'run');
+        this.dependencies.applyServiceEndpoint(this.config, choice);
+        const savedPath = this.dependencies.saveConfig(this.config);
+        this.refreshServiceConfigs();
+        this.addEndpointStatus(`Saved ${savedPath}`, 'ok');
+        this.addEndpointStatus(`Endpoint ${previousEndpoint} -> ${this.config.adapter.interfaceAlias} ${this.config.adapter.serverIp}/${this.config.adapter.prefixLength}`, 'ok');
+        this.addEndpointStatus(`iPXE boot URL ${previousBootUrl} -> ${this.config.dhcp.ipxeBootUrl}`, 'ok');
+
+        this.addEndpointStatus('Syncing boot.ipxe, repo-sourced endpoint files, SMB firewall, and boot.wim', 'run');
+        const logsDir = this.config.paths?.logsDir || path.join(this.config.paths?.osdCloudRoot || 'C:\\OSDCloud', 'logs');
+        const syncLogPath = path.join(logsDir, 'endpoint-sync.log');
+        const stream = makeOutputLogger((line) => this.addOperationVerboseLog(line, syncLogPath, 'WEB-OP-SYNC'), '[endpoint-sync]');
+        try {
+          await this.dependencies.syncIpxeEndpoint(this.config, {
+            commitWinPe: true,
+            syncAssets: false,
+            hashLargeArtifacts: true,
+            onOutput: stream.write,
+          });
+        } finally {
+          stream.flush();
+        }
+        this.addEndpointStatus('Endpoint files synced and published boot.wim verified', 'ok');
+
+        await this.regenerateOsTorrent();
+
+        this.addEndpointStatus('Running preflight against the new endpoint', 'run');
+        this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+          onCheck: (result) => {
+            this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+          },
         });
-      } finally {
-        stream.flush();
+        const failures = this.preflightResults.filter((item) => !item.ok).length;
+        this.addEndpointStatus(failures === 0 ? 'Preflight passed' : `Preflight completed with ${failures} failure(s)`, failures === 0 ? 'ok' : 'fail');
+        return {
+          configPath: savedPath,
+          preflight: this.preflightResults,
+          endpointUpdateStatus: this.endpointUpdateStatus,
+        };
+      } catch (error) {
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'endpoint-sync-failure' });
+        throw error;
       }
-      this.addEndpointStatus('Endpoint files synced and published boot.wim verified', 'ok');
-
-      // Announce/webseed URLs embed the service IP, so regenerate the OS torrent
-      // whenever the endpoint changes (no-op when torrent is disabled or no image).
-      await this.regenerateOsTorrent();
-
-      this.addEndpointStatus('Running preflight against the new endpoint', 'run');
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
-        onCheck: (result) => {
-          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
-        },
-      });
-      const failures = this.preflightResults.filter((item) => !item.ok).length;
-      this.addEndpointStatus(failures === 0 ? 'Preflight passed' : `Preflight completed with ${failures} failure(s)`, failures === 0 ? 'ok' : 'fail');
-      return {
-        configPath: savedPath,
-        preflight: this.preflightResults,
-        endpointUpdateStatus: this.endpointUpdateStatus,
-      };
     });
   }
 
@@ -724,35 +773,40 @@ export class ServiceController extends EventEmitter {
 
   async changeDeploymentProfile(profileId) {
     return this.runOperation('Publishing deployment profile', async () => {
-      await this.stopAllServices();
-      this.preflightResults = [];
-      const result = await this.dependencies.publishDeploymentProfile(this.config, profileId, {
-        publishOsImage: this.dependencies.publishSelectedOsImage,
-      });
-      this.config.deploymentProfiles ??= {};
-      this.config.deploymentProfiles.activeProfile = result.profile.id;
-      const savedPath = this.dependencies.saveConfig(this.config);
-      this.addLog(`Published deployment profile ${result.profile.name}: ${formatSoftwareList(result.selectedSoftware)}`);
-      for (const line of softwarePayloadLogLines(result.softwarePayloads)) {
-        this.addLog(line);
+      try {
+        await this.stopAllServices();
+        this.preflightResults = [];
+        const result = await this.dependencies.publishDeploymentProfile(this.config, profileId, {
+          publishOsImage: this.dependencies.publishSelectedOsImage,
+        });
+        this.config.deploymentProfiles ??= {};
+        this.config.deploymentProfiles.activeProfile = result.profile.id;
+        const savedPath = this.dependencies.saveConfig(this.config);
+        this.addLog(`Published deployment profile ${result.profile.name}: ${formatSoftwareList(result.selectedSoftware)}`);
+        for (const line of softwarePayloadLogLines(result.softwarePayloads)) {
+          this.addLog(line);
+        }
+        if (result.osImage?.image) {
+          this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
+        }
+        await this.regenerateOsTorrent();
+        this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+          onCheck: (result) => {
+            this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+          },
+        });
+        return {
+          configPath: savedPath,
+          profile: result.profile,
+          selectedSoftware: result.selectedSoftware,
+          appsRoot: result.appsRoot,
+          osImage: result.osImage,
+          preflight: this.preflightResults,
+        };
+      } catch (error) {
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'profile-publish-failure' });
+        throw error;
       }
-      if (result.osImage?.image) {
-        this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
-      }
-      await this.regenerateOsTorrent();
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
-        onCheck: (result) => {
-          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
-        },
-      });
-      return {
-        configPath: savedPath,
-        profile: result.profile,
-        selectedSoftware: result.selectedSoftware,
-        appsRoot: result.appsRoot,
-        osImage: result.osImage,
-        preflight: this.preflightResults,
-      };
     });
   }
 
@@ -849,6 +903,7 @@ export class ServiceController extends EventEmitter {
         error: error.message,
       };
       this.addLog(`[WEB] Downloading OS image failed: ${error.message}`);
+      void this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'os-download-failure' });
       throw error;
     }).finally(() => {
       if (this.osDownloadPromise === promise) {
@@ -923,6 +978,7 @@ export class ServiceController extends EventEmitter {
         error: error.message,
       };
       this.addLog(`[WEB] Re-exporting OS image failed: ${error.message}`);
+      void this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'os-reexport-failure' });
       throw error;
     }).finally(() => {
       if (this.osDownloadPromise === promise) {
@@ -973,6 +1029,7 @@ export class ServiceController extends EventEmitter {
           finishedAt: new Date().toISOString(),
           error: error.message,
         };
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'os-upload-failure' });
         throw error;
       }
     });
@@ -1007,6 +1064,7 @@ export class ServiceController extends EventEmitter {
           finishedAt: new Date().toISOString(),
           error: error.message,
         };
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'os-import-failure' });
         throw error;
       }
     });
@@ -1090,54 +1148,121 @@ export class ServiceController extends EventEmitter {
 
   async updateActiveDeploymentProfile(input = {}) {
     return this.runOperation('Saving deployment profile', async () => {
-      const state = this.dependencies.resolveDeploymentProfileState(this.config);
-      const activeId = state.activeProfile.id;
-      const targetId = input.profileId ?? input.id ?? activeId;
-      const editingActive = targetId === activeId;
-      const updateInput = {
-        name: input.name,
-        description: input.description,
-        softwareIds: input.softwareIds ?? input.software,
-        installSequence: input.installSequence,
-        execution: input.execution,
-        osImageId: input.osImageId,
-        ...(Object.prototype.hasOwnProperty.call(input, 'displayLanguage') ? { displayLanguage: input.displayLanguage } : {}),
-        ...(Object.prototype.hasOwnProperty.call(input, 'locale') ? { locale: input.locale } : {}),
-        ...(Object.prototype.hasOwnProperty.call(input, 'inputLanguage') ? { inputLanguage: input.inputLanguage } : {}),
-        ...(Object.prototype.hasOwnProperty.call(input, 'timeZone') ? { timeZone: input.timeZone } : {}),
-      };
-      if (!editingActive) {
-        const updated = this.dependencies.updateDeploymentProfile(this.config, targetId, updateInput);
-        this.addLog(`Saved inactive deployment profile ${updated.profile.name}: ${updated.profile.softwareIds.join(', ') || 'none'}`);
-        return { profile: updated.profile };
+      try {
+        const state = this.dependencies.resolveDeploymentProfileState(this.config);
+        const activeId = state.activeProfile.id;
+        const targetId = input.profileId ?? input.id ?? activeId;
+        const editingActive = targetId === activeId;
+        const updateInput = {
+          name: input.name,
+          description: input.description,
+          softwareIds: input.softwareIds ?? input.software,
+          installSequence: input.installSequence,
+          execution: input.execution,
+          osImageId: input.osImageId,
+          ...(Object.prototype.hasOwnProperty.call(input, 'displayLanguage') ? { displayLanguage: input.displayLanguage } : {}),
+          ...(Object.prototype.hasOwnProperty.call(input, 'locale') ? { locale: input.locale } : {}),
+          ...(Object.prototype.hasOwnProperty.call(input, 'inputLanguage') ? { inputLanguage: input.inputLanguage } : {}),
+          ...(Object.prototype.hasOwnProperty.call(input, 'timeZone') ? { timeZone: input.timeZone } : {}),
+        };
+        if (!editingActive) {
+          const updated = this.dependencies.updateDeploymentProfile(this.config, targetId, updateInput);
+          this.addLog(`Saved inactive deployment profile ${updated.profile.name}: ${updated.profile.softwareIds.join(', ') || 'none'}`);
+          return { profile: updated.profile };
+        }
+        await this.stopAllServices();
+        this.preflightResults = [];
+        const updated = this.dependencies.updateDeploymentProfile(this.config, activeId, updateInput);
+        const result = await this.dependencies.publishDeploymentProfile(this.config, updated.profile.id, {
+          publishOsImage: this.dependencies.publishSelectedOsImage,
+        });
+        this.addLog(`Saved deployment profile ${updated.profile.name}: ${formatSoftwareList(result.selectedSoftware)}`);
+        for (const line of softwarePayloadLogLines(result.softwarePayloads)) {
+          this.addLog(line);
+        }
+        if (result.osImage?.image) {
+          this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
+        }
+        await this.regenerateOsTorrent();
+        this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+          onCheck: (result) => {
+            this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
+          },
+        });
+        return {
+          profile: updated.profile,
+          selectedSoftware: result.selectedSoftware,
+          appsRoot: result.appsRoot,
+          osImage: result.osImage,
+          preflight: this.preflightResults,
+        };
+      } catch (error) {
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'profile-save-failure' });
+        throw error;
       }
-      await this.stopAllServices();
-      this.preflightResults = [];
-      const updated = this.dependencies.updateDeploymentProfile(this.config, activeId, updateInput);
-      const result = await this.dependencies.publishDeploymentProfile(this.config, updated.profile.id, {
-        publishOsImage: this.dependencies.publishSelectedOsImage,
-      });
-      this.addLog(`Saved deployment profile ${updated.profile.name}: ${formatSoftwareList(result.selectedSoftware)}`);
-      for (const line of softwarePayloadLogLines(result.softwarePayloads)) {
-        this.addLog(line);
-      }
-      if (result.osImage?.image) {
-        this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
-      }
-      await this.regenerateOsTorrent();
-      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
-        onCheck: (result) => {
-          this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
-        },
-      });
-      return {
-        profile: updated.profile,
-        selectedSoftware: result.selectedSoftware,
-        appsRoot: result.appsRoot,
-        osImage: result.osImage,
-        preflight: this.preflightResults,
-      };
     });
+  }
+
+  async performDiagnostics(input = {}) {
+    const scope = input.scope ?? 'full';
+    const selectedRunId = input.runId ?? this.selectedRunId;
+    const appState = this.getState({ selectedRunId, logLines: 160 });
+    const result = await this.dependencies.runDiagnostics(this.config, {
+      scope,
+      runId: input.runId,
+      trigger: input.trigger ?? 'manual',
+      appState,
+      preflight: this.preflightResults,
+      profilePayload: safeRead(() => this.dependencies.evaluateDeploymentProfilePayload(this.config), null).value,
+      hostLogPath: this.hostLogPath(),
+      hostLogTail: this.dependencies.tailFile(this.hostLogPath(), 160),
+      operationLogTail: this.getLogs(160),
+      elevated: safeRead(() => this.dependencies.isElevated(), false).value,
+    });
+    this.latestDiagnostics = {
+      ...result.summary,
+      bundleName: result.bundleName,
+      bundlePath: result.bundlePath,
+    };
+    this.addLog(`[DIAG] ${result.summary.overallStatus} ${result.bundleName}`);
+    return result;
+  }
+
+  async runDiagnostics(input = {}) {
+    return this.runOperation('Running diagnostics', async () => this.performDiagnostics(input), { mutating: false });
+  }
+
+  async captureDiagnosticsOnFailure(input = {}) {
+    if (this.diagnosticsPromise) {
+      return this.diagnosticsPromise;
+    }
+    this.diagnosticsPromise = this.performDiagnostics(input).catch((error) => {
+      this.addLog(`[DIAG] automatic diagnostics failed: ${error.message}`);
+      return null;
+    }).finally(() => {
+      this.diagnosticsPromise = null;
+    });
+    return this.diagnosticsPromise;
+  }
+
+  maybeAutoDiagnoseRun(summary) {
+    if (!summary?.runId || !['failed', 'stale'].includes(summary.status)) {
+      return;
+    }
+    const key = `${summary.runId}:${summary.status}`;
+    if (this.autoDiagnosticsKeys.has(key)) {
+      return;
+    }
+    this.autoDiagnosticsKeys.add(key);
+    void this.captureDiagnosticsOnFailure({
+      scope: 'run',
+      runId: summary.runId,
+      trigger: `run-${summary.status}`,
+    });
+  }
+
+  diagnosticsDownloadPath(bundleName) {
+    return this.dependencies.resolveDiagnosticsBundlePath(this.config, bundleName);
   }
 
   async removeDeploymentProfile(profileId) {

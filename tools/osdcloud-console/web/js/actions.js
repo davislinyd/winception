@@ -7,7 +7,7 @@ import { osImageLabel } from './format.js';
 import { render, renderFleetExpandedState } from './render.js';
 import { confirmPrepareRuntime } from './setup.js';
 import { state } from './state.js';
-import { setControlsDisabled } from './ui.js';
+import { setControlsDisabled, setSetupRailCollapsed } from './ui.js';
 
 export function setFleetExpanded(expanded) {
   if (state.fleetExpanded === expanded) {
@@ -19,11 +19,27 @@ export function setFleetExpanded(expanded) {
 
 export function switchToView(viewName) {
   if (state.currentView === viewName) {
+    if (viewName === 'prepare') {
+      setSetupRailCollapsed(false);
+      state.guidedStepCollapsed = false;
+      render();
+    }
+    if (viewName === 'dashboard') {
+      setSetupRailCollapsed(true);
+      render();
+    }
     return;
   }
   state.currentView = viewName;
   localStorage.setItem('winception-view', viewName);
-  if (viewName === 'guided' && !state.selectedGuidedStepId && state.current?.initialization?.nextStepId) {
+  if (viewName === 'prepare') {
+    setSetupRailCollapsed(false);
+    state.guidedStepCollapsed = false;
+  }
+  if (viewName === 'dashboard') {
+    setSetupRailCollapsed(true);
+  }
+  if ((viewName === 'guided' || viewName === 'prepare') && !state.selectedGuidedStepId && state.current?.initialization?.nextStepId) {
     state.selectedGuidedStepId = state.current.initialization.nextStepId;
   }
   render();
@@ -472,6 +488,26 @@ export async function handleArchivedRunsDelete(runIds) {
   }
 }
 
+async function handleDiagnosticsRun(source) {
+  const scope = source?.dataset?.diagnosticsScope ?? 'full';
+  const runId = source?.dataset?.diagnosticsRunId ?? source?.dataset?.runId ?? undefined;
+  const trigger = source?.dataset?.diagnosticsTrigger ?? (scope === 'run' ? 'manual-run' : 'manual');
+  await mutate('/api/diagnostics/run', {
+    scope,
+    ...(runId ? { runId } : {}),
+    trigger,
+  });
+}
+
+function handleDiagnosticsDownload(source) {
+  const bundleName = source?.dataset?.bundleName ?? state.current?.diagnostics?.bundleName;
+  if (!bundleName) {
+    window.alert('No diagnostics ZIP is available yet.');
+    return;
+  }
+  window.open(`/api/diagnostics/download?name=${encodeURIComponent(bundleName)}`, '_blank', 'noopener');
+}
+
 export async function handleFleetBulkAction(action) {
   if (action === 'bulk-select-all') {
     const order = visibleFleetRuns(state.current ?? {}).runs.map((run) => run.runId);
@@ -506,6 +542,10 @@ export async function handleAction(action, source = null) {
     openDialog(elements.initializationDialog);
   } else if (action === 'preflight') {
     await mutate('/api/preflight');
+  } else if (action === 'diagnostics-run') {
+    await handleDiagnosticsRun(source);
+  } else if (action === 'diagnostics-download') {
+    handleDiagnosticsDownload(source);
   } else if (action === 'interfaces') {
     openDialog(elements.endpointSettingsDialog);
     void loadInterfaces();

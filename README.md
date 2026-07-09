@@ -88,7 +88,7 @@ Winception 的服務分成控制面與資料面：
 | TFTP service | 提供 Secure Boot chain 所需的 Microsoft-signed boot files |
 | HTTP media service | 提供 iPXE script、WinPE boot files、status API、screenshot API 與 Torrent control API |
 | SMB share | 提供 WinPE 讀取 selected OS WIM、Apps、Scripts 與 manifests |
-| Torrent tracker/seeder | 在多台 client 同時部署時分散 OS WIM 傳輸壓力 |
+| Torrent tracker/seeder | 使用 repo-local HTTP tracker 與 host seeder，在多台 client 同時部署時分散 OS WIM 傳輸壓力 |
 | Windows finalizer | 在第一次登入後執行 profile 內的 software/custom script sequence 並回報完成 |
 
 正常部署資料流：
@@ -138,10 +138,11 @@ C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json
 - API 和 Web UI 只顯示 present/missing/redacted 狀態。
 - Endpoint Sync 會把必要 secret 安全注入 live `boot.wim`，讓 WinPE 可掛載 SMB 並完成 Windows 設定。
 - 需要輪替帳號或密碼時，從 Web Console 的 Deployment Secrets 流程更新。
+- Web Console API 在 loopback (`localhost` / `127.x` / `::1`) 預設免 token；若 Web host 綁定非 loopback，所有 `/api/*` 除 `/api/auth/status` 需 `X-Winception-Token`。Token 存在 `C:\OSDCloud\HostTools\State\config\web-console-token.json`，不會寫入 repo 或 API response。
 
 ### 05. 部署前準備
 
-第一次開啟 Web Console 時，依 Guided Setup 完成：
+Web Console 以三個工作區操作：**Prepare** 展開 guided setup rail、**Deploy** 顯示 runtime/preflight/services/diagnostics 操作面、**Monitor** 檢視 Activity fleet 與 evidence。第一次開啟 Web Console 時，依 Prepare / Guided Setup 完成：
 
 1. Project root：確認 deployment root，預設可用 `C:\OSDCloud`。
 2. Deployment secrets：輸入目標 Windows local account 與 SMB account secret。
@@ -415,7 +416,7 @@ Winception separates control-plane and data-plane services:
 | TFTP service | Serves the Microsoft-signed boot files required by the Secure Boot chain |
 | HTTP media service | Serves iPXE script, WinPE boot files, status API, screenshot API, and Torrent control API |
 | SMB share | Lets WinPE read the selected OS WIM, Apps, Scripts, and manifests |
-| Torrent tracker/seeder | Distributes OS WIM transfer load when many clients deploy at once |
+| Torrent tracker/seeder | Uses the repo-local HTTP tracker plus host seeder to distribute OS WIM transfer load when many clients deploy at once |
 | Windows finalizer | Runs the profile software/custom script sequence after first logon and reports completion |
 
 Normal deployment data flow:
@@ -465,10 +466,11 @@ Rules:
 - API and Web UI only show present/missing/redacted state.
 - Endpoint Sync securely injects required secrets into live `boot.wim` so WinPE can mount SMB and finish Windows setup.
 - When account or password rotation is required, update it through the Web Console Deployment Secrets flow.
+- The Web Console API bypasses token auth on loopback (`localhost` / `127.x` / `::1`). If the Web host binds to a non-loopback address, every `/api/*` endpoint except `/api/auth/status` requires `X-Winception-Token`. The token lives at `C:\OSDCloud\HostTools\State\config\web-console-token.json` and is never written to the repo or returned by API responses.
 
 ### 05. Pre-Deployment Preparation
 
-On first Web Console launch, complete Guided Setup:
+The Web Console has three workspaces: **Prepare** opens the guided setup rail, **Deploy** shows runtime/preflight/services/diagnostics controls, and **Monitor** shows Activity fleet and evidence. On first launch, complete Prepare / Guided Setup:
 
 1. Project root: confirm the deployment root; `C:\OSDCloud` is the default option.
 2. Deployment secrets: enter the target Windows local account and SMB account secret.

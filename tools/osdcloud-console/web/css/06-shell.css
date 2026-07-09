@@ -112,7 +112,7 @@ body { overflow: hidden; background: var(--paper); }
 .topbar-brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .topbar .brand-mark { flex: 0 0 auto; width: 36px; height: 36px; object-fit: contain; }
 .topbar-brand-text { display: flex; align-items: baseline; gap: 7px; }
-.topbar-brand-name { font: 600 17px/1 "Source Serif 4", Georgia, serif; letter-spacing: -0.01em; color: var(--ink); }
+.topbar-brand-name { font: 600 17px/1 var(--font-display); letter-spacing: 0; color: var(--ink); }
 .topbar-brand-version { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--muted); }
 /* Primary nav — Deploy / Activity */
 .topbar-nav { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
@@ -168,6 +168,20 @@ body { overflow: hidden; background: var(--paper); }
   .topbar-navlink span:not(.material-symbols-outlined),
   .topbar-status .updated-chip { display: none; }
 }
+@media (max-width: 720px) {
+  .topbar { gap: 8px; padding: 0 8px; }
+  .topbar-brand-text,
+  .topbar-status .endpoint-chip,
+  .topbar-status .host-chip { display: none; }
+  .topbar-status { gap: 6px; margin-left: 0; }
+  .topbar-nav { flex: 1 1 auto; justify-content: center; min-width: 0; }
+  .topbar-navlink { flex: 0 0 40px; justify-content: center; padding: 8px 0; }
+  .fleet-toolbar { align-items: stretch; flex-direction: column; }
+  .fleet-toolbar-right { align-items: stretch; flex-direction: column; width: 100%; }
+  .fleet-filter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .fleet-filter button { padding-left: 4px; padding-right: 4px; }
+  .fleet-search { min-width: 0; width: 100%; }
+}
 .endpoint-chip { background: var(--surface); color: var(--muted); padding: 4px 9px; border-radius: 2px; border: 1px solid var(--hairline); font-family: "JetBrains Mono", monospace; font-size: 11px; }
 .updated-chip { color: var(--muted); white-space: nowrap; font-size: 11px; font-variant-numeric: tabular-nums; }
 .topbar-manual-link {
@@ -186,6 +200,50 @@ body { overflow: hidden; background: var(--paper); }
   white-space: nowrap;
 }
 .topbar-manual-link .material-symbols-outlined { font-size: 19px; }
+
+.auth-gate {
+  align-items: center;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  display: flex;
+  inset: var(--topbar-h) 0 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 40;
+}
+
+.auth-gate[hidden] {
+  display: none;
+}
+
+.auth-gate-panel {
+  background: var(--surface-bright);
+  border: 1px solid var(--hairline);
+  border-radius: var(--card-radius);
+  display: grid;
+  gap: 12px;
+  max-width: 440px;
+  padding: 20px;
+  width: min(440px, 100%);
+}
+
+.auth-gate-panel h2 {
+  color: var(--ink);
+  font: 600 18px/24px var(--font-body);
+  margin: 0 0 4px;
+}
+
+.auth-gate-panel p {
+  color: var(--on-surface-variant);
+  font: 400 13px/18px var(--font-body);
+  margin: 0;
+}
+
+.auth-token-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
 .topbar-manual-link:hover { color: var(--ink); background: var(--surface); }
 .ctx-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 2px; border: 1px solid var(--hairline); background: transparent; color: var(--muted); cursor: pointer; }
 .ctx-icon-btn:hover { background: var(--surface); color: var(--ink); }

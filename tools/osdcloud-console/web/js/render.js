@@ -1,10 +1,10 @@
-import { renderBootMode, renderDashboardTiles, renderDhcpMode, renderDriverPackCache, renderEndpointSummary, renderInterfaces, renderLiveMetrics, renderLogs, renderOperation, renderOsImageSummary, renderOsImages, renderPayload, renderPipeline, renderPreflightSummary, renderProfileSummary, renderProfiles, renderRuntimeReadiness, renderScriptCatalog, renderServices, renderSoftwareCatalog, renderStatusStrip, renderSummaryBar, renderSync, renderTopology, renderValidation, renderWarningBanner } from './deploy.js';
+import { renderBootMode, renderDashboardTiles, renderDiagnosticsSummary, renderDhcpMode, renderDriverPackCache, renderEndpointSummary, renderInterfaces, renderLiveMetrics, renderLogs, renderOperation, renderOsImageSummary, renderOsImages, renderPayload, renderPipeline, renderPreflightSummary, renderProfileSummary, renderProfiles, renderRuntimeReadiness, renderScriptCatalog, renderServices, renderSoftwareCatalog, renderStatusStrip, renderSummaryBar, renderSync, renderTopology, renderValidation, renderWarningBanner } from './deploy.js';
 import { $, elements } from './dom.js';
 import { renderFleetCards } from './fleet.js';
 import { endpointLabel, localTime } from './format.js';
 import { renderInitialization } from './setup.js';
 import { state } from './state.js';
-import { renderConsoleDock, setControlsDisabled } from './ui.js';
+import { hydrateActionIcons, renderConsoleDock, setControlsDisabled } from './ui.js';
 
 export function renderFleetExpandedState() {
   document.body.classList.toggle('fleet-expanded', state.fleetExpanded);
@@ -33,6 +33,7 @@ export function render() {
   renderOperation(appState);
   renderEndpointSummary(appState);
   renderRuntimeReadiness(appState);
+  renderDiagnosticsSummary(appState);
   renderServices(appState);
   renderProfileSummary(appState);
   renderOsImageSummary(appState);
@@ -58,5 +59,6 @@ export function render() {
   renderSummaryBar(appState);
   renderDashboardTiles(appState);
   renderFleetCards(appState);
+  hydrateActionIcons();
   setControlsDisabled(state.busy || appState.operation?.running === true);
 }

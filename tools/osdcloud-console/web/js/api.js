@@ -4,17 +4,61 @@ import { render } from './render.js';
 import { state } from './state.js';
 import { setControlsDisabled } from './ui.js';
 
+const tokenStorageKey = 'winception-web-token';
+
+export function storedAuthToken() {
+  return window.sessionStorage?.getItem(tokenStorageKey) ?? '';
+}
+
+export function saveAuthToken(token) {
+  const value = String(token ?? '').trim();
+  if (value) {
+    window.sessionStorage?.setItem(tokenStorageKey, value);
+  } else {
+    window.sessionStorage?.removeItem(tokenStorageKey);
+  }
+  state.auth.error = '';
+}
+
 export let interfacesLoadPromise = null;
 export async function api(path, options = {}) {
+  const headers = new Headers(options.headers ?? {});
+  if (options.body && !headers.has('content-type')) {
+    headers.set('content-type', 'application/json');
+  }
+  const token = storedAuthToken();
+  if (token) {
+    headers.set('x-winception-token', token);
+  }
   const response = await fetch(path, {
-    headers: options.body ? { 'content-type': 'application/json' } : undefined,
     ...options,
+    headers,
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
+    if (response.status === 401 && payload.required) {
+      state.auth.required = true;
+      state.auth.hostMode = payload.hostMode ?? 'non-loopback';
+      state.auth.error = payload.error || 'Winception Web Console token required.';
+    }
     throw new Error(payload.error || `HTTP ${response.status}`);
   }
   return payload;
+}
+
+export async function loadAuthStatus() {
+  const response = await fetch('/api/auth/status');
+  const payload = await response.json();
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.error || `HTTP ${response.status}`);
+  }
+  state.auth = {
+    checked: true,
+    required: payload.required === true,
+    hostMode: payload.hostMode ?? 'loopback',
+    error: '',
+  };
+  return state.auth;
 }
 
 export async function refresh() {
@@ -24,6 +68,7 @@ export async function refresh() {
     state.current = payload.state;
     state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
     state.refreshError = null;
+    state.auth.error = '';
     render();
   } catch (error) {
     state.refreshError = error.message;

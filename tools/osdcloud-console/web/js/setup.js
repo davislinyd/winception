@@ -6,7 +6,7 @@ import { $, elements } from './dom.js';
 import { text } from './format.js';
 import { render } from './render.js';
 import { DEFAULT_WINDOWS_USERNAME, RESERVED_WINDOWS_USERNAMES, state } from './state.js';
-import { setControlsDisabled, setSetupRailCollapsed } from './ui.js';
+import { makeIcon, setControlsDisabled, setSetupRailCollapsed } from './ui.js';
 
 export function initializationActionLabel(action) {
   const labels = {
@@ -114,6 +114,21 @@ export function appendGuidedStepOverview(body, step) {
     overview.append(row);
   }
   body.append(overview);
+}
+
+export function appendGuidedDiagnosticsAction(body, trigger = 'guided-setup-failure') {
+  const actions = document.createElement('div');
+  actions.className = 'flex justify-start mt-md';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'warning';
+  button.dataset.action = 'diagnostics-run';
+  button.dataset.diagnosticsScope = 'host';
+  button.dataset.diagnosticsTrigger = trigger;
+  button.dataset.icon = 'health_metrics';
+  button.textContent = 'Run diagnostics';
+  actions.append(button);
+  body.append(actions);
 }
 
 export function captureInitializationDetailScrollPositions() {
@@ -416,13 +431,14 @@ export function renderInitialization(appState) {
   const deploymentLive = initialization.deploymentLive === true;
   if (state.currentView === null) {
     const saved = localStorage.getItem('winception-view');
-    const valid = new Set(['dashboard', 'fleet', 'guided', 'services', 'logs']);
-    state.currentView = (saved && valid.has(saved)) ? saved : 'dashboard';
+    const valid = new Set(['prepare', 'dashboard', 'fleet', 'guided', 'services', 'logs']);
+    state.currentView = saved === 'guided' ? 'prepare' : (saved && valid.has(saved)) ? saved : 'dashboard';
   }
 
-  // Toggle active views and nav tabs (Deploy / Activity; Setup is the Deploy rail)
+  // Toggle active views and nav tabs (Prepare / Deploy / Monitor)
   if (elements.tabDashboard) {
     elements.tabGuided?.classList.toggle('active', state.currentView === 'guided');
+    elements.tabPrepare?.classList.toggle('active', state.currentView === 'prepare');
     elements.tabDashboard.classList.toggle('active', state.currentView === 'dashboard');
   }
   if (elements.tabFleet) {
@@ -436,7 +452,7 @@ export function renderInitialization(appState) {
   }
   const dashboardView = $('#view-dashboard');
   if (dashboardView) {
-    dashboardView.classList.toggle('active', state.currentView === 'dashboard');
+    dashboardView.classList.toggle('active', state.currentView === 'dashboard' || state.currentView === 'prepare');
   }
   const fleetView = $('#view-fleet');
   if (fleetView) {
@@ -557,9 +573,7 @@ export function renderInitialization(appState) {
     titleRow.className = 'guided-detail-title-row';
     const title = document.createElement('h3');
     title.className = 'guided-detail-title';
-    const stepIcon = document.createElement('span');
-    stepIcon.className = 'material-symbols-outlined text-[24px] text-primary-fixed';
-    stepIcon.textContent = initializationActionIcon(selectedStep.action);
+    const stepIcon = makeIcon(initializationActionIcon(selectedStep.action), 'text-primary-fixed');
     title.append(stepIcon, document.createTextNode(selectedStep.label));
 
     const desc = document.createElement('p');
@@ -598,6 +612,9 @@ export function renderInitialization(appState) {
     }
     if (hasInlineProjectRootForm) {
       appendInitializationProjectRootForm(body, selectedStep);
+    }
+    if (selectedStepHasFailures) {
+      appendGuidedDiagnosticsAction(body);
     }
 
     // Action button — re-runnable steps stay editable after init

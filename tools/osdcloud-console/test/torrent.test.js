@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import bencode from 'bencode';
 import { createOsImageTorrent, TorrentTracker, TorrentSeeder, NodeSuperSeeder } from '../src/torrent.js';
 import { osTorrentManifestName, torrentServerConfig } from '../src/config.js';
 
@@ -19,6 +20,27 @@ function makeFixture() {
     torrent: { enabled: true, trackerPort: 6969, pieceLengthBytes: 262144, seedMinutes: 30 },
   };
   return { dir, cacheRoot, fileName, config };
+}
+
+function binaryParam(buffer) {
+  return Array.from(buffer, (byte) => `%${byte.toString(16).padStart(2, '0')}`).join('');
+}
+
+async function announcePeer({ tracker, infoHash, peerId, port, left = 0, event = 'started' }) {
+  const url = new URL(`http://127.0.0.1:${tracker.address.port}/announce`);
+  const query = [
+    `info_hash=${binaryParam(infoHash)}`,
+    `peer_id=${binaryParam(peerId)}`,
+    `port=${port}`,
+    'uploaded=0',
+    'downloaded=0',
+    `left=${left}`,
+    'compact=1',
+    event ? `event=${event}` : '',
+  ].filter(Boolean).join('&');
+  const response = await fetch(`${url}?${query}`);
+  assert.equal(response.status, 200);
+  return bencode.decode(Buffer.from(await response.arrayBuffer()));
 }
 
 test('createOsImageTorrent builds a BT-only torrent (announce, no webseed) and manifest', async () => {
@@ -113,6 +135,49 @@ test('TorrentTracker.getSwarmPeers returns an empty array before and after lifec
   assert.deepEqual(tracker.getSwarmPeers(), [], 'no peers yet after start with no announces');
   await tracker.stop();
   assert.deepEqual(tracker.getSwarmPeers(), [], 'cleared on stop');
+});
+
+test('TorrentTracker announce returns compact peers and removes stopped peers', async () => {
+  const tracker = new TorrentTracker({ enabled: true, serverIp: '127.0.0.1', trackerPort: 0 });
+  await tracker.start();
+  try {
+    const infoHash = Buffer.alloc(20, 1);
+    const seedPeerId = Buffer.from('-WC0001-abcdefghijkl'.slice(0, 20));
+    const clientPeerId = Buffer.from('-AR0001-abcdefghijkl'.slice(0, 20));
+
+    await announcePeer({ tracker, infoHash, peerId: seedPeerId, port: 6881, left: 0 });
+    const response = await announcePeer({ tracker, infoHash, peerId: clientPeerId, port: 6882, left: 10 });
+
+    const peers = Buffer.from(response.peers);
+    assert.equal(peers.length, 6, 'client receives the host seeder as one compact peer');
+    assert.deepEqual([...peers.slice(0, 4)], [127, 0, 0, 1]);
+    assert.equal(peers.readUInt16BE(4), 6881);
+    assert.equal(tracker.getSwarmPeers().length, 2);
+
+    await announcePeer({ tracker, infoHash, peerId: clientPeerId, port: 6882, event: 'stopped' });
+    assert.equal(tracker.getSwarmPeers().length, 1);
+  } finally {
+    await tracker.stop();
+  }
+});
+
+test('TorrentTracker evicts stale announced peers from summaries', async () => {
+  const tracker = new TorrentTracker({ enabled: true, serverIp: '127.0.0.1', trackerPort: 0 });
+  await tracker.start();
+  try {
+    await announcePeer({
+      tracker,
+      infoHash: Buffer.alloc(20, 2),
+      peerId: Buffer.from('-AR0002-abcdefghijkl'.slice(0, 20)),
+      port: 6883,
+      left: 1,
+    });
+    assert.equal(tracker.getSwarmPeers().length, 1);
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    assert.deepEqual(tracker.getSwarmPeers(0), []);
+  } finally {
+    await tracker.stop();
+  }
 });
 
 test('TorrentSeeder resolves the active torrent from the manifest', async () => {

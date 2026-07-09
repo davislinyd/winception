@@ -1,12 +1,12 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import bencode from 'bencode';
 import Wire from 'bittorrent-protocol';
 import createTorrent from 'create-torrent';
-import { Server as TrackerServer, Client as TrackerClient } from 'bittorrent-tracker';
 import { TorrentDistributionCoordinator } from './torrentCoordinator.js';
 import {
   torrentServerConfig,
@@ -24,6 +24,214 @@ function sha256FileStream(filePath) {
     stream.on('data', (chunk) => hash.update(chunk));
     stream.on('end', () => resolve(hash.digest('hex').toUpperCase()));
   });
+}
+
+function percentDecodeBuffer(value = '') {
+  const bytes = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === '%' && /^[0-9a-f]{2}$/iu.test(value.slice(index + 1, index + 3))) {
+      bytes.push(Number.parseInt(value.slice(index + 1, index + 3), 16));
+      index += 2;
+    } else if (char === '+') {
+      bytes.push(0x20);
+    } else {
+      bytes.push(...Buffer.from(char, 'utf8'));
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+function encodeBinaryParam(buffer) {
+  return [...Buffer.from(buffer)].map((byte) => `%${byte.toString(16).padStart(2, '0').toUpperCase()}`).join('');
+}
+
+function parseTrackerQuery(rawUrl = '') {
+  const query = rawUrl.split('?', 2)[1] ?? '';
+  const params = new Map();
+  for (const pair of query.split('&')) {
+    if (!pair) continue;
+    const [rawKey, rawValue = ''] = pair.split('=', 2);
+    const key = percentDecodeBuffer(rawKey).toString('utf8');
+    params.set(key, rawValue);
+  }
+  const text = (name, fallback = '') => percentDecodeBuffer(params.get(name) ?? fallback).toString('utf8');
+  const number = (name, fallback = 0) => {
+    const parsed = Number(text(name, String(fallback)));
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  return {
+    infoHash: percentDecodeBuffer(params.get('info_hash') ?? ''),
+    peerId: percentDecodeBuffer(params.get('peer_id') ?? ''),
+    port: number('port'),
+    uploaded: number('uploaded'),
+    downloaded: number('downloaded'),
+    left: number('left'),
+    compact: text('compact') === '1',
+    event: text('event'),
+  };
+}
+
+function trackerEventName(value) {
+  if (value === 'started') return 'start';
+  if (value === 'completed') return 'complete';
+  if (value === 'stopped') return 'stop';
+  return 'update';
+}
+
+function normalizePeerIp(ip) {
+  return String(ip ?? '').replace(/^::ffff:/u, '');
+}
+
+function compactPeer(peer) {
+  const bytes = normalizePeerIp(peer.ip).split('.').map((part) => Number(part));
+  if (bytes.length !== 4 || bytes.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return null;
+  }
+  const result = Buffer.alloc(6);
+  for (let index = 0; index < 4; index += 1) result[index] = bytes[index];
+  result.writeUInt16BE(Number(peer.port) & 0xffff, 4);
+  return result;
+}
+
+class LocalTrackerServer extends EventEmitter {
+  constructor({ intervalMs = 5000 } = {}) {
+    super();
+    this.intervalMs = intervalMs;
+    this.http = null;
+    this.torrents = new Map();
+  }
+
+  listen(port, host, callback) {
+    this.http = http.createServer((req, res) => this.handleRequest(req, res));
+    this.http.on('error', (error) => this.emit('error', error));
+    this.http.listen(port, host, callback);
+  }
+
+  close(callback) {
+    if (!this.http) {
+      callback?.();
+      return;
+    }
+    const server = this.http;
+    this.http = null;
+    server.close(callback);
+  }
+
+  handleRequest(req, res) {
+    if (req.method !== 'GET' || !String(req.url ?? '').startsWith('/announce')) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
+    }
+    try {
+      const announce = parseTrackerQuery(req.url);
+      if (announce.infoHash.length !== 20 || announce.peerId.length === 0 || announce.port <= 0) {
+        throw new Error('invalid announce request');
+      }
+      const ip = normalizePeerIp(req.socket.remoteAddress);
+      const event = trackerEventName(announce.event);
+      const infoHash = announce.infoHash.toString('hex');
+      const peerKey = announce.peerId.toString('hex');
+      const torrent = this.torrents.get(infoHash) ?? new Map();
+      this.torrents.set(infoHash, torrent);
+      if (event === 'stop') {
+        torrent.delete(peerKey);
+      } else {
+        torrent.set(peerKey, {
+          peerId: announce.peerId,
+          ip,
+          port: announce.port,
+          left: announce.left,
+          downloaded: announce.downloaded,
+          uploaded: announce.uploaded,
+          complete: event === 'complete' || announce.left === 0,
+          updatedAt: Date.now(),
+        });
+      }
+      const peers = [...torrent.entries()]
+        .filter(([key]) => key !== peerKey)
+        .map(([, peer]) => peer);
+      const compactPeers = peers.map(compactPeer).filter(Boolean);
+      const body = bencode.encode({
+        interval: Math.max(1, Math.round(this.intervalMs / 1000)),
+        complete: peers.filter((peer) => peer.complete).length,
+        incomplete: peers.filter((peer) => !peer.complete).length,
+        peers: Buffer.concat(compactPeers),
+      });
+      res.writeHead(200, {
+        'Content-Type': 'text/plain',
+        'Content-Length': body.length,
+      });
+      res.end(body);
+      this.emit(event, `${ip}:${announce.port}`, {
+        ip,
+        port: announce.port,
+        left: announce.left,
+        downloaded: announce.downloaded,
+        uploaded: announce.uploaded,
+        peer_id: announce.peerId,
+        peerId: announce.peerId,
+      });
+    } catch (error) {
+      const body = bencode.encode({ 'failure reason': error.message });
+      res.writeHead(400, {
+        'Content-Type': 'text/plain',
+        'Content-Length': body.length,
+      });
+      res.end(body);
+      this.emit('warning', error);
+    }
+  }
+}
+
+class LocalTrackerAnnouncer {
+  constructor({ announceUrl, infoHash, peerId, port, intervalMs = 5000 }) {
+    this.announceUrl = announceUrl;
+    this.infoHash = infoHash;
+    this.peerId = peerId;
+    this.port = port;
+    this.intervalMs = intervalMs;
+    this.timer = null;
+  }
+
+  url(event = '') {
+    const separator = this.announceUrl.includes('?') ? '&' : '?';
+    const params = [
+      `info_hash=${encodeBinaryParam(this.infoHash)}`,
+      `peer_id=${encodeBinaryParam(this.peerId)}`,
+      `port=${encodeURIComponent(String(this.port))}`,
+      'uploaded=0',
+      'downloaded=0',
+      'left=0',
+      'compact=1',
+      event ? `event=${encodeURIComponent(event)}` : '',
+    ].filter(Boolean).join('&');
+    return `${this.announceUrl}${separator}${params}`;
+  }
+
+  async announce(event = '') {
+    const response = await fetch(this.url(event));
+    if (!response.ok) {
+      throw new Error(`tracker announce failed: HTTP ${response.status}`);
+    }
+    return response.arrayBuffer();
+  }
+
+  async start() {
+    await this.announce('started');
+    this.timer = setInterval(() => {
+      void this.announce().catch(() => {});
+    }, this.intervalMs);
+  }
+
+  stop() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    void this.announce('stopped').catch(() => {});
+  }
 }
 
 // Generate the .torrent for the active deployable WIM and write it next to the
@@ -94,9 +302,9 @@ export async function createOsImageTorrent(config, options = {}) {
   return result;
 }
 
-// Lightweight host-side BitTorrent tracker. Wraps bittorrent-tracker's HTTP-only
-// Server and exposes the same lifecycle surface the other deployment services use
-// (start/stop/running + 'log'/'error' events) so ServiceController can manage it.
+// Lightweight host-side BitTorrent tracker. It implements the small HTTP
+// announce surface aria2 needs in WinPE, keeping the deployment LAN path local
+// and avoiding a broad tracker dependency tree.
 export class TorrentTracker extends EventEmitter {
   constructor(config = {}, coordinator = null) {
     super();
@@ -121,20 +329,12 @@ export class TorrentTracker extends EventEmitter {
   // Count peers currently tracked for any swarm (diagnostic: are all clients
   // discovering each other through the tracker?).
   swarmSummary() {
-    const torrents = this.server?.torrents ?? {};
+    const torrents = this.server?.torrents ?? new Map();
     const lines = [];
-    for (const [infoHash, torrent] of Object.entries(torrents)) {
-      const peers = torrent?.peers;
-      let count = 0;
-      let complete = 0;
-      try {
-        const values = typeof peers?.values === 'function' ? [...peers.values()] : Object.values(peers ?? {});
-        for (const p of values) {
-          if (!p) continue;
-          count += 1;
-          if (p.complete) complete += 1;
-        }
-      } catch {}
+    for (const [infoHash, peers] of torrents.entries()) {
+      const values = [...peers.values()];
+      const count = values.length;
+      const complete = values.filter((peer) => peer.complete).length;
       lines.push(`${infoHash.slice(0, 12)} peers=${count} seeders=${complete}`);
     }
     return lines.join('; ') || 'no swarms';
@@ -168,15 +368,9 @@ export class TorrentTracker extends EventEmitter {
       }
     }
 
-    // Deployment clients finish in minutes, so the library's 10-minute default
-    // announce interval is too slow for clients that join a few seconds apart.
-    const server = new TrackerServer({
-      http: true,
-      udp: false,
-      ws: false,
-      stats: false,
-      interval: 5000,
-    });
+    // Deployment clients finish in minutes, so the tracker announces every five
+    // seconds instead of using a typical long public-tracker interval.
+    const server = new LocalTrackerServer({ intervalMs: 5000 });
     server.on('error', (error) => this.emit('error', error));
     server.on('warning', (error) => this.emit('log', `WARNING ${error.message}`));
     for (const event of ['start', 'update', 'complete', 'stop']) {
@@ -234,6 +428,7 @@ export class TorrentTracker extends EventEmitter {
   async stop() {
     if (!this.server) {
       this._running = false;
+      this._swarmPeers.clear();
       return;
     }
     const server = this.server;
@@ -594,16 +789,13 @@ export class NodeSuperSeeder extends EventEmitter {
 
     const announceUrl = trackerAnnounceUrl(this.config.serverIp, this.config.trackerPort);
     try {
-      const trackerClient = new TrackerClient({
+      const trackerClient = new LocalTrackerAnnouncer({
+        announceUrl,
         infoHash: this._infoHash,
         peerId: this._peerId,
-        announce: [announceUrl],
         port: listenPort,
-        wrtc: false,
       });
-      trackerClient.on('error', (err) => this.emit('log', `Torrent seeder tracker error: ${err.message}`));
-      trackerClient.on('warning', (msg) => this.emit('log', `Torrent seeder tracker warning: ${msg}`));
-      trackerClient.start({ left: 0 });
+      await trackerClient.start();
       this._trackerClient = trackerClient;
     } catch (err) {
       this.emit('log', `Torrent seeder: tracker announce failed (${err.message}); continuing without tracker presence`);
@@ -620,7 +812,6 @@ export class NodeSuperSeeder extends EventEmitter {
 
     if (this._trackerClient) {
       try { this._trackerClient.stop(); } catch {}
-      try { this._trackerClient.destroy(); } catch {}
       this._trackerClient = null;
     }
 

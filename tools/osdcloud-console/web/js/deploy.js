@@ -1,9 +1,12 @@
 import { api, mutate, refresh } from './api.js';
 import { confirmAction, openDialog } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
+import { makeDiagnosticsButton, renderDiagnosticsSummary } from './deploy/diagnostics.js';
 import { bytes, dhcpRange, elapsed, endpointLabel, localCompactDateTime, localDateTime, localTime, osDownloadButtonText, osDownloadStatusText, osFamilyLabels, osImageLabel, percent, text } from './format.js';
 import { state } from './state.js';
 import { actionButtons, makeIcon, makeStatusPill, setActionDanger, setActionIcon, setActionLabel, setActionRunning, setDefinitionList, setDefinitionListNodes } from './ui.js';
+
+export { renderDiagnosticsSummary };
 
 export const syncSteps = [
   ['Stop running services', ['stopped running services'], ['selected']],
@@ -316,45 +319,65 @@ function FormatTorrentEta(seconds) {
   return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}` : `${minutes}:${String(secs).padStart(2, '0')}`;
 }
 
+function setDeploySummaryTooltip(target, payload) {
+  const segment = target.closest('.deploy-seg');
+  if (!segment) {
+    return;
+  }
+  segment.dataset.deployTooltip = JSON.stringify(payload);
+  segment.removeAttribute('title');
+}
+
+function makeDeploySummaryCompact(primaryText, secondaryContent, tone = '') {
+  const wrap = document.createElement('div');
+  wrap.className = 'deploy-summary-compact';
+  const primary = document.createElement('div');
+  primary.className = `deploy-summary-primary${tone ? ` ${tone}` : ''}`;
+  primary.textContent = primaryText;
+  const secondary = document.createElement('div');
+  secondary.className = 'deploy-summary-secondary';
+  if (secondaryContent instanceof Node) {
+    secondary.append(secondaryContent);
+  } else {
+    secondary.textContent = secondaryContent;
+  }
+  wrap.append(primary, secondary);
+  return wrap;
+}
+
 export function renderProfileSummary(appState) {
   elements.activeProfileDetails.replaceChildren();
   if (appState.profile?.error) {
-    const error = document.createElement('div');
-    error.className = 'check-row fail';
-    error.textContent = appState.profile.error;
-    elements.activeProfileDetails.append(error);
+    elements.activeProfileDetails.append(makeDeploySummaryCompact('Profile error', appState.profile.error, 'fail'));
+    setDeploySummaryTooltip(elements.activeProfileDetails, {
+      title: 'Profile error',
+      rows: [['Error', appState.profile.error]],
+    });
     return;
   }
   const active = appState.profile?.activeProfile;
-  const name = document.createElement('div');
-  name.className = 'profile-name';
-  name.textContent = active ? `${active.id} / ${active.name}` : '-';
-  const description = document.createElement('div');
-  description.className = 'profile-meta';
-  description.textContent = active?.description || 'No profile description.';
-  const software = document.createElement('div');
-  software.className = 'profile-software';
   const selectedSoftware = appState.profile?.selectedSoftware ?? [];
-  if (selectedSoftware.length) {
-    const list = document.createElement('ul');
-    selectedSoftware.forEach((item) => {
-      const li = document.createElement('li');
-      li.textContent = item.name ?? item.id;
-      list.append(li);
-    });
-    software.append(list);
-  } else {
-    software.textContent = 'No client software selected.';
-  }
-  const localeParts = [active?.displayLanguage, active?.locale, active?.inputLanguage, active?.timeZone].filter(Boolean);
-  if (localeParts.length) {
-    const localeMeta = document.createElement('div');
-    localeMeta.className = 'profile-meta';
-    localeMeta.textContent = `International settings: ${localeParts.join(' · ')}`;
-    elements.activeProfileDetails.append(name, description, localeMeta, software);
-  } else {
-    elements.activeProfileDetails.append(name, description, software);
-  }
+  const softwareCount = selectedSoftware.length;
+  const profileTitle = active ? `${active.id} / ${active.name}` : 'No active profile';
+  const summaryParts = [
+    `${softwareCount} ${softwareCount === 1 ? 'app' : 'apps'}`,
+    active?.displayLanguage,
+    active?.timeZone,
+  ].filter(Boolean);
+  elements.activeProfileDetails.append(makeDeploySummaryCompact(profileTitle, summaryParts.join(' · ') || 'No client software selected.'));
+  setDeploySummaryTooltip(elements.activeProfileDetails, {
+    title: profileTitle,
+    rows: active
+      ? [
+          ['Description', active.description || 'No profile description.'],
+          ['International settings', [active.displayLanguage, active.locale, active.inputLanguage, active.timeZone].filter(Boolean).join(' · ') || '-'],
+        ]
+      : [['Status', 'No active deployment profile is selected.']],
+    listTitle: 'Selected software',
+    list: selectedSoftware.length
+      ? selectedSoftware.map((item) => item.name ?? item.id)
+      : ['No client software selected.'],
+  });
 }
 
 export function appendTextCell(row, value, className = '') {
@@ -475,31 +498,34 @@ export function renderOsImageSummary(appState) {
   elements.activeOsDetails.replaceChildren();
   const osState = appState.osImage;
   if (osState?.error) {
-    const error = document.createElement('div');
-    error.className = 'check-row fail';
-    error.textContent = osState.error;
-    elements.activeOsDetails.append(error);
+    elements.activeOsDetails.append(makeDeploySummaryCompact('OS image error', osState.error, 'fail'));
+    setDeploySummaryTooltip(elements.activeOsDetails, {
+      title: 'OS image error',
+      rows: [['Error', osState.error]],
+    });
     return;
   }
   const active = osState?.activeImage;
-  const title = document.createElement('div');
-  title.className = 'profile-name';
-  title.textContent = active ? active.id : '-';
-  const meta = document.createElement('div');
-  meta.className = 'profile-meta';
-  meta.textContent = active ? osImageLabel(active) : 'No OS image selected.';
-  const cache = document.createElement('div');
-  cache.className = 'profile-software active-os-cache-line';
-  cache.append(makeStatusPill(active?.cached ? 'Cached' : 'Missing', active?.cached ? 'ok' : 'fail'));
-  const file = document.createElement('code');
-  file.className = 'service-address active-os-cache-file';
-  file.textContent = active?.fileName ?? '-';
-  cache.append(file);
-  elements.activeOsDetails.append(title, meta, cache);
+  const status = makeStatusPill(active?.cached ? 'Cached' : 'Missing', active?.cached ? 'ok' : 'fail');
+  const summary = active
+    ? `Windows 11 ${text(active.releaseId ?? active.version ?? active.build)} ${text(active.language)} ${text(active.edition)} · index ${text(active.imageIndex)}`
+    : 'No OS image selected';
+  elements.activeOsDetails.append(makeDeploySummaryCompact(summary, status));
+  setDeploySummaryTooltip(elements.activeOsDetails, {
+    title: active?.id ?? 'No OS image selected',
+    rows: active
+      ? [
+          ['Image', osImageLabel(active)],
+          ['Status', active.cached ? 'Cached' : 'Missing'],
+          ['File', active.fileName ?? '-'],
+        ]
+      : [['Status', 'No active OS image is selected.']],
+  });
 }
 
 export function renderOsDownloadStatus(appState) {
   const readiness = osCatalogFiltersReady();
+  elements.osDownloadStatusActions?.replaceChildren();
   if (elements.osDownloadCatalogSection) {
     elements.osDownloadCatalogSection.setAttribute('aria-busy', state.osDownloadCatalogLoading ? 'true' : 'false');
   }
@@ -514,6 +540,11 @@ export function renderOsDownloadStatus(appState) {
   }
   if (state.osDownloadCatalogError) {
     elements.osDownloadStatus.textContent = `Catalog load failed: ${state.osDownloadCatalogError}`;
+    elements.osDownloadStatusActions?.append(makeDiagnosticsButton({
+      scope: 'host',
+      trigger: 'os-catalog-failure',
+      label: 'Run diagnostics',
+    }));
     return;
   }
   const status = appState.osDownloadStatus;

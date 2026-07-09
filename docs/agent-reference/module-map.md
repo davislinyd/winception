@@ -19,11 +19,13 @@ instead of reading a multi-thousand-line monolith. Grep the symbol, open the lis
 | Shared UI builders (pills, icons, definition lists, console dock, copy) | `web/js/ui.js` |
 | Dialog open/close/backdrop + every `show*Dialog` builder | `web/js/dialogs.js` |
 | **Deploy** (dashboard): services, tiles, preflight, runtime readiness, OS/profile/interface/payload/sync/validation render | `web/js/deploy.js` |
+| Deploy diagnostics panel/button builder | `web/js/deploy/diagnostics.js` |
 | **Setup** (guided init): steps, secrets form, project-root form, init handlers | `web/js/setup.js` |
 | **Activity** (fleet): cards, detail, search/filter, `STALE_DONE_STAGES` | `web/js/fleet.js` |
 | Action dispatch (`handleAction`) + async button handlers, `switchToView` | `web/js/actions.js` |
+| Document-level click dispatch registry | `web/js/actionRegistry.js` |
 | The `render()` orchestrator (fan-out to view renderers) | `web/js/render.js` |
-| Event listeners, bootstrap, 2.5s refresh interval | `web/js/main.js` |
+| Bootstrap, auth gate, form wiring, 2.5s refresh interval | `web/js/main.js` |
 | Styles | `web/css/01-base · 02-cards-forms · 03-layout · 04-tables · 05-components · 06-shell · 07-views` |
 
 ## Back end — `tools/osdcloud-console/src/`
@@ -55,16 +57,17 @@ Entry points (run by `package.json` scripts) stay at `src/` root: `webServer.js`
 | Controller init-state + summary projection (`buildInitializationState`, summaries) | `src/controller/state.js` |
 | Config load/merge/save, derived paths, service configs | `src/config.js` |
 | Web management API routing | `src/webServer.js` |
+| Web API token gate and HostTools State token file | `src/webAuth.js` |
 | Media/status HTTP server | `src/httpServer.js` |
 | DHCP / TFTP responders | `src/dhcp.js` / `src/tftp.js` |
-| Torrent create/tracker/seeder | `src/torrent.js` |
+| Torrent create/repo-local tracker/seeder | `src/torrent.js` |
 | Torrent wave/batch coordination, telemetry, budget, release persistence | `src/torrentCoordinator.js` |
 | Fleet status + run queries | `src/status.js` |
 | Runtime artifact readiness | `src/runtimeArtifacts.js` |
 | Driver pack cache | `src/driverPackCache.js` |
 | Logging / time / process output / run summary | `src/logger.js` / `src/timeFormat.js` / `src/processOutput.js` / `src/runSummary.js` |
 
-> `httpServer.js` and `torrent.js` were left whole (moderate size); split them by handler/class if they grow.
+> `httpServer.js` and `torrent.js` are still moderate-size modules; split them by handler/class if they grow again.
 
 ## PowerShell — `tools/`
 

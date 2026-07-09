@@ -184,19 +184,8 @@ button.all-services-toggle.is-running {
 }
 
 button[data-icon]::before {
-  content: attr(data-icon);
-  direction: ltr;
-  display: inline-block;
-  font-family: "Material Symbols Outlined";
-  font-feature-settings: "liga";
-  font-size: 14px;
-  font-style: normal;
-  font-weight: normal;
-  letter-spacing: normal;
-  line-height: 1;
-  text-transform: none;
-  white-space: nowrap;
-  word-wrap: normal;
+  content: none;
+  display: none;
 }
 
 .action-grid button {
@@ -340,14 +329,8 @@ button[data-icon]::before {
 }
 
 .service-card-cta::before {
-  content: attr(data-icon);
-  direction: ltr;
-  flex: 0 0 auto;
-  font-family: "Material Symbols Outlined";
-  font-size: 15px;
-  font-weight: normal;
-  line-height: 1;
-  text-transform: none;
+  content: none;
+  display: none;
 }
 
 .service-card-cta.danger {

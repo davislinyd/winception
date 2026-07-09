@@ -456,6 +456,62 @@ function Start-WebConsole {
     Start-Process "http://${HostIp}:$WebPort"
 }
 
+function Invoke-SetupDiagnosticsFallback {
+    param([string] $FailureMessage)
+
+    if (-not (Test-CommandAvailable -Name 'node')) {
+        Write-Warning 'Diagnostics fallback skipped because node is unavailable.'
+        return $null
+    }
+
+    $DiagnosticsCliPath = Join-Path $SourceRoot 'tools\osdcloud-console\src\diagnostics\cli.js'
+    if (-not (Test-Path -LiteralPath $DiagnosticsCliPath -PathType Leaf)) {
+        Write-Warning "Diagnostics fallback skipped because the CLI was not found: $DiagnosticsCliPath"
+        return $null
+    }
+
+    $DiagnosticsConfigPath = if (Test-Path -LiteralPath $StateConfigPath -PathType Leaf) {
+        $StateConfigPath
+    } else {
+        $ConfigPath
+    }
+
+    try {
+        Write-Step 'Collecting diagnostics fallback'
+        $arguments = @(
+            $DiagnosticsCliPath,
+            '--config',
+            $DiagnosticsConfigPath,
+            '--app-root',
+            $AppRoot,
+            '--state-root',
+            $StateRoot,
+            '--scope',
+            'host',
+            '--trigger',
+            'setup-failure'
+        )
+        $output = & node @arguments 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Diagnostics fallback failed: $($output -join [Environment]::NewLine)"
+            return $null
+        }
+        $result = ($output -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+        if ($result.ok -and $result.bundlePath) {
+            Write-Host "Diagnostics bundle: $($result.bundlePath)"
+            if ($FailureMessage) {
+                Write-Host "Diagnostics captured for setup failure: $FailureMessage"
+            }
+            return $result.bundlePath
+        }
+    }
+    catch {
+        Write-Warning "Diagnostics fallback failed: $($_.Exception.Message)"
+    }
+
+    return $null
+}
+
 try {
     Write-Step 'Checking setup prerequisites'
     if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
@@ -564,6 +620,10 @@ try {
     Write-Host 'Use the first-run Web initialization wizard for deployment secrets, deployment project root selection, runtime preparation, SMB, PXE endpoint sync, OS image selection, profile publish, preflight, and service start/stop.'
 }
 catch {
+    $diagnosticsBundle = Invoke-SetupDiagnosticsFallback -FailureMessage $_.Exception.Message
     Write-Error $_.Exception.Message
+    if ($diagnosticsBundle) {
+        Write-Host "Share this diagnostics ZIP: $diagnosticsBundle"
+    }
     exit 1
 }

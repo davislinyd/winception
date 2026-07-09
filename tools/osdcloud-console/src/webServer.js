@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { webServerConfig } from './config.js';
 import { ServiceController } from './controller/index.js';
+import { ensureWebConsoleToken, tokenMatches, webAuthState } from './webAuth.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultStaticRoot = path.resolve(moduleDir, '..', 'web');
@@ -18,6 +19,7 @@ const contentTypes = new Map([
   ['.json', 'application/json; charset=utf-8'],
   ['.png', 'image/png'],
   ['.svg', 'image/svg+xml'],
+  ['.zip', 'application/zip'],
 ]);
 
 function sendJson(res, statusCode, payload) {
@@ -101,12 +103,81 @@ function headerValue(headers, name) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+const json16KiB = 16 * 1024;
+const apiRouteTable = [
+  { method: 'GET', path: '/api/auth/status', auth: false },
+  { method: 'GET', path: '/api/state' },
+  { method: 'GET', path: '/api/interfaces' },
+  { method: 'GET', path: '/api/profiles' },
+  { method: 'GET', path: '/api/os-images' },
+  { method: 'GET', path: '/api/os-download-catalog' },
+  { method: 'GET', path: '/api/diagnostics/latest' },
+  { method: 'GET', path: '/api/diagnostics/download' },
+  { method: 'GET', path: '/api/software/script' },
+  { method: 'GET', path: '/api/scripts/content' },
+  { method: 'POST', path: '/api/services/start-all' },
+  { method: 'POST', path: '/api/services/stop-all' },
+  { method: 'POST', path: '/api/torrent/release', bodyLimit: json16KiB },
+  { method: 'POST', path: '/api/preflight' },
+  { method: 'POST', path: '/api/diagnostics/run', bodyLimit: json16KiB },
+  { method: 'POST', path: '/api/secrets', bodyLimit: json16KiB },
+  { method: 'POST', path: '/api/runtime/prepare' },
+  { method: 'POST', path: '/api/project-root' },
+  { method: 'POST', path: '/api/endpoint' },
+  { method: 'POST', path: '/api/boot-mode' },
+  { method: 'POST', path: '/api/dhcp-mode' },
+  { method: 'POST', path: '/api/profile' },
+  { method: 'POST', path: '/api/os-image-delete' },
+  { method: 'POST', path: '/api/os-download' },
+  { method: 'POST', path: '/api/os-image-reexport' },
+  { method: 'POST', path: '/api/os-image-upload' },
+  { method: 'POST', path: '/api/os-image-upload-import' },
+  { method: 'POST', path: '/api/software-upload' },
+  { method: 'POST', path: '/api/software/create' },
+  { method: 'POST', path: '/api/software/script/open' },
+  { method: 'POST', path: '/api/software/delete' },
+  { method: 'POST', path: '/api/script-upload' },
+  { method: 'POST', path: '/api/scripts/create' },
+  { method: 'POST', path: '/api/scripts/delete' },
+  { method: 'POST', path: '/api/profiles/create' },
+  { method: 'POST', path: '/api/profile/software' },
+  { method: 'POST', path: '/api/profiles/delete' },
+  { method: 'POST', path: '/api/status/clear' },
+  { method: 'POST', path: '/api/status/run/delete' },
+  { method: 'POST', path: '/api/status/runs/delete' },
+  { method: 'POST', path: '/api/status/runs/archive' },
+  { method: 'POST', path: '/api/status/runs/restore' },
+  { method: 'POST', path: '/api/status/archive/delete' },
+];
+
+function matchApiRoute(method, pathname) {
+  const serviceRoute = parseServiceRoute(pathname);
+  if (serviceRoute) {
+    return method === 'POST'
+      ? { method: 'POST', path: pathname, serviceRoute }
+      : null;
+  }
+  return apiRouteTable.find((route) => route.method === method && route.path === pathname) ?? null;
+}
+
+function allowedApiMethods(pathname) {
+  const methods = new Set(apiRouteTable
+    .filter((route) => route.path === pathname)
+    .map((route) => route.method));
+  if (parseServiceRoute(pathname)) {
+    methods.add('POST');
+  }
+  return [...methods].sort();
+}
+
 export class WebManagementServer {
   constructor(options = {}) {
     this.controller = options.controller ?? new ServiceController(options);
     this.staticRoot = options.staticRoot ?? defaultStaticRoot;
     this.manualRoot = options.manualRoot ?? defaultManualRoot;
     this.server = null;
+    this.listenHost = null;
+    this.authToken = null;
   }
 
   get address() {
@@ -120,6 +191,12 @@ export class WebManagementServer {
     const webConfig = webServerConfig(this.controller.config);
     const host = options.host ?? webConfig.host;
     const port = options.port ?? webConfig.port;
+    this.listenHost = host;
+    if (this.authStatus().required) {
+      this.authToken = ensureWebConsoleToken(this.controller.config).token;
+    } else {
+      this.authToken = null;
+    }
     this.server = http.createServer((req, res) => {
       this.handleRequest(req, res).catch((error) => {
         const statusCode = error.statusCode ?? (error instanceof SyntaxError ? 400 : 500);
@@ -146,7 +223,40 @@ export class WebManagementServer {
     }
     const server = this.server;
     this.server = null;
+    this.listenHost = null;
+    this.authToken = null;
     await new Promise((resolve) => server.close(resolve));
+  }
+
+  authStatus() {
+    const config = {
+      ...this.controller.config,
+      web: {
+        ...(this.controller.config.web ?? {}),
+        host: this.listenHost ?? webServerConfig(this.controller.config).host,
+      },
+    };
+    return webAuthState(config);
+  }
+
+  ensureAuthorized(req, res) {
+    const status = this.authStatus();
+    if (!status.required) {
+      return true;
+    }
+    const token = this.authToken ?? ensureWebConsoleToken(this.controller.config).token;
+    this.authToken = token;
+    const provided = headerValue(req.headers, 'x-winception-token');
+    if (tokenMatches(provided, token)) {
+      return true;
+    }
+    sendJson(res, 401, {
+      ok: false,
+      error: 'Winception Web Console token required.',
+      required: true,
+      hostMode: status.hostMode,
+    });
+    return false;
   }
 
   async handleRequest(req, res) {
@@ -183,6 +293,29 @@ export class WebManagementServer {
 
   async handleApi(req, res, requestUrl) {
     const { pathname } = requestUrl;
+    const routeMeta = matchApiRoute(req.method, pathname);
+    if (!routeMeta) {
+      const allowed = allowedApiMethods(pathname);
+      if (allowed.length > 0) {
+        res.writeHead(405, { Allow: allowed.join(', ') });
+        res.end();
+        return;
+      }
+      if (!this.ensureAuthorized(req, res)) {
+        return;
+      }
+      sendJson(res, 404, { ok: false, error: `Unknown API path: ${pathname}` });
+      return;
+    }
+    if (routeMeta.auth !== false && !this.ensureAuthorized(req, res)) {
+      return;
+    }
+    const readBody = (fallbackLimit) => readJsonBody(req, routeMeta.bodyLimit ?? fallbackLimit);
+
+    if (req.method === 'GET' && pathname === '/api/auth/status') {
+      sendJson(res, 200, this.authStatus());
+      return;
+    }
     if (req.method === 'GET' && pathname === '/api/state') {
       sendJson(res, 200, { ok: true, state: this.controller.getState({ selectedRunId: requestUrl.searchParams.get('runId') ?? undefined }) });
       return;
@@ -203,6 +336,20 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, catalog: await this.controller.getOsDownloadCatalog(parseOsDownloadCatalogFilters(requestUrl.searchParams)) });
       return;
     }
+    if (req.method === 'GET' && pathname === '/api/diagnostics/latest') {
+      sendJson(res, 200, { ok: true, result: this.controller.diagnosticsSummary() });
+      return;
+    }
+    if (req.method === 'GET' && pathname === '/api/diagnostics/download') {
+      const bundleName = requestUrl.searchParams.get('name');
+      const filePath = this.controller.diagnosticsDownloadPath(bundleName);
+      if (!filePath) {
+        sendJson(res, 404, { ok: false, error: 'Diagnostic bundle not found.' });
+        return;
+      }
+      await this.sendFile(req, res, filePath);
+      return;
+    }
     if (req.method === 'GET' && pathname === '/api/software/script') {
       const result = this.controller.readSoftwareInstallScript(requestUrl.searchParams.get('softwareId'));
       sendJson(res, 200, { ok: true, result });
@@ -216,13 +363,7 @@ export class WebManagementServer {
       return;
     }
 
-    if (req.method !== 'POST') {
-      res.writeHead(405, { Allow: 'GET, POST' });
-      res.end();
-      return;
-    }
-
-    const route = parseServiceRoute(pathname);
+    const route = routeMeta.serviceRoute;
     if (route) {
       const result = route.action === 'start'
         ? await this.controller.startService(route.service)
@@ -242,7 +383,7 @@ export class WebManagementServer {
       return;
     }
     if (pathname === '/api/torrent/release') {
-      const body = await readJsonBody(req, 16 * 1024);
+      const body = await readBody(json16KiB);
       const result = this.controller.releaseTorrentClients(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
@@ -252,8 +393,14 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/diagnostics/run') {
+      const body = await readBody(json16KiB);
+      const result = await this.controller.runDiagnostics(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/secrets') {
-      const body = await readJsonBody(req, 16 * 1024);
+      const body = await readBody(json16KiB);
       const result = await this.controller.saveDeploymentSecrets(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
@@ -264,49 +411,49 @@ export class WebManagementServer {
       return;
     }
     if (pathname === '/api/project-root') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.updateProjectRoot(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/endpoint') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.changeEndpoint(body.interface ?? body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/boot-mode') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.changeBootMode(body.mode ?? body.bootMode);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/dhcp-mode') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.changeDhcpMode(body.mode ?? body.dhcpMode);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/profile') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.changeDeploymentProfile(body.profileId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/os-image-delete') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.deleteOsImage(body.imageId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/os-download') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const { promise: _promise, ...result } = this.controller.startOsDownload(body.catalogId ?? body.id);
       sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/os-image-reexport') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const { promise: _promise, ...result } = this.controller.startReexportOsImage(body.imageId ?? body.id);
       sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
       return;
@@ -324,7 +471,7 @@ export class WebManagementServer {
       return;
     }
     if (pathname === '/api/os-image-upload-import') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.importUploadedOsImage(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
@@ -342,19 +489,19 @@ export class WebManagementServer {
       return;
     }
     if (pathname === '/api/software/create') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.addSoftwarePackage(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/software/script/open') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.openSoftwareInstallScript(body.softwareId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/software/delete') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.removeSoftwarePackage(body.softwareId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
@@ -372,25 +519,25 @@ export class WebManagementServer {
       return;
     }
     if (pathname === '/api/scripts/create') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.addCustomScript(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/scripts/delete') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.removeCustomScript(body.scriptId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/profiles/create') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.addDeploymentProfile(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/profile/software') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const hasSoftware = Object.prototype.hasOwnProperty.call(body, 'softwareIds')
         || Object.prototype.hasOwnProperty.call(body, 'software');
       const hasOsImage = Object.prototype.hasOwnProperty.call(body, 'osImageId')
@@ -418,7 +565,7 @@ export class WebManagementServer {
       return;
     }
     if (pathname === '/api/profiles/delete') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.removeDeploymentProfile(body.profileId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
@@ -429,31 +576,31 @@ export class WebManagementServer {
       return;
     }
     if (pathname === '/api/status/run/delete') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.deleteStatusRun(body.runId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/status/runs/delete') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.deleteStatusRuns(body.runIds ?? body.ids ?? []);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/status/runs/archive') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.archiveStatusRuns(body.runIds ?? body.ids ?? []);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/status/runs/restore') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.restoreStatusRuns(body.runIds ?? body.ids ?? []);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/status/archive/delete') {
-      const body = await readJsonBody(req);
+      const body = await readBody();
       const result = await this.controller.deleteArchivedRuns(body.runIds ?? body.ids ?? []);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;

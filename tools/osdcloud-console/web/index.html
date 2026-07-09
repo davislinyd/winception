@@ -4,77 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OSDCloud Host Console</title>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <script id="tailwind-config">
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            paper:    "#FAF7F2",
-            ink:      "#332E29",
-            muted:    "#6E655B",
-            hairline: "#E8E0D3",
-            clay:     "#9C4221",
-            surface:  "#F6EEE0",
-            sage:     "#38684A",
-            ochre:    "#8F5A1F",
-            brick:    "#9E3B32",
-            "on-surface": "var(--on-surface)",
-            "on-surface-variant": "var(--on-surface-variant)",
-            "outline-variant": "var(--outline-variant)",
-            "surface-dim": "var(--surface-dim)",
-            "surface-bright": "var(--surface-bright)",
-            "surface-container-lowest": "var(--surface-container-lowest)",
-            "surface-container-low": "var(--surface-container-low)",
-            "surface-container": "var(--surface-container)",
-            "surface-container-high": "var(--surface-container-high)",
-            "surface-container-highest": "var(--surface-container-highest)"
-          },
-          borderRadius: {
-            "DEFAULT": "0.25rem",
-            "lg": "0.375rem",
-            "xl": "0.5rem",
-            "card": "0.25rem",
-            "full": "9999px"
-          },
-          spacing: {
-            "xs": "4px",
-            "unit": "4px",
-            "sm": "8px",
-            "md": "12px",
-            "lg": "16px",
-            "xl": "24px",
-            "container-padding": "12px",
-            "table-cell-padding": "6px 8px"
-          },
-          fontFamily: {
-            headline:  ["Source Serif 4", "Georgia", "serif"],
-            body:      ["Inter", "sans-serif"],
-            mono:      ["JetBrains Mono", "monospace"],
-            "body-sm": ["Inter", "sans-serif"],
-            "ui-label": ["Inter", "sans-serif"],
-            "data-tabular": ["Inter", "sans-serif"],
-            "technical-string": ["JetBrains Mono", "monospace"],
-            "log-entry": ["JetBrains Mono", "monospace"],
-            "h1": ["Source Serif 4", "Georgia", "serif"],
-            "h2": ["Source Serif 4", "Georgia", "serif"]
-          },
-          fontSize: {
-            "body-sm": ["13px", { lineHeight: "18px", fontWeight: "400" }],
-            "ui-label": ["13px", { lineHeight: "16px", fontWeight: "500" }],
-            "data-tabular": ["12px", { lineHeight: "16px", fontWeight: "400" }],
-            "technical-string": ["12px", { lineHeight: "16px", fontWeight: "400" }],
-            "log-entry": ["11px", { lineHeight: "14px", fontWeight: "400" }],
-            "h1": ["20px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" }],
-            "h2": ["16px", { lineHeight: "24px", fontWeight: "600" }]
-          }
-        }
-      }
-    };
-  </script>
   <link rel="stylesheet" href="./css/01-base.css">
   <link rel="stylesheet" href="./css/02-cards-forms.css">
   <link rel="stylesheet" href="./css/03-layout.css">
@@ -96,13 +25,17 @@
         </div>
       </div>
       <nav class="topbar-nav" aria-label="Views">
+        <button id="tab-prepare" class="topbar-navlink" type="button" title="Prepare">
+          <span class="material-symbols-outlined">checklist</span>
+          <span>Prepare</span>
+        </button>
         <button id="tab-dashboard" class="topbar-navlink active" type="button" title="Deploy">
           <span class="material-symbols-outlined">rocket_launch</span>
           <span>Deploy</span>
         </button>
-        <button id="tab-fleet" class="topbar-navlink" type="button" title="Activity">
+        <button id="tab-fleet" class="topbar-navlink" type="button" title="Monitor">
           <span class="material-symbols-outlined">analytics</span>
-          <span>Activity</span>
+          <span>Monitor</span>
         </button>
       </nav>
       <div class="topbar-status">
@@ -118,6 +51,20 @@
       </div>
     </header>
     <main class="shell-main flex flex-col">
+      <section id="auth-gate" class="auth-gate" hidden aria-labelledby="auth-gate-title">
+        <form id="auth-form" class="auth-gate-panel">
+          <div>
+            <h2 id="auth-gate-title">Web Console Token</h2>
+            <p>Enter the local token from HostTools State to unlock remote API control.</p>
+          </div>
+          <label class="field-label" for="web-token-input">Token</label>
+          <div class="auth-token-row">
+            <input id="web-token-input" class="field-input" type="password" autocomplete="off" spellcheck="false">
+            <button id="web-token-submit" class="btn-primary" type="submit" data-icon="lock">Unlock</button>
+          </div>
+          <p id="web-token-error" class="form-error" hidden></p>
+        </form>
+      </section>
       <section id="view-dashboard" class="view active flex-col" aria-labelledby="dashboard-title">
 
         <!-- Deploy = two columns: dashboard (left, scrolls independently) + full-height collapsible guided-setup rail (right) -->
@@ -143,6 +90,7 @@
             <button id="summary-action" data-action="preflight" class="btn-primary" type="button">Run preflight</button>
           </div>
         </div>
+        <div id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden></div>
 
         <!-- embedded config editor host (Profile / OS Image / Endpoint render here inline) -->
         <div id="config-embed" class="config-embed" hidden></div>
@@ -176,7 +124,7 @@
         </div>
 
         <!-- Always-visible readiness: runtime + preflight side by side, no toggle to hunt for -->
-        <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm">
+        <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-3 gap-sm">
           <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
             <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span></div>
             <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
@@ -187,6 +135,15 @@
           <section class="preflight-summary-panel p-md flex flex-col gap-sm">
             <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span></div>
             <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
+          </section>
+          <section class="preflight-summary-panel p-md flex flex-col gap-sm">
+            <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Diagnostics</h3><span id="diagnostics-status-badge" class="status-pill neutral" aria-live="polite">No data</span></div>
+            <div id="diagnostics-headline" class="font-ui-label text-ui-label">No diagnostics bundle has been generated yet.</div>
+            <div id="diagnostics-summary" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
+            <div class="runtime-readiness-actions flex flex-wrap gap-sm">
+              <button id="diagnostics-run-button" data-action="diagnostics-run" data-diagnostics-scope="full" data-diagnostics-trigger="manual" data-icon="health_metrics" class="warning" type="button">Run diagnostics</button>
+              <button id="diagnostics-download-button" data-action="diagnostics-download" data-icon="download" type="button" disabled>Download ZIP</button>
+            </div>
           </section>
         </div>
         </div><!-- /deploy-main -->
@@ -479,7 +436,10 @@
         <section id="os-download-catalog-section" class="drawer-section" aria-busy="false">
           <div class="drawer-section-header">
             <h4>Microsoft Official Downloads</h4>
-            <span id="os-download-status" class="font-technical-string text-technical-string text-on-surface-variant" aria-live="polite">Host-side downloads only.</span>
+            <div class="drawer-actions">
+              <span id="os-download-status" class="font-technical-string text-technical-string text-on-surface-variant" aria-live="polite">Host-side downloads only.</span>
+              <span id="os-download-status-actions" class="drawer-actions"></span>
+            </div>
           </div>
           <div class="catalog-filter-panel" aria-label="Catalog load filters">
             <section class="catalog-filter-group">

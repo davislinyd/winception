@@ -60,6 +60,9 @@ function makeConfig(root) {
 
 async function makeServer(root, overrides = {}) {
   const config = makeConfig(root);
+  if (overrides.config) {
+    Object.assign(config, overrides.config);
+  }
   const osCatalogCalls = [];
   const services = {
     dhcp: new FakeService(config.dhcp),
@@ -356,7 +359,7 @@ async function makeServer(root, overrides = {}) {
   fs.writeFileSync(path.join(manualAssetsRoot, 'screen.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   const server = new WebManagementServer({ controller, staticRoot, manualRoot });
   server.osCatalogCalls = osCatalogCalls;
-  await server.start({ host: '127.0.0.1', port: 0 });
+  await server.start({ host: overrides.listenHost ?? '127.0.0.1', port: 0 });
   return server;
 }
 
@@ -383,6 +386,66 @@ test('serves static UI and read-only state', async () => {
     assert.equal(secretsStep.action, 'secrets');
     assert.equal(secretsStep.detail, 'Missing: windowsUsername, windowsPassword, pxeinstallPassword');
     assert.equal(fs.existsSync(path.join(root, 'status')), false);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('API auth status reports loopback bypass without requiring a token', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-auth-loopback-'));
+  const server = await makeServer(root);
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/auth/status`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, required: false, hostMode: 'loopback' });
+
+    response = await fetch(`${base}/api/state`);
+    assert.equal(response.status, 200);
+    assert.equal(fs.existsSync(path.join(root, 'config', 'web-console-token.json')), false);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('API auth gate protects non-loopback listeners while static and manual stay readable', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-auth-token-'));
+  const server = await makeServer(root, { listenHost: '0.0.0.0' });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/`);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Smoke/);
+
+    response = await fetch(`${base}/manual/`);
+    assert.equal(response.status, 200);
+
+    response = await fetch(`${base}/api/auth/status`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, required: true, hostMode: 'non-loopback' });
+
+    response = await fetch(`${base}/api/state`);
+    assert.equal(response.status, 401);
+    let payload = await response.json();
+    assert.equal(payload.ok, false);
+    assert.equal(payload.required, true);
+    assert.equal(JSON.stringify(payload).includes('token'), true);
+    assert.equal(JSON.stringify(payload).includes('web-console-token.json'), false);
+
+    const tokenPath = path.join(root, 'config', 'web-console-token.json');
+    const saved = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
+    assert.match(saved.token, /^[A-Za-z0-9_-]{32,}$/);
+
+    response = await fetch(`${base}/api/state`, {
+      headers: { 'x-winception-token': saved.token },
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.state.app.version, appVersion);
+    assert.equal(JSON.stringify(payload).includes(saved.token), false);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });
@@ -422,6 +485,67 @@ test('serves only the packaged manual and its assets', async () => {
     assert.equal(response.headers.get('allow'), 'GET, HEAD');
 
     response = await fetch(`${base}/manual/not-exposed.html`);
+    assert.equal(response.status, 404);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('diagnostics API returns the latest summary and serves the ZIP bundle', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-diagnostics-'));
+  const zipPath = path.join(root, 'diag.zip');
+  fs.writeFileSync(zipPath, 'zip-bundle', 'utf8');
+  let latestDiagnostics = null;
+  const server = await makeServer(root, {
+    dependencies: {
+      runDiagnostics: async (_config, input) => {
+        latestDiagnostics = {
+          generatedAt: '2026-07-08T00:00:00.000Z',
+          trigger: input.trigger,
+          scope: input.scope,
+          overallStatus: 'fail',
+          headline: 'Manual host diagnostics',
+          probableCause: 'Catalog probe failed.',
+          recommendedAction: 'Repair OSD modules.',
+          bundleName: 'diag.zip',
+        };
+        return {
+          summary: latestDiagnostics,
+          bundleName: 'diag.zip',
+          bundlePath: zipPath,
+        };
+      },
+      readLatestDiagnostics: () => latestDiagnostics,
+      resolveDiagnosticsBundlePath: (_config, bundleName) => bundleName === 'diag.zip' ? zipPath : null,
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/diagnostics/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ scope: 'host', trigger: 'manual-ui' }),
+    });
+    assert.equal(response.status, 200);
+    let payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.result.bundleName, 'diag.zip');
+    assert.equal(payload.result.bundlePath, zipPath);
+    assert.equal(payload.state.diagnostics.bundleName, 'diag.zip');
+    assert.equal(payload.state.diagnostics.trigger, 'manual-ui');
+
+    response = await fetch(`${base}/api/diagnostics/latest`);
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.bundleName, 'diag.zip');
+    assert.equal(payload.result.overallStatus, 'fail');
+
+    response = await fetch(`${base}/api/diagnostics/download?name=diag.zip`);
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'zip-bundle');
+
+    response = await fetch(`${base}/api/diagnostics/download?name=missing.zip`);
     assert.equal(response.status, 404);
   } finally {
     await server.stop();

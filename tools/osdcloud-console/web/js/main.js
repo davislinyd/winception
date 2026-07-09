@@ -1,169 +1,147 @@
-import { clearFleetSelection, handleAction, handleFleetBulkAction, handleOsImageDelete, handleOsImageDownload, handleOsImageImport, handleOsImageReexport, handleProfileDelete, handleProfileSelect, handleSoftwareDelete, selectFleetCard, setFleetExpanded, switchToView, toggleFleetSelection } from './actions.js';
-import { api, refresh } from './api.js';
+import { handleAction, setFleetExpanded, switchToView } from './actions.js';
+import { handleDocumentClick } from './actionRegistry.js';
+import { api, loadAuthStatus, refresh, saveAuthToken, storedAuthToken } from './api.js';
 import { clearRefineFilters, openValidationEvidenceFromTarget } from './deploy.js';
-import { closeDialog, closeEmbeddedConfig, confirmEndpointSync, enableBackdropCloseForDialogs, handleScriptDelete, isInsideStandaloneDialog, showScriptContentViewer, showSoftwareDetails, showSoftwareScriptViewer, suppressBackdropCloseClickThrough } from './dialogs.js';
+import { closeDialog, closeEmbeddedConfig, enableBackdropCloseForDialogs, isInsideStandaloneDialog, suppressBackdropCloseClickThrough } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
 import { renderFleetCards } from './fleet.js';
 import { render } from './render.js';
-import { handleInitializationAction } from './setup.js';
 import { state } from './state.js';
-import { copyConsoleLog, setConsoleDockCollapsed, setSetupRailCollapsed } from './ui.js';
+import { copyConsoleLog, hydrateActionIcons, hydrateStaticIcons, setConsoleDockCollapsed, setSetupRailCollapsed } from './ui.js';
 
-document.addEventListener('click', (event) => {
-  const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-  if (!target) {
-    return;
-  }
-  if (target === elements.fleetBackdrop) {
-    setFleetExpanded(false);
-    elements.fleetExpandToggle?.focus();
-    return;
-  }
-  const gotoButton = target.closest('[data-goto]');
-  if (gotoButton) {
-    if (gotoButton.dataset.fleetFilter) {
-      state.fleetFilter = gotoButton.dataset.fleetFilter;
-      clearFleetSelection();
-    }
-    if (gotoButton.dataset.goto === 'activity') {
-      switchToView('fleet');
-    }
-    render();
-    return;
-  }
+hydrateStaticIcons();
+hydrateActionIcons();
 
-  const fleetFilterButton = target.closest('[data-fleet-filter]');
-  if (fleetFilterButton) {
-    state.fleetFilter = fleetFilterButton.dataset.fleetFilter;
-    clearFleetSelection();
-    render();
+let deployTooltipTarget = null;
+
+function deployTooltipSource(target) {
+  return target instanceof Element ? target.closest('.deploy-seg[data-deploy-tooltip]') : null;
+}
+
+function renderDeployTooltipContent(payload) {
+  elements.deployTooltip.replaceChildren();
+  const title = document.createElement('div');
+  title.className = 'deploy-tooltip-title';
+  title.textContent = payload.title ?? '';
+  elements.deployTooltip.append(title);
+  const rows = Array.isArray(payload.rows) ? payload.rows : [];
+  if (rows.length) {
+    const details = document.createElement('dl');
+    details.className = 'deploy-tooltip-details';
+    rows.forEach((row) => {
+      const [label, value] = Array.isArray(row) ? row : ['', row];
+      const dt = document.createElement('dt');
+      dt.textContent = label;
+      const dd = document.createElement('dd');
+      dd.textContent = value ?? '-';
+      details.append(dt, dd);
+    });
+    elements.deployTooltip.append(details);
+  }
+  const list = Array.isArray(payload.list) ? payload.list : [];
+  if (list.length) {
+    const listTitle = document.createElement('div');
+    listTitle.className = 'deploy-tooltip-section-title';
+    listTitle.textContent = payload.listTitle ?? 'Details';
+    const ul = document.createElement('ul');
+    ul.className = 'deploy-tooltip-list';
+    list.forEach((item) => {
+      const li = document.createElement('li');
+      li.textContent = item ?? '-';
+      ul.append(li);
+    });
+    elements.deployTooltip.append(listTitle, ul);
+  }
+}
+
+function positionDeployTooltip(target) {
+  const targetRect = target.getBoundingClientRect();
+  const tooltipRect = elements.deployTooltip.getBoundingClientRect();
+  const margin = 12;
+  const left = Math.min(
+    Math.max(margin, targetRect.left),
+    Math.max(margin, window.innerWidth - tooltipRect.width - margin),
+  );
+  let top = targetRect.bottom + 8;
+  if (top + tooltipRect.height > window.innerHeight - margin) {
+    top = Math.max(margin, targetRect.top - tooltipRect.height - 8);
+  }
+  elements.deployTooltip.style.left = `${left}px`;
+  elements.deployTooltip.style.top = `${top}px`;
+}
+
+function showDeployTooltip(target) {
+  if (!elements.deployTooltip) {
     return;
   }
-
-  const bulkButton = target.closest('[data-bulk-action]');
-  if (bulkButton) {
-    handleFleetBulkAction(bulkButton.dataset.bulkAction).catch((error) => window.alert(error.message));
+  let payload;
+  try {
+    payload = JSON.parse(target.dataset.deployTooltip ?? '{}');
+  } catch {
+    payload = {};
+  }
+  if (!payload.title && !payload.rows && !payload.list) {
     return;
   }
+  deployTooltipTarget?.removeAttribute('aria-describedby');
+  deployTooltipTarget = target;
+  renderDeployTooltipContent(payload);
+  elements.deployTooltip.hidden = false;
+  target.setAttribute('aria-describedby', 'deploy-tooltip');
+  positionDeployTooltip(target);
+}
 
-  if (openValidationEvidenceFromTarget(target)) {
-    event.preventDefault();
+function hideDeployTooltip(target = deployTooltipTarget) {
+  if (!elements.deployTooltip || elements.deployTooltip.hidden) {
     return;
   }
+  target?.removeAttribute('aria-describedby');
+  elements.deployTooltip.hidden = true;
+  elements.deployTooltip.style.left = '';
+  elements.deployTooltip.style.top = '';
+  deployTooltipTarget = null;
+}
 
-  const fleetCheck = target.closest('[data-fleet-check]');
-  if (fleetCheck) {
-    toggleFleetSelection(fleetCheck.dataset.fleetCheck);
-    render();
+function renderAuthGate() {
+  if (!elements.authGate) {
     return;
   }
-
-  const fleetCardSelect = target.closest('[data-fleet-select]');
-  if (fleetCardSelect) {
-    selectFleetCard(fleetCardSelect.dataset.fleetSelect, event);
-    render();
-    return;
+  const shouldShow = state.auth.required && (!storedAuthToken() || Boolean(state.auth.error));
+  elements.authGate.hidden = !shouldShow;
+  if (elements.webTokenError) {
+    elements.webTokenError.hidden = !state.auth.error;
+    elements.webTokenError.textContent = state.auth.error;
   }
+}
 
-  const initButton = target.closest('[data-init-action]');
-  if (initButton) {
-    event.preventDefault();
-    handleInitializationAction(initButton.dataset.initAction, initButton).catch((error) => window.alert(error.message));
-    return;
+document.addEventListener('click', handleDocumentClick);
+
+document.addEventListener('pointerover', (event) => {
+  const target = deployTooltipSource(event.target);
+  if (target) {
+    showDeployTooltip(target);
   }
+});
 
-  const interfaceButton = target.closest('[data-interface-action]');
-  if (interfaceButton) {
-    const item = state.interfaces[Number(interfaceButton.dataset.interfaceIndex)];
-    if (!item) {
-      return;
-    }
-    state.pendingInterface = item;
-    render();
-    if (interfaceButton.dataset.interfaceAction === 'sync') {
-      confirmEndpointSync(item).catch((error) => window.alert(error.message));
-    }
-    return;
+document.addEventListener('pointerout', (event) => {
+  const target = deployTooltipSource(event.target);
+  const relatedTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+  if (target && (!relatedTarget || !target.contains(relatedTarget))) {
+    hideDeployTooltip(target);
   }
+});
 
-  const profileButton = target.closest('[data-profile-action]');
-  if (profileButton) {
-    const profile = state.current?.profile?.profiles?.find((item) => item.id === profileButton.dataset.profileId);
-    if (!profile) {
-      return;
-    }
-    if (profileButton.dataset.profileAction === 'select') {
-      handleProfileSelect(profile).catch((error) => window.alert(error.message));
-    } else if (profileButton.dataset.profileAction === 'delete') {
-      handleProfileDelete(profile).catch((error) => window.alert(error.message));
-    } else if (profileButton.dataset.profileAction === 'edit') {
-      handleAction('profile-edit', profileButton).catch((error) => window.alert(error.message));
-    }
-    return;
+document.addEventListener('focusin', (event) => {
+  const target = deployTooltipSource(event.target);
+  if (target) {
+    showDeployTooltip(target);
   }
+});
 
-  const softwareButton = target.closest('[data-software-action]');
-  if (softwareButton) {
-    const software = state.current?.profile?.softwareCatalog?.find((item) => item.id === softwareButton.dataset.softwareId);
-    if (!software) {
-      return;
-    }
-    if (softwareButton.dataset.softwareAction === 'view') {
-      showSoftwareDetails(software);
-    } else if (softwareButton.dataset.softwareAction === 'delete') {
-      handleSoftwareDelete(software).catch((error) => window.alert(error.message));
-    } else if (softwareButton.dataset.softwareAction === 'script-view') {
-      showSoftwareScriptViewer(software).catch((error) => window.alert(error.message));
-    }
-    return;
-  }
-
-  const scriptButton = target.closest('[data-script-action]');
-  if (scriptButton) {
-    const script = state.current?.profile?.customScriptCatalog?.find((item) => item.id === scriptButton.dataset.scriptId);
-    if (!script) {
-      return;
-    }
-    if (scriptButton.dataset.scriptAction === 'view') {
-      showScriptContentViewer(script).catch((error) => window.alert(error.message));
-    } else if (scriptButton.dataset.scriptAction === 'delete') {
-      handleScriptDelete(script).catch((error) => window.alert(error.message));
-    }
-    return;
-  }
-
-  const osImageButton = target.closest('[data-os-image-action]');
-  if (osImageButton) {
-    const image = state.current?.osImage?.images?.find((item) => item.id === osImageButton.dataset.osImageId);
-    if (image && osImageButton.dataset.osImageAction === 'delete') {
-      handleOsImageDelete(image).catch((error) => window.alert(error.message));
-    } else if (image && osImageButton.dataset.osImageAction === 'reexport') {
-      handleOsImageReexport(image).catch((error) => window.alert(error.message));
-    }
-    return;
-  }
-
-  const osDownloadButton = target.closest('[data-os-download-action]');
-  if (osDownloadButton) {
-    const image = state.osDownloadCatalog.find((item) => item.id === osDownloadButton.dataset.osDownloadId);
-    if (image && osDownloadButton.dataset.osDownloadAction === 'download') {
-      handleOsImageDownload(image).catch((error) => window.alert(error.message));
-    }
-    return;
-  }
-
-  const osImportButton = target.closest('[data-os-import-action]');
-  if (osImportButton) {
-    const row = state.osImportInspection?.indexes?.find((item) => String(item.imageIndex) === osImportButton.dataset.osImportIndex);
-    if (row && osImportButton.dataset.osImportAction === 'import') {
-      handleOsImageImport(row).catch((error) => window.alert(error.message));
-    }
-    return;
-  }
-
-  const actionButton = target.closest('[data-action]');
-  if (actionButton) {
-    handleAction(actionButton.dataset.action, actionButton).catch((error) => window.alert(error.message));
+document.addEventListener('focusout', (event) => {
+  const target = deployTooltipSource(event.target);
+  if (target) {
+    hideDeployTooltip(target);
   }
 });
 
@@ -208,6 +186,10 @@ document.addEventListener('mousedown', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
+    if (elements.deployTooltip && !elements.deployTooltip.hidden) {
+      hideDeployTooltip();
+      return;
+    }
     const configHost = document.getElementById('config-embed');
     if (configHost && !configHost.hidden && !document.querySelector('dialog[open]')) {
       closeEmbeddedConfig();
@@ -243,6 +225,14 @@ document.addEventListener('click', suppressBackdropCloseClickThrough, true);
 
 elements.refreshButton.addEventListener('click', () => {
   refresh().catch((error) => window.alert(error.message));
+});
+
+elements.authForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  saveAuthToken(elements.webTokenInput?.value ?? '');
+  refresh()
+    .then(() => renderAuthGate())
+    .catch(() => renderAuthGate());
 });
 
 elements.softwareScriptOpen.addEventListener('click', async () => {
@@ -312,9 +302,10 @@ elements.consoleDockCopy?.addEventListener('click', (event) => {
   copyConsoleLog(elements.consoleDockCopy).catch((error) => window.alert(error.message));
 });
 
-// Header view switcher tabs (Deploy / Activity; Setup is now the Deploy rail)
+// Header view switcher tabs (Prepare / Deploy / Monitor)
 if (elements.tabDashboard) {
   elements.tabGuided?.addEventListener('click', () => switchToView('guided'));
+  elements.tabPrepare?.addEventListener('click', () => switchToView('prepare'));
   elements.tabDashboard.addEventListener('click', () => switchToView('dashboard'));
   if (elements.tabFleet) {
     elements.tabFleet.addEventListener('click', () => switchToView('fleet'));
@@ -365,7 +356,22 @@ if (elements.initializationSteps) {
 elements.setupRailCollapse?.addEventListener('click', () => setSetupRailCollapsed(true));
 elements.setupRailStrip?.addEventListener('click', () => setSetupRailCollapsed(false));
 
-refresh().catch((error) => window.alert(error.message));
+async function boot() {
+  await loadAuthStatus();
+  renderAuthGate();
+  if (!state.auth.required || storedAuthToken()) {
+    await refresh();
+    renderAuthGate();
+  }
+}
+
+boot().catch((error) => {
+  state.refreshError = error.message;
+  renderAuthGate();
+  window.alert(error.message);
+});
 setInterval(() => {
-  refresh().catch(() => {});
+  if (!state.auth.required || storedAuthToken()) {
+    refresh().then(() => renderAuthGate()).catch(() => renderAuthGate());
+  }
 }, 2500);

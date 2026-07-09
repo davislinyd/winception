@@ -4,15 +4,22 @@ Read this file when selecting verification for subsystem-specific changes.
 
 ## General
 
+- `npm run check` must pass for Web/static/front-end changes.
 - `npm test` must pass for host console code changes.
 - `npm run smoke` must pass before handoff; it uses temporary roots/test ports and must not touch the live LAN or live `C:\OSDCloud`.
 - A live deployment remains the final hardware validation when host-console networking, endpoint sync, WinPE, SetupComplete, or deployment behavior changes.
 
 ## Web Console
 
-- Web layout or visual changes must syntax-check every front-end module (the UI is split into ES modules under `tools/osdcloud-console/web/js/`), for example on PowerShell `Get-ChildItem tools/osdcloud-console/web/js -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName }`, run relevant Web UI tests such as `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/` when appropriate.
+- Web layout or visual changes must run `npm run check`, relevant Web UI tests such as `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/` when appropriate.
 - Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
+- Web API auth changes must test loopback bypass, non-loopback 401 without `X-Winception-Token`, success with a valid token, `/api/auth/status` without secrets, and static/manual routes remaining readable.
 - Read-only verification must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
+
+## Torrent Transport
+
+- Tracker/seeder changes must test local tracker announce, compact peer list, host seeder registration, stopped peer removal, stale peer cleanup, and `TorrentDistributionCoordinator` compatibility.
+- Because torrent transport changes affect deployment data movement, do not claim PXE deployment path readiness from unit tests alone. Final confidence requires torrent integration tests plus at least one live PXE regression round.
 
 ## Multi-Client And Status
 

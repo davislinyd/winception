@@ -20,13 +20,13 @@
 /* 暖紙墨: hierarchy comes from borders and spacing — no hover lift, no shadows */
 
 .material-symbols-outlined {
-  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  display: inline-flex;
   line-height: 1;
   vertical-align: middle;
 }
 
 .material-symbols-outlined.filled {
-  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-weight: 700;
 }
 
 .view {

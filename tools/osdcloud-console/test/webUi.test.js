@@ -91,8 +91,12 @@ test('web UI exposes dashboard view topology', () => {
   const script = readWebScript();
   const styles = readWebStyles();
 
-  assert.match(html, /id="tailwind-config"/);
-  assert.match(html, /cdn\.tailwindcss\.com\?plugins=forms,container-queries/);
+  assert.doesNotMatch(html, /tailwind-config/);
+  assert.doesNotMatch(html, /cdn\.tailwindcss\.com/);
+  assert.doesNotMatch(html, /fonts\.googleapis\.com/);
+  assert.doesNotMatch(html, /fonts\.gstatic\.com/);
+  assert.match(script, /function makeIcon\(name, className = ''\)/);
+  assert.match(script, /function hydrateActionIcons\(root = document\)/);
   assert.match(html, /bg-paper text-ink h-screen overflow-hidden flex font-body/);
   // 暖紙墨 shell: top bar (brand + nav + status) + full-width content + bottom console dock
   assert.match(html, /class="shell"/);
@@ -101,7 +105,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /class="brand-mark"/);
   assert.match(html, /id="manual-link"[^>]*href="\/manual\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
   assert.match(html, /aria-label="Open deployment manual in a new tab"/);
-  assert.match(html, /<span class="material-symbols-outlined" aria-hidden="true">menu_book<\/span>/);
+  assert.match(html, />menu_book<\/span>/);
   assert.match(html, /<span class="topbar-manual-label">Manual<\/span>/);
   assert.ok(html.indexOf('id="updated-at"') < html.indexOf('id="manual-link"'));
   assert.ok(html.indexOf('id="manual-link"') < html.indexOf('id="refresh-button"'));
@@ -112,14 +116,26 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /class="shell-sidebar"/);
   assert.doesNotMatch(html, /id="sidebar"/);
   assert.doesNotMatch(html, /sidebar-step-row/);
-  // Top-bar nav is Deploy + Activity only (Setup moved into the rail)
-  assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-fleet"/);
+  // Top-bar nav is Prepare + Deploy + Monitor; Prepare opens the setup rail.
+  assert.match(html, /id="tab-prepare"[\s\S]*id="tab-dashboard"[\s\S]*id="tab-fleet"/);
+  assert.match(html, />Prepare<\/span>[\s\S]*>Deploy<\/span>[\s\S]*>Monitor<\/span>/);
   assert.doesNotMatch(html, /id="tab-guided"/);
   assert.match(styles, /\.topbar-manual-link \{/);
   assert.match(styles, /@media \(max-width: 1024px\)[\s\S]*\.topbar-manual-label \{ display: none; \}/);
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
   assert.match(html, /class="deploy-summary"/);
+  assert.match(html, /class="deploy-summary"[\s\S]*data-action="profiles"[\s\S]*data-action="os-images"[\s\S]*data-action="interfaces"/);
+  assert.match(html, /id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden/);
   assert.match(html, /id="summary-action"/);
+  assert.match(styles, /\.deploy-summary \{[\s\S]*min-height: 64px;/);
+  assert.match(styles, /\.deploy-seg \{[\s\S]*min-height: 62px;[\s\S]*justify-content: center;/);
+  assert.match(styles, /\.deploy-summary-compact \{[\s\S]*min-width: 0;/);
+  assert.match(styles, /\.deploy-summary-primary \{[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/);
+  assert.match(styles, /\.deploy-tooltip \{[\s\S]*pointer-events: none;[\s\S]*position: fixed;[\s\S]*z-index: 80;/);
+  assert.match(script, /target\.closest\('\.deploy-seg\[data-deploy-tooltip\]'\)/);
+  assert.match(script, /target\.setAttribute\('aria-describedby', 'deploy-tooltip'\)/);
+  assert.match(script, /event\.key === 'Escape'[\s\S]*hideDeployTooltip\(\)/);
+  assert.match(script, /if \(viewName === 'dashboard'\) \{\s*setSetupRailCollapsed\(true\);/);
   assert.match(html, /id="dash-tiles"/);
   assert.doesNotMatch(html, /id="clients-body"/);
   // Global console dock hosts the system log; no collapsed rail or details block
@@ -134,7 +150,10 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="pipeline-steps"/);
   assert.match(html, /id="live-metrics"/);
   assert.match(html, /id="endpoint-summary"/);
-  assert.match(html, /dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-2 gap-sm/);
+  assert.match(html, /dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-3 gap-sm/);
+  assert.match(html, /id="diagnostics-status-badge"/);
+  assert.match(html, /id="diagnostics-run-button"[^>]*data-action="diagnostics-run"/);
+  assert.match(html, /id="diagnostics-download-button"[^>]*data-action="diagnostics-download"/);
   assert.match(html, /id="view-dashboard"/);
   // Fleet view = filter + search + card grid + detail drawer + activity log
   assert.match(html, /id="view-fleet"/);
@@ -468,6 +487,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /\/api\/os-image-upload-import/);
   assert.match(script, /Loading catalog\.\.\./);
   assert.match(script, /Catalog load failed/);
+  assert.match(script, /Generate diagnostics/);
+  assert.match(script, /No diagnostics bundle has been generated yet\./);
+  assert.match(script, /os-download-status-actions/);
+  assert.match(script, /data-diagnostics-scope = 'run'|dataset\.diagnosticsScope = 'run'/);
+  assert.match(script, /trigger: 'os-catalog-failure'|dataset\.diagnosticsTrigger = 'os-catalog-failure'/);
   assert.match(script, /No catalog rows matched the selected filters/);
   assert.match(script, /function twoDigit\(value\)/);
   assert.match(script, /function localCompactDateTime\(value\)/);
@@ -479,8 +503,13 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /cell\.textContent = localCompactDateTime\(value\)/);
   assert.match(script, /appendFleetLastSeenCell\(tr, run\.lastReceivedAt\)/);
   assert.match(styles, /\.fleet-last-seen-cell \{[\s\S]*min-width: 0;[\s\S]*white-space: nowrap;/);
-  assert.match(script, /cache\.className = 'profile-software active-os-cache-line'/);
-  assert.match(script, /file\.className = 'service-address active-os-cache-file'/);
+  assert.match(script, /function makeDeploySummaryCompact\(primaryText, secondaryContent, tone = ''\)/);
+  assert.match(script, /segment\.dataset\.deployTooltip = JSON\.stringify\(payload\)/);
+  assert.match(script, /const profileTitle = active \? `\$\{active\.id\} \/ \$\{active\.name\}` : 'No active profile'/);
+  assert.match(script, /`\$\{softwareCount\} \$\{softwareCount === 1 \? 'app' : 'apps'\}`/);
+  assert.match(script, /`Windows 11 \$\{text\(active\.releaseId \?\? active\.version \?\? active\.build\)\} \$\{text\(active\.language\)\} \$\{text\(active\.edition\)\} · index \$\{text\(active\.imageIndex\)\}`/);
+  assert.doesNotMatch(script, /cache\.className = 'profile-software active-os-cache-line'/);
+  assert.doesNotMatch(script, /file\.className = 'service-address active-os-cache-file'/);
   assert.match(styles, /#active-os-details,[\s\S]*#active-os-details > \* \{[\s\S]*max-width: 100%;[\s\S]*min-width: 0;/);
   assert.match(styles, /\.status-os-panel \{[\s\S]*min-width: 0;[\s\S]*overflow: hidden;/);
   assert.match(styles, /\.active-os-cache-line \{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*min-width: 0;/);
@@ -538,13 +567,13 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /body\.fleet-expanded \.client-fleet-panel \{[\s\S]*position: fixed;[\s\S]*z-index: 45;/);
   assert.match(styles, /\.software-order-editor \{[\s\S]*display: grid;/);
   assert.match(styles, /\.software-order-row \{[\s\S]*grid-template-columns: auto auto minmax\(0, 1fr\) auto auto;/);
-  assert.match(styles, /\.software-drag-handle \{[\s\S]*font-family: "Material Symbols Outlined";/);
+  assert.match(styles, /\.software-drag-handle \{[\s\S]*background-image: radial-gradient/);
   assert.match(styles, /button\.software-icon-button \{[\s\S]*min-width: 28px;/);
   assert.doesNotMatch(styles, /body\.fleet-expanded \.dashboard-status-column/);
   assert.doesNotMatch(styles, /body\.fleet-expanded \.dashboard-log-column/);
-  assert.match(html, /Material\+Symbols\+Outlined/);
-  assert.match(html, /Inter:wght@400;500;600;700/);
-  assert.match(html, /Source\+Serif\+4/);
+  assert.doesNotMatch(styles, /font-family: "Material Symbols Outlined"/);
+  assert.match(styles, /--font-body:/);
+  assert.match(styles, /--font-mono:/);
   assert.match(html, />Services</);
   assert.doesNotMatch(html, /Quick Actions/);
   assert.doesNotMatch(html, /quick-actions-panel/);

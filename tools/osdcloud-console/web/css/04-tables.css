@@ -402,13 +402,14 @@ dialog.drawer-dialog.dialog-fallback-open {
 
 .catalog-loading-cell::before {
   animation: catalog-loading-pulse 900ms ease-in-out infinite alternate;
-  content: "hourglass_top";
-  direction: ltr;
+  border: 2px solid var(--outline-variant);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  content: "";
   display: inline-block;
-  font-family: "Material Symbols Outlined";
-  font-size: 16px;
-  line-height: 1;
+  height: 12px;
   margin-right: 6px;
+  width: 12px;
   vertical-align: -2px;
 }
 
@@ -680,13 +681,13 @@ input[readonly] {
 }
 
 .software-drag-handle {
+  background-image: radial-gradient(currentColor 1.3px, transparent 1.6px);
+  background-position: 0 0;
+  background-size: 6px 6px;
   color: var(--on-surface-variant);
   cursor: grab;
-  direction: ltr;
-  font-family: "Material Symbols Outlined";
-  font-feature-settings: "liga";
-  font-size: 18px;
-  line-height: 1;
+  height: 18px;
+  width: 14px;
   user-select: none;
 }
 
@@ -817,13 +818,13 @@ button.software-icon-button {
 }
 
 .software-drag-handle {
+  background-image: radial-gradient(currentColor 1.3px, transparent 1.6px);
+  background-position: 0 0;
+  background-size: 6px 6px;
   color: var(--on-surface-variant);
   cursor: grab;
-  direction: ltr;
-  font-family: "Material Symbols Outlined";
-  font-feature-settings: "liga";
-  font-size: 18px;
-  line-height: 1;
+  height: 18px;
+  width: 14px;
   user-select: none;
 }
 

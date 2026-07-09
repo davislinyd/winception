@@ -4,7 +4,7 @@ import { $, $$, elements } from './dom.js';
 import { bytes, osImageLabel, text } from './format.js';
 import { render } from './render.js';
 import { state } from './state.js';
-import { setControlsDisabled, setDefinitionListNodes, setSetupRailCollapsed } from './ui.js';
+import { makeIcon, setControlsDisabled, setDefinitionListNodes, setSetupRailCollapsed } from './ui.js';
 
 export let suppressBackdropClickUntil = 0;
 export const humanCatalogIdPattern = /^[a-z0-9][a-z0-9-]{0,15}$/u;
@@ -408,6 +408,7 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
       button.title = label;
       button.setAttribute('aria-label', label);
       button.disabled = disabled;
+      button.append(makeIcon(icon, 'local-action-icon'));
       return button;
     };
 
@@ -438,7 +439,7 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
 
           const handle = document.createElement('span');
           handle.className = 'software-drag-handle';
-          handle.textContent = 'drag_indicator';
+          handle.setAttribute('aria-hidden', 'true');
           handle.title = 'Drag to reorder';
 
           const rank = document.createElement('span');

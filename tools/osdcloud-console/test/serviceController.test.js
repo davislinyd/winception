@@ -209,6 +209,100 @@ test('state reads do not create live status roots', () => {
   }
 });
 
+test('state exposes the latest diagnostics summary when available', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-diag-state-'));
+  try {
+    const latest = {
+      overallStatus: 'fail',
+      headline: 'OS download catalog probe',
+      probableCause: 'Invoke-WebRequest failed',
+      generatedAt: '2026-07-08T00:00:00.000Z',
+      bundleName: 'diag.zip',
+    };
+    const { controller } = makeController(root, {
+      dependencies: {
+        readLatestDiagnostics: () => latest,
+      },
+    });
+    const state = controller.getState();
+    assert.deepEqual(state.diagnostics, latest);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('catalog probe failure captures host diagnostics once per failing request', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-diag-catalog-'));
+  try {
+    const calls = [];
+    const { controller } = makeController(root, {
+      dependencies: {
+        listOsDownloadCatalog: async () => {
+          throw new Error('catalog offline');
+        },
+        runDiagnostics: async (_config, input) => {
+          calls.push(input);
+          return {
+            summary: {
+              generatedAt: '2026-07-08T00:00:00.000Z',
+              overallStatus: 'fail',
+              headline: 'OS download catalog probe',
+            },
+            bundleName: 'catalog-fail.zip',
+            bundlePath: path.join(root, 'catalog-fail.zip'),
+          };
+        },
+      },
+    });
+
+    await assert.rejects(() => controller.getOsDownloadCatalog(), /catalog offline/);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].scope, 'host');
+    assert.equal(calls[0].trigger, 'os-catalog-failure');
+    assert.equal(controller.getState().diagnostics.bundleName, 'catalog-fail.zip');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('failed and stale runs auto-generate diagnostics only once per terminal status', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-diag-run-'));
+  try {
+    const calls = [];
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        runDiagnostics: async (_config, input) => {
+          calls.push(input);
+          return {
+            summary: {
+              generatedAt: '2026-07-08T00:00:00.000Z',
+              overallStatus: 'fail',
+              headline: 'Deployment run run-a',
+            },
+            bundleName: `diag-${calls.length}.zip`,
+            bundlePath: path.join(root, `diag-${calls.length}.zip`),
+          };
+        },
+      },
+    });
+
+    services.http.emit('status', { summary: { runId: 'run-a', status: 'failed' } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    services.http.emit('status', { summary: { runId: 'run-a', status: 'failed' } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    services.http.emit('status', { summary: { runId: 'run-a', status: 'stale' } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(calls.map((input) => [input.scope, input.runId, input.trigger]), [
+      ['run', 'run-a', 'run-failed'],
+      ['run', 'run-a', 'run-stale'],
+    ]);
+    assert.equal(controller.getState().diagnostics.bundleName, 'diag-2.zip');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('initialization state guides first deployment through preflight and service start', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-init-guide-'));
   try {

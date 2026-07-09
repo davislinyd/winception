@@ -18,6 +18,12 @@ export const state = {
   osDownloadStarting: false,
   refreshError: null,
   osImportInspection: null,
+  auth: {
+    checked: false,
+    required: false,
+    hostMode: 'loopback',
+    error: '',
+  },
   busy: false,
   clientFleetSignature: '',
   logsText: null,

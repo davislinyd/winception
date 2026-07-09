@@ -329,6 +329,18 @@ export function renderFleetDetail(run, isArchived = false) {
   evidence.dataset.runId = run.runId;
   evidence.textContent = 'View evidence';
   footer.append(evidence);
+  if (run.status === 'failed' || run.status === 'stale') {
+    const diagnostics = document.createElement('button');
+    diagnostics.type = 'button';
+    diagnostics.className = 'bento-mini ghost';
+    diagnostics.dataset.icon = 'health_metrics';
+    diagnostics.dataset.action = 'diagnostics-run';
+    diagnostics.dataset.diagnosticsScope = 'run';
+    diagnostics.dataset.diagnosticsRunId = run.runId;
+    diagnostics.dataset.diagnosticsTrigger = `activity-${run.status}`;
+    diagnostics.textContent = 'Generate diagnostics';
+    footer.append(diagnostics);
+  }
 
   if (isArchived) {
     const restore = document.createElement('button');
