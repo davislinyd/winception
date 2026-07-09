@@ -42,10 +42,6 @@
 .v3-svc .d { width: 7px; height: 7px; border-radius: 999px; background: var(--hairline); }
 .v3-svc.on .d { background: var(--sage); }
 .v3-svc.off .d { background: var(--hairline); }
-.deploy-summary-action { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 5px; padding: 12px 16px; border-left: 1px solid var(--hairline); }
-.v3-summary-status { font: 400 11px/1 Inter, sans-serif; color: var(--muted); }
-.v3-summary-status.warn { color: var(--ochre); }
-.v3-summary-status.ok { color: var(--sage); }
 .btn-primary { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); border-radius: var(--ctl-radius, 4px); padding: 7px 14px; font: 600 11px/1 Inter, sans-serif; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; transition: background 0.12s ease; }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 .btn-primary[data-icon]::before { font-size: 16px; margin-right: 6px; }

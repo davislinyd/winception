@@ -1116,6 +1116,8 @@ export async function confirmEndpointSync(choice) {
   if (returnToInitialization) {
     state.initializationPendingAction = 'endpoint-sync';
     state.initializationOperationAction = 'endpoint-sync';
+    state.guidedConsoleAttentionAction = 'endpoint-sync';
+    state.guidedConsoleAttentionShown = false;
     openDialog(elements.initializationDialog);
     render();
   }
@@ -1125,6 +1127,8 @@ export async function confirmEndpointSync(choice) {
     if (returnToInitialization) {
       state.endpointSyncReturnToInitialization = false;
       state.initializationPendingAction = null;
+      state.guidedConsoleAttentionAction = null;
+      state.guidedConsoleAttentionShown = false;
       openDialog(elements.initializationDialog);
       render();
     }

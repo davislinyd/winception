@@ -33,6 +33,8 @@ export const state = {
   initializationOperationAction: null,
   consoleDockCollapsed: true,
   consoleDockOperationKey: '',
+  guidedConsoleAttentionAction: null,
+  guidedConsoleAttentionShown: false,
   setupRailCollapsed: false,
   initializationDetailScrollPositions: {},
   endpointSyncReturnToInitialization: false,

@@ -780,6 +780,8 @@ export async function handleInitializationLongAction(action) {
 
   state.initializationPendingAction = action;
   state.initializationOperationAction = action;
+  state.guidedConsoleAttentionAction = action;
+  state.guidedConsoleAttentionShown = false;
   openDialog(elements.initializationDialog);
   render();
   try {
@@ -791,6 +793,8 @@ export async function handleInitializationLongAction(action) {
     await refresh();
   } finally {
     state.initializationPendingAction = null;
+    state.guidedConsoleAttentionAction = null;
+    state.guidedConsoleAttentionShown = false;
     openDialog(elements.initializationDialog);
     render();
   }

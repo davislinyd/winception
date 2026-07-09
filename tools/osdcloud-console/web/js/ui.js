@@ -2,6 +2,8 @@ import { $, $$, elements } from './dom.js';
 import { text } from './format.js';
 import { state } from './state.js';
 
+let consoleDockAttentionTimer = null;
+
 export function setControlsDisabled(disabled) {
   $$('button[data-action], dialog button, dialog input, dialog select, dialog textarea').forEach((control) => {
     if (control instanceof HTMLButtonElement && control.value === 'cancel') {
@@ -246,6 +248,24 @@ export function setConsoleDockCollapsed(collapsed) {
   }
 }
 
+export function flashConsoleDockHead() {
+  const head = elements.consoleDockHead;
+  if (!head) {
+    return;
+  }
+  head.classList.remove('console-dock-head-attention');
+  // Restart the CSS animation when consecutive guided actions start quickly.
+  void head.offsetWidth;
+  head.classList.add('console-dock-head-attention');
+  if (consoleDockAttentionTimer) {
+    window.clearTimeout(consoleDockAttentionTimer);
+  }
+  consoleDockAttentionTimer = window.setTimeout(() => {
+    head.classList.remove('console-dock-head-attention');
+    consoleDockAttentionTimer = null;
+  }, 3000);
+}
+
 export function renderConsoleDock(appState) {
   if (!elements.consoleDock) {
     return;
@@ -281,6 +301,13 @@ export function renderConsoleDock(appState) {
     : pending ? `pending:${pending}` : '';
   if (running && operationKey !== state.consoleDockOperationKey) {
     state.consoleDockOperationKey = operationKey;
+    if (state.guidedConsoleAttentionAction) {
+      if (!state.guidedConsoleAttentionShown) {
+        state.guidedConsoleAttentionShown = true;
+        flashConsoleDockHead();
+      }
+      return;
+    }
     setConsoleDockCollapsed(false);
     return;
   }

@@ -90,8 +90,6 @@ export const elements = {
   ssDone: $('#ss-done'),
   summaryEndpoint: $('#summary-endpoint'),
   summaryServices: $('#summary-services'),
-  summaryAction: $('#summary-action'),
-  summaryStatus: $('#summary-status'),
   dashTiles: $('#dash-tiles'),
   guidedStepDetail: $('#guided-step-detail'),
   pipelineSteps: $('#pipeline-steps'),

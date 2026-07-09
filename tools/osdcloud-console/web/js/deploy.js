@@ -1921,15 +1921,6 @@ export function renderWarningBanner(appState) {
 }
 
 // ---- v3: deploy summary bar (endpoint + service dots + state-aware action) ----
-export function preflightState(appState) {
-  const pf = appState.preflight;
-  if (pf?.summary?.blocking > 0 || pf?.status === 'blocked') return ['Preflight blocked', 'warn'];
-  if (pf?.status === 'ready' || pf?.ok === true) return ['Preflight passed', 'ok'];
-  if (pf?.status === 'review' || (pf?.summary?.warnings ?? 0) > 0) return ['Preflight: review', 'warn'];
-  if (pf?.ranAt || pf?.checks?.length) return ['Preflight passed', 'ok'];
-  return ['Preflight not run', ''];
-}
-
 export function renderSummaryBar(appState) {
   if (elements.summaryEndpoint) {
     elements.summaryEndpoint.textContent = endpointLabel(appState.config) || '—';
@@ -1946,28 +1937,6 @@ export function renderSummaryBar(appState) {
       span.append(dot, document.createTextNode(label));
       elements.summaryServices.append(span);
     }
-  }
-  const [pfText, pfTone] = preflightState(appState);
-  const runtimeReady = appState.runtime?.ready === true;
-  const allRunning = ['http', 'tftp', 'dhcp'].every((n) => appState.services?.[n]?.running);
-  const preflightPassed = pfTone === 'ok';
-
-  if (elements.summaryStatus) {
-    if (!runtimeReady) {
-      elements.summaryStatus.textContent = 'Runtime not ready';
-      elements.summaryStatus.className = 'v3-summary-status warn';
-    } else {
-      elements.summaryStatus.textContent = pfText;
-      elements.summaryStatus.className = `v3-summary-status ${pfTone}`;
-    }
-  }
-  if (elements.summaryAction) {
-    let label = 'Run preflight';
-    let action = 'preflight';
-    if (allRunning) { label = 'Stop services'; action = 'all-services-toggle'; }
-    else if (preflightPassed) { label = 'Start services'; action = 'all-services-toggle'; }
-    elements.summaryAction.textContent = label;
-    elements.summaryAction.dataset.action = action;
   }
 }
 

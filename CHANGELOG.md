@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.3-1 — 2026-07-09
+
+### 修正：Guided Setup Console 提示
+
+- Guided Setup 觸發 long operation 時不再自動展開 bottom Console dock
+- Console 提示改為帶光暈的整條黑色標題列閃爍三秒，保留 reduced-motion fallback
+- 移除 Deploy summary 內重複的 `Run preflight` 按鈕，preflight 入口保留在 Guided Setup
+- 移除 Deploy summary 右側整個 preflight 狀態格，不再顯示 `Preflight not run`
+
 ## v0.6.3 — 2026-07-09
 
 ### 新功能：Web Console 離線 UI、API token gate、local torrent tracker

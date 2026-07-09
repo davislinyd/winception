@@ -269,8 +269,92 @@ body { overflow: hidden; background: var(--paper); }
   padding: 8px 16px;
   cursor: pointer;
   user-select: none;
+  position: relative;
+  z-index: 0;
 }
 .console-dock-head:hover { background: rgba(255, 255, 255, 0.05); }
+.console-dock-head::before {
+  content: "";
+  position: absolute;
+  inset: -7px -10px;
+  border-radius: 12px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 12% 50%, rgba(0, 255, 214, 0.62), transparent 28%),
+    radial-gradient(circle at 50% 50%, rgba(87, 243, 255, 0.44), transparent 42%),
+    radial-gradient(circle at 88% 50%, rgba(255, 74, 208, 0.52), transparent 30%);
+  filter: blur(14px) saturate(1.24);
+}
+.console-dock-head.console-dock-head-attention {
+  animation: console-head-attention 600ms ease-in-out 5;
+}
+.console-dock-head.console-dock-head-attention::before {
+  animation: console-head-aura 600ms ease-in-out 5;
+}
+@keyframes console-head-attention {
+  0%, 100% {
+    background: transparent;
+    box-shadow: none;
+  }
+  50% {
+    background:
+      linear-gradient(90deg, rgba(0, 255, 214, 0.08), rgba(89, 245, 255, 0.12) 48%, rgba(255, 74, 208, 0.08));
+    box-shadow:
+      inset 0 0 0 1px rgba(114, 255, 244, 0.34),
+      inset 0 0 24px rgba(87, 243, 255, 0.18),
+      0 0 18px rgba(87, 243, 255, 0.24),
+      0 0 34px rgba(255, 74, 208, 0.18),
+      0 0 52px rgba(0, 255, 214, 0.12);
+  }
+}
+@keyframes console-head-aura {
+  0%, 100% { opacity: 0; transform: scale(0.978); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+.console-dock-head.console-dock-head-attention .console-dock-title,
+.console-dock-head.console-dock-head-attention .console-dock-op,
+.console-dock-head.console-dock-head-attention .console-dock-chevron,
+.console-dock-head.console-dock-head-attention .console-dock-icon {
+  animation: console-head-copy-glow 600ms ease-in-out 5;
+}
+@keyframes console-head-copy-glow {
+  0%, 100% {
+    text-shadow: none;
+    filter: none;
+  }
+  50% {
+    text-shadow:
+      0 0 8px rgba(125, 255, 245, 0.88),
+      0 0 16px rgba(255, 74, 208, 0.42);
+    filter: brightness(1.16) saturate(1.16);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-dock-head.console-dock-head-attention {
+    animation: none;
+    background: linear-gradient(90deg, rgba(0, 255, 214, 0.07), rgba(89, 245, 255, 0.1) 48%, rgba(255, 74, 208, 0.07));
+    box-shadow:
+      inset 0 0 0 1px rgba(114, 255, 244, 0.28),
+      0 0 18px rgba(87, 243, 255, 0.2),
+      0 0 30px rgba(255, 74, 208, 0.12);
+  }
+  .console-dock-head.console-dock-head-attention::before {
+    animation: none;
+    opacity: 0.92;
+    transform: scale(1.02);
+  }
+  .console-dock-head.console-dock-head-attention .console-dock-title,
+  .console-dock-head.console-dock-head-attention .console-dock-op,
+  .console-dock-head.console-dock-head-attention .console-dock-chevron,
+  .console-dock-head.console-dock-head-attention .console-dock-icon {
+    animation: none;
+    text-shadow:
+      0 0 8px rgba(125, 255, 245, 0.64),
+      0 0 14px rgba(255, 74, 208, 0.3);
+  }
+}
 .console-dock-icon { font-size: 16px; color: var(--term-ok); }
 .console-dock-title {
   font: 700 10px/1 Inter, sans-serif;
