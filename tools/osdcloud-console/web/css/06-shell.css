@@ -114,7 +114,7 @@ body { overflow: hidden; background: var(--paper); }
 .topbar-brand-text { display: flex; align-items: baseline; gap: 7px; }
 .topbar-brand-name { font: 600 17px/1 var(--font-display); letter-spacing: 0; color: var(--ink); }
 .topbar-brand-version { font: 500 11px/1 "JetBrains Mono", monospace; color: var(--muted); }
-/* Primary nav — Deploy / Activity */
+/* Primary nav — Deploy / Monitor */
 .topbar-nav { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
 .topbar-navlink {
   display: inline-flex;

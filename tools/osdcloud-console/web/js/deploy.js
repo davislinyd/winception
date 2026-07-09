@@ -357,6 +357,7 @@ export function renderProfileSummary(appState) {
   }
   const active = appState.profile?.activeProfile;
   const selectedSoftware = appState.profile?.selectedSoftware ?? [];
+  const selectedScripts = appState.profile?.selectedScripts ?? [];
   const softwareCount = selectedSoftware.length;
   const profileTitle = active ? `${active.id} / ${active.name}` : 'No active profile';
   const summaryParts = [
@@ -373,10 +374,20 @@ export function renderProfileSummary(appState) {
           ['International settings', [active.displayLanguage, active.locale, active.inputLanguage, active.timeZone].filter(Boolean).join(' · ') || '-'],
         ]
       : [['Status', 'No active deployment profile is selected.']],
-    listTitle: 'Selected software',
-    list: selectedSoftware.length
-      ? selectedSoftware.map((item) => item.name ?? item.id)
-      : ['No client software selected.'],
+    sections: [
+      {
+        title: 'Selected software',
+        list: selectedSoftware.length
+          ? selectedSoftware.map((item) => item.name ?? item.id)
+          : ['No client software selected.'],
+      },
+      {
+        title: 'Custom scripts',
+        list: selectedScripts.length
+          ? selectedScripts.map((item) => item.name ?? item.id)
+          : ['No custom scripts selected.'],
+      },
+    ],
   });
 }
 

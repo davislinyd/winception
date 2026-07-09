@@ -5,6 +5,9 @@ import path from 'node:path';
 
 const webRoot = path.resolve('tools', 'osdcloud-console', 'web');
 const manualPath = path.resolve('docs', 'winception-operations-manual.html');
+const changelogPath = path.resolve('CHANGELOG.md');
+const packagePath = path.resolve('package.json');
+const packageLockPath = path.resolve('package-lock.json');
 
 // The web UI source is split into per-page ES modules under web/js and per-region
 // stylesheets under web/css. These helpers reconstruct the full source text so the
@@ -56,6 +59,20 @@ test('manual language switch preserves the current reading position', () => {
   assert.match(manual, /target\.getBoundingClientRect\(\)\.top - scrollAnchor\.offset/);
   assert.match(manual, /history\.replaceState\(null, "", "#" \+ targetId\)/);
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
+});
+
+test('release metadata is aligned to v0.6.3-4', () => {
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
+  const changelog = fs.readFileSync(changelogPath, 'utf8');
+  const manual = fs.readFileSync(manualPath, 'utf8');
+
+  assert.equal(packageJson.version, '0.6.3-4');
+  assert.equal(packageLock.version, '0.6.3-4');
+  assert.equal(packageLock.packages[''].version, '0.6.3-4');
+  assert.match(changelog, /## v0\.6\.3-4 — 2026-07-09/);
+  assert.match(manual, /Operations Manual · v0\.6\.3-4/);
+  assert.match(manual, /Product documentation for Web v0\.6\.3-4/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -116,10 +133,14 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /class="shell-sidebar"/);
   assert.doesNotMatch(html, /id="sidebar"/);
   assert.doesNotMatch(html, /sidebar-step-row/);
-  // Top-bar nav is Prepare + Deploy + Monitor; Prepare opens the setup rail.
-  assert.match(html, /id="tab-prepare"[\s\S]*id="tab-dashboard"[\s\S]*id="tab-fleet"/);
-  assert.match(html, />Prepare<\/span>[\s\S]*>Deploy<\/span>[\s\S]*>Monitor<\/span>/);
+  // Top-bar nav is true workspaces only; Guided setup is controlled by its Deploy rail.
+  assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-fleet"/);
+  assert.match(html, />Deploy<\/span>[\s\S]*>Monitor<\/span>/);
+  assert.doesNotMatch(html, /id="tab-prepare"/);
+  assert.doesNotMatch(html, />Prepare<\/span>/);
   assert.doesNotMatch(html, /id="tab-guided"/);
+  assert.match(script, /const normalizedView = viewName === 'prepare' \|\| viewName === 'guided' \? 'dashboard' : viewName/);
+  assert.doesNotMatch(script, /if \(viewName === 'dashboard'\) \{[\s\S]*setSetupRailCollapsed\(true\);/);
   assert.match(styles, /\.topbar-manual-link \{/);
   assert.match(styles, /@media \(max-width: 1024px\)[\s\S]*\.topbar-manual-label \{ display: none; \}/);
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
@@ -132,11 +153,17 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.deploy-seg \{[\s\S]*min-height: 62px;[\s\S]*justify-content: center;/);
   assert.match(styles, /\.deploy-summary-compact \{[\s\S]*min-width: 0;/);
   assert.match(styles, /\.deploy-summary-primary \{[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/);
-  assert.match(styles, /\.deploy-tooltip \{[\s\S]*pointer-events: none;[\s\S]*position: fixed;[\s\S]*z-index: 80;/);
+  assert.match(styles, /\.deploy-tooltip \{[\s\S]*pointer-events: auto;[\s\S]*position: fixed;[\s\S]*z-index: 80;/);
   assert.match(script, /target\.closest\('\.deploy-seg\[data-deploy-tooltip\]'\)/);
+  assert.match(script, /let deployTooltipHideTimer = null/);
+  assert.match(script, /function clearDeployTooltipHideTimer\(\)/);
+  assert.match(script, /function scheduleDeployTooltipHide\(\)/);
+  assert.match(script, /window\.setTimeout\(\(\) => \{[\s\S]*hideDeployTooltip\(\);[\s\S]*\}, 160\)/);
+  assert.match(script, /isDeployTooltipNode\(event\.target\)[\s\S]*clearDeployTooltipHideTimer\(\)/);
+  assert.match(script, /isDeployTooltipNode\(relatedTarget\)[\s\S]*scheduleDeployTooltipHide\(\)/);
   assert.match(script, /target\.setAttribute\('aria-describedby', 'deploy-tooltip'\)/);
   assert.match(script, /event\.key === 'Escape'[\s\S]*hideDeployTooltip\(\)/);
-  assert.match(script, /if \(viewName === 'dashboard'\) \{\s*setSetupRailCollapsed\(true\);/);
+  assert.doesNotMatch(script, /if \(viewName === 'dashboard'\) \{\s*setSetupRailCollapsed\(true\);/);
   assert.match(html, /id="dash-tiles"/);
   assert.doesNotMatch(html, /id="clients-body"/);
   // Global console dock hosts the system log; no collapsed rail or details block
@@ -520,7 +547,12 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /function makeDeploySummaryCompact\(primaryText, secondaryContent, tone = ''\)/);
   assert.match(script, /segment\.dataset\.deployTooltip = JSON\.stringify\(payload\)/);
   assert.match(script, /const profileTitle = active \? `\$\{active\.id\} \/ \$\{active\.name\}` : 'No active profile'/);
+  assert.match(script, /const selectedScripts = appState\.profile\?\.selectedScripts \?\? \[\]/);
   assert.match(script, /`\$\{softwareCount\} \$\{softwareCount === 1 \? 'app' : 'apps'\}`/);
+  assert.match(script, /sections: \[[\s\S]*title: 'Selected software'[\s\S]*title: 'Custom scripts'/);
+  assert.match(script, /selectedScripts\.map\(\(item\) => item\.name \?\? item\.id\)/);
+  assert.match(script, /No custom scripts selected\./);
+  assert.match(script, /const sections = Array\.isArray\(payload\.sections\) \? payload\.sections : \[\]/);
   assert.match(script, /`Windows 11 \$\{text\(active\.releaseId \?\? active\.version \?\? active\.build\)\} \$\{text\(active\.language\)\} \$\{text\(active\.edition\)\} · index \$\{text\(active\.imageIndex\)\}`/);
   assert.doesNotMatch(script, /cache\.className = 'profile-software active-os-cache-line'/);
   assert.doesNotMatch(script, /file\.className = 'service-address active-os-cache-file'/);
@@ -716,6 +748,10 @@ test('web UI makes service cards stateful toggles', () => {
   assert.match(script, /'http-toggle'/);
   assert.match(script, /'tftp-toggle'/);
   assert.match(script, /'dhcp-toggle'/);
+  assert.match(script, /http: \['M4 8h16v8H4z'/);
+  assert.match(script, /router: \['M4 11h16v7H4z'/);
+  assert.match(script, /\['http', 'HTTP Server'/);
+  assert.match(script, /\['router', dhcpIsProxy \? 'DHCP Proxy' : 'DHCP Server'/);
   assert.match(script, /button\[data-action="\$\{action\}"\]/);
   assert.match(script, /makeStatusPill\(service\.running \? 'Running' : 'Stopped', service\.running \? 'ok' : 'neutral'\)/);
   assert.match(script, /cardAction\.className = `service-card-cta\$\{action === 'dhcp-toggle' && !service\.running \? ' danger' : ''\}`/);

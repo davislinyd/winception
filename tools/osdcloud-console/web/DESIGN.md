@@ -57,7 +57,7 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ .topbar 56px  狂草「W」+ Winception · Deploy/Activity · 狀態 │
+│ .topbar 56px  狂草「W」+ Winception · Deploy/Monitor · 狀態 │
 ├────────────────────────────────────────────────────────────┤
 │ .shell-main(scroll)  內容滿版,左右 5% gutters             │
 │   #view-dashboard = 兩欄: dashboard(左) + 導引設定軌(右40%)│
@@ -71,7 +71,7 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
   100vh。頂部列 / 內容欄 / 主控台 dock 垂直堆疊。
 - 頂部列 `--surface-container-low` 底 + 底部 hairline;品牌為 狂草毛筆「W」墨色
   SVG(`feTurbulence`+位移濾鏡)+ Source Serif「Winception」字標;nav 僅
-  Deploy / Activity(active = 亮底 + 底部 2px 陶土紅 inset)。
+  Deploy / Monitor(active = 亮底 + 底部 2px 陶土紅 inset)。
 - 內容滿版、左右 5% gutters,不再限寬置中(`--content-max` 已停用)。
 - Deploy = 兩欄:左為 dashboard,右為可收合的「導引設定」軌
   (`.deploy-grid` = `minmax(0,1fr) 40%`)。收合後軌縮為 48px 直條、dashboard

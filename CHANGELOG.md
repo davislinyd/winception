@@ -1,11 +1,20 @@
 # Changelog
 
-## v0.6.3-1 — 2026-07-09
+## v0.6.3-4 — 2026-07-09
+
+### 修正：Deploy hover info 可停留
+
+- Deploy summary 的 Profile / OS Image tooltip 現在可用滑鼠移入閱讀，離開 segment 與 tooltip 卡片後才消失
+
+## v0.6.3-3 — 2026-07-09
 
 ### 修正：Guided Setup Console 提示
 
+- Profile hover tooltip now includes selected custom scripts in a separate section next to selected software
+- HTTP / DHCP service cards now use explicit local SVG service icons instead of the fallback square marker, avoiding checkbox-like visual ambiguity
 - Guided Setup 觸發 long operation 時不再自動展開 bottom Console dock
 - Console 提示改為帶光暈的整條黑色標題列閃爍三秒，保留 reduced-motion fallback
+- 頂部主工作區收斂為 `Deploy` / `Monitor`；Guided Setup 改由 Deploy 右側 rail 的 chevron/strip 展開收合，不再保留重複的 `Prepare` nav 按鈕
 - 移除 Deploy summary 內重複的 `Run preflight` 按鈕，preflight 入口保留在 Guided Setup
 - 移除 Deploy summary 右側整個 preflight 狀態格，不再顯示 `Preflight not run`
 

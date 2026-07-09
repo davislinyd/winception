@@ -13,9 +13,30 @@ hydrateStaticIcons();
 hydrateActionIcons();
 
 let deployTooltipTarget = null;
+let deployTooltipHideTimer = null;
 
 function deployTooltipSource(target) {
   return target instanceof Element ? target.closest('.deploy-seg[data-deploy-tooltip]') : null;
+}
+
+function isDeployTooltipNode(target) {
+  return Boolean(elements.deployTooltip && target instanceof Node && elements.deployTooltip.contains(target));
+}
+
+function clearDeployTooltipHideTimer() {
+  if (!deployTooltipHideTimer) {
+    return;
+  }
+  window.clearTimeout(deployTooltipHideTimer);
+  deployTooltipHideTimer = null;
+}
+
+function scheduleDeployTooltipHide() {
+  clearDeployTooltipHideTimer();
+  deployTooltipHideTimer = window.setTimeout(() => {
+    deployTooltipHideTimer = null;
+    hideDeployTooltip();
+  }, 160);
 }
 
 function renderDeployTooltipContent(payload) {
@@ -52,6 +73,24 @@ function renderDeployTooltipContent(payload) {
     });
     elements.deployTooltip.append(listTitle, ul);
   }
+  const sections = Array.isArray(payload.sections) ? payload.sections : [];
+  sections.forEach((section) => {
+    const sectionList = Array.isArray(section?.list) ? section.list : [];
+    if (!sectionList.length) {
+      return;
+    }
+    const listTitle = document.createElement('div');
+    listTitle.className = 'deploy-tooltip-section-title';
+    listTitle.textContent = section.title ?? 'Details';
+    const ul = document.createElement('ul');
+    ul.className = 'deploy-tooltip-list';
+    sectionList.forEach((item) => {
+      const li = document.createElement('li');
+      li.textContent = item ?? '-';
+      ul.append(li);
+    });
+    elements.deployTooltip.append(listTitle, ul);
+  });
 }
 
 function positionDeployTooltip(target) {
@@ -74,13 +113,14 @@ function showDeployTooltip(target) {
   if (!elements.deployTooltip) {
     return;
   }
+  clearDeployTooltipHideTimer();
   let payload;
   try {
     payload = JSON.parse(target.dataset.deployTooltip ?? '{}');
   } catch {
     payload = {};
   }
-  if (!payload.title && !payload.rows && !payload.list) {
+  if (!payload.title && !payload.rows && !payload.list && !payload.sections) {
     return;
   }
   deployTooltipTarget?.removeAttribute('aria-describedby');
@@ -95,6 +135,7 @@ function hideDeployTooltip(target = deployTooltipTarget) {
   if (!elements.deployTooltip || elements.deployTooltip.hidden) {
     return;
   }
+  clearDeployTooltipHideTimer();
   target?.removeAttribute('aria-describedby');
   elements.deployTooltip.hidden = true;
   elements.deployTooltip.style.left = '';
@@ -120,14 +161,28 @@ document.addEventListener('pointerover', (event) => {
   const target = deployTooltipSource(event.target);
   if (target) {
     showDeployTooltip(target);
+    return;
+  }
+  if (isDeployTooltipNode(event.target)) {
+    clearDeployTooltipHideTimer();
   }
 });
 
 document.addEventListener('pointerout', (event) => {
   const target = deployTooltipSource(event.target);
   const relatedTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-  if (target && (!relatedTarget || !target.contains(relatedTarget))) {
-    hideDeployTooltip(target);
+  if (target) {
+    if (relatedTarget && (target.contains(relatedTarget) || isDeployTooltipNode(relatedTarget))) {
+      return;
+    }
+    scheduleDeployTooltipHide();
+    return;
+  }
+  if (isDeployTooltipNode(event.target)) {
+    if (relatedTarget && (isDeployTooltipNode(relatedTarget) || deployTooltipTarget?.contains(relatedTarget))) {
+      return;
+    }
+    scheduleDeployTooltipHide();
   }
 });
 
@@ -302,10 +357,9 @@ elements.consoleDockCopy?.addEventListener('click', (event) => {
   copyConsoleLog(elements.consoleDockCopy).catch((error) => window.alert(error.message));
 });
 
-// Header view switcher tabs (Prepare / Deploy / Monitor)
+// Header workspace switcher (Deploy / Monitor). Guided setup stays inside the
+// Deploy rail and is opened/collapsed by the rail controls.
 if (elements.tabDashboard) {
-  elements.tabGuided?.addEventListener('click', () => switchToView('guided'));
-  elements.tabPrepare?.addEventListener('click', () => switchToView('prepare'));
   elements.tabDashboard.addEventListener('click', () => switchToView('dashboard'));
   if (elements.tabFleet) {
     elements.tabFleet.addEventListener('click', () => switchToView('fleet'));

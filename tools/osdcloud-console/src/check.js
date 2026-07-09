@@ -68,7 +68,8 @@ function checkDesignInvariants() {
     .map((filePath) => fs.readFileSync(filePath, 'utf8'))
     .join('\n');
 
-  assertMatch('workspace navigation', html, /id="tab-prepare"[\s\S]*id="tab-dashboard"[\s\S]*id="tab-fleet"/u);
+  assertMatch('workspace navigation', html, /id="tab-dashboard"[\s\S]*id="tab-fleet"/u);
+  assertNoMatch('workspace navigation', html, /id="tab-prepare"|>Prepare<\/span>/u);
   assertMatch('local icon helper', script, /function makeIcon\(name, className = ''\)/u);
   assertMatch('local icon hydration', script, /function hydrateActionIcons\(root = document\)/u);
   assertMatch('local utility CSS', styles, /\.flex \{ display: flex; \}/u);

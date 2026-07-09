@@ -494,7 +494,7 @@ cd "&lt;repo-root&gt;"
               <path class="arrow" d="M550 623V649"/>
               <rect class="step" x="340" y="651" width="420" height="66" rx="12"/><text class="num" x="365" y="676">10</text><text class="t" x="550" y="679" text-anchor="middle">Client 選 UEFI IPv4 PXE 開機</text><text class="s" x="550" y="701" text-anchor="middle">secureboot 保持 Secure Boot ON；ipxe fallback 必須 OFF</text>
               <path class="arrow" d="M550 717V743"/>
-              <rect class="step" x="258" y="745" width="584" height="82" rx="12"/><text class="t" x="550" y="775" text-anchor="middle">在 Deploy / Activity 監看</text><text class="s" x="550" y="798" text-anchor="middle">winpe-start → torrent / apply-image → rebooting → SetupComplete → Apps / Scripts</text><text class="s" x="550" y="818" text-anchor="middle">若 failed / timeout：先看 Validation Evidence，再到 client local logs 取詳細輸出</text>
+              <rect class="step" x="258" y="745" width="584" height="82" rx="12"/><text class="t" x="550" y="775" text-anchor="middle">在 Deploy / Monitor 監看</text><text class="s" x="550" y="798" text-anchor="middle">winpe-start → torrent / apply-image → rebooting → SetupComplete → Apps / Scripts</text><text class="s" x="550" y="818" text-anchor="middle">若 failed / timeout：先看 Validation Evidence，再到 client local logs 取詳細輸出</text>
               <path class="arrow" d="M550 827V853"/>
               <rect class="done" x="330" y="855" width="440" height="70" rx="13"/><text class="white" x="550" y="884" text-anchor="middle">✓ windows-desktop-ready</text><text class="white" x="550" y="906" text-anchor="middle">完成後停止 HTTP / TFTP / DHCP；恢復原 LAN DHCP</text>
             </svg>
@@ -816,7 +816,7 @@ cd "&lt;repo-root&gt;"
               <path class="arrow" d="M550 623V649"/>
               <rect class="step" x="340" y="651" width="420" height="66" rx="12"/><text class="num" x="365" y="676">10</text><text class="t" x="550" y="679" text-anchor="middle">Boot client from UEFI IPv4 PXE</text><text class="s" x="550" y="701" text-anchor="middle">secureboot: Secure Boot ON; ipxe fallback: Secure Boot OFF</text>
               <path class="arrow" d="M550 717V743"/>
-              <rect class="step" x="258" y="745" width="584" height="82" rx="12"/><text class="t" x="550" y="775" text-anchor="middle">Monitor Deploy / Activity</text><text class="s" x="550" y="798" text-anchor="middle">winpe-start → torrent / apply-image → rebooting → SetupComplete → apps / scripts</text><text class="s" x="550" y="818" text-anchor="middle">On failure or timeout, check Validation Evidence, then detailed client-local logs</text>
+              <rect class="step" x="258" y="745" width="584" height="82" rx="12"/><text class="t" x="550" y="775" text-anchor="middle">Monitor in Deploy / Monitor</text><text class="s" x="550" y="798" text-anchor="middle">winpe-start → torrent / apply-image → rebooting → SetupComplete → apps / scripts</text><text class="s" x="550" y="818" text-anchor="middle">On failure or timeout, check Validation Evidence, then detailed client-local logs</text>
               <path class="arrow" d="M550 827V853"/>
               <rect class="done" x="330" y="855" width="440" height="70" rx="13"/><text class="white" x="550" y="884" text-anchor="middle">✓ windows-desktop-ready</text><text class="white" x="550" y="906" text-anchor="middle">Stop HTTP / TFTP / DHCP; restore normal LAN DHCP</text>
             </svg>

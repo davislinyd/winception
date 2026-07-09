@@ -23,7 +23,7 @@
   left: 0;
   max-width: min(380px, calc(100vw - 24px));
   padding: 12px 14px;
-  pointer-events: none;
+  pointer-events: auto;
   position: fixed;
   top: 0;
   width: max-content;

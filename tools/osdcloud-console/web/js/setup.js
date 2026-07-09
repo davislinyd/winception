@@ -431,14 +431,12 @@ export function renderInitialization(appState) {
   const deploymentLive = initialization.deploymentLive === true;
   if (state.currentView === null) {
     const saved = localStorage.getItem('winception-view');
-    const valid = new Set(['prepare', 'dashboard', 'fleet', 'guided', 'services', 'logs']);
-    state.currentView = saved === 'guided' ? 'prepare' : (saved && valid.has(saved)) ? saved : 'dashboard';
+    const valid = new Set(['dashboard', 'fleet', 'services', 'logs']);
+    state.currentView = saved === 'prepare' || saved === 'guided' ? 'dashboard' : (saved && valid.has(saved)) ? saved : 'dashboard';
   }
 
-  // Toggle active views and nav tabs (Prepare / Deploy / Monitor)
+  // Toggle active views and nav tabs (Deploy / Monitor)
   if (elements.tabDashboard) {
-    elements.tabGuided?.classList.toggle('active', state.currentView === 'guided');
-    elements.tabPrepare?.classList.toggle('active', state.currentView === 'prepare');
     elements.tabDashboard.classList.toggle('active', state.currentView === 'dashboard');
   }
   if (elements.tabFleet) {
@@ -452,7 +450,7 @@ export function renderInitialization(appState) {
   }
   const dashboardView = $('#view-dashboard');
   if (dashboardView) {
-    dashboardView.classList.toggle('active', state.currentView === 'dashboard' || state.currentView === 'prepare');
+    dashboardView.classList.toggle('active', state.currentView === 'dashboard');
   }
   const fleetView = $('#view-fleet');
   if (fleetView) {

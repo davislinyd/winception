@@ -77,8 +77,6 @@ export const elements = {
   initializationNext: $('#initialization-next'),
   initProgressFill: $('#init-progress-fill'),
   initProgressText: $('#init-progress-text'),
-  tabGuided: $('#tab-guided'),
-  tabPrepare: $('#tab-prepare'),
   tabDashboard: $('#tab-dashboard'),
   tabFleet: $('#tab-fleet'),
   navServices: $('#nav-services'),

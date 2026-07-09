@@ -18,26 +18,20 @@ export function setFleetExpanded(expanded) {
 }
 
 export function switchToView(viewName) {
-  if (state.currentView === viewName) {
-    if (viewName === 'prepare') {
+  const normalizedView = viewName === 'prepare' || viewName === 'guided' ? 'dashboard' : viewName;
+  if (state.currentView === normalizedView) {
+    if (viewName === 'prepare' || viewName === 'guided') {
       setSetupRailCollapsed(false);
       state.guidedStepCollapsed = false;
       render();
     }
-    if (viewName === 'dashboard') {
-      setSetupRailCollapsed(true);
-      render();
-    }
     return;
   }
-  state.currentView = viewName;
-  localStorage.setItem('winception-view', viewName);
-  if (viewName === 'prepare') {
+  state.currentView = normalizedView;
+  localStorage.setItem('winception-view', normalizedView);
+  if (viewName === 'prepare' || viewName === 'guided') {
     setSetupRailCollapsed(false);
     state.guidedStepCollapsed = false;
-  }
-  if (viewName === 'dashboard') {
-    setSetupRailCollapsed(true);
   }
   if ((viewName === 'guided' || viewName === 'prepare') && !state.selectedGuidedStepId && state.current?.initialization?.nextStepId) {
     state.selectedGuidedStepId = state.current.initialization.nextStepId;
