@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.3-5 — 2026-07-09
+
+### 修正：Service cards desktop layout
+
+- Deploy view 的 HTTP / TFTP / DHCP 服務卡片在桌面寬度改為三欄同列顯示，降低空白浪費
+
 ## v0.6.3-4 — 2026-07-09
 
 ### 修正：Deploy hover info 可停留

@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.3-4', () => {
+test('release metadata is aligned to v0.6.3-5', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.3-4');
-  assert.equal(packageLock.version, '0.6.3-4');
-  assert.equal(packageLock.packages[''].version, '0.6.3-4');
-  assert.match(changelog, /## v0\.6\.3-4 — 2026-07-09/);
-  assert.match(manual, /Operations Manual · v0\.6\.3-4/);
-  assert.match(manual, /Product documentation for Web v0\.6\.3-4/);
+  assert.equal(packageJson.version, '0.6.3-5');
+  assert.equal(packageLock.version, '0.6.3-5');
+  assert.equal(packageLock.packages[''].version, '0.6.3-5');
+  assert.match(changelog, /## v0\.6\.3-5 — 2026-07-09/);
+  assert.match(manual, /Operations Manual · v0\.6\.3-5/);
+  assert.match(manual, /Product documentation for Web v0\.6\.3-5/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -757,6 +757,8 @@ test('web UI makes service cards stateful toggles', () => {
   assert.match(script, /cardAction\.className = `service-card-cta\$\{action === 'dhcp-toggle' && !service\.running \? ' danger' : ''\}`/);
   assert.match(script, /cardAction\.dataset\.icon = service\.running \? 'stop' : 'play_arrow'/);
   assert.match(script, /service-card-action\[data-action\]/);
+  assert.match(styles, /\.deploy-grid \.dash-services-grid \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.doesNotMatch(styles, /\.deploy-grid \.dash-services-grid \{\s*grid-template-columns: repeat\(2, 1fr\);/);
   assert.match(styles, /\.service-card-cta/);
   assert.match(styles, /\.service-card-cta\.danger/);
   assert.match(styles, /\.service-card\[data-service-state="stopped"\] \.service-switch/);
