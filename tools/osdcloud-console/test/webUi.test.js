@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.3-5', () => {
+test('release metadata is aligned to v0.6.3-6', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.3-5');
-  assert.equal(packageLock.version, '0.6.3-5');
-  assert.equal(packageLock.packages[''].version, '0.6.3-5');
-  assert.match(changelog, /## v0\.6\.3-5 — 2026-07-09/);
-  assert.match(manual, /Operations Manual · v0\.6\.3-5/);
-  assert.match(manual, /Product documentation for Web v0\.6\.3-5/);
+  assert.equal(packageJson.version, '0.6.3-6');
+  assert.equal(packageLock.version, '0.6.3-6');
+  assert.equal(packageLock.packages[''].version, '0.6.3-6');
+  assert.match(changelog, /## v0\.6\.3-6 — 2026-07-10/);
+  assert.match(manual, /Operations Manual · v0\.6\.3-6/);
+  assert.match(manual, /Product documentation for Web v0\.6\.3-6/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -376,13 +376,13 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /clearInitializationSecretsDraft\(\);[\s\S]*controls\.windowsPassword\.value = ''/);
   assert.match(script, /function renderConsoleDock\(appState\)/);
   assert.match(script, /function setConsoleDockCollapsed\(collapsed\)/);
-  assert.match(script, /function flashConsoleDockHead\(\)/);
+  assert.match(script, /function flashConsoleDock\(\)/);
   assert.match(script, /consoleDockCollapsed: true/);
   assert.match(script, /consoleDockOperationKey: ''/);
   assert.match(script, /guidedConsoleAttentionAction: null/);
   assert.match(script, /guidedConsoleAttentionShown: false/);
-  assert.match(script, /window\.setTimeout\(\(\) => \{[\s\S]*classList\.remove\('console-dock-head-attention'\);[\s\S]*\}, 3000\)/);
-  assert.match(script, /if \(state\.guidedConsoleAttentionAction\) \{[\s\S]*flashConsoleDockHead\(\);[\s\S]*return;[\s\S]*\}[\s\S]*setConsoleDockCollapsed\(false\);/);
+  assert.match(script, /window\.setTimeout\(\(\) => \{[\s\S]*classList\.remove\('console-dock-attention'\);[\s\S]*\}, 3000\)/);
+  assert.match(script, /if \(state\.guidedConsoleAttentionAction\) \{[\s\S]*flashConsoleDock\(\);[\s\S]*return;[\s\S]*\}[\s\S]*setConsoleDockCollapsed\(false\);/);
   assert.match(script, /function copyConsoleLog\(button\)/);
   assert.match(script, /navigator\.clipboard\?\.writeText/);
   assert.match(script, /fallbackCopyText\(text\)/);
@@ -426,12 +426,12 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Prepare runtime/);
   assert.match(styles, /\.runtime-readiness-panel/);
   assert.match(styles, /\.console-dock \{/);
-  assert.match(styles, /\.console-dock-head/);
-  assert.match(styles, /\.console-dock-head::before/);
-  assert.match(styles, /\.console-dock-head\.console-dock-head-attention/);
-  assert.match(styles, /@keyframes console-head-attention/);
-  assert.match(styles, /@keyframes console-head-aura/);
-  assert.match(styles, /@keyframes console-head-copy-glow/);
+  assert.match(styles, /\.console-dock::before/);
+  assert.match(styles, /\.console-dock\.console-dock-attention/);
+  assert.match(styles, /@keyframes console-dock-attention/);
+  assert.match(styles, /@keyframes console-dock-aura/);
+  assert.doesNotMatch(styles, /\.console-dock-head\.console-dock-head-attention/);
+  assert.doesNotMatch(styles, /@keyframes console-head-copy-glow/);
   assert.match(styles, /prefers-reduced-motion: reduce/);
   assert.match(styles, /\.console-dock-log/);
   assert.match(styles, /\.console-dock\.collapsed \.console-dock-log \{ display: none; \}/);

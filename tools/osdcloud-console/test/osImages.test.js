@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { evaluateOsImageCache, loadOsImageCatalog, osImageOptions, publishSelectedOsImage, resolveOsImageState, scanCachedOsImages } from '../src/osimages/catalog.js';
-import { downloadOsImageFromCatalogItem, listOsDownloadCatalog } from '../src/osimages/download.js';
+import { buildOsDownloadCatalogPowerShellScript, downloadOsImageFromCatalogItem, listOsDownloadCatalog } from '../src/osimages/download.js';
 import { inspectLocalOsImage } from '../src/osimages/inspect.js';
 import { deleteCachedOsImage } from '../src/osimages/maintenance.js';
 import { importLocalOsImage, importUploadedOsImage, uploadOsImageFile } from '../src/osimages/transfer.js';
@@ -558,6 +558,23 @@ test('OS download catalog ignores configured custom download sources', async () 
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('OS download catalog PowerShell script applies filters before row expansion', () => {
+  const script = buildOsDownloadCatalogPowerShellScript({
+    osFamily: new Set(['win11']),
+    language: new Set(['en-us', 'zh-tw']),
+    releaseId: new Set(['25H2']),
+    edition: new Set(['Pro']),
+    activation: new Set(['Retail']),
+  });
+  assert.match(script, /\$requestedOsFamilies = @\('win11'\)/);
+  assert.match(script, /\$requestedLanguages = @\('en-us', 'zh-tw'\)/);
+  assert.match(script, /\$requestedReleaseIds = @\('25H2'\)/);
+  assert.match(script, /\$requestedEditions = @\('pro'\)/);
+  assert.match(script, /\$requestedActivations = @\('retail'\)/);
+  assert.match(script, /\$operatingSystems = @\(Get-OSDCloudOperatingSystems \| Where-Object \{/);
+  assert.match(script, /Group-Object \{ \(Get-WinceptionCatalogValue \$_ @\('OSEdition', 'Edition'\) 'Pro'\)\.Trim\(\)\.ToLowerInvariant\(\) \}/);
 });
 
 test('local ESD/WIM inspect and import export a single-index WIM without changing active image', async () => {

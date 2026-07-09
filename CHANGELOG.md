@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.3-6 — 2026-07-10
+
+### 修正：OS download catalog 載入時間
+
+- `Load download catalog` 先在 PowerShell 端套用 OS family / language / release / activation / edition 篩選，並在同 edition 的重複 index rows 間先收斂，避免先展開大量 OSD rows 再回傳超大 JSON
+- 在實機量測下，`Windows 11 Pro Retail zh-tw 25H2` 的 catalog 載入從約 28 秒降到約 3 秒
+
+### 修正：Guided Setup console attention
+
+- Guided Setup 長操作提示從 header 改為整個 console section outline/aura 閃爍，避免只讓標題列發亮
 ## v0.6.3-5 — 2026-07-09
 
 ### 修正：Service cards desktop layout

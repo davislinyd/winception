@@ -45,6 +45,8 @@ docs/* - 複製.html
 *.evtx
 client_osdcloud/
 client_logs/
+screenshot/
+test_logs/
 
 # Windows metadata
 Thumbs.db

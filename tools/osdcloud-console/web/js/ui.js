@@ -250,20 +250,20 @@ export function setConsoleDockCollapsed(collapsed) {
   }
 }
 
-export function flashConsoleDockHead() {
-  const head = elements.consoleDockHead;
-  if (!head) {
+export function flashConsoleDock() {
+  const dock = elements.consoleDock;
+  if (!dock) {
     return;
   }
-  head.classList.remove('console-dock-head-attention');
+  dock.classList.remove('console-dock-attention');
   // Restart the CSS animation when consecutive guided actions start quickly.
-  void head.offsetWidth;
-  head.classList.add('console-dock-head-attention');
+  void dock.offsetWidth;
+  dock.classList.add('console-dock-attention');
   if (consoleDockAttentionTimer) {
     window.clearTimeout(consoleDockAttentionTimer);
   }
   consoleDockAttentionTimer = window.setTimeout(() => {
-    head.classList.remove('console-dock-head-attention');
+    dock.classList.remove('console-dock-attention');
     consoleDockAttentionTimer = null;
   }, 3000);
 }
@@ -306,7 +306,7 @@ export function renderConsoleDock(appState) {
     if (state.guidedConsoleAttentionAction) {
       if (!state.guidedConsoleAttentionShown) {
         state.guidedConsoleAttentionShown = true;
-        flashConsoleDockHead();
+        flashConsoleDock();
       }
       return;
     }

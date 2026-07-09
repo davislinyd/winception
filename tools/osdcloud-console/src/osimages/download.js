@@ -31,35 +31,80 @@ export async function runPowerShellJson(script, options = {}) {
   }
 }
 
-export async function listOsDownloadCatalog(config = {}, options = {}) {
-  const byId = new Map();
-  const filters = catalogFilters(options);
-  const addOfficialImage = (row) => {
-    const image = {
-      ...normalizeOsImage({
-        ...row,
-        sourceType: 'official',
-      }),
-      sourceType: 'official',
-    };
-    if (!isMicrosoftDownloadUrl(image.url, config, options)) {
-      return;
-    }
-    if (!byId.has(image.id)) {
-      byId.set(image.id, image);
-    }
-  };
-  if (options.catalogRows) {
-    for (const row of options.catalogRows) {
-      if (String(row.sourceType ?? 'official').trim().toLowerCase() !== 'official') {
-        continue;
-      }
-      addOfficialImage(row);
-    }
-  } else {
-    const script = `
+function powerShellStringLiteral(value) {
+  return `'${String(value ?? '').replaceAll('\'', '\'\'')}'`;
+}
+
+function powerShellArrayLiteral(values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return '@()';
+  }
+  return `@(${values.map((value) => powerShellStringLiteral(value)).join(', ')})`;
+}
+
+export function buildOsDownloadCatalogPowerShellScript(filters = {}) {
+  const requestedOsFamilies = [...(filters.osFamily ?? [])]
+    .map((value) => String(value).trim().toLowerCase())
+    .filter(Boolean);
+  const requestedLanguages = [...(filters.language ?? [])]
+    .map((value) => String(value).trim().toLowerCase())
+    .filter(Boolean);
+  const requestedReleaseIds = [...(filters.releaseId ?? [])]
+    .map((value) => String(value).trim().toUpperCase())
+    .filter(Boolean);
+  const requestedEditions = [...(filters.edition ?? [])]
+    .map((value) => String(value).trim().toLowerCase())
+    .filter(Boolean);
+  const requestedActivations = [...(filters.activation ?? [])]
+    .map((value) => String(value).trim().toLowerCase())
+    .filter(Boolean);
+
+  return `
 Import-Module OSD -Force
-$operatingSystems = @(Get-OSDCloudOperatingSystems)
+$requestedOsFamilies = ${powerShellArrayLiteral(requestedOsFamilies)}
+$requestedLanguages = ${powerShellArrayLiteral(requestedLanguages)}
+$requestedReleaseIds = ${powerShellArrayLiteral(requestedReleaseIds)}
+$requestedEditions = ${powerShellArrayLiteral(requestedEditions)}
+$requestedActivations = ${powerShellArrayLiteral(requestedActivations)}
+function Get-WinceptionCatalogValue($row, [string[]]$Names, [string]$Default = '') {
+  foreach ($name in $Names) {
+    $property = $row.PSObject.Properties[$name]
+    if ($property -and $null -ne $property.Value) {
+      $value = [string]$property.Value
+      if ($value) {
+        return $value
+      }
+    }
+  }
+  return $Default
+}
+function Test-WinceptionContains([string[]]$Values, [string]$Candidate) {
+  return $Values.Count -eq 0 -or $Values -contains $Candidate
+}
+function Test-WinceptionFamily([string[]]$Families, [string]$Candidate) {
+  if ($Families.Count -eq 0) {
+    return $true
+  }
+  foreach ($family in $Families) {
+    if ($family -eq 'win11' -and $Candidate -match '(?i)windows\\s*11|win\\s*11') {
+      return $true
+    }
+    if ($family -eq 'win10' -and $Candidate -match '(?i)windows\\s*10|win\\s*10') {
+      return $true
+    }
+  }
+  return $false
+}
+$operatingSystems = @(Get-OSDCloudOperatingSystems | Where-Object {
+  $version = Get-WinceptionCatalogValue $_ @('OSName', 'Name', 'Version')
+  $language = (Get-WinceptionCatalogValue $_ @('OSLanguage', 'Language') 'zh-tw').Trim().ToLowerInvariant()
+  $releaseId = (Get-WinceptionCatalogValue $_ @('ReleaseId')).Trim().ToUpperInvariant()
+  $activation = (Get-WinceptionCatalogValue $_ @('OSActivation', 'Activation') 'Retail').Trim().ToLowerInvariant()
+  (Test-WinceptionFamily $requestedOsFamilies $version) -and
+  (Test-WinceptionContains $requestedLanguages $language) -and
+  (Test-WinceptionContains $requestedReleaseIds $releaseId) -and
+  (Test-WinceptionContains $requestedActivations $activation)
+})
 $indexRows = @()
 try {
   $indexRows = @(Get-OSDCloudOperatingSystemsIndexes)
@@ -72,8 +117,31 @@ $rows = foreach ($os in $operatingSystems) {
     ($_.OSName -eq $os.OSName -or $_.Name -eq $os.Name -or -not $_.PSObject.Properties['OSName']) -and
     ($_.OSLanguage -eq $os.OSLanguage -or $_.Language -eq $os.Language -or -not $_.PSObject.Properties['OSLanguage'])
   })
+  if ($requestedEditions.Count -gt 0) {
+    $matches = @($matches | Where-Object {
+      $edition = (Get-WinceptionCatalogValue $_ @('OSEdition', 'Edition') 'Pro').Trim().ToLowerInvariant()
+      Test-WinceptionContains $requestedEditions $edition
+    })
+  }
   if ($matches.Count -eq 0) {
+    if ($requestedEditions.Count -gt 0 -and -not ($requestedEditions -contains 'pro')) {
+      continue
+    }
     $matches = @([pscustomobject]@{ ImageIndex = 6; OSEdition = 'Pro'; OSEditionId = 'Professional' })
+  } else {
+    $matches = @(
+      $matches |
+        Group-Object { (Get-WinceptionCatalogValue $_ @('OSEdition', 'Edition') 'Pro').Trim().ToLowerInvariant() } |
+        ForEach-Object {
+          @($_.Group | Sort-Object @{ Expression = {
+            try {
+              [int](Get-WinceptionCatalogValue $_ @('ImageIndex', 'Index') '2147483647')
+            } catch {
+              2147483647
+            }
+          }} | Select-Object -First 1)
+        }
+    )
   }
   foreach ($index in $matches) {
     $url = $os.Url
@@ -105,6 +173,35 @@ $rows = foreach ($os in $operatingSystems) {
 }
 @($rows | Where-Object { $_.url -and $_.fileName }) | ConvertTo-Json -Depth 6 -Compress
 `;
+}
+
+export async function listOsDownloadCatalog(config = {}, options = {}) {
+  const byId = new Map();
+  const filters = catalogFilters(options);
+  const addOfficialImage = (row) => {
+    const image = {
+      ...normalizeOsImage({
+        ...row,
+        sourceType: 'official',
+      }),
+      sourceType: 'official',
+    };
+    if (!isMicrosoftDownloadUrl(image.url, config, options)) {
+      return;
+    }
+    if (!byId.has(image.id)) {
+      byId.set(image.id, image);
+    }
+  };
+  if (options.catalogRows) {
+    for (const row of options.catalogRows) {
+      if (String(row.sourceType ?? 'official').trim().toLowerCase() !== 'official') {
+        continue;
+      }
+      addOfficialImage(row);
+    }
+  } else {
+    const script = buildOsDownloadCatalogPowerShellScript(filters);
     const rows = await runPowerShellJson(script, { cwd: appRootForConfig(config) });
     const values = Array.isArray(rows) ? rows : [rows];
     for (const row of values) {
