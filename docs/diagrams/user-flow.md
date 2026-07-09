@@ -8,6 +8,7 @@
 ## 說明
 
 - **Guided Setup** 會依序顯示每一步的「用途、完成條件、安全提醒」。前 7 步準備環境，第 8 步把關，第 9–10 步才真正啟動部署。
+- `Deploy` 主畫面的 **Offline ISO** 是可選旁支：當 runtime、active profile 與 deployable WIM 已就緒時，可直接在主機端建立 ISO，輸出到 `<deployment-root>\Exports`，但它不替代 PXE readiness。
 - **第一道閘門（步驟 8）**：`Run preflight` 只要有 blocking failure，就不要啟動 DHCP，也不要讓 client PXE 開機 —— 回頭修正後重跑。
 - **第二道閘門（步驟 9 前）**：必須先確認部署網段的 DHCP mode 選擇正確，才按 `Start services` / `Start all services`。
 - 目標電腦從 `UEFI IPv4 PXE` 開機，不使用 USB/ISO、不手動點 OOBE；最終狀態應到 `windows-desktop-ready`。

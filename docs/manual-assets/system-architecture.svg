@@ -29,6 +29,9 @@
   <rect class="card control" x="990" y="128" width="356" height="102" rx="12"/>
   <text class="t" x="1168" y="157" text-anchor="middle">Web-selected runtime root</text><text class="s" x="1168" y="180" text-anchor="middle">Media、PXE-HttpRoot、PXE-TFTP、logs</text><text class="port" x="1168" y="205" text-anchor="middle">預設 C:\OSDCloud（不可在 Git clone 內）</text>
   <path class="arrow" d="M298 179H344"/><path class="arrow" d="M632 179H678"/><path class="arrow" d="M942 179H988"/>
+  <rect class="note" x="680" y="236" width="328" height="48" rx="12"/>
+  <text class="warn" x="702" y="257">可選：Deploy 的 Offline ISO 由 ServiceController 在主機端呼叫</text>
+  <text class="warn" x="702" y="274">New-WinceptionUsbInstaller.ps1 -Iso，只寫到 &lt;deployment-root&gt;\Exports。</text>
 
   <text class="lane" x="54" y="275">BOOT &amp; DELIVERY PLANE · PXE 開機與映像分發</text>
   <rect class="card host" x="54" y="292" width="206" height="116" rx="12"/>

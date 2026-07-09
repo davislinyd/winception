@@ -6,6 +6,7 @@
 .status-os-panel,
 .driver-cache-panel,
 .preflight-summary-panel,
+.offline-iso-panel,
 .client-fleet-panel,
 .system-log-panel,
 #endpoint-summary,
@@ -378,6 +379,11 @@
 }
 
 .preflight-summary-panel {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.offline-iso-panel {
   flex: 0 0 auto;
   min-height: 0;
 }

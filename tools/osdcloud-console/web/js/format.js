@@ -73,6 +73,22 @@ export function osDownloadButtonText(status) {
   return status.status === 'failed' ? 'Failed' : 'Download';
 }
 
+export function offlineIsoStatusText(status) {
+  if (!status) {
+    return 'Create a host-side ISO snapshot from the active deployment state.';
+  }
+  if (status.status === 'failed') {
+    return `Failed: ${text(status.error, 'unknown error')}`;
+  }
+  if (status.running) {
+    return status.message || 'Creating offline ISO on the host...';
+  }
+  if (status.status === 'completed') {
+    return status.message || `Created ${text(status.fileName)}.`;
+  }
+  return status.message || text(status.status);
+}
+
 export function osImageLabel(image) {
   if (!image) {
     return '-';

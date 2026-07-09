@@ -1,4 +1,4 @@
-import { renderBootMode, renderDashboardTiles, renderDiagnosticsSummary, renderDhcpMode, renderDriverPackCache, renderEndpointSummary, renderInterfaces, renderLiveMetrics, renderLogs, renderOperation, renderOsImageSummary, renderOsImages, renderPayload, renderPipeline, renderPreflightSummary, renderProfileSummary, renderProfiles, renderRuntimeReadiness, renderScriptCatalog, renderServices, renderSoftwareCatalog, renderStatusStrip, renderSummaryBar, renderSync, renderTopology, renderValidation, renderWarningBanner } from './deploy.js';
+import { renderBootMode, renderDashboardTiles, renderDiagnosticsSummary, renderDhcpMode, renderDriverPackCache, renderEndpointSummary, renderInterfaces, renderLiveMetrics, renderLogs, renderOfflineIso, renderOperation, renderOsImageSummary, renderOsImages, renderPayload, renderPipeline, renderPreflightSummary, renderProfileSummary, renderProfiles, renderRuntimeReadiness, renderScriptCatalog, renderServices, renderSoftwareCatalog, renderStatusStrip, renderSummaryBar, renderSync, renderTopology, renderValidation, renderWarningBanner } from './deploy.js';
 import { $, elements } from './dom.js';
 import { renderFleetCards } from './fleet.js';
 import { endpointLabel, localTime } from './format.js';
@@ -34,6 +34,7 @@ export function render() {
   renderEndpointSummary(appState);
   renderRuntimeReadiness(appState);
   renderDiagnosticsSummary(appState);
+  renderOfflineIso(appState);
   renderServices(appState);
   renderProfileSummary(appState);
   renderOsImageSummary(appState);

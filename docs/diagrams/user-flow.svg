@@ -9,6 +9,7 @@
     .gate{fill:#FCF3E8;stroke:#E7C9A6;stroke-width:1.5}
     .done{fill:#9C4221;stroke:#7E351A;stroke-width:1.4}
     .t{fill:#2A2520;font-weight:600;font-size:13px;text-anchor:middle}
+    .el{fill:#6E6353;font-size:11px;text-anchor:middle}
     .tw{fill:#FFFFFF;font-weight:600;font-size:14px;text-anchor:middle}
     .tg{fill:#7E351A;font-weight:600;font-size:12.5px;text-anchor:middle}
     .no{fill:#9C4221;font-size:10.5px;text-anchor:middle}
@@ -48,6 +49,12 @@
     <path class="arrow" d="M380,452 V464" marker-end="url(#a)"/>
     <path class="arrow" d="M380,504 V516" marker-end="url(#a)"/>
   </g>
+
+  <rect class="step" x="540" y="458" width="168" height="54" rx="8"/>
+  <text class="t" x="624" y="482">可選 · Offline ISO</text>
+  <text class="el" x="624" y="499">host-side 匯出到</text>
+  <text class="el" x="624" y="512">&lt;project-root&gt;\Exports</text>
+  <path class="loop" d="M530,484 H538" marker-end="url(#al)"/>
 
   <!-- gate 1: preflight -->
   <path class="arrow" d="M380,556 V564" marker-end="url(#a)"/>

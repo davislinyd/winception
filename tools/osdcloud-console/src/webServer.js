@@ -129,6 +129,7 @@ const apiRouteTable = [
   { method: 'POST', path: '/api/profile' },
   { method: 'POST', path: '/api/os-image-delete' },
   { method: 'POST', path: '/api/os-download' },
+  { method: 'POST', path: '/api/offline-iso/create' },
   { method: 'POST', path: '/api/os-image-reexport' },
   { method: 'POST', path: '/api/os-image-upload' },
   { method: 'POST', path: '/api/os-image-upload-import' },
@@ -449,6 +450,11 @@ export class WebManagementServer {
     if (pathname === '/api/os-download') {
       const body = await readBody();
       const { promise: _promise, ...result } = this.controller.startOsDownload(body.catalogId ?? body.id);
+      sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/offline-iso/create') {
+      const { promise: _promise, ...result } = this.controller.startOfflineIsoExport();
       sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
       return;
     }

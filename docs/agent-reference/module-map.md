@@ -45,6 +45,7 @@ Entry points (run by `package.json` scripts) stay at `src/` root: `webServer.js`
 | OS image upload/import (local + uploaded) | `src/osimages/transfer.js` |
 | OS image catalog list + download | `src/osimages/download.js` |
 | OS image delete | `src/osimages/maintenance.js` |
+| Offline ISO host-side export (`New-WinceptionUsbInstaller.ps1 -Iso`) | `src/offlineIso.js` |
 | OS image shared helpers (consts, normalizers, hashing, cache log) | `src/osimages/shared.js` |
 | PowerShell exec + elevation | `src/windows/powershell.js` |
 | Network interfaces, DHCP subnet, SMB, service IPs | `src/windows/network.js` |

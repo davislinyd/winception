@@ -2,7 +2,7 @@ import { api, mutate, refresh } from './api.js';
 import { confirmAction, openDialog } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
 import { makeDiagnosticsButton, renderDiagnosticsSummary } from './deploy/diagnostics.js';
-import { bytes, dhcpRange, elapsed, endpointLabel, localCompactDateTime, localDateTime, localTime, osDownloadButtonText, osDownloadStatusText, osFamilyLabels, osImageLabel, percent, text } from './format.js';
+import { bytes, dhcpRange, elapsed, endpointLabel, localCompactDateTime, localDateTime, localTime, offlineIsoStatusText, osDownloadButtonText, osDownloadStatusText, osFamilyLabels, osImageLabel, percent, text } from './format.js';
 import { state } from './state.js';
 import { actionButtons, makeIcon, makeStatusPill, setActionDanger, setActionIcon, setActionLabel, setActionRunning, setDefinitionList, setDefinitionListNodes } from './ui.js';
 
@@ -102,6 +102,95 @@ export function renderRuntimeReadiness(appState) {
   actionButtons('prepare-runtime').forEach((button) => {
     button.disabled = state.busy || requiresElevation;
     button.classList.toggle('warning', !runtime.ready);
+  });
+}
+
+function offlineIsoExpectedOutputDirectory(appState) {
+  return appState.offlineIsoStatus?.outputDirectory
+    ?? `${appState.config?.workspace?.runtimeRoot ?? 'C:\\OSDCloud'}\\Exports`;
+}
+
+function offlineIsoReadyOsImage(osState) {
+  const active = osState?.activeImage;
+  const selected = osState?.selectedOs;
+  const activeFileName = String(active?.fileName ?? '').toLowerCase();
+  const selectedIndex = Number(selected?.imageIndex ?? selected?.osImageIndex);
+  const activeIndex = Number(active?.imageIndex);
+  return Boolean(
+    active?.id
+    && active.cached
+    && activeFileName.endsWith('.wim')
+    && selected
+    && selected.id === active.id
+    && selected.fileName === active.fileName
+    && selectedIndex === activeIndex,
+  );
+}
+
+function offlineIsoBlockedReason(appState) {
+  if (appState?.host?.elevated === false) {
+    return 'Restart the Web console from an elevated PowerShell session before creating an offline ISO.';
+  }
+  if (appState?.operation?.running) {
+    return `Wait for the current operation to finish: ${appState.operation.label}.`;
+  }
+  if (appState?.runtime?.ready !== true) {
+    return 'Prepare runtime before creating an offline ISO.';
+  }
+  if (!appState?.profile?.activeProfile?.id) {
+    return 'Select an active deployment profile before creating an offline ISO.';
+  }
+  if (!offlineIsoReadyOsImage(appState?.osImage)) {
+    return 'The active OS image must be a cached deployable WIM with a matching selected-os.json.';
+  }
+  return '';
+}
+
+export function renderOfflineIso(appState) {
+  const status = appState.offlineIsoStatus;
+  const blockedReason = offlineIsoBlockedReason(appState);
+  const running = status?.running === true;
+  const outputDirectory = offlineIsoExpectedOutputDirectory(appState);
+  const activeProfile = appState.profile?.activeProfile;
+  const activeOs = appState.osImage?.activeImage;
+
+  if (!elements.offlineIsoStatusBadge || !elements.offlineIsoHeadline || !elements.offlineIsoDetails) {
+    return;
+  }
+
+  if (running) {
+    elements.offlineIsoStatusBadge.textContent = 'Working';
+    elements.offlineIsoStatusBadge.className = 'status-pill working';
+  } else if (status?.status === 'completed') {
+    elements.offlineIsoStatusBadge.textContent = 'Ready';
+    elements.offlineIsoStatusBadge.className = 'status-pill ok';
+  } else if (status?.status === 'failed' || blockedReason) {
+    elements.offlineIsoStatusBadge.textContent = 'Blocked';
+    elements.offlineIsoStatusBadge.className = 'status-pill fail';
+  } else {
+    elements.offlineIsoStatusBadge.textContent = 'Idle';
+    elements.offlineIsoStatusBadge.className = 'status-pill neutral';
+  }
+
+  elements.offlineIsoHeadline.textContent = blockedReason || offlineIsoStatusText(status);
+  setDefinitionListNodes(elements.offlineIsoDetails, [
+    ['Output folder', makePreformattedValue(outputDirectory)],
+    ['ISO file', status?.outputPath ? makePreformattedValue(status.outputPath) : 'Not created yet'],
+    ['Active source', [
+      activeProfile?.name ?? 'No active profile',
+      activeOs ? osImageLabel(activeOs) : 'No active OS image',
+    ].join(' / ')],
+    ['Last completed', status?.finishedAt ? localCompactDateTime(status.finishedAt) : '-'],
+    ['Size', bytes(status?.bytes)],
+  ]);
+
+  setActionLabel('offline-iso-create', running ? 'Creating ISO...' : 'Create ISO');
+  setActionIcon('offline-iso-create', status?.status === 'completed' && !running ? 'check_circle' : 'download');
+  setActionRunning('offline-iso-create', running);
+  actionButtons('offline-iso-create').forEach((button) => {
+    button.disabled = state.busy || running || Boolean(blockedReason);
+    button.classList.add('warning');
+    button.title = blockedReason || 'Create a host-side offline ISO snapshot';
   });
 }
 

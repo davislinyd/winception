@@ -2,7 +2,7 @@ import { handleAction, setFleetExpanded, switchToView } from './actions.js';
 import { handleDocumentClick } from './actionRegistry.js';
 import { api, loadAuthStatus, refresh, saveAuthToken, storedAuthToken } from './api.js';
 import { clearRefineFilters, openValidationEvidenceFromTarget } from './deploy.js';
-import { closeDialog, closeEmbeddedConfig, enableBackdropCloseForDialogs, isInsideStandaloneDialog, suppressBackdropCloseClickThrough } from './dialogs.js';
+import { bindEmbeddedConfigHeaderToggles, closeDialog, closeEmbeddedConfig, enableBackdropCloseForDialogs, isInsideStandaloneDialog, suppressBackdropCloseClickThrough } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
 import { renderFleetCards } from './fleet.js';
 import { render } from './render.js';
@@ -246,7 +246,8 @@ document.addEventListener('keydown', (event) => {
       return;
     }
     const configHost = document.getElementById('config-embed');
-    if (configHost && !configHost.hidden && !document.querySelector('dialog[open]')) {
+    const standaloneDialogOpen = Boolean(document.querySelector('dialog[open]:not(.embedded-open)'));
+    if (configHost && !configHost.hidden && !standaloneDialogOpen) {
       closeEmbeddedConfig();
       return;
     }
@@ -332,6 +333,7 @@ $$('[data-os-catalog-filter]').forEach((input) => {
 });
 
 enableBackdropCloseForDialogs();
+bindEmbeddedConfigHeaderToggles();
 
 // Console dock: header toggles collapse, copy button copies the visible log
 if (elements.consoleDockHead) {

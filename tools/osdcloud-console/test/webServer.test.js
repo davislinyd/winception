@@ -74,6 +74,7 @@ async function makeServer(root, overrides = {}) {
     services,
     dependencies: {
       listIpv4ServiceInterfaces: async () => [{ interfaceAlias: 'LAN', ipAddress: '127.0.0.1', prefixLength: 24 }],
+      isElevated: () => true,
       readFleetStatus: () => ({ total: 1, counts: { running: 1 }, runs: [{ runId: 'run-1', status: 'running', latestStage: 'winpe-start' }] }),
       readRecentScreenshotMetadata: () => [],
       readRunLatestScreenshot: () => null,
@@ -239,6 +240,18 @@ async function makeServer(root, overrides = {}) {
         bytes: 30,
         filePath: path.join(root, 'OS', input.metadata?.fileName ?? 'uploaded.wim'),
       }),
+      createOfflineIso: async () => {
+        const outputDirectory = path.join(root, 'Exports');
+        const outputPath = path.join(outputDirectory, 'Winception-USB-20260710-090000.iso');
+        fs.mkdirSync(outputDirectory, { recursive: true });
+        fs.writeFileSync(outputPath, 'iso image', 'utf8');
+        return {
+          outputPath,
+          outputDirectory,
+          fileName: path.basename(outputPath),
+          bytes: Buffer.byteLength('iso image'),
+        };
+      },
       uploadSoftwareInstaller: async (_config, input) => {
         if (String(input.fileName ?? '').includes('..') || String(input.fileName ?? '').includes('/')) {
           const error = new Error('Invalid software installer fileName');
@@ -1191,6 +1204,144 @@ test('OS image download API starts a background job and rejects concurrent downl
     releaseDownload();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(server.controller.getState().osDownloadStatus.status, 'downloaded');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('offline ISO API starts a background job, returns host paths, and rejects concurrent exports', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-offline-iso-job-'));
+  let releaseExport = null;
+  const server = await makeServer(root, {
+    config: {
+      runtimeArtifacts: { liveRoot: root },
+    },
+    dependencies: {
+      getRuntimeReadiness: () => ({
+        ready: true,
+        requiredCount: 1,
+        readyCount: 1,
+        missingCount: 0,
+        missing: [],
+        artifacts: [{ id: 'boot-wim', exists: true }],
+      }),
+      resolveOsImageState: () => ({
+        activeImageId: 'SMOKE-WIN11-PRO',
+        activeImage: {
+          id: 'SMOKE-WIN11-PRO',
+          name: 'Smoke Windows 11 Pro',
+          version: 'Windows 11 Smoke',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 1,
+          fileName: 'install.wim',
+          cached: true,
+          bytes: 12,
+        },
+        images: [{
+          id: 'SMOKE-WIN11-PRO',
+          name: 'Smoke Windows 11 Pro',
+          version: 'Windows 11 Smoke',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 1,
+          fileName: 'install.wim',
+          cached: true,
+          bytes: 12,
+        }],
+        cachedFiles: [],
+        selectedOs: { id: 'SMOKE-WIN11-PRO', fileName: 'install.wim', imageIndex: 1 },
+        catalogPath: path.join(root, 'os-image-catalog.json'),
+        cacheRoot: path.join(root, 'OS'),
+        downloadStagingRoot: path.join(root, 'OS', '.downloads'),
+        selectedOsPath: path.join(root, 'OS', 'selected-os.json'),
+        cacheLogPath: path.join(root, 'OS', 'os-image-cache.jsonl'),
+      }),
+      createOfflineIso: async () => {
+        await new Promise((resolve) => {
+          releaseExport = resolve;
+        });
+        const outputDirectory = path.join(root, 'Exports');
+        const outputPath = path.join(outputDirectory, 'Winception-USB-20260710-100000.iso');
+        fs.mkdirSync(outputDirectory, { recursive: true });
+        fs.writeFileSync(outputPath, 'iso image', 'utf8');
+        return {
+          outputPath,
+          outputDirectory,
+          fileName: path.basename(outputPath),
+          bytes: Buffer.byteLength('iso image'),
+        };
+      },
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/offline-iso/create`, { method: 'POST' });
+    assert.equal(response.status, 202);
+    let payload = await response.json();
+    assert.equal(payload.result.running, true);
+    assert.equal(payload.result.status, 'starting');
+    assert.match(payload.result.jobId, /^offline-iso-/);
+    assert.equal(payload.result.outputDirectory, path.join(root, 'Exports'));
+    assert.equal(payload.state.offlineIsoStatus.running, true);
+
+    response = await fetch(`${base}/api/offline-iso/create`, { method: 'POST' });
+    assert.equal(response.status, 409);
+    payload = await response.json();
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /Operation already running/);
+
+    await Promise.resolve();
+    releaseExport();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(server.controller.getState().offlineIsoStatus.status, 'completed');
+    assert.equal(server.controller.getState().offlineIsoStatus.outputPath, path.join(root, 'Exports', 'Winception-USB-20260710-100000.iso'));
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('offline ISO API rejects non-elevated sessions', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-offline-iso-elevation-'));
+  const server = await makeServer(root, {
+    dependencies: {
+      isElevated: () => false,
+      getRuntimeReadiness: () => ({
+        ready: true,
+        requiredCount: 1,
+        readyCount: 1,
+        missingCount: 0,
+        missing: [],
+        artifacts: [{ id: 'boot-wim', exists: true }],
+      }),
+      resolveOsImageState: () => ({
+        activeImageId: 'SMOKE-WIN11-PRO',
+        activeImage: {
+          id: 'SMOKE-WIN11-PRO',
+          name: 'Smoke Windows 11 Pro',
+          version: 'Windows 11 Smoke',
+          language: 'en-us',
+          edition: 'Pro',
+          imageIndex: 1,
+          fileName: 'install.wim',
+          cached: true,
+          bytes: 12,
+        },
+        images: [],
+        cachedFiles: [],
+        selectedOs: { id: 'SMOKE-WIN11-PRO', fileName: 'install.wim', imageIndex: 1 },
+      }),
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const response = await fetch(`${base}/api/offline-iso/create`, { method: 'POST' });
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload.ok, false);
+    assert.match(payload.error, /elevated Web console session/i);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

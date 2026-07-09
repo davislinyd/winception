@@ -31,6 +31,65 @@ export function embeddedConfigDialogs() {
   ].filter(Boolean);
 }
 
+export function embeddedConfigTargets() {
+  return [
+    { dialog: elements.deploymentProfilesDialog, action: 'profiles' },
+    { dialog: elements.osImagesDialog, action: 'os-images' },
+    { dialog: elements.endpointSettingsDialog, action: 'interfaces' },
+  ].filter((entry) => entry.dialog);
+}
+
+const embeddedConfigScrollState = {
+  scrollHost: null,
+  scrollTop: 0,
+};
+
+export function getEmbeddedConfigScrollHost(host = document.getElementById('config-embed')) {
+  return host?.closest('.deploy-main') ?? null;
+}
+
+export function rememberEmbeddedConfigScrollPosition(host = document.getElementById('config-embed')) {
+  if (embeddedConfigScrollState.scrollHost) {
+    return;
+  }
+  const scrollHost = getEmbeddedConfigScrollHost(host);
+  if (!scrollHost) {
+    return;
+  }
+  embeddedConfigScrollState.scrollHost = scrollHost;
+  embeddedConfigScrollState.scrollTop = scrollHost.scrollTop;
+}
+
+export function clearEmbeddedConfigScrollPosition() {
+  embeddedConfigScrollState.scrollHost = null;
+  embeddedConfigScrollState.scrollTop = 0;
+}
+
+export function restoreEmbeddedConfigScrollPosition() {
+  const scrollHost = embeddedConfigScrollState.scrollHost;
+  if (!scrollHost) {
+    return;
+  }
+  const savedScrollTop = embeddedConfigScrollState.scrollTop;
+  requestAnimationFrame(() => {
+    const maxScrollTop = Math.max(0, scrollHost.scrollHeight - scrollHost.clientHeight);
+    scrollHost.scrollTop = Math.min(savedScrollTop, maxScrollTop);
+    clearEmbeddedConfigScrollPosition();
+  });
+}
+
+export function syncEmbeddedConfigSummaryState() {
+  for (const { dialog, action } of embeddedConfigTargets()) {
+    const button = document.querySelector(`.deploy-seg[data-action="${action}"]`);
+    const open = dialog.classList.contains('embedded-open');
+    if (!button) {
+      continue;
+    }
+    button.classList.toggle('active', open);
+    button.setAttribute('aria-expanded', String(open));
+  }
+}
+
 export function isEmbeddedConfigDialog(dialog) {
   return embeddedConfigDialogs().includes(dialog);
 }
@@ -46,6 +105,9 @@ export function closeEmbeddedConfig(except = null) {
     if (dialog === except || !dialog.classList.contains('embedded-open')) {
       continue;
     }
+    if (except) {
+      dialog.dataset.embeddedScrollSuppressRestore = '1';
+    }
     if (isDialogOpen(dialog)) {
       closeDialog(dialog, 'cancel');
     } else {
@@ -55,18 +117,26 @@ export function closeEmbeddedConfig(except = null) {
   if (host && !host.querySelector('dialog.embedded-open')) {
     host.hidden = true;
   }
+  syncEmbeddedConfigSummaryState();
 }
 
 export function restoreEmbeddedDialog(dialog) {
+  const suppressScrollRestore = dialog.dataset.embeddedScrollSuppressRestore === '1';
+  delete dialog.dataset.embeddedScrollSuppressRestore;
   dialog.classList.remove('embedded-open');
   dialog.removeAttribute('open');
   if (dialog.parentElement && dialog.parentElement.id === 'config-embed') {
     document.body.append(dialog);
   }
   const host = document.getElementById('config-embed');
-  if (host && !host.querySelector('dialog.embedded-open')) {
+  const hasEmbeddedOpenDialog = Boolean(host?.querySelector('dialog.embedded-open'));
+  if (host && !hasEmbeddedOpenDialog) {
     host.hidden = true;
   }
+  if (!hasEmbeddedOpenDialog && !suppressScrollRestore) {
+    restoreEmbeddedConfigScrollPosition();
+  }
+  syncEmbeddedConfigSummaryState();
 }
 
 export function openEmbeddedConfig(dialog) {
@@ -80,6 +150,7 @@ export function openEmbeddedConfig(dialog) {
     closeEmbeddedConfig();
     return;
   }
+  rememberEmbeddedConfigScrollPosition(host);
   closeEmbeddedConfig(dialog);
   if (!dialog.dataset.embeddedCloseBound) {
     dialog.dataset.embeddedCloseBound = '1';
@@ -90,8 +161,29 @@ export function openEmbeddedConfig(dialog) {
   host.append(dialog);
   dialog.classList.add('embedded-open');
   dialog.setAttribute('open', '');
+  syncEmbeddedConfigSummaryState();
   requestAnimationFrame(() => {
     host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+export function bindEmbeddedConfigHeaderToggles() {
+  $$('[data-embedded-config-toggle]').forEach((button) => {
+    if (button.dataset.embeddedConfigToggleBound === '1') {
+      return;
+    }
+    button.dataset.embeddedConfigToggleBound = '1';
+    button.addEventListener('click', () => {
+      const dialog = button.closest('dialog');
+      if (!dialog || !isEmbeddedConfigDialog(dialog)) {
+        return;
+      }
+      if (dialog.classList.contains('embedded-open')) {
+        closeEmbeddedConfig();
+        return;
+      }
+      closeDialog(dialog, 'cancel');
+    });
   });
 }
 

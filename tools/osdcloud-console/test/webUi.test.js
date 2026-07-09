@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.3-6', () => {
+test('release metadata is aligned to v0.6.4', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.3-6');
-  assert.equal(packageLock.version, '0.6.3-6');
-  assert.equal(packageLock.packages[''].version, '0.6.3-6');
-  assert.match(changelog, /## v0\.6\.3-6 — 2026-07-10/);
-  assert.match(manual, /Operations Manual · v0\.6\.3-6/);
-  assert.match(manual, /Product documentation for Web v0\.6\.3-6/);
+  assert.equal(packageJson.version, '0.6.4');
+  assert.equal(packageLock.version, '0.6.4');
+  assert.equal(packageLock.packages[''].version, '0.6.4');
+  assert.match(changelog, /## v0\.6\.4 — 2026-07-10/);
+  assert.match(manual, /Operations Manual · v0\.6\.4/);
+  assert.match(manual, /Product documentation for Web v0\.6\.4/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -146,11 +146,16 @@ test('web UI exposes dashboard view topology', () => {
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
   assert.match(html, /class="deploy-summary"/);
   assert.match(html, /class="deploy-summary"[\s\S]*data-action="profiles"[\s\S]*data-action="os-images"[\s\S]*data-action="interfaces"/);
+  assert.match(html, /data-action="profiles" aria-controls="deployment-profiles-dialog" aria-expanded="false"/);
+  assert.match(html, /data-action="os-images" aria-controls="os-images-dialog" aria-expanded="false"/);
+  assert.match(html, /data-action="interfaces" aria-controls="endpoint-settings-dialog" aria-expanded="false"/);
   assert.match(html, /id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden/);
   assert.doesNotMatch(html, /id="summary-action"/);
   assert.doesNotMatch(html, /id="summary-status"/);
   assert.match(styles, /\.deploy-summary \{[\s\S]*min-height: 64px;/);
   assert.match(styles, /\.deploy-seg \{[\s\S]*min-height: 62px;[\s\S]*justify-content: center;/);
+  assert.match(styles, /\.deploy-seg\.active \{[\s\S]*box-shadow: inset 0 0 0 2px var\(--accent-tint-border\);/);
+  assert.match(styles, /\.deploy-seg\.active \.deploy-seg-caret \{[\s\S]*transform: rotate\(180deg\);/);
   assert.match(styles, /\.deploy-summary-compact \{[\s\S]*min-width: 0;/);
   assert.match(styles, /\.deploy-summary-primary \{[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/);
   assert.match(styles, /\.deploy-tooltip \{[\s\S]*pointer-events: auto;[\s\S]*position: fixed;[\s\S]*z-index: 80;/);
@@ -178,10 +183,13 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="pipeline-steps"/);
   assert.match(html, /id="live-metrics"/);
   assert.match(html, /id="endpoint-summary"/);
-  assert.match(html, /dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-3 gap-sm/);
+  assert.match(html, /dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-4 gap-sm/);
   assert.match(html, /id="diagnostics-status-badge"/);
   assert.match(html, /id="diagnostics-run-button"[^>]*data-action="diagnostics-run"/);
   assert.match(html, /id="diagnostics-download-button"[^>]*data-action="diagnostics-download"/);
+  assert.match(html, /id="offline-iso-status-badge"/);
+  assert.match(html, /id="offline-iso-details"/);
+  assert.match(html, /id="offline-iso-create-button"[^>]*data-action="offline-iso-create"/);
   assert.match(html, /id="view-dashboard"/);
   // Fleet view = filter + search + card grid + detail drawer + activity log
   assert.match(html, /id="view-fleet"/);
@@ -199,6 +207,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(html, /data-view=/);
   assert.match(html, /id="endpoint-settings-dialog"/);
   assert.match(html, /id="deployment-profiles-dialog"/);
+  assert.match(html, /<button class="embedded-panel-title" data-embedded-config-toggle type="button">\s*<h3>Endpoint Settings<\/h3>\s*<\/button>/);
+  assert.match(html, /<button class="embedded-panel-title" data-embedded-config-toggle type="button">\s*<h3>Deployment Profiles<\/h3>\s*<\/button>/);
+  assert.match(html, /<button class="embedded-panel-title embedded-panel-title-stack" data-embedded-config-toggle type="button">[\s\S]*<h3>OS Image Cache<\/h3>[\s\S]*id="os-active-label"/);
   const endpointDialogHtml = html.slice(
     html.indexOf('id="endpoint-settings-dialog"'),
     html.indexOf('id="deployment-profiles-dialog"'),
@@ -310,8 +321,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /aria-live="polite"/);
   assert.match(styles, /\.os-images-dialog/);
   assert.match(styles, /width: min\(1480px, calc\(100vw - 40px\)\)/);
+  assert.match(styles, /\.offline-iso-panel/);
   assert.match(styles, /#validation-evidence-dialog \{\s*width: min\(960px, calc\(100vw - 32px\)\);/);
   assert.match(styles, /\.drawer-card-wide \{\s*max-width: 100%;\s*width: 100%;/);
+  assert.match(styles, /dialog\.embedded-open \{[\s\S]*border: 2px solid var\(--accent-tint-border\) !important;/);
+  assert.match(styles, /\.config-embed \.embedded-panel-title \{/);
   assert.match(styles, /\.validation-evidence-grid > \* \{\s*max-width: 100%;\s*min-width: 0;/);
   assert.match(styles, /@media \(max-width: 900px\) \{[\s\S]*\.validation-evidence-grid \{[\s\S]*grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(styles, /\.stitch-details dt,[\s\S]*\.stitch-details dd \{[\s\S]*min-width: 0;[\s\S]*overflow-wrap: anywhere;/);
@@ -531,6 +545,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Generate diagnostics/);
   assert.match(script, /No diagnostics bundle has been generated yet\./);
   assert.match(script, /os-download-status-actions/);
+  assert.match(script, /Create offline ISO/);
+  assert.match(script, /\/api\/offline-iso\/create/);
+  assert.match(script, /Output folder:/);
+  assert.match(script, /offlineIsoStatusText/);
+  assert.match(script, /The active OS image must be a cached deployable WIM with a matching selected-os\.json\./);
   assert.match(script, /data-diagnostics-scope = 'run'|dataset\.diagnosticsScope = 'run'/);
   assert.match(script, /trigger: 'os-catalog-failure'|dataset\.diagnosticsTrigger = 'os-catalog-failure'/);
   assert.match(script, /No catalog rows matched the selected filters/);
@@ -629,11 +648,34 @@ test('web UI exposes dashboard view topology', () => {
 test('embedded config click-away ignores child dialogs', () => {
   const script = readWebScript();
 
+  assert.match(script, /function embeddedConfigTargets\(\)/);
+  assert.match(script, /const embeddedConfigScrollState = \{/);
+  assert.match(script, /function getEmbeddedConfigScrollHost\(host = document\.getElementById\('config-embed'\)\)/);
+  assert.match(script, /host\?\.closest\('\.deploy-main'\) \?\? null/);
+  assert.match(script, /function rememberEmbeddedConfigScrollPosition\(host = document\.getElementById\('config-embed'\)\)/);
+  assert.match(script, /if \(embeddedConfigScrollState\.scrollHost\) \{\s*return;\s*\}/);
+  assert.match(script, /embeddedConfigScrollState\.scrollTop = scrollHost\.scrollTop/);
+  assert.match(script, /function restoreEmbeddedConfigScrollPosition\(\)/);
+  assert.match(script, /requestAnimationFrame\(\(\) => \{/);
+  assert.match(script, /scrollHost\.scrollTop = Math\.min\(savedScrollTop, maxScrollTop\)/);
+  assert.match(script, /clearEmbeddedConfigScrollPosition\(\)/);
+  assert.match(script, /button\.classList\.toggle\('active', open\)/);
+  assert.match(script, /button\.setAttribute\('aria-expanded', String\(open\)\)/);
+  assert.match(script, /function bindEmbeddedConfigHeaderToggles\(\)/);
+  assert.match(script, /button\.dataset\.embeddedConfigToggleBound = '1'/);
+  assert.match(script, /if \(except\) \{\s*dialog\.dataset\.embeddedScrollSuppressRestore = '1';\s*\}/);
+  assert.match(script, /const suppressScrollRestore = dialog\.dataset\.embeddedScrollSuppressRestore === '1'/);
+  assert.match(script, /if \(!hasEmbeddedOpenDialog && !suppressScrollRestore\) \{\s*restoreEmbeddedConfigScrollPosition\(\);\s*\}/);
+  assert.match(script, /rememberEmbeddedConfigScrollPosition\(host\)/);
+  assert.match(script, /if \(dialog\.classList\.contains\('embedded-open'\)\) \{\s*closeEmbeddedConfig\(\);\s*return;\s*\}/);
+  assert.match(script, /closeDialog\(dialog, 'cancel'\)/);
   assert.match(script, /function isInsideStandaloneDialog\(target\)/);
   assert.match(script, /target\?\.closest\?\.\('dialog'\)/);
   assert.match(script, /!dialog\.classList\.contains\('embedded-open'\)/);
   assert.match(script, /if \(isInsideStandaloneDialog\(target\)\) return;/);
   assert.match(script, /if \(!target\.closest\('#config-embed'\)\) \{\s*closeEmbeddedConfig\(\);\s*\}/);
+  assert.match(script, /const standaloneDialogOpen = Boolean\(document\.querySelector\('dialog\[open\]:not\(\.embedded-open\)'\)\);/);
+  assert.match(script, /if \(configHost && !configHost\.hidden && !standaloneDialogOpen\) \{\s*closeEmbeddedConfig\(\);\s*return;\s*\}/);
 });
 
 test('preflight failed rows expose hover fix hints', () => {

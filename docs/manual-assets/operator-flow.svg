@@ -39,6 +39,9 @@
   <path class="arrow" d="M550 512V555"/><text class="yes" x="565" y="538">PXE Proxy：由既有 LAN DHCP 配 IP</text>
   <path class="arrow" d="M860 512V555"/><text class="yes" x="874" y="538">是</text>
 
+  <rect class="step" x="48" y="557" width="250" height="66" rx="12"/><text class="num" x="72" y="582">可選</text><text class="t" x="173" y="585" text-anchor="middle">Create Offline ISO</text><text class="s" x="173" y="607" text-anchor="middle">host-side 匯出到 &lt;deployment-root&gt;\Exports</text>
+  <path class="loop" d="M436 452H320V590H300" marker-end="url(#r)"/>
+
   <rect class="action" x="340" y="557" width="420" height="66" rx="12"/><text class="num" x="365" y="582">09</text><text class="t" x="550" y="585" text-anchor="middle">Start all services</text><text class="s" x="550" y="607" text-anchor="middle">確認 HTTP、TFTP、DHCP/Proxy、Torrent 都是 Running</text>
   <path class="arrow" d="M550 623V649"/>
   <rect class="step" x="340" y="651" width="420" height="66" rx="12"/><text class="num" x="365" y="676">10</text><text class="t" x="550" y="679" text-anchor="middle">Client 選 UEFI IPv4 PXE 開機</text><text class="s" x="550" y="701" text-anchor="middle">secureboot 保持 Secure Boot ON；ipxe fallback 必須 OFF</text>

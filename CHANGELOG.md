@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.6.4 — 2026-07-10
+
+### 修正：Embedded config panel 收合與開啟狀態
+
+- Deploy view 的 `Profile`、`OS Image`、`Endpoint` embedded panel 現在可直接點標題收合，不必只依賴 `Close`
+- 打開中的 embedded panel 改為較粗外框，並同步強化對應 summary segment 的 open state
+
+### 新功能：Deploy 主畫面 Offline ISO 匯出
+
+- Deploy 主畫面新增 `Offline ISO` 卡片，直接呼叫 host-side `New-WinceptionUsbInstaller.ps1 -Iso` 建立 immutable active snapshot ISO
+- Web API 新增 `POST /api/offline-iso/create`，沿用現有 operation log 與背景 job 模式，不提供瀏覽器下載
+- 成功後畫面會顯示主機 `Output folder` 與完整 `ISO file` 路徑，方便 operator 從主機直接取用敏感媒體
+
 ## v0.6.3-6 — 2026-07-10
 
 ### 修正：OS download catalog 載入時間

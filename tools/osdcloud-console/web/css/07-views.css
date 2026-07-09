@@ -1,11 +1,13 @@
 /* Deploy summary bar */
 .deploy-summary { display: flex; align-items: stretch; min-height: 64px; background: var(--surface-bright); border: 1px solid var(--hairline); border-radius: var(--card-radius); overflow: hidden; }
-.deploy-seg { position: relative; flex: 1 1 0; min-width: 0; min-height: 62px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; justify-content: center; text-align: left; padding: 14px 18px; border: none; border-left: 1px solid var(--hairline); background: transparent; cursor: pointer; transition: background 0.12s ease; }
+.deploy-seg { position: relative; flex: 1 1 0; min-width: 0; min-height: 62px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; justify-content: center; text-align: left; padding: 14px 18px; border: none; border-left: 1px solid var(--hairline); background: transparent; box-shadow: inset 0 0 0 0 transparent; cursor: pointer; transition: background 0.12s ease, box-shadow 0.12s ease; }
 .deploy-seg:first-child { border-left: none; }
 .deploy-seg:hover { background: var(--surface-container-low); }
 .deploy-seg-label { font: 700 9px/1 Inter, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
-.deploy-seg-caret { position: absolute; top: 12px; right: 12px; font-size: 16px; color: var(--outline); opacity: 0; transition: opacity 0.12s ease; }
+.deploy-seg-caret { position: absolute; top: 12px; right: 12px; font-size: 16px; color: var(--outline); opacity: 0; transform: rotate(0deg); transition: opacity 0.12s ease, transform 0.12s ease, color 0.12s ease; }
 .deploy-seg:hover .deploy-seg-caret { opacity: 1; }
+.deploy-seg.active { background: var(--surface-container-low); box-shadow: inset 0 0 0 2px var(--accent-tint-border); }
+.deploy-seg.active .deploy-seg-caret { opacity: 1; color: var(--accent); transform: rotate(180deg); }
 .deploy-seg-value { font: 600 13px/1.35 Inter, sans-serif; color: var(--ink); max-width: 100%; min-width: 0; width: 100%; }
 .deploy-seg-value.mono, .deploy-seg-value .technical-string { font-family: "JetBrains Mono", monospace; font-weight: 500; }
 .deploy-seg-value a, .deploy-seg-value .profile-software-item { color: var(--ink) !important; }
@@ -243,7 +245,7 @@ dialog.embedded-open {
   max-width: 100% !important;
   height: auto !important;
   max-height: none !important;
-  border: 1px solid var(--hairline) !important;
+  border: 2px solid var(--accent-tint-border) !important;
   border-radius: 8px !important;
   background: var(--surface-bright) !important;
   box-shadow: none !important;
@@ -271,6 +273,28 @@ dialog.embedded-open::backdrop { display: none !important; }
   padding: 14px 20px;
 }
 .config-embed .dialog-header h3 { font: 600 16px/1.2 "Source Serif 4", Georgia, serif; color: var(--ink); }
+.config-embed .embedded-panel-title {
+  align-items: flex-start;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: -4px;
+  padding: 4px;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+.config-embed .embedded-panel-title:hover { background: var(--surface-container-low); }
+.config-embed .embedded-panel-title:focus-visible {
+  outline: 2px solid var(--accent-tint-border);
+  outline-offset: 2px;
+}
+.config-embed .embedded-panel-title h3 { margin: 0; }
+.config-embed .embedded-panel-title-stack { min-width: 0; }
 .config-embed .drawer-body,
 .config-embed .dialog-card > .form-grid { padding: 18px 20px 20px; }
 

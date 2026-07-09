@@ -4,6 +4,7 @@ import { DhcpResponder } from '../dhcp.js';
 import { summarizeDriverPackCache } from '../driverPackCache.js';
 import { MediaHttpServer } from '../httpServer.js';
 import { RingBuffer, appendLog, tailFile } from '../logger.js';
+import { createOfflineIso, offlineIsoOutputDirectory } from '../offlineIso.js';
 import { formatOsImageLabel, publishSelectedOsImage, resolveOsImageState } from '../osimages/catalog.js';
 import { downloadOsImageFromCatalog, listOsDownloadCatalog, reexportOsImageFromSource } from '../osimages/download.js';
 import { deleteCachedOsImage } from '../osimages/maintenance.js';
@@ -24,7 +25,7 @@ import { listIpv4ServiceInterfaces } from '../windows/network.js';
 import { isElevatedSync } from '../windows/powershell.js';
 import { prepareRuntimeArtifacts, removeStatusFiles, runPreflight } from '../windows/preflight.js';
 import { EventEmitter } from 'node:events';
-import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
+import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, osImageDeployableStatus, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
 import { buildInitializationState, osImageSummary, osImageUsageFromProfiles, profileSummary, retailOnlyCatalogFilters, runtimeReadinessFailureMessage } from './state.js';
 import { readLatestDiagnostics, resolveDiagnosticsBundlePath, runDiagnostics } from '../diagnostics/index.js';
 
@@ -72,6 +73,7 @@ export class ServiceController extends EventEmitter {
       summarizeValidation,
       syncIpxeEndpoint,
       createOsImageTorrent,
+      createOfflineIso,
       isElevated: isElevatedSync,
       getRuntimeReadiness,
       getDeploymentSecretsStatus: deploymentSecretsStatus,
@@ -106,6 +108,7 @@ export class ServiceController extends EventEmitter {
     this.osDownloadStatus = null;
     this.osDownloadPromise = null;
     this.osImportStatus = null;
+    this.offlineIsoStatus = null;
     this.operation = null;
     this.latestDiagnostics = safeRead(() => this.dependencies.readLatestDiagnostics(this.config), null).value;
     this.autoDiagnosticsKeys = new Set();
@@ -428,6 +431,7 @@ export class ServiceController extends EventEmitter {
       driverPackCache: safeRead(() => this.dependencies.summarizeDriverPackCache(this.config), { enabled: false, entries: [] }).value,
       osDownloadStatus: this.osDownloadStatus,
       osImportStatus: this.osImportStatus,
+      offlineIsoStatus: this.offlineIsoStatus,
       preflight: this.preflightResults,
       endpointUpdateStatus: this.endpointUpdateStatus,
       operation: this.operation,
@@ -988,6 +992,89 @@ export class ServiceController extends EventEmitter {
     promise.catch(() => {});
     this.osDownloadPromise = promise;
     return { ...this.osDownloadStatus, promise };
+  }
+
+  startOfflineIsoExport() {
+    if (this.operation?.running) {
+      throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
+    }
+    if (safeRead(() => this.dependencies.isElevated(), false).value !== true) {
+      throw errorWithStatus('Offline ISO export requires an elevated Web console session. Restart the Web console from an elevated PowerShell window and try again.', 400);
+    }
+    const runtime = safeRead(() => this.dependencies.getRuntimeReadiness(this.config), { ready: false }).value;
+    if (runtime?.ready !== true) {
+      throw errorWithStatus('Offline ISO export requires Runtime Readiness to be Ready first.', 400);
+    }
+    const profileState = safeRead(() => this.dependencies.resolveDeploymentProfileState(this.config), null).value;
+    if (!profileState?.activeProfile?.id) {
+      throw errorWithStatus('Offline ISO export requires an active deployment profile.', 400);
+    }
+    const osImageState = safeRead(() => this.dependencies.resolveOsImageState(this.config), null).value;
+    const osImageStatus = osImageDeployableStatus(osImageState);
+    if (osImageStatus.ready !== true) {
+      throw errorWithStatus(`Offline ISO export requires a deployable active OS image. ${osImageStatus.detail}`, 400);
+    }
+
+    const startedAt = new Date();
+    const jobId = `offline-iso-${startedAt.getTime()}`;
+    const outputDirectory = offlineIsoOutputDirectory(this.config);
+    this.offlineIsoStatus = {
+      jobId,
+      status: 'starting',
+      running: true,
+      message: 'Creating offline ISO on the host...',
+      startedAt: startedAt.toISOString(),
+      finishedAt: null,
+      error: null,
+      outputPath: null,
+      outputDirectory,
+      fileName: null,
+      bytes: null,
+    };
+    const promise = this.runOperation('Creating offline ISO', async () => {
+      const logger = makeOutputLogger((line) => this.addLog(line), '[ISO]', {
+        ignoreLine: isBenignObjectSecurityTypeDataLine,
+      });
+      try {
+        const result = await this.dependencies.createOfflineIso(this.config, {
+          startedAt,
+          onStdout: (chunk) => logger.write(chunk, 'stdout'),
+          onStderr: (chunk) => logger.write(chunk, 'stderr'),
+        });
+        logger.flush();
+        this.offlineIsoStatus = {
+          ...this.offlineIsoStatus,
+          status: 'completed',
+          running: false,
+          message: `Created ${result.fileName}.`,
+          finishedAt: new Date().toISOString(),
+          error: null,
+          outputPath: result.outputPath,
+          outputDirectory: result.outputDirectory,
+          fileName: result.fileName,
+          bytes: result.bytes,
+        };
+        this.addLog(`Offline ISO created: ${result.outputPath}`);
+        return result;
+      } catch (error) {
+        logger.flush();
+        this.offlineIsoStatus = {
+          ...this.offlineIsoStatus,
+          status: 'failed',
+          running: false,
+          message: 'Offline ISO export failed.',
+          finishedAt: new Date().toISOString(),
+          error: error.message,
+        };
+        await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'offline-iso-failure' });
+        throw error;
+      }
+    });
+    promise.catch(() => {});
+    return {
+      ...this.offlineIsoStatus,
+      promise,
+    };
   }
 
   async uploadOsImage(input) {

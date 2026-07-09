@@ -313,7 +313,7 @@
 
   <div id="locale-zh" class="locale-view" lang="zh-Hant">
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.3-6</p>
+      <p class="eyebrow">Operations Manual · v0.6.4</p>
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
@@ -436,6 +436,7 @@ cd '&lt;repo-root&gt;'
             <li>輸出 USB 為 GPT、UEFI x64、FAT32 <code>WinPE</code> 與 NTFS <code>OSDCloudUSB</code>；<code>-Iso</code> 則輸出 no-prompt UDF ISO 到 <code>&lt;project-root&gt;\Exports</code>。</li>
             <li><code>-OpenInRufus</code> 只預載 ISO 與 NTFS preference；Rufus 仍由 operator 選目標 disk 並開始寫入。</li>
             <li>離線 WinPE 只允許一個 internal target disk；同一 media 完整套用後會以 media ID + <code>appliedAt</code> 阻止再次清除。</li>
+            <li>Web Console 的 Deploy 主畫面提供 <strong>Offline ISO</strong> 卡片；按 <strong>Create ISO</strong> 後只在主機端建立 ISO，並在畫面顯示主機輸出資料夾與完整 ISO 路徑，不提供瀏覽器下載。</li>
           </ul>
           <div class="callout warning"><strong>敏感媒體</strong>USB / ISO 內含可部署 Windows 的 local secrets，必須視為敏感資產。這條路徑的證據只證明該次 snapshot，不可替代 PXE readiness。</div>
           <div class="callout"><strong>目前驗收</strong>正式離線驗收已完成 ISO 路徑：rebuild 後的 ISO 在 Hyper-V Gen2、Secure Boot ON、無 NIC 的條件下部署到 <code>windows-desktop-ready</code>。</div>
@@ -520,7 +521,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 
   <div id="locale-en" class="locale-view" lang="en" hidden>
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.3-6</p>
+      <p class="eyebrow">Operations Manual · v0.6.4</p>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
@@ -643,6 +644,7 @@ cd '&lt;repo-root&gt;'
             <li>USB output is GPT, UEFI x64, a FAT32 <code>WinPE</code> partition, and an NTFS <code>OSDCloudUSB</code> partition. <code>-Iso</code> exports a no-prompt UDF ISO to <code>&lt;project-root&gt;\Exports</code>.</li>
             <li><code>-OpenInRufus</code> only preloads the ISO and NTFS preference. The operator still chooses the target disk and starts the write in Rufus.</li>
             <li>Offline WinPE allows one internal target disk only. After a successful deployment, the same media is blocked from wiping the machine again by media ID + <code>appliedAt</code>.</li>
+            <li>The Deploy view in the Web Console now exposes an <strong>Offline ISO</strong> card. <strong>Create ISO</strong> builds the ISO on the host only, then shows the host output folder and full ISO path in the UI; it does not offer a browser download.</li>
           </ul>
           <div class="callout warning"><strong>Sensitive media</strong>USB / ISO media contains deployable local Windows secrets and must be handled as a sensitive asset. Evidence from this path proves only that specific snapshot and does not replace PXE readiness.</div>
           <div class="callout"><strong>Current validation</strong>Formal offline validation is complete for the ISO path: the rebuilt ISO reached <code>windows-desktop-ready</code> on Hyper-V Gen2 with Secure Boot ON and no NIC.</div>
@@ -725,7 +727,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
     </div>
   </div>
 
-  <footer>Winception deployment manual · Product documentation for Web v0.6.3-6.</footer>
+  <footer>Winception deployment manual · Product documentation for Web v0.6.4.</footer>
 
   <dialog id="lightbox" aria-label="Image preview">
     <div class="lightbox-inner">

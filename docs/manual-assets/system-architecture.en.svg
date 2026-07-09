@@ -15,6 +15,9 @@
   <rect class="card control" x="680" y="128" width="262" height="102" rx="12"/><text class="t" x="811" y="157" text-anchor="middle">ServiceController</text><text class="s" x="811" y="180" text-anchor="middle">preflight, start/stop, sync, fleet</text><text class="port" x="811" y="205" text-anchor="middle">Node.js ESM</text>
   <rect class="card control" x="990" y="128" width="356" height="102" rx="12"/><text class="t" x="1168" y="157" text-anchor="middle">Web-selected runtime root</text><text class="s" x="1168" y="180" text-anchor="middle">Media, PXE-HttpRoot, PXE-TFTP, logs</text><text class="port" x="1168" y="205" text-anchor="middle">Default C:\OSDCloud (outside the Git clone)</text>
   <path class="arrow" d="M298 179H344"/><path class="arrow" d="M632 179H678"/><path class="arrow" d="M942 179H988"/>
+  <rect class="note" x="680" y="236" width="336" height="48" rx="12"/>
+  <text class="warn" x="702" y="257">Optional: Deploy Offline ISO uses ServiceController to run</text>
+  <text class="warn" x="702" y="274">New-WinceptionUsbInstaller.ps1 -Iso on the host and writes only to &lt;deployment-root&gt;\Exports.</text>
 
   <text class="lane" x="54" y="275">BOOT &amp; DELIVERY PLANE · PXE BOOT AND IMAGE DISTRIBUTION</text>
   <rect class="card host" x="54" y="292" width="206" height="116" rx="12"/><text class="t" x="157" y="323" text-anchor="middle">DHCP / PXE Proxy</text><text class="port" x="157" y="345" text-anchor="middle">UDP 67</text><text class="s" x="157" y="369" text-anchor="middle">Server: IP + boot options</text><text class="s" x="157" y="389" text-anchor="middle">Proxy: PXE boot options only</text>

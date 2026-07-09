@@ -78,9 +78,9 @@
 
         <!-- Deploy = dashboard: config + action, status tiles, inline services -->
         <div class="deploy-summary">
-          <button class="deploy-seg" data-action="profiles" type="button"><span class="deploy-seg-label">Profile</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="deploy-seg-value"></div></button>
-          <button class="deploy-seg" data-action="os-images" type="button"><span class="deploy-seg-label">OS Image</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="deploy-seg-value"></div></button>
-          <button class="deploy-seg" data-action="interfaces" type="button"><span class="deploy-seg-label">Endpoint</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="deploy-seg-value mono"></div></button>
+          <button class="deploy-seg" data-action="profiles" aria-controls="deployment-profiles-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">Profile</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="deploy-seg-value"></div></button>
+          <button class="deploy-seg" data-action="os-images" aria-controls="os-images-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">OS Image</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="deploy-seg-value"></div></button>
+          <button class="deploy-seg" data-action="interfaces" aria-controls="endpoint-settings-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">Endpoint</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="deploy-seg-value mono"></div></button>
         </div>
         <div id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden></div>
 
@@ -116,7 +116,7 @@
         </div>
 
         <!-- Always-visible readiness: runtime + preflight side by side, no toggle to hunt for -->
-        <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-3 gap-sm">
+        <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-4 gap-sm">
           <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
             <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span></div>
             <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
@@ -135,6 +135,14 @@
             <div class="runtime-readiness-actions flex flex-wrap gap-sm">
               <button id="diagnostics-run-button" data-action="diagnostics-run" data-diagnostics-scope="full" data-diagnostics-trigger="manual" data-icon="health_metrics" class="warning" type="button">Run diagnostics</button>
               <button id="diagnostics-download-button" data-action="diagnostics-download" data-icon="download" type="button" disabled>Download ZIP</button>
+            </div>
+          </section>
+          <section class="offline-iso-panel p-md flex flex-col gap-sm">
+            <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Offline ISO</h3><span id="offline-iso-status-badge" class="status-pill neutral" aria-live="polite">Idle</span></div>
+            <div id="offline-iso-headline" class="font-ui-label text-ui-label">Create a host-side ISO snapshot from the active deployment state.</div>
+            <dl id="offline-iso-details" class="stitch-details font-data-tabular text-data-tabular"></dl>
+            <div class="runtime-readiness-actions flex flex-wrap gap-sm">
+              <button id="offline-iso-create-button" data-action="offline-iso-create" data-icon="download" class="warning" type="button">Create ISO</button>
             </div>
           </section>
         </div>
@@ -230,7 +238,9 @@
   <dialog id="endpoint-settings-dialog" class="drawer-dialog">
     <form method="dialog" class="dialog-card drawer-card">
       <div class="dialog-header">
-        <h3>Endpoint Settings</h3>
+        <button class="embedded-panel-title" data-embedded-config-toggle type="button">
+          <h3>Endpoint Settings</h3>
+        </button>
         <button value="cancel" type="submit">Close</button>
       </div>
       <div class="drawer-body">
@@ -299,7 +309,9 @@
   <dialog id="deployment-profiles-dialog" class="drawer-dialog">
     <form method="dialog" class="dialog-card drawer-card">
       <div class="dialog-header">
-        <h3>Deployment Profiles</h3>
+        <button class="embedded-panel-title" data-embedded-config-toggle type="button">
+          <h3>Deployment Profiles</h3>
+        </button>
         <button value="cancel" type="submit">Close</button>
       </div>
       <div class="drawer-body">
@@ -390,13 +402,13 @@
   <dialog id="os-images-dialog" class="drawer-dialog os-images-dialog">
     <form method="dialog" class="dialog-card drawer-card drawer-card-wide os-images-card">
       <div class="dialog-header">
-        <div>
+        <button class="embedded-panel-title embedded-panel-title-stack" data-embedded-config-toggle type="button">
           <h3>OS Image Cache</h3>
           <div class="drawer-subtitle">
             <span>Active:</span>
             <span id="os-active-label" class="font-technical-string text-technical-string bg-surface-container px-sm py-xs rounded border border-outline-variant">-</span>
           </div>
-        </div>
+        </button>
         <div class="drawer-actions">
           <button id="os-load-catalog-button" data-action="reload-os-download-catalog" data-icon="download" aria-controls="os-download-catalog-body" type="button">Load download catalog</button>
           <button value="cancel" type="submit">Close</button>

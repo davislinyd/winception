@@ -540,6 +540,22 @@ export async function handleAction(action, source = null) {
     await handleDiagnosticsRun(source);
   } else if (action === 'diagnostics-download') {
     handleDiagnosticsDownload(source);
+  } else if (action === 'offline-iso-create') {
+    const outputDirectory = state.current?.offlineIsoStatus?.outputDirectory
+      ?? `${state.current?.config?.workspace?.runtimeRoot ?? 'C:\\OSDCloud'}\\Exports`;
+    const ok = await confirmAction({
+      title: 'Create offline ISO',
+      message: 'This creates a host-side ISO snapshot from the current active deployment state. The output media contains extractable deployment credentials.',
+      details: [
+        `Output folder: ${outputDirectory}`,
+        'Source: active profile + active deployable OS image',
+      ],
+      confirmLabel: 'Create ISO',
+      severity: 'warning',
+    });
+    if (ok) {
+      await mutate('/api/offline-iso/create', {});
+    }
   } else if (action === 'interfaces') {
     openDialog(elements.endpointSettingsDialog);
     void loadInterfaces();
