@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.5-1 — 2026-07-11
+
+### 修正：WinPE HTTP 相容性與 Torrent 啟動
+
+- Windows PowerShell WinPE 對 host 的 health、boot-config、status、screenshot、torrent telemetry、control 與 `.torrent` 請求改用 `-DisableKeepAlive`；不再設定會立即拋出例外的 `Connection: close` header
+- boot-config 可正常載入 `torrentEnabled`、torrent URL 與 SHA-256，新的 client 不再因 HTTP fallback 而改走 SMB-direct apply
+- Tracker 分鐘輸入框在輪詢重繪時保留 focused text selection，避免 operator 框選內容後立即消失
+
 ## v0.6.5 — 2026-07-10
 
 ### 新功能：Client Internet topology 與雙 NIC NAT
@@ -8,6 +16,9 @@
 - 新增明確確認的 Hyper-V `Winception-PXE` external switch 與 `WinceptionNAT` lifecycle，WAN NIC 設定與全域 firewall 不會被修改
 - 新增 NAT readiness/preflight、API、Endpoint drawer 控制與安全衝突防護；雙 NIC mode 固定 DHCP Server，停止 deployment services 不會停掉 client Internet NAT
 - Endpoint drawer 加入單 NIC Hyper-V 與 dual NIC NAT NIC 角色的 hover 說明，避免將 vSwitch 誤選為 PXE physical NIC
+- WinPE server 偵測改用無敏感資料的 `/osdcloud/health`；優先 probe Endpoint Sync 寫入的 service IP，不再因尚無 status 或 HEAD method 而產生假性 DHCP retry
+- HTTP media server keep-alive 提升為 30 秒；WinPE status、screenshot、torrent telemetry、control 與 SetupComplete 回報改用明確關閉連線，避免 5 秒 telemetry 週期重用已逾期 socket
+- Torrent seed wait 預設改為 15 分鐘；Tracker card 可設定後續 WinPE client 的預設值、顯示每台 waiting client deadline，並可逐台延長（總 wait 上限 1440 分鐘）；WinPE console 支援 `E` 本機延長與到期後 60 秒決策寬限
 
 ## v0.6.4 — 2026-07-10
 

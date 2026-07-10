@@ -225,6 +225,11 @@ export class MediaHttpServer extends EventEmitter {
         }
       });
     });
+    // WinPE reporters run every 3-5 seconds. Keep the reusable socket alive
+    // longer than that cadence so a client never races the default 5-second
+    // Node timeout while posting status, screenshots, or torrent telemetry.
+    this.server.keepAliveTimeout = 30_000;
+    this.server.headersTimeout = 35_000;
 
     await new Promise((resolve, reject) => {
       this.server.once('error', reject);
@@ -245,6 +250,19 @@ export class MediaHttpServer extends EventEmitter {
     this.server = null;
     await new Promise((resolve) => server.close(resolve));
     this.log('HTTP media/status server stopped');
+  }
+
+  handleHealth(req, res, remote, requestUrl) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { Allow: 'GET, HEAD' });
+      res.end();
+      this.log(`${remote} ${req.method} ${requestUrl.pathname} 405 bytes=0`);
+      return;
+    }
+
+    res.writeHead(204, { 'Cache-Control': 'no-store' });
+    res.end();
+    this.log(`${remote} ${req.method} ${requestUrl.pathname} 204 bytes=0`);
   }
 
   async handleStatus(req, res, remote, requestUrl) {
@@ -677,6 +695,11 @@ export class MediaHttpServer extends EventEmitter {
     const port = typeof address === 'object' && address ? address.port : this.config.port;
     const remote = `${req.socket.remoteAddress ?? ''}:${req.socket.remotePort ?? ''}`;
     const requestUrl = new URL(req.url ?? '/', `http://${this.config.host}:${port}`);
+
+    if (requestUrl.pathname === '/osdcloud/health') {
+      this.handleHealth(req, res, remote, requestUrl);
+      return;
+    }
 
     if (requestUrl.pathname === '/osdcloud/status' || requestUrl.pathname === '/osdcloud/status/events' || requestUrl.pathname === '/osdcloud/status/runs') {
       await this.handleStatus(req, res, remote, requestUrl);

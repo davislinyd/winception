@@ -84,7 +84,7 @@ Winception 的服務分成控制面與資料面：
 | --- | --- |
 | Web Console | 提供操作介面、API、狀態彙整與確認式變更動作 |
 | Runtime Readiness | 檢查 runtime root 是否具備 boot、WinPE、iPXE 與必要支援檔 |
-| Endpoint Sync | 將本次服務介面、IP、DHCP pool、HTTP base、SMB endpoint 與 secrets 同步到 live boot files 與 `boot.wim` |
+| Endpoint Sync | 將本次服務介面、IP、DHCP pool、HTTP base、SMB endpoint 與 secrets 同步到 live boot files 與 `boot.wim`；WinPE server health probe 的優先 IP 也會一併更新 |
 | DHCP responder | 在指定模式下提供 lease 或 PXE boot options |
 | TFTP service | 提供 Secure Boot chain 所需的 Microsoft-signed boot files |
 | HTTP media service | 提供 iPXE script、WinPE boot files、status API、screenshot API 與 Torrent control API |
@@ -287,7 +287,7 @@ ImageFileDestination.PSDrive.DisplayRoot : \\<service-ip>\OSDCloudiPXE
 OSImageIndex                         : 1
 ```
 
-若使用 Torrent P2P，Tracker card 會顯示 wave、batch、slot、host ratio、active peers、piece coverage、download/upload rates 與 seed wait。Torrent telemetry 短暫中斷不等於部署失敗；以 client 本機進度、SHA-256 驗證與最終 status 為準。
+若使用 Torrent P2P，Tracker card 會顯示 wave、batch、slot、host ratio、active peers、piece coverage、download/upload rates 與 seed deadline。預設 seed wait 是 15 分鐘；可在 card 設定 0–1440 分鐘，設定只會套用到之後讀取 boot-config 的 WinPE client。每台 fresh waiting client 可個別延長 1–1440 分鐘，下載完成後的總 wait 不可超過 1440 分鐘；WinPE console 也可按 `E` 延長，deadline 後保留 60 秒按 `E` 或 Enter 決策。Torrent telemetry 短暫中斷不等於部署失敗；以 client 本機進度、SHA-256 驗證與最終 status 為準。更新 WinPE 行為後必須 Endpoint Sync 重新注入 `boot.wim`。
 
 ### 08. 日常維護與故障排除
 
@@ -424,7 +424,7 @@ Winception separates control-plane and data-plane services:
 | --- | --- |
 | Web Console | Provides the UI, API, state aggregation, and confirmation-based changes |
 | Runtime Readiness | Checks whether the runtime root has boot, WinPE, iPXE, and support files |
-| Endpoint Sync | Synchronizes the selected service interface, IP, DHCP pool, HTTP base, SMB endpoint, and secrets into live boot files and `boot.wim` |
+| Endpoint Sync | Synchronizes the selected service interface, IP, DHCP pool, HTTP base, SMB endpoint, and secrets into live boot files and `boot.wim`; it also updates WinPE's preferred server health probe IP |
 | DHCP responder | Provides leases or PXE boot options according to the selected mode |
 | TFTP service | Serves the Microsoft-signed boot files required by the Secure Boot chain |
 | HTTP media service | Serves iPXE script, WinPE boot files, status API, screenshot API, and Torrent control API |
@@ -627,7 +627,7 @@ ImageFileDestination.PSDrive.DisplayRoot : \\<service-ip>\OSDCloudiPXE
 OSImageIndex                         : 1
 ```
 
-When Torrent P2P is enabled, the Tracker card shows wave, batch, slot, host ratio, active peers, piece coverage, download/upload rates, and seed wait. Short observation API interruptions do not mean deployment failure; rely on local client progress, SHA-256 verification, and final status.
+When Torrent P2P is enabled, the Tracker card shows wave, batch, slot, host ratio, active peers, piece coverage, download/upload rates, and each seed deadline. The default seed wait is 15 minutes; the card accepts 0–1440 minutes and affects only WinPE clients that read boot-config afterwards. Each fresh waiting client can be extended by 1–1440 minutes, with a maximum total wait of 1440 minutes after download completion. The WinPE console also accepts `E` to extend and gives a 60-second `E`/Enter decision window after the deadline. Short observation API interruptions do not mean deployment failure; rely on local client progress, SHA-256 verification, and final status. Run Endpoint Sync after a WinPE behavior update so `boot.wim` receives it.
 
 ### 08. Routine Maintenance And Troubleshooting
 

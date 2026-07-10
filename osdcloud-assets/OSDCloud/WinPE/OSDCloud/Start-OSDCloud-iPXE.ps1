@@ -50,7 +50,10 @@ Ensure-ConsoleMaximized
 Write-Host "[$(Get-Date -Format G)] Start-OSDCloud iPXE custom image deployment"
 
 function Get-DeploymentServerCandidates {
+    param([string] $PreferredServer)
+
     $candidates = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($PreferredServer)) { $candidates.Add($PreferredServer) }
     try {
         $adapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled }
         foreach ($adapter in $adapters) {
@@ -74,9 +77,9 @@ function Test-DeploymentServer {
     param([Parameter(Mandatory)][string] $IpAddress)
 
     try {
-        $testUrl = "http://$IpAddress/osdcloud/status"
-        $resp = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
-        return $true
+        $testUrl = "http://$IpAddress/osdcloud/health"
+        $resp = Invoke-WebRequest -Uri $testUrl -Method Get -DisableKeepAlive -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        return $resp.StatusCode -eq 204
     } catch {
         return $false
     }
@@ -86,7 +89,7 @@ $server = '192.168.77.1' # Default fallback
 $serverDetected = $false
 $maxDetectionAttempts = 6
 for ($attempt = 1; $attempt -le $maxDetectionAttempts; $attempt++) {
-    foreach ($ip in (Get-DeploymentServerCandidates)) {
+    foreach ($ip in (Get-DeploymentServerCandidates -PreferredServer $server)) {
         if (Test-DeploymentServer -IpAddress $ip) {
             $server = $ip
             $serverDetected = $true
@@ -100,7 +103,7 @@ for ($attempt = 1; $attempt -le $maxDetectionAttempts; $attempt++) {
     }
 
     if ($attempt -lt $maxDetectionAttempts) {
-        Write-Host "Deployment server not detected yet; renewing DHCP and retrying ($attempt/$maxDetectionAttempts)."
+        Write-Host "Deployment server health endpoint unavailable; renewing DHCP and retrying ($attempt/$maxDetectionAttempts)."
         try { ipconfig /renew | Out-Null } catch {}
         Start-Sleep -Seconds 5
     }
@@ -115,7 +118,7 @@ $bootConfigUrl = "http://$server/osdcloud/boot-config"
 Write-Host "Fetching dynamic boot configuration from $bootConfigUrl..."
 $bootConfig = $null
 try {
-    $bootConfig = Invoke-RestMethod -Uri $bootConfigUrl -Method Get -TimeoutSec 5 -ErrorAction Stop
+    $bootConfig = Invoke-RestMethod -Uri $bootConfigUrl -Method Get -DisableKeepAlive -TimeoutSec 5 -ErrorAction Stop
     Write-Host "Successfully loaded boot configuration from server."
 } catch {
     Write-Warning "Failed to load dynamic boot configuration from HTTP server: $($_.Exception.Message)"
@@ -242,7 +245,7 @@ function Send-DeploymentStatus {
 
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
     try {
-        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
         return
     }
     catch {
@@ -324,7 +327,7 @@ function Send-Screenshot {
         $path = Capture-Screenshot -Stage $Stage
         $uri = New-ScreenshotUri -Stage $Stage -Source $Source
         try {
-            Invoke-WebRequest -Uri $uri -Method Post -ContentType 'image/png' -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
+            Invoke-WebRequest -Uri $uri -Method Post -ContentType 'image/png' -DisableKeepAlive -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
             return
         }
         catch {
@@ -545,7 +548,8 @@ function Send-TorrentTelemetry {
         [object] $Status,
         [object[]] $Peers,
         [string] $Phase,
-        [bool] $Fallback = $false
+        [bool] $Fallback = $false,
+        [object] $Context = $null
     )
 
     $total = [double] $Status.totalLength
@@ -571,7 +575,24 @@ function Send-TorrentTelemetry {
         receivers = $receivers
         fallback = $Fallback
     }
-    Invoke-RestMethod -Uri $torrentTelemetryUrl -Method Post -ContentType 'application/json' -Body ($payload | ConvertTo-Json -Depth 5 -Compress) -TimeoutSec 3 -ErrorAction Stop
+    if ($Context) {
+        $payload.seedBaseMinutes = [int] $Context.seedBaseMinutes
+        $payload.seedLocalExtensionMinutes = [int] $Context.seedLocalExtensionMinutes
+        $payload.seedHostExtensionMinutes = [int] $Context.seedHostExtensionMinutes
+        $payload.seedDeadline = $Context.seedDeadline.ToString('o')
+    }
+    $body = $payload | ConvertTo-Json -Depth 5 -Compress
+    $lastError = $null
+    foreach ($attempt in 1..2) {
+        try {
+            return Invoke-RestMethod -Uri $torrentTelemetryUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $body -TimeoutSec 3 -ErrorAction Stop
+        }
+        catch {
+            $lastError = $_
+            if ($attempt -lt 2) { Start-Sleep -Milliseconds 250 }
+        }
+    }
+    throw $lastError
 }
 
 function Set-TorrentTransferPhase {
@@ -581,7 +602,7 @@ function Set-TorrentTransferPhase {
     $Context.fallback = $Fallback
     try {
         $temp = "$($Context.contextPath).tmp"
-        $Context | Select-Object runId, clientId, gid, rpcSecret, phase, fallback, telemetryUrl, controlUrl, statePath, stopPath |
+        $Context | Select-Object runId, clientId, gid, rpcSecret, phase, fallback, telemetryUrl, controlUrl, statePath, stopPath, completedAt, seedDeadline, seedBaseMinutes, seedLocalExtensionMinutes, seedHostExtensionMinutes, maxSeedMinutes |
             ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $temp -Encoding UTF8 -Force
         Move-Item -LiteralPath $temp -Destination $Context.contextPath -Force
     }
@@ -621,30 +642,73 @@ function Wait-TorrentSeedWindow {
         seedDeadline = $Context.seedDeadline.ToString('o')
     }
     Write-Host ''
-    Write-Host 'Torrent seed wait. Press Enter to continue to reboot now.' -ForegroundColor Cyan
+    Write-Host 'Torrent seed wait. Press E to extend time, or Enter to continue to reboot now.' -ForegroundColor Cyan
     $reason = 'deadline'
+    $graceDeadline = $null
     $lastDisplay = [datetime]::MinValue
     $lastUpload = [double] 0
-    while ((Get-Date) -lt $Context.seedDeadline) {
+    while ($true) {
         if ($Context.process.HasExited) { $reason = 'aria2-exit'; break }
         try {
-            if ([Console]::KeyAvailable -and [Console]::ReadKey($true).Key -eq [ConsoleKey]::Enter) {
-                $reason = 'client-enter'
-                break
+            $control = Invoke-RestMethod -Uri "$torrentControlUrl`?runId=$([Uri]::EscapeDataString($runId))" -Method Get -DisableKeepAlive -TimeoutSec 2 -ErrorAction Stop
+            if ($control.released) { $reason = 'host-release'; break }
+            $requestedHostMinutes = if ($control.PSObject.Properties['extensionMinutes']) { [int] $control.extensionMinutes } else { 0 }
+            $hostDelta = $requestedHostMinutes - [int] $Context.seedHostExtensionMinutes
+            if ($hostDelta -gt 0) {
+                if (($Context.seedBaseMinutes + $Context.seedLocalExtensionMinutes + $Context.seedHostExtensionMinutes + $hostDelta) -gt $Context.maxSeedMinutes) {
+                    throw "Host extension exceeds the $($Context.maxSeedMinutes)-minute seed wait limit."
+                }
+                $Context.seedHostExtensionMinutes += $hostDelta
+                $Context.seedDeadline = $Context.seedDeadline.AddMinutes($hostDelta)
+                $graceDeadline = $null
+                Set-TorrentTransferPhase -Context $Context -Phase 'waiting' -Fallback ([bool] $Context.fallback)
+                Send-DeploymentStatus -Stage 'torrent-seed-wait' -Message "Host extended torrent seed wait by $hostDelta minute(s)." -Extra @{ seedDeadline = $Context.seedDeadline.ToString('o') }
+                Write-Host "Host extended torrent seed wait by $hostDelta minute(s)." -ForegroundColor Cyan
             }
         } catch {}
         try {
-            $control = Invoke-RestMethod -Uri "$torrentControlUrl`?runId=$([Uri]::EscapeDataString($runId))" -Method Get -TimeoutSec 2 -ErrorAction Stop
-            if ($control.released) { $reason = 'host-release'; break }
+            if ([Console]::KeyAvailable) {
+                $key = [Console]::ReadKey($true).Key
+                if ($key -eq [ConsoleKey]::Enter) {
+                    $reason = 'client-enter'
+                    break
+                }
+                if ($key -eq [ConsoleKey]::E) {
+                    $requested = Read-Host 'Additional torrent seed minutes (1-1440)'
+                    $additional = 0
+                    if (-not [int]::TryParse($requested, [ref] $additional) -or $additional -lt 1 -or $additional -gt 1440) {
+                        Write-Warning 'Extension must be an integer from 1 to 1440 minutes.'
+                    }
+                    elseif (($Context.seedBaseMinutes + $Context.seedLocalExtensionMinutes + $Context.seedHostExtensionMinutes + $additional) -gt $Context.maxSeedMinutes) {
+                        Write-Warning "Torrent seed wait cannot exceed $($Context.maxSeedMinutes) minutes after download completion."
+                    }
+                    else {
+                        $Context.seedLocalExtensionMinutes += $additional
+                        $Context.seedDeadline = $Context.seedDeadline.AddMinutes($additional)
+                        $graceDeadline = $null
+                        Set-TorrentTransferPhase -Context $Context -Phase 'waiting' -Fallback ([bool] $Context.fallback)
+                        Send-DeploymentStatus -Stage 'torrent-seed-wait' -Message "Client extended torrent seed wait by $additional minute(s)." -Extra @{ seedDeadline = $Context.seedDeadline.ToString('o') }
+                    }
+                }
+            }
         } catch {}
+        $now = Get-Date
+        if ($now -ge $Context.seedDeadline) {
+            if (-not $graceDeadline) {
+                $graceDeadline = $now.AddSeconds(60)
+                Write-Host 'Seed wait reached. Press E to extend or Enter to reboot; auto reboot in 60 seconds.' -ForegroundColor Yellow
+            }
+            elseif ($now -ge $graceDeadline) { break }
+        }
         if (((Get-Date) - $lastDisplay).TotalSeconds -ge 5) {
             try {
                 $status = Invoke-Aria2Rpc -Method 'aria2.tellStatus' -Secret $Context.rpcSecret -Gid $Context.gid -Keys @('uploadLength', 'uploadSpeed')
                 $peers = @(Invoke-Aria2Rpc -Method 'aria2.getPeers' -Secret $Context.rpcSecret -Gid $Context.gid)
                 $lastUpload = [math]::Max($lastUpload, [double] $status.uploadLength)
                 $receivers = @($peers | Where-Object { [double] $_.uploadSpeed -gt 0 } | ForEach-Object { "$($_.ip):$($_.port)" } | Sort-Object -Unique)
-                $remaining = $Context.seedDeadline - (Get-Date)
-                Write-Progress -Id 23 -Activity 'Torrent seed wait' -Status ("remaining {0} | uploaded {1:N2} GiB | receivers {2}" -f (Format-TorrentEta -Seconds $remaining.TotalSeconds), ($lastUpload / 1GB), $receivers.Count) -PercentComplete ([math]::Max(0, [math]::Min(100, 100 - (($remaining.TotalSeconds / [math]::Max(1, $Context.seedMinutes * 60)) * 100))))
+                $remaining = if ($graceDeadline) { $graceDeadline - (Get-Date) } else { $Context.seedDeadline - (Get-Date) }
+                $totalWaitMinutes = $Context.seedBaseMinutes + $Context.seedLocalExtensionMinutes + $Context.seedHostExtensionMinutes
+                Write-Progress -Id 23 -Activity 'Torrent seed wait' -Status ("remaining {0} | uploaded {1:N2} GiB | receivers {2}" -f (Format-TorrentEta -Seconds $remaining.TotalSeconds), ($lastUpload / 1GB), $receivers.Count) -PercentComplete ([math]::Max(0, [math]::Min(100, 100 - (($remaining.TotalSeconds / [math]::Max(1, $totalWaitMinutes * 60)) * 100))))
             } catch {}
             $lastDisplay = Get-Date
         }
@@ -655,7 +719,7 @@ function Wait-TorrentSeedWindow {
     try {
         $finalStatus = Invoke-Aria2Rpc -Method 'aria2.tellStatus' -Secret $Context.rpcSecret -Gid $Context.gid -Keys @('totalLength', 'completedLength', 'uploadLength', 'downloadSpeed', 'uploadSpeed')
         $finalPeers = @(Invoke-Aria2Rpc -Method 'aria2.getPeers' -Secret $Context.rpcSecret -Gid $Context.gid)
-        Send-TorrentTelemetry -Status $finalStatus -Peers $finalPeers -Phase 'released' -Fallback ([bool] $Context.fallback) | Out-Null
+        Send-TorrentTelemetry -Status $finalStatus -Peers $finalPeers -Phase 'released' -Fallback ([bool] $Context.fallback) -Context $Context | Out-Null
     } catch {}
     Stop-TorrentTransfer -Context $Context
     if ($reason -eq 'host-release' -or $reason -eq 'client-enter') {
@@ -721,15 +785,15 @@ function Invoke-TorrentOsImageDownload {
         $osDir = 'C:\OSDCloud\OS'
         New-Item -ItemType Directory -Path $osDir -Force | Out-Null
         $torrentPath = Join-Path $osDir "$fileName.torrent"
-        Invoke-WebRequest -Uri ([string] $BootConfig.torrentUrl) -OutFile $torrentPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+        Invoke-WebRequest -Uri ([string] $BootConfig.torrentUrl) -DisableKeepAlive -OutFile $torrentPath -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
 
         $targetWim = Join-Path $osDir $fileName
         $controlFile = "$targetWim.aria2"
         Remove-Item -LiteralPath $targetWim -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $controlFile -Force -ErrorAction SilentlyContinue
 
-        $seedMinutes = 30
-        if ($BootConfig.PSObject.Properties['seedMinutes'] -and [int] $BootConfig.seedMinutes -ge 0) {
+        $seedMinutes = 15
+        if ($BootConfig.PSObject.Properties['seedMinutes'] -and [int] $BootConfig.seedMinutes -ge 0 -and [int] $BootConfig.seedMinutes -le 1440) {
             $seedMinutes = [int] $BootConfig.seedMinutes
         }
 
@@ -792,7 +856,7 @@ function Invoke-TorrentOsImageDownload {
         $aria2Args = @(
             "--dir=$osDir",
             '--check-integrity=true',
-            "--seed-time=$seedMinutes",
+            '--seed-time=1441',
             '--seed-ratio=0.0',
             '--file-allocation=falloc',
             '--bt-save-metadata=false',
@@ -968,7 +1032,10 @@ function Invoke-TorrentOsImageDownload {
             gid = $aria2Gid
             completedAt = $completedAt
             seedDeadline = $seedDeadline
-            seedMinutes = $seedMinutes
+            seedBaseMinutes = $seedMinutes
+            seedLocalExtensionMinutes = 0
+            seedHostExtensionMinutes = 0
+            maxSeedMinutes = 1440
             phase = 'seeding'
             fallback = $emergencyFallback
             runId = $runId
@@ -1171,7 +1238,12 @@ try {
     $deploymentSucceeded = $true
     Save-DeploymentStatusMetadata
     if ($torrentTransfer) {
-        Wait-TorrentSeedWindow -Context $torrentTransfer
+        if ($torrentTransfer.seedBaseMinutes -gt 0) {
+            Wait-TorrentSeedWindow -Context $torrentTransfer
+        }
+        else {
+            Stop-TorrentTransfer -Context $torrentTransfer
+        }
     }
     Send-DeploymentStatus -Stage 'osdcloud-finished' -Message 'Invoke-OSDCloud returned successfully. WinPE will reboot.' -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
     Send-Screenshot -Stage 'osdcloud-finished'

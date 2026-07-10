@@ -157,6 +157,17 @@ function renderAuthGate() {
 
 document.addEventListener('click', handleDocumentClick);
 
+document.addEventListener('input', (event) => {
+  const input = event.target instanceof HTMLInputElement ? event.target : null;
+  if (!input) return;
+  if (input.dataset.torrentSeedSetting === 'true') {
+    state.torrentSeedMinutesDraft = input.value;
+  }
+  if (input.dataset.torrentExtensionRunId) {
+    state.torrentExtensionMinutesByRun[input.dataset.torrentExtensionRunId] = input.value;
+  }
+});
+
 document.addEventListener('pointerover', (event) => {
   const target = deployTooltipSource(event.target);
   if (target) {

@@ -886,6 +886,8 @@ test('endpoint sync writes a boot.wim sync marker after publishing', () => {
 
 test('endpoint sync injects progress reporter into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  assert.match(script, /WinPE\\OSDCloud\\Start-OSDCloud-iPXE\.ps1/);
+  assert.match(script, /OSDCloud\\Start-OSDCloud-iPXE\.ps1/);
   assert.match(script, /WinPE\\OSDCloud\\Report-OSDCloudProgress\.ps1/);
   assert.match(script, /OSDCloud\\Report-OSDCloudProgress\.ps1/);
   assert.match(script, /Set-ProgressReporterEndpoint/);
@@ -1036,6 +1038,13 @@ test('WinPE PXE deployment disables client-side external update and catalog bran
 
   assert.match(script, /function Get-DeploymentServerCandidates/);
   assert.match(script, /function Test-DeploymentServer/);
+  assert.match(script, /param\(\[string\] \$PreferredServer\)/);
+  assert.match(script, /Get-DeploymentServerCandidates -PreferredServer \$server/);
+  assert.match(script, /http:\/\/\$IpAddress\/osdcloud\/health/);
+  assert.match(script, /-Method Get -DisableKeepAlive -UseBasicParsing -TimeoutSec 2/);
+  assert.doesNotMatch(script, /Connection = 'close'/);
+  assert.match(script, /health endpoint unavailable; renewing DHCP/);
+  assert.doesNotMatch(script, /\/osdcloud\/status"\s*\n\s*\$resp = Invoke-WebRequest -Uri \$testUrl -Method Head/);
   assert.match(script, /ipconfig \/renew/);
   assert.match(script, /DriverPackName\s+= 'None'/);
   assert.match(script, /MSCatalogFirmware\s+= \$false/);
@@ -1095,7 +1104,13 @@ test('WinPE torrent download shows local progress and active peers through loopb
   assert.match(script, /http:\/\/\$server\/osdcloud\/torrent-telemetry/);
   assert.match(script, /http:\/\/\$server\/osdcloud\/torrent-control/);
   assert.match(script, /function Wait-TorrentSeedWindow/);
-  assert.match(script, /Press Enter to continue to reboot now/);
+  assert.match(script, /Press E to extend time, or Enter to continue to reboot now/);
+  assert.match(script, /Seed wait reached\. Press E to extend or Enter to reboot/);
+  assert.match(script, /Additional torrent seed minutes \(1-1440\)/);
+  assert.match(script, /--seed-time=1441/);
+  assert.match(script, /seedBaseMinutes/);
+  assert.match(script, /seedHostExtensionMinutes/);
+  assert.match(script, /-DisableKeepAlive/);
   assert.match(script, /aria2\.shutdown/);
   assert.match(script, /seedDeadline = \$completedAt\.AddMinutes\(\$seedMinutes\)/);
   assert.match(script, /Wait-TorrentSeedWindow -Context \$torrentTransfer/);

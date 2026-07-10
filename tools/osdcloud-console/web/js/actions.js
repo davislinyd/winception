@@ -700,6 +700,17 @@ export async function handleAction(action, source = null) {
     if (runId) {
       await mutate('/api/torrent/release', { runId });
     }
+  } else if (action === 'torrent-settings') {
+    const input = source?.closest('.torrent-seed-settings')?.querySelector('[data-torrent-seed-setting]');
+    await mutate('/api/torrent/settings', { seedMinutes: Number(input?.value) });
+    state.torrentSeedMinutesDraft = '';
+  } else if (action === 'torrent-extend') {
+    const runId = source?.dataset?.runId;
+    const input = source?.closest('td')?.querySelector(`[data-torrent-extension-run-id="${runId}"]`);
+    if (runId) {
+      await mutate('/api/torrent/extend', { runId, additionalMinutes: Number(input?.value) });
+      delete state.torrentExtensionMinutesByRun[runId];
+    }
   } else if (action === 'torrent-release-all') {
     const ok = await confirmAction({
       title: 'Continue all waiting clients',

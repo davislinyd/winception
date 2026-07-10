@@ -549,7 +549,7 @@ test('validateConfig fills torrent defaults and keeps it enabled', () => {
   assert.equal(config.torrent.trackerPort, 6969);
   assert.equal(config.torrent.seederListenPort, 6881);
   assert.equal(config.torrent.pieceLengthBytes, 4194304);
-  assert.equal(config.torrent.seedMinutes, 30);
+  assert.equal(config.torrent.seedMinutes, 15);
 });
 
 test('validateConfig honours an explicit torrent override', () => {
@@ -566,6 +566,7 @@ test('validateConfig rejects invalid torrent settings', () => {
   assert.throws(() => validateConfig(minimalConfig({ torrent: { trackerPort: 0 } })), /torrent.trackerPort/);
   assert.throws(() => validateConfig(minimalConfig({ torrent: { pieceLengthBytes: 1024 } })), /torrent.pieceLengthBytes/);
   assert.throws(() => validateConfig(minimalConfig({ torrent: { seedMinutes: -1 } })), /torrent.seedMinutes/);
+  assert.throws(() => validateConfig(minimalConfig({ torrent: { seedMinutes: 1441 } })), /torrent.seedMinutes/);
 });
 
 test('mediaHttpServerConfig forwards torrent settings and OS cache root', () => {

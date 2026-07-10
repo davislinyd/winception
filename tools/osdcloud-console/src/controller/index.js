@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { applyProjectRoot, applyServiceEndpoint, loadConfig, mediaHttpServerConfig, saveConfig, torrentServerConfig, webServerConfig, workspaceInfo } from '../config.js';
+import { applyProjectRoot, applyServiceEndpoint, loadConfig, maxTorrentSeedMinutes, mediaHttpServerConfig, saveConfig, torrentServerConfig, webServerConfig, workspaceInfo } from '../config.js';
 import { DhcpResponder } from '../dhcp.js';
 import { summarizeDriverPackCache } from '../driverPackCache.js';
 import { MediaHttpServer } from '../httpServer.js';
@@ -431,6 +431,10 @@ export class ServiceController extends EventEmitter {
           root: this.config.tftp.root,
         },
         smb: this.config.smb,
+        torrent: {
+          enabled: this.config.torrent?.enabled !== false,
+          seedMinutes: this.config.torrent?.seedMinutes ?? 15,
+        },
         driverPackCache: this.config.driverPackCache,
         network: {
           topology: networkTopology(this.config),
@@ -680,6 +684,26 @@ export class ServiceController extends EventEmitter {
   releaseTorrentClients(payload) {
     const result = this.torrentCoordinator.release(payload);
     this.addLog(`[TORRENT] release requested for ${result.count} waiting client${result.count === 1 ? '' : 's'}`);
+    return result;
+  }
+
+  updateTorrentSettings(seedMinutes) {
+    const minutes = Number(seedMinutes);
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > maxTorrentSeedMinutes) {
+      throw errorWithStatus(`Torrent seed wait must be an integer from 0 to ${maxTorrentSeedMinutes} minutes.`, 400);
+    }
+    const previousSeedMinutes = Number(this.config.torrent?.seedMinutes ?? 15);
+    this.config.torrent ??= {};
+    this.config.torrent.seedMinutes = minutes;
+    const savedPath = this.dependencies.saveConfig(this.config);
+    this.refreshServiceConfigs();
+    this.addLog(`[TORRENT] default seed wait ${previousSeedMinutes} -> ${minutes} minutes (saved ${savedPath})`);
+    return { previousSeedMinutes, seedMinutes: minutes, savedPath };
+  }
+
+  extendTorrentClient(payload) {
+    const result = this.torrentCoordinator.extend(payload);
+    this.addLog(`[TORRENT] extended ${result.runId} by ${Number(payload.additionalMinutes)} minutes`);
     return result;
   }
 

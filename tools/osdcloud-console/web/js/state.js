@@ -27,6 +27,8 @@ export const state = {
     error: '',
   },
   busy: false,
+  torrentSeedMinutesDraft: '',
+  torrentExtensionMinutesByRun: {},
   clientFleetSignature: '',
   logsText: null,
   fleetExpanded: false,

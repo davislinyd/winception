@@ -51,7 +51,7 @@ function Send-Status {
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
 
     try {
-        Invoke-WebRequest -Uri $StatusUrl -Method Post -ContentType 'application/json' -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri $StatusUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
         return
     }
     catch {
@@ -145,7 +145,7 @@ function Send-Screenshot {
         $path = Capture-Screenshot -Stage $Stage
         $uri = New-ScreenshotUri -Stage $Stage -Source $Source
         try {
-            Invoke-WebRequest -Uri $uri -Method Post -ContentType 'image/png' -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
+            Invoke-WebRequest -Uri $uri -Method Post -ContentType 'image/png' -DisableKeepAlive -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
             return
         }
         catch {

@@ -57,7 +57,24 @@ while ($true) {
             receivers = $receivers
             fallback = [bool] $context.fallback
         }
-        $response = Invoke-RestMethod -Uri ([string] $context.telemetryUrl) -Method Post -ContentType 'application/json' -Body ($payload | ConvertTo-Json -Depth 5 -Compress) -TimeoutSec 3 -ErrorAction Stop
+        if ($context.PSObject.Properties['seedBaseMinutes']) { $payload.seedBaseMinutes = [int] $context.seedBaseMinutes }
+        if ($context.PSObject.Properties['seedLocalExtensionMinutes']) { $payload.seedLocalExtensionMinutes = [int] $context.seedLocalExtensionMinutes }
+        if ($context.PSObject.Properties['seedHostExtensionMinutes']) { $payload.seedHostExtensionMinutes = [int] $context.seedHostExtensionMinutes }
+        if ($context.PSObject.Properties['seedDeadline']) { $payload.seedDeadline = [string] $context.seedDeadline }
+        $body = $payload | ConvertTo-Json -Depth 5 -Compress
+        $lastError = $null
+        $response = $null
+        foreach ($attempt in 1..2) {
+            try {
+                $response = Invoke-RestMethod -Uri ([string] $context.telemetryUrl) -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $body -TimeoutSec 3 -ErrorAction Stop
+                break
+            }
+            catch {
+                $lastError = $_
+                if ($attempt -lt 2) { Start-Sleep -Milliseconds 250 }
+            }
+        }
+        if (-not $response) { throw $lastError }
         if ($context.statePath) {
             $temp = "$($context.statePath).tmp"
             $response | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $temp -Encoding UTF8 -Force

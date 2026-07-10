@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -90,8 +91,16 @@ test('serves status and ranged files', async () => {
 
   try {
     await server.start();
+    assert.equal(server.server.keepAliveTimeout, 30_000);
+    assert.ok(server.server.headersTimeout > server.server.keepAliveTimeout);
     const port = server.address.port;
-    let response = await fetch(`http://127.0.0.1:${port}/osdcloud/status`, {
+    let response = await fetch(`http://127.0.0.1:${port}/osdcloud/health`);
+    assert.equal(response.status, 204);
+
+    response = await fetch(`http://127.0.0.1:${port}/osdcloud/health`, { method: 'HEAD' });
+    assert.equal(response.status, 204);
+
+    response = await fetch(`http://127.0.0.1:${port}/osdcloud/status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ runId: 'test-run', stage: 'apply-image' }),
@@ -115,6 +124,39 @@ test('serves status and ranged files', async () => {
     assert.equal(response.status, 206);
     assert.equal(await response.text(), 'cde');
   } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('keeps a WinPE-style HTTP connection alive past the former five-second boundary', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-http-keepalive-'));
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot: path.join(root, 'status'),
+  });
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  let connections = 0;
+  const request = (pathName) => new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: server.address.port, path: pathName, agent }, (response) => {
+      response.resume();
+      response.once('end', () => resolve(response.statusCode));
+    });
+    req.once('error', reject);
+    req.end();
+  });
+  try {
+    await server.start();
+    server.server.on('connection', () => { connections += 1; });
+    assert.equal(await request('/osdcloud/health'), 204);
+    await new Promise((resolve) => setTimeout(resolve, 5_100));
+    assert.equal(await request('/osdcloud/health'), 204);
+    assert.equal(connections, 1, 'the server must not expire the reporter socket at five seconds');
+  } finally {
+    agent.destroy();
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });
   }

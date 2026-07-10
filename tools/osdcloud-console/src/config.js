@@ -149,8 +149,9 @@ export const defaultTorrentConfig = Object.freeze({
   trackerPort: 6969,
   seederListenPort: 6881,
   pieceLengthBytes: 4194304,
-  seedMinutes: 30,
+  seedMinutes: 15,
 });
+export const maxTorrentSeedMinutes = 1440;
 
 // Resolve the host-side torrent/tracker settings, mirroring mediaHttpServerConfig.
 // The tracker binds to the same service IP as the HTTP server, and the webseed/
@@ -515,8 +516,8 @@ export function validateConfig(config) {
   }
   config.torrent.pieceLengthBytes = pieceLengthBytes;
   const seedMinutes = Number(config.torrent.seedMinutes);
-  if (!Number.isFinite(seedMinutes) || seedMinutes < 0) {
-    throw new Error(`torrent.seedMinutes must be a non-negative number: ${config.torrent.seedMinutes}`);
+  if (!Number.isInteger(seedMinutes) || seedMinutes < 0 || seedMinutes > maxTorrentSeedMinutes) {
+    throw new Error(`torrent.seedMinutes must be an integer from 0 to ${maxTorrentSeedMinutes}: ${config.torrent.seedMinutes}`);
   }
   config.torrent.seedMinutes = seedMinutes;
 

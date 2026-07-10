@@ -607,6 +607,44 @@ test('torrent release API supports one waiting run and all waiting runs', async 
   }
 });
 
+test('torrent settings apply to future boot-config readers and extensions target active waiting runs', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-torrent-settings-'));
+  const server = await makeServer(root);
+  try {
+    const coordinator = server.controller.torrentCoordinator;
+    coordinator.configureTorrent({ infoHash: 'a'.repeat(40), totalPieces: 4, wimBytes: 1024 });
+    coordinator.receiveTelemetry({
+      runId: 'run-waiting', clientId: 'waiting', phase: 'waiting', seedBaseMinutes: 15,
+    }, '10.0.0.1');
+    coordinator.receiveTelemetry({ runId: 'run-downloading', clientId: 'downloading', phase: 'downloading' }, '10.0.0.2');
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/torrent/settings`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seedMinutes: 15 }),
+    });
+    assert.equal(response.status, 200);
+    let payload = await response.json();
+    assert.equal(payload.result.seedMinutes, 15);
+    assert.equal(payload.state.config.torrent.seedMinutes, 15);
+
+    response = await fetch(`${base}/api/torrent/extend`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runId: 'run-waiting', additionalMinutes: 900 }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.extensionId, 1);
+    assert.equal(payload.result.extensionMinutes, 900);
+
+    response = await fetch(`${base}/api/torrent/extend`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runId: 'run-downloading', additionalMinutes: 1 }),
+    });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /active waiting client/);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('secrets API writes local secrets and never returns plaintext passwords', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-secrets-'));
   const server = await makeServer(root);

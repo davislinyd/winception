@@ -9,6 +9,7 @@ const STALL_MS = 180_000;
 const TELEMETRY_STALE_MS = 15_000;
 const TELEMETRY_REMOVE_MS = 60_000;
 const HOST_BUDGET_RATIO = 1.15;
+const MAX_SEED_WAIT_MINUTES = 1440;
 
 function safeId(value, max = 120) {
   return String(value ?? '').replace(/[^A-Za-z0-9_.-]/gu, '_').slice(0, max);
@@ -332,6 +333,10 @@ export class TorrentDistributionCoordinator extends EventEmitter {
       sources,
       receivers,
       fallback: Boolean(payload?.fallback),
+      seedBaseMinutes: finiteNumber(payload?.seedBaseMinutes),
+      seedLocalExtensionMinutes: finiteNumber(payload?.seedLocalExtensionMinutes),
+      seedHostExtensionMinutes: finiteNumber(payload?.seedHostExtensionMinutes),
+      seedDeadline: typeof payload?.seedDeadline === 'string' ? payload.seedDeadline : null,
       updatedAt: now,
     };
     const previous = this.telemetry.get(runId);
@@ -410,13 +415,45 @@ export class TorrentDistributionCoordinator extends EventEmitter {
       if (!safeRunId) throw new Error('runId or allWaiting:true is required');
       targets = [safeRunId];
     }
-    for (const target of targets) this.releases.set(target, { released: true, requestedAt: now });
+    for (const target of targets) {
+      const current = this.getControl(target);
+      this.releases.set(target, { ...current, released: true, requestedAt: now });
+    }
     this._persist(true);
     return { released: targets, count: targets.length };
   }
 
   getControl(runId) {
-    return this.releases.get(safeId(runId)) ?? { released: false, requestedAt: null };
+    return this.releases.get(safeId(runId)) ?? { released: false, requestedAt: null, extensionId: 0, extensionMinutes: 0 };
+  }
+
+  extend({ runId, additionalMinutes } = {}) {
+    const now = this.now();
+    const safeRunId = safeId(runId);
+    const minutes = Number(additionalMinutes);
+    if (!safeRunId) throw new Error('runId is required');
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_SEED_WAIT_MINUTES) {
+      throw new Error(`additionalMinutes must be an integer from 1 to ${MAX_SEED_WAIT_MINUTES}`);
+    }
+    const telemetry = this.telemetry.get(safeRunId);
+    if (!telemetry || telemetry.phase !== 'waiting' || now - telemetry.updatedAt > this.telemetryStaleMs) {
+      throw new Error('Only an active waiting client can extend torrent seed time');
+    }
+    const current = this.getControl(safeRunId);
+    if (current.released) throw new Error('Released client cannot extend torrent seed time');
+    const usedMinutes = telemetry.seedBaseMinutes + telemetry.seedLocalExtensionMinutes + current.extensionMinutes;
+    if (usedMinutes + minutes > MAX_SEED_WAIT_MINUTES) {
+      throw new Error(`Torrent seed wait cannot exceed ${MAX_SEED_WAIT_MINUTES} minutes after download completion`);
+    }
+    const next = {
+      ...current,
+      extensionId: Number(current.extensionId ?? 0) + 1,
+      extensionMinutes: Number(current.extensionMinutes ?? 0) + minutes,
+      requestedAt: now,
+    };
+    this.releases.set(safeRunId, next);
+    this._persist(true);
+    return { runId: safeRunId, ...next };
   }
 
   publicAssignment(item) {
@@ -486,4 +523,5 @@ export const torrentDistributionDefaults = Object.freeze({
   telemetryStaleMs: TELEMETRY_STALE_MS,
   telemetryRemoveMs: TELEMETRY_REMOVE_MS,
   budgetRatio: HOST_BUDGET_RATIO,
+  maxSeedWaitMinutes: MAX_SEED_WAIT_MINUTES,
 });

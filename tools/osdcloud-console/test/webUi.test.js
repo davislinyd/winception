@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.5', () => {
+test('release metadata is aligned to v0.6.5-1', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.5');
-  assert.equal(packageLock.version, '0.6.5');
-  assert.equal(packageLock.packages[''].version, '0.6.5');
-  assert.match(changelog, /## v0\.6\.5 — 2026-07-10/);
-  assert.match(manual, /Operations Manual · v0\.6\.5/);
-  assert.match(manual, /Product documentation for Web v0\.6\.5/);
+  assert.equal(packageJson.version, '0.6.5-1');
+  assert.equal(packageLock.version, '0.6.5-1');
+  assert.equal(packageLock.packages[''].version, '0.6.5-1');
+  assert.match(changelog, /## v0\.6\.5-1 — 2026-07-11/);
+  assert.match(manual, /Operations Manual · v0\.6\.5-1/);
+  assert.match(manual, /Product documentation for Web v0\.6\.5-1/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -84,6 +84,14 @@ test('torrent card renders live wave telemetry and release controls', () => {
   assert.match(script, /Continue to reboot/);
   assert.match(script, /Continue all waiting/);
   assert.match(script, /\/api\/torrent\/release/);
+  assert.match(script, /Default seed wait \(minutes\)/);
+  assert.match(script, /\/api\/torrent\/settings/);
+  assert.match(script, /\/api\/torrent\/extend/);
+  assert.match(script, /Seed deadline/);
+  assert.match(script, /torrentExtensionMinutesByRun/);
+  assert.match(script, /captureTorrentInputSelection/);
+  assert.match(script, /restoreTorrentInputSelection/);
+  assert.match(script, /setSelectionRange\(selection\.start, selection\.end\)/);
   assert.match(script, /Emergency host fallback/);
   assert.match(styles, /\.torrent-client-table/);
   assert.match(styles, /\.torrent-emergency/);

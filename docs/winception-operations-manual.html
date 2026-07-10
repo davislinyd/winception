@@ -313,7 +313,7 @@
 
   <div id="locale-zh" class="locale-view" lang="zh-Hant">
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.5</p>
+      <p class="eyebrow">Operations Manual · v0.6.5-1</p>
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
@@ -376,7 +376,7 @@ cd '&lt;repo-root&gt;'
         <section id="architecture">
           <p class="section-kicker">03 · Services</p>
           <h2>服務如何運作</h2>
-          <p>Web Console 是控制面；DHCP、TFTP、HTTP、SMB 與 Torrent 是資料面。Endpoint Sync 負責讓 live boot files、WinPE embedded endpoint、SMB firewall 與 local overlay 保持一致。</p>
+          <p>Web Console 是控制面；DHCP、TFTP、HTTP、SMB 與 Torrent 是資料面。Endpoint Sync 負責讓 live boot files、WinPE embedded endpoint、SMB firewall 與 local overlay 保持一致；每次同步也會把 service IP 寫入 WinPE 的優先 health probe。更新後的 WinPE startup script 必須透過 Endpoint Sync 注入既有 <code>boot.wim</code>。</p>
           <figure>
             <div class="media-frame"><img src="manual-assets/system-architecture.svg" alt="Winception Web Console、DHCP、TFTP、HTTP、Torrent、SMB、WinPE、OSDCloud 與 Windows client 的資料流"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.svg" data-zoom-alt="Winception 系統架構與資料流">放大架構圖</button></div>
             <figcaption>實線表示控制或階段交接，藍色虛線表示 boot/image 資料，綠色虛線表示 status 與 evidence。</figcaption>
@@ -386,7 +386,7 @@ cd '&lt;repo-root&gt;'
             <tr><td>TFTP service</td><td>提供 Secure Boot chain 需要的 Microsoft-signed boot files。</td></tr>
             <tr><td>HTTP media service</td><td>提供 iPXE script、WinPE boot files、status API、screenshot API 與 Torrent control API。</td></tr>
             <tr><td>SMB share</td><td>供 WinPE 讀取 selected OS WIM、Apps、Scripts 與 manifests。</td></tr>
-            <tr><td>Torrent tracker/seeder</td><td>多台 client 同時部署時分散 OS WIM 傳輸壓力。</td></tr>
+            <tr><td>Torrent tracker/seeder</td><td>多台 client 同時部署時分散 OS WIM 傳輸壓力；Tracker card 預設 wait 15 分鐘，可設定後續 client 的 0–1440 分鐘預設，或延長單一 fresh waiting client。完成後總 wait 上限為 1440 分鐘。</td></tr>
           </tbody></table></div>
         </section>
 
@@ -525,7 +525,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 
   <div id="locale-en" class="locale-view" lang="en" hidden>
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.5</p>
+      <p class="eyebrow">Operations Manual · v0.6.5-1</p>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
@@ -588,7 +588,7 @@ cd '&lt;repo-root&gt;'
         <section id="en-architecture">
           <p class="section-kicker">03 · Services</p>
           <h2>How The Services Work</h2>
-          <p>The Web Console is the control plane; DHCP, TFTP, HTTP, SMB, and Torrent form the data plane. Endpoint Sync keeps live boot files, the WinPE embedded endpoint, SMB firewall rules, and local overlay aligned.</p>
+          <p>The Web Console is the control plane; DHCP, TFTP, HTTP, SMB, and Torrent form the data plane. Endpoint Sync keeps live boot files, the WinPE embedded endpoint, SMB firewall rules, and local overlay aligned; each sync also writes the service IP as WinPE's preferred health probe. Inject an updated WinPE startup script into an existing <code>boot.wim</code> by running Endpoint Sync.</p>
           <figure>
             <div class="media-frame"><img src="manual-assets/system-architecture.en.svg" alt="Data flow among the Winception Web Console, DHCP, TFTP, HTTP, Torrent, SMB, WinPE, OSDCloud, and Windows clients"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.en.svg" data-zoom-alt="Winception architecture and data flow">Enlarge architecture</button></div>
             <figcaption>Solid lines show control or stage handoff, blue dashed lines show boot/image data, and green dashed lines show status and evidence.</figcaption>
@@ -598,7 +598,7 @@ cd '&lt;repo-root&gt;'
             <tr><td>TFTP service</td><td>Serves the Microsoft-signed boot files required by the Secure Boot chain.</td></tr>
             <tr><td>HTTP media service</td><td>Serves iPXE script, WinPE boot files, status API, screenshot API, and Torrent control API.</td></tr>
             <tr><td>SMB share</td><td>Lets WinPE read the selected OS WIM, Apps, Scripts, and manifests.</td></tr>
-            <tr><td>Torrent tracker/seeder</td><td>Distributes OS WIM transfer load when many clients deploy together.</td></tr>
+            <tr><td>Torrent tracker/seeder</td><td>Distributes OS WIM transfer load when many clients deploy together. The Tracker card defaults to 15 minutes, can set the 0–1440 minute default for future clients, or extend one fresh waiting client. The total post-download wait is capped at 1440 minutes.</td></tr>
           </tbody></table></div>
         </section>
 
@@ -735,7 +735,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
     </div>
   </div>
 
-  <footer>Winception deployment manual · Product documentation for Web v0.6.5.</footer>
+  <footer>Winception deployment manual · Product documentation for Web v0.6.5-1.</footer>
 
   <dialog id="lightbox" aria-label="Image preview">
     <div class="lightbox-inner">

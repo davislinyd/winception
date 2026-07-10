@@ -119,6 +119,8 @@ const apiRouteTable = [
   { method: 'POST', path: '/api/services/start-all' },
   { method: 'POST', path: '/api/services/stop-all' },
   { method: 'POST', path: '/api/torrent/release', bodyLimit: json16KiB },
+  { method: 'POST', path: '/api/torrent/settings', bodyLimit: json16KiB },
+  { method: 'POST', path: '/api/torrent/extend', bodyLimit: json16KiB },
   { method: 'POST', path: '/api/preflight' },
   { method: 'POST', path: '/api/diagnostics/run', bodyLimit: json16KiB },
   { method: 'POST', path: '/api/secrets', bodyLimit: json16KiB },
@@ -394,6 +396,22 @@ export class WebManagementServer {
       const body = await readBody(json16KiB);
       const result = this.controller.releaseTorrentClients(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/torrent/settings') {
+      const body = await readBody(json16KiB);
+      const result = this.controller.updateTorrentSettings(body.seedMinutes);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/torrent/extend') {
+      const body = await readBody(json16KiB);
+      try {
+        const result = this.controller.extendTorrentClient(body);
+        sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      } catch (error) {
+        sendJson(res, 400, { ok: false, error: error.message });
+      }
       return;
     }
     if (pathname === '/api/preflight') {

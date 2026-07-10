@@ -137,7 +137,7 @@ function Send-DeploymentStatus {
 
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
     try {
-        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
         return $true
     }
     catch {
@@ -656,7 +656,7 @@ function Send-Status {
 
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
     try {
-        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
         return $true
     }
     catch {

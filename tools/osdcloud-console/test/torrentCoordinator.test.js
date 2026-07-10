@@ -146,3 +146,43 @@ test('telemetry is bounded, stale at 15 seconds, removed at 60, and release surv
     fs.rmSync(f.root, { recursive: true, force: true });
   }
 });
+
+test('waiting clients can receive persisted cumulative extensions up to 1440 minutes', () => {
+  const f = fixture();
+  try {
+    f.coordinator.receiveTelemetry({
+      runId: 'run-extend', clientId: 'client-extend', phase: 'waiting',
+      seedBaseMinutes: 15, seedLocalExtensionMinutes: 60,
+    }, '10.0.0.8');
+    const first = f.coordinator.extend({ runId: 'run-extend', additionalMinutes: 900 });
+    assert.equal(first.extensionId, 1);
+    assert.equal(first.extensionMinutes, 900);
+    const second = f.coordinator.extend({ runId: 'run-extend', additionalMinutes: 465 });
+    assert.equal(second.extensionId, 2);
+    assert.equal(second.extensionMinutes, 1365);
+    assert.throws(() => f.coordinator.extend({ runId: 'run-extend', additionalMinutes: 1 }), /cannot exceed 1440/);
+    f.coordinator.close();
+    const restored = new TorrentDistributionCoordinator({ stateRoot: f.root }, { now: () => f.now() });
+    assert.equal(restored.getControl('run-extend').extensionMinutes, 1365);
+    assert.throws(() => restored.extend({ runId: 'run-extend', additionalMinutes: 1 }), /Only an active waiting client/);
+    restored.close();
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('extensions reject stale, non-waiting, and released clients', () => {
+  const f = fixture();
+  try {
+    f.coordinator.receiveTelemetry({ runId: 'run-downloading', phase: 'downloading' }, '10.0.0.9');
+    assert.throws(() => f.coordinator.extend({ runId: 'run-downloading', additionalMinutes: 1 }), /active waiting/);
+    f.coordinator.receiveTelemetry({ runId: 'run-released', phase: 'waiting', seedBaseMinutes: 15 }, '10.0.0.10');
+    f.coordinator.release({ runId: 'run-released' });
+    assert.throws(() => f.coordinator.extend({ runId: 'run-released', additionalMinutes: 1 }), /Released client/);
+    f.coordinator.receiveTelemetry({ runId: 'run-stale', phase: 'waiting', seedBaseMinutes: 15 }, '10.0.0.11');
+    f.advance(15_001);
+    assert.throws(() => f.coordinator.extend({ runId: 'run-stale', additionalMinutes: 1 }), /active waiting/);
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+});

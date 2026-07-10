@@ -207,7 +207,34 @@ export function serviceAddress(service) {
   return '-';
 }
 
+function captureTorrentInputSelection() {
+  const input = document.activeElement instanceof HTMLInputElement ? document.activeElement : null;
+  if (!input || (!input.dataset.torrentSeedSetting && !input.dataset.torrentExtensionRunId)) {
+    return null;
+  }
+  return {
+    seedSetting: input.dataset.torrentSeedSetting === 'true',
+    runId: input.dataset.torrentExtensionRunId ?? null,
+    start: input.selectionStart,
+    end: input.selectionEnd,
+  };
+}
+
+function restoreTorrentInputSelection(selection) {
+  if (!selection) return;
+  const input = selection.seedSetting
+    ? document.querySelector('[data-torrent-seed-setting="true"]')
+    : [...document.querySelectorAll('[data-torrent-extension-run-id]')]
+      .find((item) => item.dataset.torrentExtensionRunId === selection.runId);
+  if (!(input instanceof HTMLInputElement)) return;
+  input.focus({ preventScroll: true });
+  if (Number.isInteger(selection.start) && Number.isInteger(selection.end)) {
+    input.setSelectionRange(selection.start, selection.end);
+  }
+}
+
 export function renderServices(appState) {
+  const torrentInputSelection = captureTorrentInputSelection();
   const dhcpIsProxy = (appState.config?.dhcp?.dhcpMode ?? 'server') === 'proxy';
   const rows = [
     ['http', 'HTTP Server', appState.services.http, 'http-toggle', 'HTTP'],
@@ -283,6 +310,31 @@ export function renderServices(appState) {
       : 'P2P OS image distribution';
     row.append(head, address);
 
+    const seedSettings = document.createElement('div');
+    seedSettings.className = 'torrent-seed-settings';
+    const seedLabel = document.createElement('label');
+    seedLabel.textContent = 'Default seed wait (minutes)';
+    const seedInput = document.createElement('input');
+    seedInput.type = 'text';
+    seedInput.inputMode = 'numeric';
+    seedInput.pattern = '[0-9]*';
+    seedInput.className = 'torrent-minutes-input';
+    seedInput.dataset.torrentSeedSetting = 'true';
+    seedInput.value = state.torrentSeedMinutesDraft === ''
+      ? String(appState.config?.torrent?.seedMinutes ?? 15)
+      : state.torrentSeedMinutesDraft;
+    seedLabel.append(seedInput);
+    const seedButton = document.createElement('button');
+    seedButton.type = 'button';
+    seedButton.className = 'secondary-button';
+    seedButton.dataset.action = 'torrent-settings';
+    seedButton.textContent = 'Save default';
+    seedSettings.append(seedLabel, seedButton);
+    const seedHint = document.createElement('span');
+    seedHint.textContent = 'Applies only to new WinPE clients; 0 skips waiting.';
+    seedSettings.append(seedHint);
+    row.append(seedSettings);
+
     const summary = document.createElement('div');
     summary.className = 'torrent-summary-grid';
     const summaryItems = [
@@ -318,7 +370,7 @@ export function renderServices(appState) {
       table.className = 'torrent-client-table';
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
-      for (const label of ['Client', 'Phase', 'Batch', 'Progress', 'Down / up', 'ETA', 'Uploaded', 'Sources / receivers', 'Last seen', '']) {
+      for (const label of ['Client', 'Phase', 'Batch', 'Progress', 'Down / up', 'ETA', 'Uploaded', 'Sources / receivers', 'Seed deadline', 'Last seen', '']) {
         const cell = document.createElement('th');
         cell.textContent = label;
         headerRow.append(cell);
@@ -338,6 +390,7 @@ export function renderServices(appState) {
           client.etaSeconds ? FormatTorrentEta(client.etaSeconds) : '-',
           bytes(client.uploadLength),
           `${client.sources?.join(', ') || '-'} / ${client.receivers?.join(', ') || '-'}`,
+          client.seedDeadline ? localCompactDateTime(client.seedDeadline) : '-',
           `${client.lastSeenSeconds ?? 0}s`,
         ];
         for (const [index, value] of values.entries()) {
@@ -358,6 +411,22 @@ export function renderServices(appState) {
         }
         const actionCell = document.createElement('td');
         if (client.phase === 'waiting' && !client.stale) {
+          const extensionInput = document.createElement('input');
+          extensionInput.type = 'text';
+          extensionInput.inputMode = 'numeric';
+          extensionInput.pattern = '[0-9]*';
+          extensionInput.className = 'torrent-minutes-input';
+          extensionInput.dataset.torrentExtensionRunId = client.runId;
+          extensionInput.value = state.torrentExtensionMinutesByRun[client.runId] ?? '15';
+          extensionInput.title = 'Additional seed minutes (1-1440; total wait cannot exceed 1440 minutes)';
+          actionCell.append(extensionInput);
+          const extendButton = document.createElement('button');
+          extendButton.type = 'button';
+          extendButton.className = 'secondary-button torrent-extend-button';
+          extendButton.dataset.action = 'torrent-extend';
+          extendButton.dataset.runId = client.runId;
+          extendButton.textContent = 'Extend';
+          actionCell.append(extendButton);
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'secondary-button torrent-release-button';
@@ -398,6 +467,7 @@ export function renderServices(appState) {
   setActionIcon('all-services-toggle', allServicesRunning ? 'stop' : 'play_arrow');
   setActionRunning('all-services-toggle', allServicesRunning);
   setActionDanger('all-services-toggle', !allServicesRunning);
+  restoreTorrentInputSelection(torrentInputSelection);
 }
 
 function FormatTorrentEta(seconds) {

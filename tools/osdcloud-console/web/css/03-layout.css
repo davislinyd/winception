@@ -44,6 +44,33 @@
   font: 500 12px/16px "JetBrains Mono", Consolas, monospace;
 }
 
+.torrent-seed-settings {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.torrent-seed-settings label {
+  color: var(--on-surface-variant);
+  display: grid;
+  font-size: 11px;
+  gap: 3px;
+}
+
+.torrent-seed-settings > span {
+  color: var(--on-surface-variant);
+  font-size: 11px;
+}
+
+.torrent-minutes-input {
+  box-sizing: border-box;
+  min-width: 74px;
+  padding: 5px 6px;
+  width: 74px;
+}
+
 .torrent-emergency {
   background: var(--warn-bg);
   color: var(--warn-fg);
@@ -94,8 +121,15 @@
 }
 
 .torrent-release-button,
+.torrent-extend-button,
 .torrent-release-all {
   white-space: nowrap;
+}
+
+.torrent-client-table td:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .torrent-release-all {
