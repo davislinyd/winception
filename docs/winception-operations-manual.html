@@ -313,7 +313,7 @@
 
   <div id="locale-zh" class="locale-view" lang="zh-Hant">
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.4</p>
+      <p class="eyebrow">Operations Manual · v0.6.5</p>
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
@@ -419,6 +419,10 @@ cd '&lt;repo-root&gt;'
             <article class="card"><h3>DHCP Server</h3><p>Winception 管理隔離部署網段的 lease；同一網段不應有其他 DHCP responder。</p></article>
             <article class="card"><h3>PXE Proxy</h3><p>既有網路提供 DHCP，Winception 只提供 PXE boot options；需確認 client 可連回 <code>&lt;service-ip&gt;</code>。</p></article>
           </div>
+          <div class="grid-2">
+            <article class="card"><h3>Shared LAN（預設）</h3><p>Host、client、router 共用同一 switch。client 是否可上網完全由該 LAN 決定；依既有 DHCP 選 DHCP Server 或 PXE Proxy。</p></article>
+            <article class="card"><h3>Dual NIC NAT</h3><p>WAN NIC 對 router；PXE NIC 對 client 專用 switch。Endpoint 的 Client Internet 可明確準備 <code>Winception-PXE</code> 與 <code>WinceptionNAT</code>，client gateway 固定為 host PXE vNIC。</p></article>
+          </div>
         </section>
 
         <section id="usb-iso">
@@ -453,7 +457,7 @@ cd '&lt;repo-root&gt;'
             <li>Windows finalizer 執行 active profile 的 software/custom scripts。</li>
             <li>Web Console 收到 <code>windows-desktop-ready</code>。</li>
           </ol>
-          <div class="callout"><strong>Client 網路邊界</strong>WinPE、OSDCloud、OOBE injection 與 SetupComplete staging 只需要連到 Winception server，不需要外部 Internet。外部 Internet 只在 post-logon finalizer 開始執行 software/custom scripts 後才屬於允許範圍；若腳本依賴 BITS 或 Windows Update，腳本需自行啟動必要服務或改用直接下載工具。</div>
+          <div class="callout"><strong>Client 網路邊界</strong>WinPE、OSDCloud、OOBE injection 與 SetupComplete staging 只需要連到 Winception server，不需要外部 Internet。Dual NIC NAT 會讓 client 全程具有路由，但 WinPE 仍不依賴它；post-logon finalizer 才是 software/custom scripts 的預期外網使用階段。NAT 不修改 WAN IP/gateway/DNS 或關閉 firewall，停止 HTTP/TFTP/DHCP 也不會停止 NAT。</div>
           <div class="sequence" aria-label="正常 deployment event sequence"><span>winpe-start</span><span>smb-mounted</span><span>torrent-download</span><span>torrent-verify</span><span>osdcloud-start</span><span>apply-image</span><span>osdcloud-finished</span><span>rebooting</span><span>windows-setupcomplete-start</span><span>windows-apps-finished</span><span>windows-desktop-ready</span></div>
         </section>
 
@@ -521,7 +525,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 
   <div id="locale-en" class="locale-view" lang="en" hidden>
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.4</p>
+      <p class="eyebrow">Operations Manual · v0.6.5</p>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
@@ -627,6 +631,10 @@ cd '&lt;repo-root&gt;'
             <article class="card"><h3>DHCP Server</h3><p>Winception manages leases on an isolated deployment network; no other DHCP responder should answer on the same segment.</p></article>
             <article class="card"><h3>PXE Proxy</h3><p>Existing network DHCP provides leases and Winception only supplies PXE boot options; confirm clients can reach <code>&lt;service-ip&gt;</code>.</p></article>
           </div>
+          <div class="grid-2">
+            <article class="card"><h3>Shared LAN (default)</h3><p>Host, clients, and router share one switch. Client Internet remains owned by that LAN; choose DHCP Server or PXE Proxy according to the existing DHCP service.</p></article>
+            <article class="card"><h3>Dual NIC NAT</h3><p>The WAN NIC faces the router and the PXE NIC faces a client-only switch. Client Internet in Endpoint explicitly prepares <code>Winception-PXE</code> and <code>WinceptionNAT</code>; clients use the host PXE vNIC as gateway.</p></article>
+          </div>
         </section>
 
         <section id="en-usb-iso">
@@ -661,7 +669,7 @@ cd '&lt;repo-root&gt;'
             <li>The Windows finalizer runs the active profile software/custom scripts.</li>
             <li>The Web Console receives <code>windows-desktop-ready</code>.</li>
           </ol>
-          <div class="callout"><strong>Client network boundary</strong>WinPE, OSDCloud, OOBE injection, and SetupComplete staging only need to reach the Winception server and do not require external Internet. External Internet is allowed only after the post-logon finalizer starts software/custom scripts; scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.</div>
+          <div class="callout"><strong>Client network boundary</strong>WinPE, OSDCloud, OOBE injection, and SetupComplete staging only need the Winception server and do not require external Internet. Dual NIC NAT gives clients a route throughout deployment without making WinPE depend on it; post-logon finalizer is the intended software/custom-script Internet phase. NAT does not change WAN IP/gateway/DNS or disable firewall profiles, and stopping HTTP/TFTP/DHCP does not stop NAT.</div>
           <div class="sequence" aria-label="Normal deployment event sequence"><span>winpe-start</span><span>smb-mounted</span><span>torrent-download</span><span>torrent-verify</span><span>osdcloud-start</span><span>apply-image</span><span>osdcloud-finished</span><span>rebooting</span><span>windows-setupcomplete-start</span><span>windows-apps-finished</span><span>windows-desktop-ready</span></div>
         </section>
 
@@ -727,7 +735,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
     </div>
   </div>
 
-  <footer>Winception deployment manual · Product documentation for Web v0.6.4.</footer>
+  <footer>Winception deployment manual · Product documentation for Web v0.6.5.</footer>
 
   <dialog id="lightbox" aria-label="Image preview">
     <div class="lightbox-inner">

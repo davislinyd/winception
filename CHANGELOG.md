@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.5 — 2026-07-10
+
+### 新功能：Client Internet topology 與雙 NIC NAT
+
+- 新增 `shared-lan`（預設）與 `dual-nic-nat` topology；shared LAN 保持既有 DHCP Server / PXE Proxy 行為
+- 新增明確確認的 Hyper-V `Winception-PXE` external switch 與 `WinceptionNAT` lifecycle，WAN NIC 設定與全域 firewall 不會被修改
+- 新增 NAT readiness/preflight、API、Endpoint drawer 控制與安全衝突防護；雙 NIC mode 固定 DHCP Server，停止 deployment services 不會停掉 client Internet NAT
+- Endpoint drawer 加入單 NIC Hyper-V 與 dual NIC NAT NIC 角色的 hover 說明，避免將 vSwitch 誤選為 PXE physical NIC
+
 ## v0.6.4 — 2026-07-10
 
 ### 修正：Embedded config panel 收合與開啟狀態

@@ -405,6 +405,22 @@ test('serves static UI and read-only state', async () => {
   }
 });
 
+test('network state API exposes the inspected gateway without changing services', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-network-state-'));
+  const server = await makeServer(root);
+  try {
+    server.controller.inspectNetworkGateway = async () => ({ topology: 'dual-nic-nat', ready: false, detail: 'Gateway preparation is required.' });
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const response = await fetch(`${base}/api/network/state`);
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.deepEqual(payload.gateway, { topology: 'dual-nic-nat', ready: false, detail: 'Gateway preparation is required.' });
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('API auth status reports loopback bypass without requiring a token', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-auth-loopback-'));
   const server = await makeServer(root);

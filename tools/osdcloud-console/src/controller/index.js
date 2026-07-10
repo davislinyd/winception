@@ -22,6 +22,7 @@ import { TorrentDistributionCoordinator } from '../torrentCoordinator.js';
 import { appVersion } from '../version.js';
 import { syncIpxeEndpoint } from '../windows/bootArtifacts.js';
 import { listIpv4ServiceInterfaces } from '../windows/network.js';
+import { gatewayOptions, inspectNetworkGateway, networkTopology, prepareNetworkGateway, removeNetworkGateway, validateGatewayInput } from '../windows/gateway.js';
 import { isElevatedSync } from '../windows/powershell.js';
 import { prepareRuntimeArtifacts, removeStatusFiles, runPreflight } from '../windows/preflight.js';
 import { EventEmitter } from 'node:events';
@@ -53,6 +54,11 @@ export class ServiceController extends EventEmitter {
       importUploadedOsImage,
       listOsDownloadCatalog,
       listIpv4ServiceInterfaces,
+      inspectNetworkGateway,
+      prepareNetworkGateway,
+      removeNetworkGateway,
+      validateGatewayInput,
+      loadConfig,
       openSoftwareInstallScript,
       publishSelectedOsImage,
       publishDeploymentProfile,
@@ -110,6 +116,9 @@ export class ServiceController extends EventEmitter {
     this.osImportStatus = null;
     this.offlineIsoStatus = null;
     this.operation = null;
+    this.networkGatewayState = networkTopology(this.config) === 'shared-lan'
+      ? { topology: 'shared-lan', ready: true, detail: 'Client Internet is provided by the existing LAN/router.' }
+      : { topology: 'dual-nic-nat', ready: false, detail: 'Gateway state has not been inspected yet.' };
     this.latestDiagnostics = safeRead(() => this.dependencies.readLatestDiagnostics(this.config), null).value;
     this.autoDiagnosticsKeys = new Set();
     this.diagnosticsPromise = null;
@@ -423,6 +432,11 @@ export class ServiceController extends EventEmitter {
         },
         smb: this.config.smb,
         driverPackCache: this.config.driverPackCache,
+        network: {
+          topology: networkTopology(this.config),
+          nat: gatewayOptions(this.config),
+          gateway: this.networkGatewayState,
+        },
       },
       services: this.servicesState(),
       profile: profileResult.error ? { error: profileResult.error } : profileResult.value,
@@ -489,6 +503,51 @@ export class ServiceController extends EventEmitter {
         await this.captureDiagnosticsOnFailure({ scope: 'host', trigger: 'preflight-failure' });
         throw error;
       }
+    });
+  }
+
+  async inspectNetworkGateway() {
+    this.networkGatewayState = await this.dependencies.inspectNetworkGateway(this.config);
+    return this.networkGatewayState;
+  }
+
+  async prepareNetworkGateway(input = {}) {
+    return this.runOperation('Preparing Winception NAT gateway', async () => {
+      if (this.dependencies.isElevated() !== true) {
+        throw errorWithStatus('Gateway preparation requires an elevated Web console session.', 400);
+      }
+      const selected = this.dependencies.validateGatewayInput(input);
+      await this.stopAllServices();
+      this.config.network ??= {};
+      this.config.network.topology = 'dual-nic-nat';
+      this.config.network.nat ??= {};
+      Object.assign(this.config.network.nat, selected);
+      this.config.dhcp.dhcpMode = 'server';
+      const savedPath = this.dependencies.saveConfig(this.config);
+      const result = await this.dependencies.prepareNetworkGateway(this.config, selected);
+      this.networkGatewayState = result;
+      this.config = this.dependencies.loadConfig(this.config.__savePath ?? savedPath);
+      this.refreshServiceConfigs();
+      this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
+        onCheck: (check) => this.addLog(`[PREFLIGHT] ${check.ok ? 'ok' : 'FAIL'} ${check.name}: ${check.detail}`),
+      });
+      return { savedPath, gateway: result, preflight: this.preflightResults };
+    });
+  }
+
+  async removeNetworkGateway() {
+    return this.runOperation('Removing Winception NAT gateway', async () => {
+      if (this.dependencies.isElevated() !== true) {
+        throw errorWithStatus('Gateway removal requires an elevated Web console session.', 400);
+      }
+      await this.stopAllServices();
+      const result = await this.dependencies.removeNetworkGateway(this.config);
+      this.config.network ??= {};
+      this.config.network.topology = 'shared-lan';
+      const savedPath = this.dependencies.saveConfig(this.config);
+      this.networkGatewayState = { topology: 'shared-lan', ready: true, detail: 'Gateway removed. Select a shared-LAN endpoint before starting services.' };
+      this.preflightResults = [];
+      return { savedPath, gateway: result };
     });
   }
 
@@ -754,6 +813,9 @@ export class ServiceController extends EventEmitter {
   async changeDhcpMode(mode) {
     if (!['server', 'proxy'].includes(mode)) {
       throw errorWithStatus(`Invalid DHCP mode: ${mode}. Expected server or proxy.`, 400);
+    }
+    if (networkTopology(this.config) === 'dual-nic-nat' && mode !== 'server') {
+      throw errorWithStatus('dual-nic-nat requires DHCP Server mode on the isolated PXE network.', 400);
     }
     return this.runOperation('Changing DHCP mode', async () => {
       await this.stopAllServices();

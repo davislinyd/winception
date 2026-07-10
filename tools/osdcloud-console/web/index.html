@@ -246,7 +246,7 @@
       <div class="drawer-body">
         <section class="drawer-section">
           <div class="drawer-section-header">
-            <h4>Service Interface Selection</h4>
+            <h4 title="單 NIC 的 Hyper-V 測試可選連到 VM 的 vEthernet (vSwitch)。這是部署服務綁定介面，不是 dual NIC NAT 的 PXE physical interface。">Service Interface Selection</h4>
             <div class="drawer-actions">
               <span id="pending-interface-label" class="font-technical-string text-technical-string text-on-surface-variant"></span>
               <button data-action="reload-endpoints" data-icon="refresh" type="button">Refresh endpoints</button>
@@ -282,6 +282,22 @@
             <span id="dhcp-mode-label" class="font-technical-string text-technical-string text-on-surface-variant"></span>
           </div>
           <div id="dhcp-mode-options" class="flex flex-col gap-sm"></div>
+        </section>
+
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <h4>Client Internet</h4>
+            <span id="network-topology-label" class="font-technical-string text-technical-string text-on-surface-variant"></span>
+          </div>
+          <p id="network-topology-detail" class="text-on-surface-variant">Shared LAN uses the current router. Dual NIC NAT creates a Hyper-V PXE switch and WinNAT without changing the WAN adapter.</p>
+          <div class="drawer-two-column mt-3">
+            <label title="僅供 dual NIC NAT 使用：選連到 router 或 Internet 的實體 NIC。不要選 vEthernet 或 Hyper-V vSwitch。">WAN physical interface<select id="network-wan-interface"></select></label>
+            <label title="僅供 dual NIC NAT 使用：選直接接 client switch 的第二張實體 NIC。單 NIC 或 Hyper-V VM 回歸測試不使用此欄位。">PXE physical interface<select id="network-pxe-interface"></select></label>
+          </div>
+          <div class="drawer-actions mt-3">
+            <button id="network-prepare-button" data-icon="lan" title="僅適用兩張不同實體 NIC。會將 PXE NIC 建立為 Winception-PXE vSwitch；單 NIC Hyper-V 測試請維持 shared-lan。" type="button">Prepare dual NIC NAT</button>
+            <button id="network-remove-button" data-icon="delete" class="danger" type="button">Remove NAT</button>
+          </div>
         </section>
 
         <section class="drawer-section">

@@ -108,6 +108,7 @@ const apiRouteTable = [
   { method: 'GET', path: '/api/auth/status', auth: false },
   { method: 'GET', path: '/api/state' },
   { method: 'GET', path: '/api/interfaces' },
+  { method: 'GET', path: '/api/network/state' },
   { method: 'GET', path: '/api/profiles' },
   { method: 'GET', path: '/api/os-images' },
   { method: 'GET', path: '/api/os-download-catalog' },
@@ -126,6 +127,8 @@ const apiRouteTable = [
   { method: 'POST', path: '/api/endpoint' },
   { method: 'POST', path: '/api/boot-mode' },
   { method: 'POST', path: '/api/dhcp-mode' },
+  { method: 'POST', path: '/api/network/prepare' },
+  { method: 'POST', path: '/api/network/remove' },
   { method: 'POST', path: '/api/profile' },
   { method: 'POST', path: '/api/os-image-delete' },
   { method: 'POST', path: '/api/os-download' },
@@ -325,6 +328,10 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, interfaces: await this.controller.listInterfaces() });
       return;
     }
+    if (req.method === 'GET' && pathname === '/api/network/state') {
+      sendJson(res, 200, { ok: true, gateway: await this.controller.inspectNetworkGateway() });
+      return;
+    }
     if (req.method === 'GET' && pathname === '/api/profiles') {
       sendJson(res, 200, { ok: true, profile: this.controller.getProfiles() });
       return;
@@ -420,6 +427,17 @@ export class WebManagementServer {
     if (pathname === '/api/endpoint') {
       const body = await readBody();
       const result = await this.controller.changeEndpoint(body.interface ?? body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/network/prepare') {
+      const body = await readBody();
+      const result = await this.controller.prepareNetworkGateway(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/network/remove') {
+      const result = await this.controller.removeNetworkGateway();
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }

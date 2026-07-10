@@ -1712,6 +1712,86 @@ export function renderDhcpMode(appState) {
   }
 }
 
+function isPhysicalGatewayInterface(item) {
+  const alias = String(item?.interfaceAlias ?? '');
+  const description = String(item?.interfaceDescription ?? '');
+  return !/^vEthernet\s*\(/iu.test(alias) && !/Hyper-V Virtual Ethernet/iu.test(description);
+}
+
+function networkInterfaceOptions(select, interfaces, selected, placeholder) {
+  select.replaceChildren();
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = placeholder;
+  select.append(empty);
+  for (const item of interfaces.filter(isPhysicalGatewayInterface)) {
+    const option = document.createElement('option');
+    option.value = item.interfaceAlias;
+    option.textContent = `${item.interfaceAlias} · ${item.ipAddress}/${item.prefixLength}${item.gateway ? ` · GW ${item.gateway}` : ''}`;
+    select.append(option);
+  }
+  select.value = selected;
+}
+
+export async function handleNetworkPrepare() {
+  const wanInterfaceAlias = state.networkWanInterface || elements.networkWanInterface.value;
+  const pxeInterfaceAlias = state.networkPxeInterface || elements.networkPxeInterface.value;
+  const ok = await confirmAction({
+    title: 'Prepare dual NIC NAT',
+    message: 'This stops deployment services, enables Hyper-V if needed, binds only the selected PXE NIC to Winception-PXE, and creates WinceptionNAT. The WAN NIC IP, gateway, DNS, and firewall profiles are not changed.',
+    details: [`WAN: ${wanInterfaceAlias || '(not selected)'}`, `PXE: ${pxeInterfaceAlias || '(not selected)'}`, 'A reboot may be required; a one-time SYSTEM task will resume the requested preparation.'],
+    confirmLabel: 'Prepare NAT',
+    severity: 'warning',
+  });
+  if (ok) {
+    await mutate('/api/network/prepare', { wanInterfaceAlias, pxeInterfaceAlias, internalSubnet: '192.168.100.0/24' });
+  }
+}
+
+export async function handleNetworkRemove() {
+  const ok = await confirmAction({
+    title: 'Remove Winception NAT',
+    message: 'This stops deployment services and removes only WinceptionNAT and Winception-PXE. WAN configuration is unchanged; select a shared-LAN endpoint before restarting services.',
+    confirmLabel: 'Remove NAT',
+    severity: 'danger',
+  });
+  if (ok) {
+    await mutate('/api/network/remove');
+  }
+}
+
+export function renderNetworkTopology(appState) {
+  if (!elements.networkTopologyLabel) {
+    return;
+  }
+  const network = appState.config?.network ?? {};
+  const nat = network.nat ?? {};
+  const gateway = network.gateway ?? {};
+  const dual = network.topology === 'dual-nic-nat';
+  elements.networkTopologyLabel.textContent = `active: ${network.topology ?? 'shared-lan'}`;
+  elements.networkTopologyDetail.textContent = dual
+    ? (gateway.detail || 'Dual NIC NAT requires a ready Hyper-V PXE switch and WinNAT.')
+    : 'Shared LAN: client Internet is provided by the current LAN/router. Use DHCP Server only when no other DHCP responder is present; use PXE Proxy when the router already assigns leases.';
+  const wanInterfaceAlias = state.networkWanInterface || nat.wanInterfaceAlias;
+  const pxeInterfaceAlias = state.networkPxeInterface || nat.pxeInterfaceAlias;
+  const physicalInterfaces = state.interfaces.filter(isPhysicalGatewayInterface);
+  networkInterfaceOptions(elements.networkWanInterface, physicalInterfaces, wanInterfaceAlias, 'Select WAN physical interface');
+  networkInterfaceOptions(elements.networkPxeInterface, physicalInterfaces, pxeInterfaceAlias, 'Select PXE physical interface');
+  const busy = state.busy || appState.operation?.running === true;
+  elements.networkWanInterface.disabled = busy;
+  elements.networkPxeInterface.disabled = busy;
+  elements.networkPrepareButton.disabled = busy || physicalInterfaces.length < 2;
+  elements.networkRemoveButton.disabled = busy || !dual;
+  elements.networkWanInterface.onchange = () => {
+    state.networkWanInterface = elements.networkWanInterface.value;
+  };
+  elements.networkPxeInterface.onchange = () => {
+    state.networkPxeInterface = elements.networkPxeInterface.value;
+  };
+  elements.networkPrepareButton.onclick = handleNetworkPrepare;
+  elements.networkRemoveButton.onclick = handleNetworkRemove;
+}
+
 export function renderSync(appState) {
   const config = appState.config;
   const targetRows = [

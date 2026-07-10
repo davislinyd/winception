@@ -49,6 +49,7 @@ Entry points (run by `package.json` scripts) stay at `src/` root: `webServer.js`
 | OS image shared helpers (consts, normalizers, hashing, cache log) | `src/osimages/shared.js` |
 | PowerShell exec + elevation | `src/windows/powershell.js` |
 | Network interfaces, DHCP subnet, SMB, service IPs | `src/windows/network.js` |
+| Hyper-V external PXE switch, WinNAT lifecycle, dual-NIC readiness | `src/windows/gateway.js` + `tools/Configure-WinceptionGateway.ps1` |
 | iPXE endpoint sync, boot.wim sync inputs/hash | `src/windows/bootArtifacts.js` |
 | boot.wim customization + secure boot validation | `src/windows/bootValidation.js` |
 | Preflight, port checks, SMB image, runtime staging, status cleanup | `src/windows/preflight.js` |

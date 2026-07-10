@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.4', () => {
+test('release metadata is aligned to v0.6.5', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.4');
-  assert.equal(packageLock.version, '0.6.4');
-  assert.equal(packageLock.packages[''].version, '0.6.4');
-  assert.match(changelog, /## v0\.6\.4 — 2026-07-10/);
-  assert.match(manual, /Operations Manual · v0\.6\.4/);
-  assert.match(manual, /Product documentation for Web v0\.6\.4/);
+  assert.equal(packageJson.version, '0.6.5');
+  assert.equal(packageLock.version, '0.6.5');
+  assert.equal(packageLock.packages[''].version, '0.6.5');
+  assert.match(changelog, /## v0\.6\.5 — 2026-07-10/);
+  assert.match(manual, /Operations Manual · v0\.6\.5/);
+  assert.match(manual, /Product documentation for Web v0\.6\.5/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -808,6 +808,26 @@ test('web UI makes service cards stateful toggles', () => {
   assert.match(styles, /\.status-services-grid \{\s*grid-template-columns: minmax\(0, 1fr\) !important;/);
   assert.match(styles, /\.service-card-action:hover/);
   assert.match(styles, /\.service-card-action:focus-visible/);
+});
+
+test('web UI exposes explicit dual NIC NAT controls without changing WAN settings', () => {
+  const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
+  const script = readWebScript();
+  assert.match(html, /id="network-wan-interface"/);
+  assert.match(html, /id="network-pxe-interface"/);
+  assert.match(html, /id="network-prepare-button"/);
+  assert.match(html, /單 NIC 的 Hyper-V 測試可選連到 VM 的 vEthernet/);
+  assert.match(html, /單 NIC 或 Hyper-V VM 回歸測試不使用此欄位/);
+  assert.match(html, /單 NIC Hyper-V 測試請維持 shared-lan/);
+  assert.match(script, /Prepare dual NIC NAT/);
+  assert.match(script, /mutate\('\/api\/network\/prepare'/);
+  assert.match(script, /WAN NIC IP, gateway, DNS, and firewall profiles are not changed/);
+  assert.match(script, /mutate\('\/api\/network\/remove'/);
+  assert.match(script, /networkWanInterface: ''/);
+  assert.match(script, /networkPxeInterface: ''/);
+  assert.match(script, /\^vEthernet\\s\*\\\(/);
+  assert.match(script, /state\.networkWanInterface \|\| nat\.wanInterfaceAlias/);
+  assert.match(script, /state\.networkPxeInterface \|\| nat\.pxeInterfaceAlias/);
 });
 
 test('operations buttons use neutral, warning, and danger severity without blue default', () => {

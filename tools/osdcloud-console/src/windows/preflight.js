@@ -8,6 +8,7 @@ import { evaluateDeploymentProfilePayload } from '../profiles/profiles.js';
 import { resolveBaseConfigPath, resolveRepoRoot } from './bootArtifacts.js';
 import { checkBootWimSyncState, evaluateBootModeConfig, evaluateBootWimCustomization, evaluateSecureBootSignature, evaluateSecureBootTftpTree, evaluateSecureBootWimIdentity } from './bootValidation.js';
 import { evaluateDhcpSubnet, evaluateServiceIp, getServiceBindIps, getServiceIpStates, getSmbShareInfo, parseUncPath, shareNameFromConfig, smbAccessAllowsRead, smbBackingImagePath } from './network.js';
+import { evaluateNetworkGateway, inspectNetworkGateway, networkTopology } from './gateway.js';
 import { isElevated, runPowerShell } from './powershell.js';
 import { fail, pass } from './shared.js';
 
@@ -157,6 +158,14 @@ export async function runPreflight(config, services = {}, options = {}) {
 
   if ((config.dhcp?.dhcpMode ?? 'server') !== 'proxy') {
     report(evaluateDhcpSubnet(config));
+  }
+
+  if (networkTopology(config) === 'dual-nic-nat') {
+    try {
+      report(evaluateNetworkGateway(config, await inspectNetworkGateway(config)));
+    } catch (error) {
+      report(fail('Winception NAT gateway', error.message));
+    }
   }
 
   for (const relativePath of config.paths.expectedHttpFiles) {

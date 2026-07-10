@@ -414,6 +414,27 @@ export function applyServiceEndpoint(config, choice, options = {}) {
 }
 
 export function validateConfig(config) {
+  config.network ??= {};
+  config.network.topology ??= 'shared-lan';
+  if (!['shared-lan', 'dual-nic-nat'].includes(config.network.topology)) {
+    throw new Error(`Invalid network.topology: ${config.network.topology}. Expected shared-lan or dual-nic-nat.`);
+  }
+  config.network.nat ??= {};
+  config.network.nat.switchName ??= 'Winception-PXE';
+  config.network.nat.natName ??= 'WinceptionNAT';
+  config.network.nat.internalSubnet ??= '192.168.100.0/24';
+  if (config.network.topology === 'dual-nic-nat') {
+    if (!config.network.nat.wanInterfaceAlias || !config.network.nat.pxeInterfaceAlias) {
+      throw new Error('dual-nic-nat requires network.nat.wanInterfaceAlias and network.nat.pxeInterfaceAlias.');
+    }
+    if (config.network.nat.wanInterfaceAlias === config.network.nat.pxeInterfaceAlias) {
+      throw new Error('dual-nic-nat WAN and PXE interfaces must be different.');
+    }
+    if ((config.dhcp?.dhcpMode ?? 'server') !== 'server') {
+      throw new Error('dual-nic-nat requires dhcp.dhcpMode=server.');
+    }
+  }
+
   const isProxyMode = (config.dhcp?.dhcpMode ?? 'server') === 'proxy';
   const required = [
     ['adapter', 'interfaceAlias'],

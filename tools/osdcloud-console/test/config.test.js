@@ -50,6 +50,26 @@ test('accepts minimum config shape', () => {
 
   assert.equal(validateConfig(config), config);
   assert.deepEqual(config.web, { host: '127.0.0.1', port: 8080 });
+  assert.equal(config.network.topology, 'shared-lan');
+  assert.equal(config.network.nat.internalSubnet, '192.168.100.0/24');
+});
+
+test('dual NIC NAT requires distinct adapters and DHCP Server mode', () => {
+  const config = {
+    adapter: { interfaceAlias: 'PXE', serverIp: '192.168.100.1' },
+    dhcp: { listenIp: '192.168.100.1', leaseStartIp: '192.168.100.200', leaseEndIp: '192.168.100.250', subnetMask: '255.255.255.0', router: '192.168.100.1', bootFile: 'bootmgfw.efi', ipxeBootUrl: 'http://192.168.100.1/osdcloud/boot.ipxe', dhcpMode: 'server' },
+    tftp: { root: 'C:\\PXE-TFTP' },
+    http: { root: 'C:\\PXE-HttpRoot', host: '192.168.100.1', statusRoot: 'C:\\status' },
+    paths: { expectedHttpFiles: ['osdcloud\\boot.ipxe'] },
+    smb: { share: '\\\\192.168.100.1\\OSDCloudiPXE' },
+    network: { topology: 'dual-nic-nat', nat: { wanInterfaceAlias: 'Wi-Fi', pxeInterfaceAlias: 'Ethernet' } },
+  };
+  assert.doesNotThrow(() => validateConfig(config));
+  config.dhcp.dhcpMode = 'proxy';
+  assert.throws(() => validateConfig(config), /requires dhcp\.dhcpMode=server/);
+  config.dhcp.dhcpMode = 'server';
+  config.network.nat.pxeInterfaceAlias = 'Wi-Fi';
+  assert.throws(() => validateConfig(config), /must be different/);
 });
 
 test('validates Web management server config', () => {

@@ -1485,3 +1485,38 @@ test('changeBootMode persists the mode, refreshes services, and reruns preflight
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('dual NIC NAT preparation forces DHCP Server and preserves the service lifecycle boundary', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-gateway-'));
+  try {
+    const calls = [];
+    const { controller, config, services } = makeController(root, {
+      dependencies: {
+        saveConfig: () => path.join(root, 'config.json'),
+        loadConfig: () => config,
+        prepareNetworkGateway: async (nextConfig, input) => {
+          calls.push({ nextConfig, input });
+          return {
+            topology: 'dual-nic-nat', ready: true,
+            virtualAdapter: { name: 'vEthernet (Winception-PXE)' },
+            wan: { name: 'Wi-Fi' }, nat: { name: 'WinceptionNAT' },
+          };
+        },
+      },
+    });
+
+    const result = await controller.prepareNetworkGateway({
+      wanInterfaceAlias: 'Wi-Fi', pxeInterfaceAlias: 'Ethernet', internalSubnet: '192.168.100.0/24',
+    });
+    assert.equal(result.gateway.ready, true);
+    assert.equal(config.network.topology, 'dual-nic-nat');
+    assert.equal(config.network.nat.wanInterfaceAlias, 'Wi-Fi');
+    assert.equal(config.network.nat.pxeInterfaceAlias, 'Ethernet');
+    assert.equal(config.dhcp.dhcpMode, 'server');
+    assert.equal(calls.length, 1);
+    assert.ok(services.dhcp.stops >= 1);
+    await assert.rejects(() => controller.changeDhcpMode('proxy'), /requires DHCP Server mode/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

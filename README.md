@@ -186,11 +186,20 @@ Web Console 的頂部工作區是 **Deploy** / **Monitor**。`Deploy` 內含 gui
 | DHCP Server | Winception 管理獨立部署網段的 lease | 同一網段不應有其他 DHCP responder |
 | PXE Proxy | 既有網路已提供 DHCP，Winception 只提供 PXE boot options | 需要確認既有 DHCP 與路由設定可讓 client 回到 `<service-ip>` |
 
+Client Internet 拓撲：
+
+| 拓撲 | Host 接法 | Client Internet |
+| --- | --- | --- |
+| Shared LAN（預設） | Winception 與 client 接同一 switch；router 也接該 LAN | 由既有 router/LAN 決定；依當下 DHCP Server 或 PXE Proxy 模式操作 |
+| Dual NIC NAT | WAN NIC 接 Internet；PXE NIC 接 client 專用 switch | Web Console 明確確認後建立 `Winception-PXE` Hyper-V switch 與 `WinceptionNAT`；PXE client gateway 是 host `192.168.100.1` |
+
+Dual NIC NAT 不修改 WAN NIC 的 IP、gateway、DNS 或全域 firewall。它會停止 deployment services、要求 PXE NIC 沒有 default gateway、拒絕既有 ICS/非 Winception NetNat 衝突，並固定使用 DHCP Server；Hyper-V 初次啟用若需要 reboot，會以一次性 SYSTEM task 完成使用者已確認的網路準備。停止 HTTP/TFTP/DHCP 不會停用 NAT，因此已部署 client 的 post-logon software/custom scripts 仍可上網。
+
 Client 網路邊界：
 
 - Deployment 階段只需要連到 Winception server 的 DHCP、TFTP、HTTP、SMB、Torrent 與 status endpoints；client 不需要外部 Internet。
 - WinPE / OSDCloud / OOBE injection / SetupComplete staging 會停用 OSDCloud 的 external module update、Microsoft Update Catalog、Windows Update 與 Windows Update driver 分支。
-- 外部 Internet 只在 post-logon finalizer 開始執行 active profile 的 software/custom script sequence 後才屬於允許範圍。
+- Dual NIC NAT 讓 client 全程具有外網路徑，但 WinPE 與 OSDCloud 仍不依賴 external Internet；實際 Internet 使用維持在 post-logon finalizer 的 software/custom script sequence。
 
 Boot mode 決策：
 
@@ -517,11 +526,20 @@ Service network decision:
 | DHCP Server | Winception owns leases on an isolated deployment network | No other DHCP responder should answer on the same segment |
 | PXE Proxy | Existing network DHCP is already present and Winception only supplies PXE boot options | Confirm existing DHCP and routing let clients reach `<service-ip>` |
 
+Client Internet topologies:
+
+| Topology | Host wiring | Client Internet |
+| --- | --- | --- |
+| Shared LAN (default) | Winception and clients use the same switch, which is also connected to the router | Owned by the existing router/LAN; select DHCP Server or PXE Proxy for that segment |
+| Dual NIC NAT | WAN NIC reaches the Internet; PXE NIC reaches a client-only switch | After explicit Web confirmation, Winception creates the `Winception-PXE` Hyper-V switch and `WinceptionNAT`; PXE clients use host `192.168.100.1` as their gateway |
+
+Dual NIC NAT does not change the WAN NIC IP, gateway, DNS, or global firewall. It stops deployment services, requires the PXE NIC to have no default gateway, rejects ICS/non-Winception NetNat conflicts, and always uses DHCP Server mode. If the first Hyper-V enablement needs a reboot, a one-time SYSTEM task completes the already-confirmed network preparation. Stopping HTTP/TFTP/DHCP does not stop NAT, so deployed clients retain Internet access for post-logon software/custom scripts.
+
 Client network boundary:
 
 - The deployment phase only needs access to Winception server DHCP, TFTP, HTTP, SMB, Torrent, and status endpoints; the client does not need external Internet.
 - WinPE / OSDCloud / OOBE injection / SetupComplete staging disables OSDCloud external module update, Microsoft Update Catalog, Windows Update, and Windows Update driver branches.
-- External Internet is allowed only after the post-logon finalizer starts the active profile software/custom script sequence.
+- Dual NIC NAT gives clients a route throughout deployment, but WinPE and OSDCloud still have no external Internet dependency; intended Internet use remains the post-logon finalizer software/custom script sequence.
 
 Boot mode decision:
 

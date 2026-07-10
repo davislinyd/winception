@@ -21,14 +21,14 @@ This is the active production-like validation path.
 Physical validation checklist:
 
 1. Confirm the intended service endpoint from live Web/config/runtime state.
-2. Confirm the real network DHCP server is disabled for the test window.
+2. For `shared-lan`, choose PXE Proxy when the real LAN DHCP server remains active; choose DHCP Server only after it is disabled. For `dual-nic-nat`, confirm the client-only PXE switch has no other DHCP responder and that the PXE client gateway is the Winception vNIC.
 3. Confirm the selected service IP exists on an enabled IPv4 adapter with the intended prefix.
 4. Run endpoint sync through Web or the explicit endpoint script with WinPE commit and asset sync.
 5. Confirm HTTP root includes `boot.ipxe`, `wimboot`, `bootmgr`, `bootx64.efi`, `BCD`, `boot.sdi`, and `boot.wim`. In `secureboot` mode also confirm the TFTP root includes `bootmgfw.efi`, `Boot\BCD`, `Boot\boot.sdi`, `Boot\Fonts`, and `sources\boot.wim` (hardlinked to the published boot.wim).
 6. Run preflight and resolve blocked items before starting services.
 7. Start HTTP/TFTP/DHCP from the Web console service controls.
 8. Boot the physical laptop from UEFI IPv4 PXE with no USB or ISO media. In `secureboot` mode leave Secure Boot enabled (Dell F2: Secure Boot Enabled, Integrated NIC Enabled w/PXE, UEFI-only boot); in `ipxe` mode Secure Boot must be disabled first.
-9. Confirm DHCP returns the intended lease range, router, DNS, and the mode-specific boot file: `bootmgfw.efi` (`secureboot`) or `snponly.efi` plus the iPXE boot URL (`ipxe`).
+9. Confirm DHCP returns the intended lease range, router, DNS, and the mode-specific boot file: `bootmgfw.efi` (`secureboot`) or `snponly.efi` plus the iPXE boot URL (`ipxe`). In `dual-nic-nat`, router must equal the Winception PXE vNIC and Windows post-logon must resolve DNS and reach HTTPS through WinNAT.
 10. Confirm WinPE maps the SMB share, reads `selected-os.json`, applies the selected exported WIM from SMB, posts progress, and reboots.
 11. Confirm Windows SetupComplete, app/custom script phases if selected, logon reporting, and final `windows-desktop-ready`.
 12. Inspect OSDCloud logs for empty `ImageFileUrl`, `ImageFileDestination` on `Z:\OSDCloud\OS\...`, `ImageFileDestination.PSDrive.DisplayRoot` pointing to `\\<service-ip>\OSDCloudiPXE`, and `OSImageIndex = 1`.

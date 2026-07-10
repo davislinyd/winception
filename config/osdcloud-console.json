@@ -7,6 +7,14 @@
                     "interfaceMetric":  5,
                     "remoteSubnet":  "192.168.100.0/24"
                 },
+    "network":  {
+                    "topology":  "shared-lan",
+                    "nat":  {
+                                "switchName":  "Winception-PXE",
+                                "natName":  "WinceptionNAT",
+                                "internalSubnet":  "192.168.100.0/24"
+                            }
+                },
     "dhcp":  {
                  "listenIp":  "192.168.100.1",
                  "listenPort":  67,

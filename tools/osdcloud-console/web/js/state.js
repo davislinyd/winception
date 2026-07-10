@@ -8,6 +8,8 @@ export const state = {
   selectedRunId: null,
   pendingInterface: null,
   interfaces: [],
+  networkWanInterface: '',
+  networkPxeInterface: '',
   interfacesLoading: false,
   interfacesError: null,
   osDownloadCatalog: [],
