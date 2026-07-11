@@ -1009,8 +1009,9 @@ export function showValidationEvidence(runId) {
     return;
   }
   state.selectedRunId = runId;
+  state.validationEvidenceOpen = true;
   openDialog(elements.validationEvidenceDialog);
-  refresh().catch((error) => window.alert(error.message));
+  refresh({ includeEvidence: true }).catch((error) => window.alert(error.message));
 }
 
 export function openValidationEvidenceFromTarget(target) {
@@ -2051,11 +2052,11 @@ export function renderValidation(appState) {
   ]);
 
   setDefinitionList(elements.runTiming, [
-    ['Started', localDateTime(run.startedAt)],
-    ['WinPE End', localDateTime(run.winpeEndedAt)],
-    ['Windows Start', localDateTime(run.windowsStartedAt)],
-    ['Completed', localDateTime(run.completedAt)],
-    ['Failed', localDateTime(run.failedAt)],
+    ['Started (host UTC+8)', localDateTime(run.startedAt)],
+    ['WinPE End (host UTC+8)', localDateTime(run.winpeEndedAt)],
+    ['Windows Start (host UTC+8)', localDateTime(run.windowsStartedAt)],
+    ['Completed (host UTC+8)', localDateTime(run.completedAt)],
+    ['Failed (host UTC+8)', localDateTime(run.failedAt)],
     ['Elapsed', elapsed(run.elapsedSeconds)],
   ]);
 
@@ -2064,6 +2065,15 @@ export function renderValidation(appState) {
     || event.stdoutTailText
     || event.stderrTailText
     || event.transcriptTailText);
+  const installerFinishedEvent = latestRunEvent(appState, (event) => event.stage === 'windows-apps-finished');
+  const completedStepLines = Array.isArray(installerFinishedEvent?.completedSteps)
+    ? installerFinishedEvent.completedSteps.map((step) => {
+      const type = step?.type === 'script' ? 'Script' : 'Application';
+      const status = step?.status === 'succeeded' ? 'Succeeded' : 'Failed';
+      const duration = Number.isFinite(step?.durationSeconds) ? elapsed(step.durationSeconds) : 'Not reported';
+      return `${type}: ${text(step?.name, 'Unnamed step')} — ${status} — ${duration}`;
+    })
+    : [];
   setDefinitionListNodes(elements.installerErrorEvidence, [
     ['Stage', installerErrorEvent?.stage ?? 'Not reported'],
     ['ExitCode', installerErrorEvent?.exitCode ?? 'Not reported'],
@@ -2075,6 +2085,7 @@ export function renderValidation(appState) {
     ['StdoutTail', makePreformattedValue(installerErrorEvent?.stdoutTailText ?? 'Not reported')],
     ['StderrTail', makePreformattedValue(installerErrorEvent?.stderrTailText ?? 'Not reported')],
     ['TranscriptTail', makePreformattedValue(installerErrorEvent?.transcriptTailText ?? 'Not reported')],
+    ['Completed steps', makePreformattedValue(completedStepLines.length ? completedStepLines.join('\n') : 'Not reported')],
   ]);
 
   const screenshotPattern = `${appState.config.http.statusRoot}\\screenshots\\${run.runId}\\*.png`;
@@ -2123,7 +2134,7 @@ export function renderTimeline(appState) {
     const row = document.createElement('div');
     row.className = 'timeline-row';
     const when = document.createElement('strong');
-    when.textContent = event.receivedAt ?? event.timestamp ?? '-';
+    when.textContent = localDateTime(event.receivedAt);
     const detail = document.createElement('span');
 
     if (event.stage === 'torrent-peers') {
@@ -2181,8 +2192,13 @@ export function renderWarningBanner(appState) {
   const preflight = appState.preflight ?? [];
   const customizationCheck = preflight.find((c) => String(c.name).toLowerCase() === 'winpe boot.wim customization');
   const syncCheck = preflight.find((c) => String(c.name).toLowerCase() === 'winpe boot.wim synchronization');
+  const health = appState.health ?? {};
 
-  if (customizationCheck && customizationCheck.ok === false) {
+  if (health.warning) {
+    const eventLoopLag = Number.isFinite(health.eventLoopLagMs) ? `; event-loop lag ${health.eventLoopLagMs} ms` : '';
+    elements.warningBanner.classList.remove('hidden');
+    elements.warningBannerText.textContent = `Host observability warning: state refresh ${Math.round(health.stateRequestMs ?? health.stateSnapshotMs ?? 0)} ms${eventLoopLag}; last successful refresh ${localDateTime(health.lastSuccessfulRefreshAt)}.`;
+  } else if (customizationCheck && customizationCheck.ok === false) {
     elements.warningBanner.classList.remove('hidden');
     elements.warningBannerText.textContent = customizationCheck.detail || 'WinPE boot.wim has not been customized yet. Please run Endpoint Sync.';
   } else if (syncCheck && syncCheck.ok === false) {

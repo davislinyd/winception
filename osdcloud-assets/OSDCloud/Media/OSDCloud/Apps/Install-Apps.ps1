@@ -2,6 +2,8 @@ $ErrorActionPreference = 'Stop'
 
 $LogDir = if ($env:OSDCloudLogDir) { $env:OSDCloudLogDir } else { 'C:\Windows\Temp\osdcloud-logs' }
 $DefaultTimeoutSeconds = 900
+$ProgressHeartbeatSeconds = 2
+$SlowStepSeconds = 120
 $StatePath = Join-Path $LogDir 'install-sequence-state.json'
 $SequenceSummaryPath = Join-Path $LogDir 'install-sequence-summary.json'
 $CustomScriptSummaryPath = Join-Path $LogDir 'custom-scripts-summary.json'
@@ -58,6 +60,23 @@ function Write-DeploymentProgress {
     }
     $Progress.updatedAt = (Get-Date).ToString('o')
     Write-JsonFileAtomic -Path $ProgressPath -Value $Progress
+}
+
+function Update-CurrentStepProgress {
+    param(
+        [Parameter(Mandatory)] $Progress,
+        [Parameter(Mandatory)][double] $StepElapsedSeconds
+    )
+
+    if (-not $Progress.currentStep) {
+        return
+    }
+
+    $Progress.currentStep.status = 'running'
+    $Progress.currentStep.elapsedSeconds = [Math]::Round($StepElapsedSeconds, 3)
+    $Progress.currentStep.lastHeartbeatAt = (Get-Date).ToString('o')
+    $Progress.currentStep.slow = ($StepElapsedSeconds -ge $SlowStepSeconds)
+    Write-DeploymentProgress -Progress $Progress
 }
 
 function ConvertTo-PositiveIntegerValue {
@@ -395,7 +414,8 @@ function Invoke-StepProcess {
         [Parameter(Mandatory)][string] $StepType,
         [Parameter(Mandatory)][int] $StepIndex,
         [Parameter(Mandatory)][int] $TimeoutSeconds,
-        [Parameter(Mandatory)][string] $LogPath
+        [Parameter(Mandatory)][string] $LogPath,
+        [Parameter(Mandatory)] $Progress
     )
 
     $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -424,7 +444,34 @@ catch {
     $previousEnvironment = Set-StepEnvironment -StatePathValue $StatePathValue -StepId $StepId -StepType $StepType -StepIndex $StepIndex -TimeoutSeconds $TimeoutSeconds
     try {
         $process = Start-Process -FilePath $powerShellPath -ArgumentList @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $bootstrapPath) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
-        $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
+        $stepTimer = [System.Diagnostics.Stopwatch]::StartNew()
+        $heartbeatTimer = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            Update-CurrentStepProgress -Progress $Progress -StepElapsedSeconds 0
+        }
+        catch {
+            Write-StepLog -Path $LogPath -Message "Warning: could not write initial progress heartbeat: $($_.Exception.Message)"
+        }
+
+        $timedOut = $false
+        while (-not $process.WaitForExit(1000)) {
+            $stepElapsedSeconds = $stepTimer.Elapsed.TotalSeconds
+            if ($stepElapsedSeconds -ge $TimeoutSeconds) {
+                $timedOut = $true
+                break
+            }
+            if ($heartbeatTimer.Elapsed.TotalSeconds -ge $ProgressHeartbeatSeconds) {
+                try {
+                    Update-CurrentStepProgress -Progress $Progress -StepElapsedSeconds $stepElapsedSeconds
+                }
+                catch {
+                    Write-StepLog -Path $LogPath -Message "Warning: could not write progress heartbeat: $($_.Exception.Message)"
+                }
+                $heartbeatTimer.Restart()
+            }
+        }
+        $stepTimer.Stop()
+        $heartbeatTimer.Stop()
         if ($timedOut) {
             Write-StepLog -Path $LogPath -Message "TimeoutSeconds: $TimeoutSeconds"
             Write-StepLog -Path $LogPath -Message "Timeout: process exceeded timeout and will be terminated."
@@ -547,7 +594,7 @@ function Invoke-SequenceStep {
         $result.script = $scriptPath
         Write-StepLog -Path $logPath -Message "Script: $scriptPath"
 
-        $processResult = Invoke-StepProcess -ScriptPath $scriptPath -StatePathValue $StatePathValue -StepId $stepId -StepType $stepType -StepIndex $StepIndex -TimeoutSeconds $timeoutSeconds -LogPath $logPath
+        $processResult = Invoke-StepProcess -ScriptPath $scriptPath -StatePathValue $StatePathValue -StepId $stepId -StepType $stepType -StepIndex $StepIndex -TimeoutSeconds $timeoutSeconds -LogPath $logPath -Progress $Progress
         $result.stdoutTailText = $processResult.stdoutTailText
         $result.stderrTailText = $processResult.stderrTailText
         $hasPowerShellErrorOutput = -not [string]::IsNullOrWhiteSpace($processResult.stderrTailText) -and (
@@ -665,14 +712,28 @@ try {
     Initialize-InstallStateFile -Path $StatePath
     Assert-ValidInstallStateFile -Path $StatePath -Label 'Initial'
     $installSequence = @(Get-InstallSequence -AppsRoot $appsRoot -Profile $profile)
+    $previousProgress = $null
+    if (Test-Path -LiteralPath $ProgressPath -PathType Leaf) {
+        try {
+            $previousProgress = Get-Content -LiteralPath $ProgressPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+        }
+    }
+    $progressStartedAt = (Get-Date).ToString('o')
     $progress = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         status = 'running'
+        phase = 'installing'
+        queuedAt = if ($previousProgress) { $previousProgress.queuedAt } else { $progressStartedAt }
+        phaseStartedAt = $progressStartedAt
+        finalizerStartedAt = if ($previousProgress) { $previousProgress.finalizerStartedAt } else { $progressStartedAt }
+        heartbeatAt = $progressStartedAt
         totalSteps = $installSequence.Count
         completedSteps = @()
         currentStep = $null
         failure = $null
-        startedAt = (Get-Date).ToString('o')
+        startedAt = $progressStartedAt
         updatedAt = $null
         finishedAt = $null
         elapsedSeconds = 0
@@ -693,6 +754,10 @@ try {
             name = [string] $entry.name
             startedAt = (Get-Date).ToString('o')
             timeoutSeconds = Get-StepTimeoutSeconds -Entry $entry -Execution $execution
+            status = 'starting'
+            elapsedSeconds = 0
+            lastHeartbeatAt = (Get-Date).ToString('o')
+            slow = $false
         }
         Write-DeploymentProgress -Progress $progress
         $result = Invoke-SequenceStep -AppsRoot $appsRoot -ScriptsRoot $scriptsRoot -Entry $entry -StepIndex $stepIndex -Execution $execution -StatePathValue $StatePath
@@ -740,6 +805,9 @@ try {
     }
 
     $progress.status = 'succeeded'
+    $progress.phase = 'completed'
+    $progress.phaseStartedAt = (Get-Date).ToString('o')
+    $progress.heartbeatAt = $progress.phaseStartedAt
     $progress.currentStep = $null
     $progress.finishedAt = (Get-Date).ToString('o')
     Write-DeploymentProgress -Progress $progress

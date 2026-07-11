@@ -294,6 +294,10 @@ elements.refreshButton.addEventListener('click', () => {
   refresh().catch((error) => window.alert(error.message));
 });
 
+elements.validationEvidenceDialog?.addEventListener('close', () => {
+  state.validationEvidenceOpen = false;
+});
+
 elements.authForm?.addEventListener('submit', (event) => {
   event.preventDefault();
   saveAuthToken(elements.webTokenInput?.value ?? '');

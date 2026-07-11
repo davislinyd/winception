@@ -907,7 +907,7 @@ test('endpoint sync injects deployment Config scripts from the bundle, not the m
   assert.doesNotMatch(mountInjection, /\$ipxeLab 'Config\\Scripts\\Shutdown\\Invoke-OobeCustomization\.ps1'/);
 });
 
-test('SetupComplete defers client sequence to a SYSTEM logon task and gates desktop-ready', () => {
+test('SetupComplete defers client sequence to a SYSTEM startup task and gates desktop-ready', () => {
   const setupPath = path.join(
     process.cwd(),
     'osdcloud-assets',
@@ -933,6 +933,12 @@ test('SetupComplete defers client sequence to a SYSTEM logon task and gates desk
   assert.match(setup, /\$currentBootTimeUtcTicks -eq \$RegisteredBootTimeUtcTicks/);
   assert.match(setup, /Client finalization is waiting for the required post-SetupComplete reboot/);
   assert.match(setup, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
+  assert.match(setup, /New-ScheduledTaskTrigger -AtStartup/);
+  assert.match(setup, /Wait-ForTargetUserInteractiveSession -TargetUser \$UserName/);
+  assert.match(setup, /\[int\] \$TimeoutSeconds = 600/);
+  assert.match(setup, /\[int\] \$PollSeconds = 2/);
+  assert.match(setup, /Set-DeploymentProgressPhase -Phase 'awaiting-user-session'/);
+  assert.match(setup, /Set-DeploymentProgressPhase -Phase 'finalizer-started'/);
   assert.match(setup, /New-ItemProperty -Path \$runOnce -Name '!OSDCloudDeploymentProgress'/);
   assert.match(setup, /Show-DeploymentProgress\.ps1/);
   assert.match(setup, /if \(\$progressStatus -ne 'succeeded'\)/);
@@ -942,12 +948,18 @@ test('SetupComplete defers client sequence to a SYSTEM logon task and gates desk
   assert.match(setup, /\$AppInstallerHeartbeatSeconds = 5/);
   assert.match(setup, /\$process\.WaitForExit\(\$AppInstallerHeartbeatSeconds \* 1000\)/);
   assert.match(setup, /Get-ClientInstallerProgressSummary/);
+  assert.match(setup, /function Get-SafeInstallerCompletionSummary/);
+  assert.match(setup, /completedSteps = \$completedSteps/);
+  assert.match(setup, /\$finishedSummary = Get-SafeInstallerCompletionSummary/);
+  assert.match(setup, /windows-apps-finished'.*-Extra \$finishedSummary/);
   assert.doesNotMatch(setup, /Start-Sleep -Seconds \$AppInstallerHeartbeatSeconds/);
   assert.match(setup, /-MultipleInstances IgnoreNew/);
   assert.doesNotMatch(setup, /\$deadline = \(Get-Date\)\.AddMinutes\(30\)/);
   assert.match(setup, /Set-DeploymentProgressFailure -Category 'interrupted'/);
   assert.equal(isOuterFunction('Write-JsonFileAtomic'), true);
   assert.equal(isOuterFunction('Initialize-DeploymentProgress'), true);
+  assert.equal(isOuterFunction('Set-DeploymentProgressPhase'), true);
+  assert.equal(isOuterFunction('Wait-ForTargetUserInteractiveSession'), true);
   assert.equal(isOuterFunction('Set-DeploymentProgressFailure'), true);
   assert.doesNotMatch(preLogonBody, /\$clientAppsResult = Invoke-ClientAppInstallers/);
   assert.match(preLogonBody, /\$finalizer = Install-PostLogonFinalizer/);
@@ -966,6 +978,25 @@ test('SetupComplete defers client sequence to a SYSTEM logon task and gates desk
   assert.equal(winPeMirror.replace(/\r\n/gu, '\n'), setup.replace(/\r\n/gu, '\n'));
 });
 
+test('finished app status sends only the safe completed-step summary', () => {
+  const setup = fs.readFileSync(path.join(
+    process.cwd(),
+    'osdcloud-assets',
+    'OSDCloud',
+    'Config',
+    'Scripts',
+    'SetupComplete',
+    'SetupComplete.ps1',
+  ), 'utf8');
+  const finishedStart = setup.indexOf('$finishedSummary = Get-SafeInstallerCompletionSummary');
+  const finishedEnd = setup.indexOf('return $result', finishedStart);
+  const finishedBlock = setup.slice(finishedStart, finishedEnd);
+
+  assert.match(finishedBlock, /windows-apps-finished/);
+  assert.match(finishedBlock, /-Extra \$finishedSummary/);
+  assert.doesNotMatch(finishedBlock, /stdoutTailText|stderrTailText|transcriptTailText|stepLogPath|stepId/);
+});
+
 test('client progress viewer is full-screen, topmost, and has no running close path', () => {
   const viewer = fs.readFileSync(path.join(process.cwd(), 'Softwares', 'Show-DeploymentProgress.ps1'), 'utf8');
   assert.match(viewer, /WindowStyle="None" ResizeMode="NoResize" WindowState="Maximized" Topmost="True"/);
@@ -973,6 +1004,9 @@ test('client progress viewer is full-screen, topmost, and has no running close p
   assert.match(viewer, /Acknowledge and return to desktop/);
   assert.match(viewer, /Elapsed: \{0:D2\}:\{1:D2\}:\{2:D2\}/);
   assert.match(viewer, /\$State\.elapsedSeconds/);
+  assert.match(viewer, /awaiting-user-session/);
+  assert.match(viewer, /Waiting for the target user desktop/);
+  assert.match(viewer, /phaseElapsedSeconds/);
   assert.match(viewer, /\$view\.status -eq 'succeeded'/);
   assert.doesNotMatch(viewer, /rawException|stdoutTailText|stderrTailText/);
 });

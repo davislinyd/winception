@@ -712,14 +712,28 @@ try {
     Initialize-InstallStateFile -Path $StatePath
     Assert-ValidInstallStateFile -Path $StatePath -Label 'Initial'
     $installSequence = @(Get-InstallSequence -AppsRoot $appsRoot -Profile $profile)
+    $previousProgress = $null
+    if (Test-Path -LiteralPath $ProgressPath -PathType Leaf) {
+        try {
+            $previousProgress = Get-Content -LiteralPath $ProgressPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+        }
+    }
+    $progressStartedAt = (Get-Date).ToString('o')
     $progress = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         status = 'running'
+        phase = 'installing'
+        queuedAt = if ($previousProgress) { $previousProgress.queuedAt } else { $progressStartedAt }
+        phaseStartedAt = $progressStartedAt
+        finalizerStartedAt = if ($previousProgress) { $previousProgress.finalizerStartedAt } else { $progressStartedAt }
+        heartbeatAt = $progressStartedAt
         totalSteps = $installSequence.Count
         completedSteps = @()
         currentStep = $null
         failure = $null
-        startedAt = (Get-Date).ToString('o')
+        startedAt = $progressStartedAt
         updatedAt = $null
         finishedAt = $null
         elapsedSeconds = 0
@@ -791,6 +805,9 @@ try {
     }
 
     $progress.status = 'succeeded'
+    $progress.phase = 'completed'
+    $progress.phaseStartedAt = (Get-Date).ToString('o')
+    $progress.heartbeatAt = $progress.phaseStartedAt
     $progress.currentStep = $null
     $progress.finishedAt = (Get-Date).ToString('o')
     Write-DeploymentProgress -Progress $progress

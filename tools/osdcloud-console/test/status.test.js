@@ -352,6 +352,7 @@ test('archives a run into the archive subfolder and lists it via the archived fl
   try {
     const config = statusConfig(root);
     seedRun(root, 'run-a');
+    fs.writeFileSync(path.join(root, 'run-a.late.jsonl'), '{"stage":"late"}\n');
     seedRun(root, 'run-b');
     fs.writeFileSync(path.join(root, 'latest-summary.json'), JSON.stringify({ runId: 'run-a' }));
 
@@ -363,6 +364,7 @@ test('archives a run into the archive subfolder and lists it via the archived fl
     assert.equal(fs.existsSync(path.join(root, 'screenshots', 'run-a')), false);
     assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.summary.json')), true);
     assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.jsonl')), true);
+    assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.late.jsonl')), true);
     assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.latest.json')), true);
     assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.screenshots.jsonl')), true);
     assert.equal(fs.existsSync(path.join(root, 'archive', 'screenshots', 'run-a')), true);
@@ -385,12 +387,14 @@ test('restores an archived run back into the active fleet', () => {
   try {
     const config = statusConfig(root);
     seedRun(root, 'run-a');
+    fs.writeFileSync(path.join(root, 'run-a.late.jsonl'), '{"stage":"late"}\n');
     archiveStatusRun(config, 'run-a');
     assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.summary.json')), true);
 
     const result = restoreStatusRuns(config, ['run-a']);
     assert.equal(result.results[0].ok, true);
     assert.equal(fs.existsSync(path.join(root, 'run-a.summary.json')), true);
+    assert.equal(fs.existsSync(path.join(root, 'run-a.late.jsonl')), true);
     assert.equal(fs.existsSync(path.join(root, 'screenshots', 'run-a')), true);
     assert.equal(fs.existsSync(path.join(root, 'archive', 'run-a.summary.json')), false);
     assert.equal(result.runsIndex.total, 1);

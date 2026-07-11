@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { webServerConfig } from './config.js';
 import { ServiceController } from './controller/index.js';
@@ -184,6 +185,7 @@ export class WebManagementServer {
     this.server = null;
     this.listenHost = null;
     this.authToken = null;
+    this.eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
   }
 
   get address() {
@@ -213,6 +215,7 @@ export class WebManagementServer {
         sendJson(res, statusCode, payload);
       });
     });
+    this.eventLoopDelay.enable();
     await new Promise((resolve, reject) => {
       this.server.once('error', reject);
       this.server.listen(port, host, () => {
@@ -231,6 +234,7 @@ export class WebManagementServer {
     this.server = null;
     this.listenHost = null;
     this.authToken = null;
+    this.eventLoopDelay.disable();
     await new Promise((resolve) => server.close(resolve));
   }
 
@@ -323,7 +327,19 @@ export class WebManagementServer {
       return;
     }
     if (req.method === 'GET' && pathname === '/api/state') {
-      sendJson(res, 200, { ok: true, state: this.controller.getState({ selectedRunId: requestUrl.searchParams.get('runId') ?? undefined }) });
+      const snapshotStartedAt = performance.now();
+      const state = this.controller.getState({
+        selectedRunId: requestUrl.searchParams.get('runId') ?? undefined,
+        includeEvidence: requestUrl.searchParams.get('includeEvidence') === '1',
+      });
+      const eventLoopLagMs = this.eventLoopDelay.mean / 1e6;
+      state.health = {
+        stateSnapshotMs: Math.round((performance.now() - snapshotStartedAt) * 10) / 10,
+        eventLoopLagMs: Number.isFinite(eventLoopLagMs) ? Math.round(eventLoopLagMs * 10) / 10 : null,
+        lastSuccessfulStateAt: new Date().toISOString(),
+      };
+      this.eventLoopDelay.reset();
+      sendJson(res, 200, { ok: true, state });
       return;
     }
     if (req.method === 'GET' && pathname === '/api/interfaces') {

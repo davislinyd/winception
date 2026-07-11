@@ -253,6 +253,46 @@ test('tracks multiple status runs and buckets missing run ids', async () => {
   }
 });
 
+test('writes late terminal events to audit without changing validation evidence', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-http-terminal-audit-'));
+  const statusRoot = path.join(root, 'status');
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot,
+  });
+  try {
+    await server.start();
+    const base = `http://127.0.0.1:${server.address.port}`;
+    for (const payload of [
+      { runId: 'terminal-run', clientId: 'client-a', stage: 'windows-desktop-ready', percent: 100 },
+      { runId: 'terminal-run', clientId: 'client-a', stage: 'windows-setupcomplete-error', message: 'late failure' },
+    ]) {
+      const response = await fetch(`${base}/osdcloud/status`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      assert.equal(response.status, 204);
+    }
+
+    const summary = JSON.parse(fs.readFileSync(path.join(statusRoot, 'terminal-run.summary.json'), 'utf8'));
+    const canonicalEvents = fs.readFileSync(path.join(statusRoot, 'terminal-run.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    const auditEvents = fs.readFileSync(path.join(statusRoot, 'terminal-run.late.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    assert.equal(summary.status, 'completed');
+    assert.equal(summary.latestStage, 'windows-desktop-ready');
+    assert.equal(canonicalEvents.length, 1);
+    assert.equal(auditEvents.length, 1);
+    assert.equal(auditEvents[0].stage, 'windows-setupcomplete-error');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(statusRoot, 'latest.json'), 'utf8')).stage, 'windows-desktop-ready');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('sanitizes status run ids before writing summary files', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-http-sanitize-test-'));
   const statusRoot = path.join(root, 'status');

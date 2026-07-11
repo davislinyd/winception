@@ -11,7 +11,7 @@ import {
 } from './config.js';
 import { driverPackCacheStage, handleDriverPackCacheRequest } from './driverPackCache.js';
 import { appendLog, formatSyslog } from './logger.js';
-import { buildRunsIndex, updateRunSummary } from './runSummary.js';
+import { buildRunsIndex, isRunTerminal, updateRunSummary } from './runSummary.js';
 
 function loadSecrets(config) {
   const stateRoot = stateRootForConfig(config);
@@ -351,6 +351,14 @@ export class MediaHttpServer extends EventEmitter {
     const line = `${JSON.stringify(event)}\n`;
 
     fs.mkdirSync(statusRoot, { recursive: true });
+    if (isRunTerminal(statusRoot, runId)) {
+      fs.appendFileSync(path.join(statusRoot, 'late-events.jsonl'), line, 'utf8');
+      fs.appendFileSync(path.join(statusRoot, `${runId}.late.jsonl`), line, 'utf8');
+      this.log(`${remote} POST ${requestUrl.pathname} 204 run=${runId} stage=${event.stage ?? '-'} audit=late-terminal-event`);
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     fs.appendFileSync(statusLogPath, line, 'utf8');
     fs.appendFileSync(path.join(statusRoot, `${runId}.jsonl`), line, 'utf8');
     fs.writeFileSync(latestStatusPath, `${JSON.stringify(event, null, 2)}\n`, 'utf8');

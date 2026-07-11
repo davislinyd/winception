@@ -6,6 +6,7 @@ export const DEFAULT_WINDOWS_USERNAME = 'LabAdmin';
 export const state = {
   current: null,
   selectedRunId: null,
+  validationEvidenceOpen: false,
   pendingInterface: null,
   interfaces: [],
   networkWanInterface: '',

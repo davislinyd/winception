@@ -386,6 +386,33 @@ function Get-ClientInstallerProgressSummary {
     return $summary
 }
 
+function Get-SafeInstallerCompletionSummary {
+    $progress = Get-JsonFileObject -Path $DeploymentProgressPath
+    if ($null -eq $progress) {
+        return @{}
+    }
+
+    $completedSteps = @(
+        foreach ($step in @($progress.completedSteps)) {
+            if ($null -eq $step) {
+                continue
+            }
+            [ordered]@{
+                type = [string] $step.type
+                name = [string] $step.name
+                status = [string] $step.status
+                durationSeconds = if ($null -ne $step.durationSeconds) { [double] $step.durationSeconds } else { $null }
+            }
+        }
+    )
+    return [ordered]@{
+        installerStatus = [string] $progress.status
+        installerTotalSteps = if ($null -ne $progress.totalSteps) { [int] $progress.totalSteps } else { 0 }
+        installerElapsedSeconds = if ($null -ne $progress.elapsedSeconds) { [double] $progress.elapsedSeconds } else { $null }
+        completedSteps = $completedSteps
+    }
+}
+
 function Invoke-ClientAppInstallers {
     $appsRoot = 'C:\ProgramData\OSDCloud\Apps'
     $installer = Join-Path $appsRoot 'Install-Apps.ps1'
@@ -491,7 +518,8 @@ function Invoke-ClientAppInstallers {
         throw $message
     }
 
-    [void] (Send-DeploymentStatus -Stage 'windows-apps-finished' -Message 'Client applications installed.' -Percent 95.5 -Extra $result)
+    $finishedSummary = Get-SafeInstallerCompletionSummary
+    [void] (Send-DeploymentStatus -Stage 'windows-apps-finished' -Message 'Client applications installed.' -Percent 95.5 -Extra $finishedSummary)
     return $result
 }
 
@@ -532,8 +560,13 @@ function Initialize-DeploymentProgress {
     }
     $now = (Get-Date).ToString('o')
     $progress = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         status = 'pending'
+        phase = 'awaiting-reboot'
+        queuedAt = $now
+        phaseStartedAt = $now
+        finalizerStartedAt = $null
+        heartbeatAt = $now
         totalSteps = $totalSteps
         completedSteps = @()
         currentStep = $null
@@ -547,6 +580,74 @@ function Initialize-DeploymentProgress {
     return $progress
 }
 
+function Set-DeploymentProgressPhase {
+    param(
+        [Parameter(Mandatory)][string] $Phase,
+        [Nullable[double]] $PhaseElapsedSeconds = $null
+    )
+
+    $progress = Get-JsonFileObject -Path $DeploymentProgressPath
+    if (-not $progress) {
+        $progress = Initialize-DeploymentProgress
+    }
+    $now = (Get-Date).ToString('o')
+    if ([string] $progress.phase -ne $Phase) {
+        $progress.phaseStartedAt = $now
+    }
+    $progress.schemaVersion = 2
+    $progress.phase = $Phase
+    $progress.heartbeatAt = $now
+    if ($null -ne $PhaseElapsedSeconds) {
+        $progress.phaseElapsedSeconds = [Math]::Round($PhaseElapsedSeconds, 3)
+    }
+    if ($Phase -eq 'finalizer-started' -and -not $progress.finalizerStartedAt) {
+        $progress.finalizerStartedAt = $now
+    }
+    $progress.updatedAt = $now
+    Write-JsonFileAtomic -Path $DeploymentProgressPath -Value $progress
+    return $progress
+}
+
+function Test-TargetUserInteractiveSession {
+    param([Parameter(Mandatory)][string] $TargetUser)
+
+    try {
+        $explorers = @(Get-CimInstance Win32_Process -Filter "Name = 'explorer.exe'" -ErrorAction Stop)
+        foreach ($explorer in $explorers) {
+            $owner = Invoke-CimMethod -InputObject $explorer -MethodName GetOwner -ErrorAction Stop
+            if ($owner -and [string] $owner.User -ieq $TargetUser) {
+                return $true
+            }
+        }
+    }
+    catch {
+    }
+    return $false
+}
+
+function Wait-ForTargetUserInteractiveSession {
+    param(
+        [Parameter(Mandatory)][string] $TargetUser,
+        [int] $TimeoutSeconds = 600,
+        [int] $PollSeconds = 2
+    )
+
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        while ($timer.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+            if (Test-TargetUserInteractiveSession -TargetUser $TargetUser) {
+                return $true
+            }
+            [void] (Set-DeploymentProgressPhase -Phase 'awaiting-user-session' -PhaseElapsedSeconds $timer.Elapsed.TotalSeconds)
+            Start-Sleep -Seconds $PollSeconds
+        }
+    }
+    finally {
+        $timer.Stop()
+    }
+    throw "Target user interactive session did not appear within $TimeoutSeconds seconds."
+}
+
 function Set-DeploymentProgressFailure {
     param(
         [Parameter(Mandatory)][string] $Category,
@@ -555,8 +656,13 @@ function Set-DeploymentProgressFailure {
 
     $current = Get-JsonFileObject -Path $DeploymentProgressPath
     $progress = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         status = 'failed'
+        phase = if ($current) { $current.phase } else { 'failed' }
+        queuedAt = if ($current) { $current.queuedAt } else { $null }
+        phaseStartedAt = if ($current) { $current.phaseStartedAt } else { $null }
+        finalizerStartedAt = if ($current) { $current.finalizerStartedAt } else { $null }
+        heartbeatAt = (Get-Date).ToString('o')
         totalSteps = if ($current) { [int] $current.totalSteps } else { 0 }
         completedSteps = if ($current -and $current.completedSteps) { @($current.completedSteps) } else { @() }
         currentStep = $null
@@ -929,9 +1035,9 @@ function Install-PostLogonFinalizer {
     $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $registeredBootTimeUtcTicks = [long] (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
     $action = New-ScheduledTaskAction -Execute $powerShellPath -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -PostLogonFinalize -RegisteredBootTimeUtcTicks $registeredBootTimeUtcTicks"
-    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    $trigger = New-ScheduledTaskTrigger -AtStartup
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 95) -MultipleInstances IgnoreNew
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 105) -MultipleInstances IgnoreNew
     Register-ScheduledTask -TaskName $PostLogonTaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop | Out-Null
 
     $runOnce = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'
@@ -973,7 +1079,12 @@ function Invoke-PostLogonFinalization {
     }
 
     try {
+        [void] (Wait-ForTargetUserInteractiveSession -TargetUser $UserName)
         $targetUserEnvironment = Set-TargetUserEnvironment -TargetUser $UserName
+        [void] (Set-DeploymentProgressPhase -Phase 'finalizer-started')
+        [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finalizer-start' -Message 'SYSTEM finalizer started after target user interactive logon.' -Percent 94.4 -Extra @{
+            targetUserEnvironment = $targetUserEnvironment
+        })
         $clientAppsResult = Invoke-ClientAppInstallers
         $driverPackCacheRequestSent = Send-DriverPackCacheRequest
         [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'Post-logon client finalization finished.' -Percent 96 -Extra @{

@@ -21,6 +21,8 @@ export function saveAuthToken(token) {
 }
 
 export let interfacesLoadPromise = null;
+export let refreshPromise = null;
+let queuedEvidenceRefresh = false;
 export async function api(path, options = {}) {
   const headers = new Headers(options.headers ?? {});
   if (options.body && !headers.has('content-type')) {
@@ -61,20 +63,49 @@ export async function loadAuthStatus() {
   return state.auth;
 }
 
-export async function refresh() {
-  const query = state.selectedRunId ? `?runId=${encodeURIComponent(state.selectedRunId)}` : '';
-  try {
-    const payload = await api(`/api/state${query}`);
-    state.current = payload.state;
-    state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
-    state.refreshError = null;
-    state.auth.error = '';
-    render();
-  } catch (error) {
-    state.refreshError = error.message;
-    render();
-    throw error;
+export function refresh(options = {}) {
+  const includeEvidence = options.includeEvidence === true || state.validationEvidenceOpen === true;
+  if (refreshPromise) {
+    queuedEvidenceRefresh ||= includeEvidence;
+    return refreshPromise;
   }
+  const query = new URLSearchParams();
+  if (state.selectedRunId) {
+    query.set('runId', state.selectedRunId);
+  }
+  if (includeEvidence) {
+    query.set('includeEvidence', '1');
+  }
+  const startedAt = performance.now();
+  refreshPromise = api(`/api/state${query.size ? `?${query}` : ''}`)
+    .then((payload) => {
+      const requestMs = Math.round((performance.now() - startedAt) * 10) / 10;
+      payload.state.health = {
+        ...(payload.state.health ?? {}),
+        stateRequestMs: requestMs,
+        lastSuccessfulRefreshAt: new Date().toISOString(),
+        warning: requestMs > 2_000 || (payload.state.health?.stateSnapshotMs ?? 0) > 2_000,
+      };
+      state.current = payload.state;
+      state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
+      state.refreshError = null;
+      state.auth.error = '';
+      render();
+      return payload.state;
+    })
+    .catch((error) => {
+      state.refreshError = error.message;
+      render();
+      throw error;
+    })
+    .finally(() => {
+      refreshPromise = null;
+      if (queuedEvidenceRefresh) {
+        queuedEvidenceRefresh = false;
+        void refresh({ includeEvidence: true }).catch(() => {});
+      }
+    });
+  return refreshPromise;
 }
 
 export async function loadInterfaces() {

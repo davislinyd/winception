@@ -251,7 +251,7 @@ windows-logon-start
 windows-desktop-ready
 ```
 
-`Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。首次登入的 client 畫面會顯示目前步驟、是否仍在運作、即時 elapsed、slow warning 與已完成步驟耗時；這些狀態每兩秒刷新，且不顯示原始 installer output、命令列或秘密。若 custom script 需要 Internet，請把該依賴放在這個 post-logon sequence 內處理；deployment 階段不應依賴 client 外網。SetupComplete 會在 deployment 完成前停用 Windows Update / BITS 自動活動，因此依賴 BITS 或 Windows Update 的 custom script 必須自行啟動必要服務，或改用直接下載工具。
+`Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。重開後的 SYSTEM finalizer 會先等待目標使用者桌面，再開始安裝；首次登入的 client 畫面會分別顯示等待登入、finalizer 啟動、目前步驟、是否仍在運作、即時 elapsed、slow warning 與已完成步驟耗時。這些安全狀態每兩秒刷新；完成時 Validation Evidence 只收到每步名稱、類型、status 與實際 duration，不含原始 installer output、命令列或秘密。若 custom script 需要 Internet，請把該依賴放在這個 post-logon sequence 內處理；deployment 階段不應依賴 client 外網。SetupComplete 會在 deployment 完成前停用 Windows Update / BITS 自動活動，因此依賴 BITS 或 Windows Update 的 custom script 必須自行啟動必要服務，或改用直接下載工具。
 
 ### 07. 監控與完成判定
 
@@ -261,7 +261,7 @@ windows-desktop-ready
 | --- | --- |
 | Client Fleet | 顯示每台電腦的 runId、stage、percent、last seen、done/failed/stale 狀態 |
 | Activity | 以卡片方式檢視部署流程、事件時間與每台電腦的結果 |
-| Validation Evidence | 顯示 selected run 的 target system、image path、profile、app/script summary 與完成證據 |
+| Validation Evidence | 顯示 selected run 的 target system、image path、profile、app/script summary 與完成證據；時間固定為 host-observed UTC+8，completed/failed 後不再被晚到事件改寫 |
 | System Log | 顯示 DHCP、TFTP、HTTP、Endpoint Sync、Preflight、Torrent 與 controller log |
 
 部署完成條件：
@@ -591,7 +591,7 @@ windows-logon-start
 windows-desktop-ready
 ```
 
-The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage. The first-logon client screen shows the active step, liveness, live elapsed time, a slow warning, and completed-step durations; it refreshes every two seconds and never displays raw installer output, command lines, or secrets. If a custom script needs Internet, put that dependency inside this post-logon sequence; the deployment phase must not depend on client external Internet. SetupComplete disables automatic Windows Update / BITS activity before deployment completion, so custom scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.
+The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage. After reboot, the SYSTEM finalizer waits for the target user's desktop before installation starts; the first-logon client screen separately shows the sign-in wait, finalizer start, active step, liveness, live elapsed time, slow warning, and completed-step durations. These safe fields refresh every two seconds; on completion, Validation Evidence receives only each step's name, type, status, and actual duration, never raw installer output, command lines, or secrets. If a custom script needs Internet, put that dependency inside this post-logon sequence; the deployment phase must not depend on client external Internet. SetupComplete disables automatic Windows Update / BITS activity before deployment completion, so custom scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.
 
 ### 07. Monitoring And Completion Criteria
 
@@ -601,7 +601,7 @@ During deployment, use four primary areas:
 | --- | --- |
 | Client Fleet | Shows each computer's runId, stage, percent, last seen, and done/failed/stale state |
 | Activity | Shows deployment flow, event timing, and each computer's result as cards |
-| Validation Evidence | Shows selected run target system, image path, profile, app/script summary, and completion evidence |
+| Validation Evidence | Shows selected run target system, image path, profile, app/script summary, and completion evidence; times are host-observed UTC+8 and completed/failed snapshots do not change when late events arrive |
 | System Log | Shows DHCP, TFTP, HTTP, Endpoint Sync, Preflight, Torrent, and controller logs |
 
 Completion criteria:

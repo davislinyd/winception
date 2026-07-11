@@ -64,6 +64,17 @@ function sanitizeRunId(value) {
   return String(value ?? 'unknown').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 120) || 'unknown';
 }
 
+export function isTerminalRunSummary(summary) {
+  return Boolean(summary
+    && (summary.status === 'completed' || summary.status === 'failed')
+    && (summary.completedAt || summary.failedAt));
+}
+
+export function isRunTerminal(statusRoot, runIdValue) {
+  const runId = sanitizeRunId(runIdValue);
+  return isTerminalRunSummary(safeReadJson(path.join(statusRoot, `${runId}.summary.json`), null));
+}
+
 export function compactRunSummary(summary, now = new Date()) {
   const nowDate = asDate(now);
   const run = {
@@ -158,6 +169,15 @@ export function updateRunSummary(statusRoot, event) {
   const now = event.receivedAt || new Date().toISOString();
   const records = [];
 
+  if (isTerminalRunSummary(existing)) {
+    return {
+      summary: existing,
+      records,
+      runsIndex: buildRunsIndex(statusRoot, new Date(now)),
+      terminal: true,
+    };
+  }
+
   const summary = existing ?? {
     runId,
     clientId: event.clientId ?? null,
@@ -185,19 +205,13 @@ export function updateRunSummary(statusRoot, event) {
     rawRunId ? null : 'missing-run-id',
     rawRunId && runId !== String(rawRunId) ? 'run-id-sanitized' : null,
   ]);
-  const preserveCompletedDisplay = summary.status === 'completed'
-    && !runEndStages.has(event.stage)
-    && !failureStages.has(event.stage);
-
   summary.clientId = summary.clientId || event.clientId || null;
   summary.eventCount = Number(summary.eventCount ?? 0) + 1;
   summary.lastReceivedAt = now;
-  if (!preserveCompletedDisplay) {
-    summary.latestStage = event.stage ?? null;
-    summary.latestMessage = event.message ?? null;
-    summary.latestPercent = Number.isFinite(event.percent) ? event.percent : null;
-    summary.elapsedSeconds = Number.isFinite(event.elapsedSeconds) ? event.elapsedSeconds : summary.elapsedSeconds;
-  }
+  summary.latestStage = event.stage ?? null;
+  summary.latestMessage = event.message ?? null;
+  summary.latestPercent = Number.isFinite(event.percent) ? event.percent : null;
+  summary.elapsedSeconds = Number.isFinite(event.elapsedSeconds) ? event.elapsedSeconds : summary.elapsedSeconds;
   if (warnings.length > 0) {
     summary.warnings = warnings;
   }
@@ -237,6 +251,8 @@ export function updateRunSummary(statusRoot, event) {
     summary.status = 'completed';
     summary.completedAt = now;
     summary.completedStage = event.stage;
+    summary.finalizedAt = now;
+    summary.finalizedStage = event.stage;
     records.push({
       type: 'run-end',
       runId,
@@ -249,6 +265,8 @@ export function updateRunSummary(statusRoot, event) {
     summary.status = 'failed';
     summary.failedAt = now;
     summary.failedStage = event.stage;
+    summary.finalizedAt = now;
+    summary.finalizedStage = event.stage;
     records.push({
       type: 'run-failed',
       runId,

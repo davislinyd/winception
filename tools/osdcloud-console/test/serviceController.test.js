@@ -434,6 +434,7 @@ test('preflight warnings do not block deployment readiness or the Start services
 test('state includes selected run events from per-run history', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-selected-events-'));
   try {
+    let selectedEventReads = 0;
     const { controller } = makeController(root, {
       dependencies: {
         readFleetStatus: () => ({
@@ -447,16 +448,23 @@ test('state includes selected run events from per-run history', () => {
         readStatusEvents: () => [
           { runId: 'new-run', stage: 'windows-desktop-ready', explorerRunning: true },
         ],
-        readRunStatusEvents: (_config, runId) => runId === 'old-run'
-          ? [
-              { runId: 'old-run', stage: 'smb-mounted', imagePath: 'Z:\\OSDCloud\\OS\\install.esd', osImageIndex: 6 },
-              { runId: 'old-run', stage: 'windows-desktop-ready', desktopReadyFile: true },
-            ]
-          : [],
+        readRunStatusEvents: (_config, runId) => {
+          selectedEventReads += 1;
+          return runId === 'old-run'
+            ? [
+                { runId: 'old-run', stage: 'smb-mounted', imagePath: 'Z:\\OSDCloud\\OS\\install.esd', osImageIndex: 6 },
+                { runId: 'old-run', stage: 'windows-desktop-ready', desktopReadyFile: true },
+              ]
+            : [];
+        },
       },
     });
 
-    const state = controller.getState({ selectedRunId: 'old-run' });
+    const defaultState = controller.getState({ selectedRunId: 'old-run' });
+    assert.equal(defaultState.selectedRunEvents.length, 0);
+    assert.equal(selectedEventReads, 0);
+
+    const state = controller.getState({ selectedRunId: 'old-run', includeEvidence: true });
 
     assert.equal(state.selectedRunId, 'old-run');
     assert.equal(state.statusEvents.length, 1);
@@ -464,6 +472,7 @@ test('state includes selected run events from per-run history', () => {
     assert.equal(state.selectedRunEvents.length, 2);
     assert.equal(state.selectedRunEvents[0].imagePath, 'Z:\\OSDCloud\\OS\\install.esd');
     assert.equal(state.selectedRunEvents[1].desktopReadyFile, true);
+    assert.equal(selectedEventReads, 1);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

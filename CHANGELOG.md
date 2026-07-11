@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Client post-logon finalization now runs as a SYSTEM startup task that waits for the configured user's interactive Explorer session before serial app/script installation. The first-logon viewer shows safe waiting/finalizer phases and elapsed time before the first installer starts; `windows-apps-finished` adds only completed step name/type/status/duration for host Evidence.
+- Validation Evidence now uses host-observed `Asia/Taipei (UTC+8)` timestamps. Completed/failed runs are immutable snapshots; late events are retained in an audit stream without changing Evidence, summary, latest pointers, status, or completion time.
+- Web state refresh is single-flight and evidence-on-demand. Fleet uses its written index snapshot, runtime readiness is short-term cached with mutation invalidation, and state health reports snapshot duration/event-loop lag so slow host observation is visible separately from deployment status.
+
 ## v0.6.5-2 — 2026-07-11
 
 - WinPE 進入 torrent seed wait 前停止 hidden progress reporter，避免舊的 `apply-image` 回報覆蓋等待狀態；client console 會顯示持續可見的 seed-wait banner、`E` 延長／Enter reboot 提示與專用 screenshot

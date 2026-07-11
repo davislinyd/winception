@@ -73,6 +73,11 @@ export function readRunStatusEvents(config, runIdValue, maxLines = 2000) {
 }
 
 export function readFleetStatus(config, now = new Date()) {
+  const indexPath = path.join(config.http.statusRoot, 'runs-index.json');
+  const snapshot = readJsonFile(indexPath);
+  if (snapshot && Array.isArray(snapshot.runs) && snapshot.counts) {
+    return snapshot;
+  }
   return buildRunsIndex(config.http.statusRoot, now);
 }
 
@@ -135,7 +140,7 @@ function movePathIfExists(source, destination) {
 // Per-run artifacts share the runId prefix; latest-* pointers reference whichever
 // run last reported and are cleared (not moved) when a run leaves the active list.
 const ARCHIVE_DIR = 'archive';
-const RUN_FILE_SUFFIXES = ['.summary.json', '.jsonl', '.latest.json', '.screenshots.jsonl'];
+const RUN_FILE_SUFFIXES = ['.summary.json', '.jsonl', '.late.jsonl', '.latest.json', '.screenshots.jsonl'];
 const LATEST_POINTER_FILES = ['latest-summary.json', 'latest-screenshot.json', 'latest.json'];
 
 // Move a run's summary/event/screenshot artifacts between the active status root

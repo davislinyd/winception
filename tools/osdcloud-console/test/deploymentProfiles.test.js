@@ -1584,6 +1584,45 @@ test('deployment progress viewer explains active application and custom script w
   }
 });
 
+test('deployment progress viewer exposes the safe finalizer waiting phase with elapsed time', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const root = makeRoot('osdcloud-progress-viewer-finalizer-test-');
+  try {
+    const progressPath = path.join(root, 'deployment-progress.json');
+    writeJson(progressPath, {
+      schemaVersion: 2,
+      status: 'pending',
+      phase: 'awaiting-user-session',
+      phaseElapsedSeconds: 125,
+      totalSteps: 4,
+      completedSteps: [],
+      currentStep: null,
+      rawException: 'must-not-render',
+    });
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.resolve('Softwares', 'Show-DeploymentProgress.ps1'),
+      '-Headless',
+      '-ProgressPath',
+      progressPath,
+    ], { encoding: 'utf8' });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const view = JSON.parse(result.stdout);
+    assert.equal(view.stepLabel, 'Waiting for target user sign-in');
+    assert.equal(view.elapsedLabel, 'Elapsed: 00:02:05');
+    assert.match(view.activityMessage, /target user desktop/u);
+    assert.doesNotMatch(result.stdout, /must-not-render/u);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('installer script follows unified software and script install sequence', () => {
   if (process.platform !== 'win32') {
     return;

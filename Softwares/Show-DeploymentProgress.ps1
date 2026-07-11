@@ -33,6 +33,7 @@ function ConvertTo-ProgressView {
     $currentName = if ($current -and -not [string]::IsNullOrWhiteSpace([string] $current.name)) { [string] $current.name } elseif ($current) { [string] $current.id } else { '' }
     $currentStatus = if ($current -and -not [string]::IsNullOrWhiteSpace([string] $current.status)) { [string] $current.status } else { '' }
     $currentSlow = $current -and [bool] $current.slow
+    $phase = if ($State -and -not [string]::IsNullOrWhiteSpace([string] $State.phase)) { [string] $State.phase } else { '' }
     $percent = if ($total -gt 0) { [Math]::Round(($completed.Count / $total) * 100) } elseif ($status -eq 'succeeded') { 100 } else { 0 }
     $history = @($completed | ForEach-Object {
         $label = if (-not [string]::IsNullOrWhiteSpace([string] $_.name)) { [string] $_.name } else { [string] $_.id }
@@ -59,7 +60,16 @@ function ConvertTo-ProgressView {
     }
 
     $activityMessage = ''
-    if ($status -eq 'pending') {
+    if ($status -eq 'pending' -and $phase -eq 'awaiting-reboot') {
+        $activityMessage = 'Waiting for post-logon finalization to start.'
+    }
+    if ($status -eq 'pending' -and $phase -eq 'awaiting-user-session') {
+        $activityMessage = 'Waiting for the target user desktop.'
+    }
+    if ($status -eq 'pending' -and $phase -eq 'finalizer-started') {
+        $activityMessage = 'SYSTEM finalizer started. Preparing applications.'
+    }
+    if ($status -eq 'pending' -and [string]::IsNullOrWhiteSpace($phase)) {
         $activityMessage = 'Starting post-logon finalization...'
     }
     if ($status -eq 'succeeded') {
@@ -86,11 +96,19 @@ function ConvertTo-ProgressView {
     $elapsedLabel = 'Elapsed: --'
     $elapsed = $null
     $elapsedSeconds = 0.0
-    if ($State -and [double]::TryParse([string] $State.elapsedSeconds, [ref] $elapsedSeconds) -and $elapsedSeconds -ge 0) {
+    $phaseElapsedSeconds = 0.0
+    if ($status -eq 'pending' -and $State -and [double]::TryParse([string] $State.phaseElapsedSeconds, [ref] $phaseElapsedSeconds) -and $phaseElapsedSeconds -ge 0) {
+        $elapsed = [timespan]::FromSeconds($phaseElapsedSeconds)
+    }
+    elseif ($State -and [double]::TryParse([string] $State.elapsedSeconds, [ref] $elapsedSeconds) -and $elapsedSeconds -ge 0) {
         $elapsed = [timespan]::FromSeconds($elapsedSeconds)
     }
     [datetimeoffset] $startedAt = [datetimeoffset]::MinValue
-    if (-not $elapsed -and $State -and [datetimeoffset]::TryParse([string] $State.startedAt, [ref] $startedAt)) {
+    $elapsedStartedAt = if ($status -eq 'pending') { [string] $State.phaseStartedAt } else { [string] $State.startedAt }
+    if ([string]::IsNullOrWhiteSpace($elapsedStartedAt) -and $status -eq 'pending') {
+        $elapsedStartedAt = [string] $State.queuedAt
+    }
+    if (-not $elapsed -and $State -and [datetimeoffset]::TryParse($elapsedStartedAt, [ref] $startedAt)) {
         $endAt = [datetimeoffset]::Now
         [datetimeoffset] $finishedAt = [datetimeoffset]::MinValue
         if ([datetimeoffset]::TryParse([string] $State.finishedAt, [ref] $finishedAt)) {
@@ -108,7 +126,7 @@ function ConvertTo-ProgressView {
         detail = $detail
         progressPercent = [int] $percent
         isIndeterminate = ($status -eq 'pending' -and $total -eq 0)
-        stepLabel = if ($current -and $total -gt 0) { "Step $currentIndex of $total" } elseif ($status -eq 'pending') { 'Waiting for deployment finalization to start' } else { "$($completed.Count) of $total steps completed" }
+        stepLabel = if ($current -and $total -gt 0) { "Step $currentIndex of $total" } elseif ($status -eq 'pending' -and $phase -eq 'awaiting-user-session') { 'Waiting for target user sign-in' } elseif ($status -eq 'pending' -and $phase -eq 'finalizer-started') { 'Finalizer is starting' } elseif ($status -eq 'pending') { 'Waiting for post-logon finalization' } else { "$($completed.Count) of $total steps completed" }
         elapsedLabel = $elapsedLabel
         currentType = $currentType
         currentName = $currentName

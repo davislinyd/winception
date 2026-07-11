@@ -110,6 +110,7 @@ export class ServiceController extends EventEmitter {
     this.runtimeLog = new RingBuffer(options.logLimit ?? 500);
     this.preflightResults = [];
     this.endpointUpdateStatus = [];
+    this.runtimeReadinessCache = null;
     this.selectedRunId = null;
     this.osDownloadStatus = null;
     this.osDownloadPromise = null;
@@ -240,6 +241,9 @@ export class ServiceController extends EventEmitter {
 
     try {
       const result = await action();
+      if (options.mutating !== false) {
+        this.invalidateRuntimeReadiness();
+      }
       this.operation = {
         ...this.operation,
         running: false,
@@ -250,6 +254,9 @@ export class ServiceController extends EventEmitter {
       this.emit('operation', this.operation);
       return result;
     } catch (error) {
+      if (options.mutating !== false) {
+        this.invalidateRuntimeReadiness();
+      }
       this.operation = {
         ...this.operation,
         running: false,
@@ -302,6 +309,23 @@ export class ServiceController extends EventEmitter {
 
   getLogs(maxLines = 160) {
     return this.runtimeLog.lines().slice(-maxLines);
+  }
+
+  invalidateRuntimeReadiness() {
+    this.runtimeReadinessCache = null;
+  }
+
+  getRuntimeReadinessSnapshot() {
+    const now = Date.now();
+    if (this.runtimeReadinessCache && this.runtimeReadinessCache.expiresAt > now) {
+      return this.runtimeReadinessCache.result;
+    }
+    const result = safeRead(() => this.dependencies.getRuntimeReadiness(this.config), null);
+    this.runtimeReadinessCache = {
+      expiresAt: now + 5_000,
+      result,
+    };
+    return result;
   }
 
   diagnosticsSummary() {
@@ -365,7 +389,7 @@ export class ServiceController extends EventEmitter {
 
     const profileResult = safeRead(() => this.getProfiles(), null);
     const osImageResult = safeRead(() => this.getOsImages(), null);
-    const runtimeResult = safeRead(() => this.dependencies.getRuntimeReadiness(this.config), null);
+    const runtimeResult = this.getRuntimeReadinessSnapshot();
     const secretsResult = safeRead(() => this.dependencies.getDeploymentSecretsStatus(this.config), {
       ready: false,
       missing: ['windowsUsername', 'windowsPassword', 'pxeinstallPassword'],
@@ -382,15 +406,13 @@ export class ServiceController extends EventEmitter {
     });
     const validationResult = safeRead(() => this.dependencies.summarizeValidation(this.config), []);
     const statusEventsResult = safeRead(() => this.dependencies.readStatusEvents(this.config, 80), []);
-    const selectedRunEventsResult = safeRead(
-      () => this.dependencies.readRunStatusEvents(this.config, selectedRun?.runId, 2000),
-      [],
-    );
+    const selectedRunEventsResult = options.includeEvidence === true
+      ? safeRead(() => this.dependencies.readRunStatusEvents(this.config, selectedRun?.runId, 2000), [])
+      : { value: [], error: null };
     const screenshotsResult = safeRead(() => this.dependencies.readRecentScreenshotMetadata(this.config, 5), []);
-    const selectedScreenshotResult = safeRead(
-      () => this.dependencies.readRunLatestScreenshot(this.config, selectedRun?.runId),
-      null,
-    );
+    const selectedScreenshotResult = options.includeEvidence === true
+      ? safeRead(() => this.dependencies.readRunLatestScreenshot(this.config, selectedRun?.runId), null)
+      : { value: null, error: null };
     const elevatedResult = safeRead(() => this.dependencies.isElevated(), null);
 
     const state = {
@@ -1379,7 +1401,7 @@ export class ServiceController extends EventEmitter {
   async performDiagnostics(input = {}) {
     const scope = input.scope ?? 'full';
     const selectedRunId = input.runId ?? this.selectedRunId;
-    const appState = this.getState({ selectedRunId, logLines: 160 });
+    const appState = this.getState({ selectedRunId, includeEvidence: true, logLines: 160 });
     const result = await this.dependencies.runDiagnostics(this.config, {
       scope,
       runId: input.runId,

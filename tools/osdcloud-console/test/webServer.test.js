@@ -474,6 +474,8 @@ test('API auth gate protects non-loopback listeners while static and manual stay
     payload = await response.json();
     assert.equal(payload.ok, true);
     assert.equal(payload.state.app.version, appVersion);
+    assert.equal(Number.isFinite(payload.state.health.stateSnapshotMs), true);
+    assert.equal(typeof payload.state.health.lastSuccessfulStateAt, 'string');
     assert.equal(JSON.stringify(payload).includes(saved.token), false);
   } finally {
     await server.stop();

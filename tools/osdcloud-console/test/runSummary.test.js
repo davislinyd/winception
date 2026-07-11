@@ -55,7 +55,7 @@ test('records deployment run start, WinPE end, Windows start, and final end', ()
   }
 });
 
-test('keeps completed display at 100 when finalizer events arrive later', () => {
+test('keeps the completed snapshot immutable when late events arrive', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-summary-terminal-'));
   try {
     updateRunSummary(root, {
@@ -82,8 +82,10 @@ test('keeps completed display at 100 when finalizer events arrive later', () => 
     assert.equal(result.summary.latestMessage, 'desktop ready');
     assert.equal(result.summary.latestPercent, 100);
     assert.equal(result.summary.elapsedSeconds, 900);
-    assert.equal(result.summary.lastReceivedAt, '2026-05-09T01:15:05Z');
-    assert.equal(result.summary.eventCount, 2);
+    assert.equal(result.summary.lastReceivedAt, '2026-05-09T01:15:00Z');
+    assert.equal(result.summary.eventCount, 1);
+    assert.equal(result.summary.finalizedAt, '2026-05-09T01:15:00Z');
+    assert.equal(result.terminal, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -480,6 +480,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /data-action="endpoint-sync" data-icon="sync_alt" class="warning"/);
   assert.match(html, /id="preflight-status-badge"[^>]*aria-live="polite"/);
   assert.match(html, /Validation Evidence/);
+  assert.match(html, /Installer Evidence/);
   assert.match(html, /Refresh Evidence/);
   assert.doesNotMatch(script, /switchView\(/);
   assert.match(script, /openDialog\(elements\.endpointSettingsDialog\)/);
@@ -566,9 +567,17 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /No catalog rows matched the selected filters/);
   assert.match(script, /function twoDigit\(value\)/);
   assert.match(script, /function localCompactDateTime\(value\)/);
+  assert.match(script, /const detailedDateTimeFmt = new Intl\.DateTimeFormat\('en', \{/);
+  assert.match(script, /function localDateTime\(value\)/);
   assert.match(script, /const TZ = 'Asia\/Taipei'/);
   assert.match(script, /\$\{p\.year\}\/\$\{p\.month\}\/\$\{p\.day\} \$\{p\.hour\}:\$\{p\.minute\}/);
   assert.match(script, /timeZoneName\.replace\('GMT', 'UTC'\)/);
+  assert.match(script, /when\.textContent = localDateTime\(event\.receivedAt\)/);
+  assert.match(script, /includeEvidence/);
+  assert.match(script, /refreshPromise/);
+  assert.match(script, /stateRequestMs/);
+  assert.match(script, /installerFinishedEvent/);
+  assert.match(script, /Completed steps/);
   assert.match(script, /function appendFleetLastSeenCell\(row, value\)/);
   assert.match(script, /cell\.className = 'fleet-last-seen-cell'/);
   assert.match(script, /cell\.textContent = localCompactDateTime\(value\)/);
