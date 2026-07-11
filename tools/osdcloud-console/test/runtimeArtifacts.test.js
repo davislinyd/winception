@@ -939,6 +939,10 @@ test('SetupComplete defers client sequence to a SYSTEM logon task and gates desk
   assert.match(setup, /\$timeoutTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
   assert.match(setup, /\$timeoutTimer\.Elapsed\.TotalSeconds -lt \$timeoutSeconds/);
   assert.match(setup, /\$pollTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
+  assert.match(setup, /\$AppInstallerHeartbeatSeconds = 5/);
+  assert.match(setup, /\$process\.WaitForExit\(\$AppInstallerHeartbeatSeconds \* 1000\)/);
+  assert.match(setup, /Get-ClientInstallerProgressSummary/);
+  assert.doesNotMatch(setup, /Start-Sleep -Seconds \$AppInstallerHeartbeatSeconds/);
   assert.match(setup, /-MultipleInstances IgnoreNew/);
   assert.doesNotMatch(setup, /\$deadline = \(Get-Date\)\.AddMinutes\(30\)/);
   assert.match(setup, /Set-DeploymentProgressFailure -Category 'interrupted'/);
@@ -976,6 +980,9 @@ test('client progress viewer is full-screen, topmost, and has no running close p
 test('client installer records elapsed time from monotonic timers', () => {
   const installer = fs.readFileSync(path.join(process.cwd(), 'Softwares', 'Install-Apps.ps1'), 'utf8');
   assert.match(installer, /\$script:SequenceTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
+  assert.match(installer, /\$ProgressHeartbeatSeconds = 2/);
+  assert.match(installer, /Update-CurrentStepProgress/);
+  assert.match(installer, /lastHeartbeatAt/);
   assert.match(installer, /\$durationTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
   assert.match(installer, /durationSeconds = \[Math\]::Round\(\$durationTimer\.Elapsed\.TotalSeconds, 3\)/);
   assert.doesNotMatch(installer, /durationSeconds = \[Math\]::Round\(\(\$ended - \$started\)\.TotalSeconds, 3\)/);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, loadDeploymentProfiles, resolveDeploymentProfileState, updateDeploymentProfile, updateDeploymentProfileSoftware } from '../src/profiles/profiles.js';
 import { publishDeploymentProfile } from '../src/profiles/publish.js';
@@ -1423,6 +1423,83 @@ test('installer script records a successful empty sequence', () => {
   }
 });
 
+test('installer script publishes a safe live heartbeat for a running custom script', async () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const root = makeRoot('osdcloud-installer-heartbeat-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const scriptsRoot = path.join(root, 'Scripts');
+    const logRoot = path.join(root, 'logs');
+    const progressPath = path.join(logRoot, 'deployment-progress.json');
+    fs.mkdirSync(appsRoot, { recursive: true });
+    fs.mkdirSync(path.join(scriptsRoot, 'SC-SLOW001'), { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(scriptsRoot, 'SC-SLOW001', 'run.ps1'), "Start-Sleep -Seconds 6\n", 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'heartbeat',
+      installSequence: [{ type: 'script', id: 'SC-SLOW001', name: 'Slow custom script' }],
+    });
+
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      env: { ...process.env, OSDCloudLogDir: logRoot },
+      stdio: 'ignore',
+    });
+    await new Promise((resolve, reject) => {
+      const deadline = Date.now() + 4000;
+      const timer = setInterval(() => {
+        if (fs.existsSync(progressPath)) {
+          try {
+            const progress = JSON.parse(fs.readFileSync(progressPath, 'utf8'));
+            if (progress.currentStep?.status === 'running') {
+              clearInterval(timer);
+              resolve();
+              return;
+            }
+          } catch {
+            // Atomic replacement may briefly make the file unavailable to this test reader.
+          }
+        }
+        if (Date.now() >= deadline) {
+          clearInterval(timer);
+          reject(new Error('Timed out waiting for installer progress heartbeat'));
+        }
+      }, 100);
+    });
+    const first = JSON.parse(fs.readFileSync(progressPath, 'utf8'));
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    const second = JSON.parse(fs.readFileSync(progressPath, 'utf8'));
+    const exitCode = await new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', (code) => resolve(code));
+    });
+
+    assert.equal(exitCode, 0);
+    assert.equal(first.currentStep.type, 'script');
+    assert.equal(first.currentStep.name, 'Slow custom script');
+    assert.equal(first.currentStep.status, 'running');
+    assert.equal(second.currentStep.status, 'running');
+    assert.ok(second.currentStep.elapsedSeconds >= 2, JSON.stringify(second.currentStep));
+    assert.notEqual(second.currentStep.lastHeartbeatAt, first.currentStep.lastHeartbeatAt);
+    assert.equal(Object.hasOwn(second.currentStep, 'stdoutTailText'), false);
+    assert.equal(Object.hasOwn(second.currentStep, 'stderrTailText'), false);
+    assert.equal(Object.hasOwn(second.currentStep, 'script'), false);
+    const completed = JSON.parse(fs.readFileSync(progressPath, 'utf8'));
+    assert.equal(completed.status, 'succeeded');
+    assert.equal(completed.completedSteps[0].durationSeconds >= 6, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('deployment progress viewer headless output exposes safe state only', () => {
   if (process.platform !== 'win32') {
     return;
@@ -1464,6 +1541,44 @@ test('deployment progress viewer headless output exposes safe state only', () =>
     assert.equal(view.elapsedLabel, 'Elapsed: 01:02:03');
     assert.match(view.failureLogPath, /osdcloud-logs/u);
     assert.doesNotMatch(result.stdout, /must-not-render/u);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('deployment progress viewer explains active application and custom script work', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const root = makeRoot('osdcloud-progress-viewer-running-test-');
+  try {
+    const progressPath = path.join(root, 'deployment-progress.json');
+    writeJson(progressPath, {
+      schemaVersion: 1,
+      status: 'running',
+      totalSteps: 4,
+      completedSteps: [{ index: 1, type: 'software', id: 'chrome', name: 'Google Chrome Enterprise 64-bit', status: 'succeeded', durationSeconds: 3 }],
+      currentStep: { index: 2, type: 'script', id: 'SC-TEST001', name: 'Add text file to desktop', status: 'running', elapsedSeconds: 125, slow: true },
+      elapsedSeconds: 128,
+    });
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.resolve('Softwares', 'Show-DeploymentProgress.ps1'),
+      '-Headless',
+      '-ProgressPath',
+      progressPath,
+    ], { encoding: 'utf8' });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const view = JSON.parse(result.stdout);
+    assert.equal(view.stepLabel, 'Step 2 of 4');
+    assert.equal(view.currentType, 'RUNNING CUSTOM SCRIPT');
+    assert.equal(view.currentName, 'Add text file to desktop');
+    assert.match(view.activityMessage, /longer than expected/u);
+    assert.match(view.history[0], /Completed in 00:00:03/u);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

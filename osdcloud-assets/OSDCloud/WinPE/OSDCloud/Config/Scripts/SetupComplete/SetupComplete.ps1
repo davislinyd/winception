@@ -363,6 +363,29 @@ function Get-InstallSequenceFailureDetails {
     }
 }
 
+function Get-ClientInstallerProgressSummary {
+    $progress = Get-JsonFileObject -Path $DeploymentProgressPath
+    if ($null -eq $progress) {
+        return @{}
+    }
+
+    $summary = [ordered]@{
+        installerStatus = [string] $progress.status
+        installerTotalSteps = if ($null -ne $progress.totalSteps) { [int] $progress.totalSteps } else { 0 }
+        installerElapsedSeconds = if ($null -ne $progress.elapsedSeconds) { [double] $progress.elapsedSeconds } else { $null }
+    }
+    $current = $progress.currentStep
+    if ($null -ne $current) {
+        $summary.currentStepIndex = if ($null -ne $current.index) { [int] $current.index } else { $null }
+        $summary.currentStepType = [string] $current.type
+        $summary.currentStepName = [string] $current.name
+        $summary.currentStepStatus = [string] $current.status
+        $summary.currentStepElapsedSeconds = if ($null -ne $current.elapsedSeconds) { [double] $current.elapsedSeconds } else { $null }
+        $summary.currentStepSlow = [bool] $current.slow
+    }
+    return $summary
+}
+
 function Invoke-ClientAppInstallers {
     $appsRoot = 'C:\ProgramData\OSDCloud\Apps'
     $installer = Join-Path $appsRoot 'Install-Apps.ps1'
@@ -387,24 +410,31 @@ function Invoke-ClientAppInstallers {
     Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
 
     $AppInstallerTimeoutSeconds = 90 * 60
-    $AppInstallerHeartbeatSeconds = 30
+    $AppInstallerHeartbeatSeconds = 5
 
     [Environment]::SetEnvironmentVariable('OSDCloudProgressPath', $DeploymentProgressPath, 'Process')
     $process = Start-Process -FilePath $powerShellPath -ArgumentList $argumentList -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
 
     $pollTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $timedOut = $false
-    while (-not $process.HasExited) {
+    while (-not $process.WaitForExit($AppInstallerHeartbeatSeconds * 1000)) {
         $elapsedSeconds = [int] $pollTimer.Elapsed.TotalSeconds
         if ($elapsedSeconds -ge $AppInstallerTimeoutSeconds) {
             try { taskkill.exe /PID $process.Id /T /F 2>$null } catch {}
             $timedOut = $true
             break
         }
+        $progressSummary = Get-ClientInstallerProgressSummary
+        $stepMessage = if ($progressSummary.currentStepName) {
+            " $($progressSummary.currentStepType) $($progressSummary.currentStepIndex) of $($progressSummary.installerTotalSteps): $($progressSummary.currentStepName) ($($progressSummary.currentStepElapsedSeconds) s elapsed)."
+        }
+        else {
+            ''
+        }
         [void] (Send-DeploymentStatus -Stage 'windows-apps-progress' `
-            -Message "Installing client applications... ($elapsedSeconds s elapsed)." `
-            -Percent 94.5)
-        Start-Sleep -Seconds $AppInstallerHeartbeatSeconds
+            -Message "Installing client applications... ($elapsedSeconds s elapsed).$stepMessage" `
+            -Percent 94.5 `
+            -Extra $progressSummary)
     }
     $pollTimer.Stop()
     if (-not $timedOut) {
@@ -511,6 +541,7 @@ function Initialize-DeploymentProgress {
         startedAt = $null
         updatedAt = $now
         finishedAt = $null
+        elapsedSeconds = 0
     }
     Write-JsonFileAtomic -Path $DeploymentProgressPath -Value $progress
     return $progress
@@ -538,6 +569,7 @@ function Set-DeploymentProgressFailure {
         startedAt = if ($current) { $current.startedAt } else { $null }
         updatedAt = (Get-Date).ToString('o')
         finishedAt = (Get-Date).ToString('o')
+        elapsedSeconds = if ($current -and $null -ne $current.elapsedSeconds) { [double] $current.elapsedSeconds } else { 0 }
     }
     Write-JsonFileAtomic -Path $DeploymentProgressPath -Value $progress
 }

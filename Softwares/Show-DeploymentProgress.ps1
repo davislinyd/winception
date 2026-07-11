@@ -29,13 +29,21 @@ function ConvertTo-ProgressView {
     $completed = if ($State -and $State.completedSteps) { @($State.completedSteps) } else { @() }
     $current = if ($State) { $State.currentStep } else { $null }
     $currentIndex = if ($current -and $current.index) { [int] $current.index } else { [Math]::Min($completed.Count + 1, [Math]::Max($total, 1)) }
-    $currentType = if ($current -and [string] $current.type -eq 'script') { 'SCRIPT' } else { 'APPLICATION' }
+    $currentType = if ($current -and [string] $current.type -eq 'script') { 'RUNNING CUSTOM SCRIPT' } elseif ($current) { 'INSTALLING APPLICATION' } else { 'DEPLOYMENT' }
     $currentName = if ($current -and -not [string]::IsNullOrWhiteSpace([string] $current.name)) { [string] $current.name } elseif ($current) { [string] $current.id } else { '' }
+    $currentStatus = if ($current -and -not [string]::IsNullOrWhiteSpace([string] $current.status)) { [string] $current.status } else { '' }
+    $currentSlow = $current -and [bool] $current.slow
     $percent = if ($total -gt 0) { [Math]::Round(($completed.Count / $total) * 100) } elseif ($status -eq 'succeeded') { 100 } else { 0 }
     $history = @($completed | ForEach-Object {
         $label = if (-not [string]::IsNullOrWhiteSpace([string] $_.name)) { [string] $_.name } else { [string] $_.id }
         $kind = if ([string] $_.type -eq 'script') { 'Script' } else { 'Application' }
-        "{0}  {1}: {2}" -f ($(if ([string] $_.status -eq 'succeeded') { '[OK]' } else { '[!]' })), $kind, $label
+        $durationSeconds = 0.0
+        $duration = ''
+        if ([double]::TryParse([string] $_.durationSeconds, [ref] $durationSeconds) -and $durationSeconds -ge 0) {
+            $value = [timespan]::FromSeconds($durationSeconds)
+        $duration = ' - Completed in {0:D2}:{1:D2}:{2:D2}' -f [int] $value.TotalHours, $value.Minutes, $value.Seconds
+        }
+        "{0}  {1}: {2}{3}" -f ($(if ([string] $_.status -eq 'succeeded') { '[OK]' } else { '[!]' })), $kind, $label, $duration
     })
 
     $headline = 'Preparing this PC'
@@ -48,6 +56,26 @@ function ConvertTo-ProgressView {
     elseif ($status -eq 'failed') {
         $headline = 'Deployment needs attention'
         $detail = 'A deployment step failed. Record the details below before returning to the desktop.'
+    }
+
+    $activityMessage = ''
+    if ($status -eq 'pending') {
+        $activityMessage = 'Starting post-logon finalization...'
+    }
+    if ($status -eq 'succeeded') {
+        $activityMessage = 'Completed - this PC is ready to use.'
+    }
+    if ($status -eq 'failed') {
+        $activityMessage = 'The deployment stopped before all work completed.'
+    }
+    if ($status -eq 'running' -and $currentStatus -eq 'starting') {
+        $activityMessage = 'Starting this step...'
+    }
+    if ($status -eq 'running' -and $currentSlow) {
+        $activityMessage = 'This step is taking longer than expected, but it is still running.'
+    }
+    if ([string]::IsNullOrWhiteSpace($activityMessage)) {
+        $activityMessage = 'The installer is still working.'
     }
 
     $failure = if ($State -and $State.failure) { $State.failure } else { $null }
@@ -84,6 +112,7 @@ function ConvertTo-ProgressView {
         elapsedLabel = $elapsedLabel
         currentType = $currentType
         currentName = $currentName
+        activityMessage = $activityMessage
         history = $history
         failureName = $failureName
         failureCategory = $failureCategory
@@ -121,6 +150,7 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
       <TextBlock Name="Elapsed" FontSize="16" Foreground="#9CA3AF" Margin="0,6,0,0"/>
       <TextBlock Name="CurrentType" FontSize="15" FontWeight="Bold" Foreground="#60A5FA" Margin="0,18,0,0"/>
       <TextBlock Name="CurrentName" FontSize="32" FontWeight="SemiBold" Margin="0,6,0,0" TextWrapping="Wrap"/>
+      <TextBlock Name="ActivityMessage" FontSize="18" Foreground="#D1D5DB" Margin="0,10,0,0" TextWrapping="Wrap"/>
     </StackPanel>
     <Border Grid.Row="3" Background="#1F2937" CornerRadius="10" Padding="24">
       <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -150,6 +180,7 @@ $stepLabel = $window.FindName('StepLabel')
 $elapsed = $window.FindName('Elapsed')
 $currentType = $window.FindName('CurrentType')
 $currentName = $window.FindName('CurrentName')
+$activityMessage = $window.FindName('ActivityMessage')
 $history = $window.FindName('History')
 $failurePanel = $window.FindName('FailurePanel')
 $failureName = $window.FindName('FailureName')
@@ -169,6 +200,7 @@ function Update-Window {
     $elapsed.Text = $view.elapsedLabel
     $currentType.Text = $view.currentType
     $currentName.Text = $view.currentName
+    $activityMessage.Text = $view.activityMessage
     $history.ItemsSource = @($view.history)
     $failurePanel.Visibility = if ($view.status -eq 'failed') { 'Visible' } else { 'Collapsed' }
     $acknowledge.Visibility = if ($view.status -eq 'failed') { 'Visible' } else { 'Collapsed' }

@@ -251,7 +251,7 @@ windows-logon-start
 windows-desktop-ready
 ```
 
-`Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。若 custom script 需要 Internet，請把該依賴放在這個 post-logon sequence 內處理；deployment 階段不應依賴 client 外網。SetupComplete 會在 deployment 完成前停用 Windows Update / BITS 自動活動，因此依賴 BITS 或 Windows Update 的 custom script 必須自行啟動必要服務，或改用直接下載工具。
+`Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。首次登入的 client 畫面會顯示目前步驟、是否仍在運作、即時 elapsed、slow warning 與已完成步驟耗時；這些狀態每兩秒刷新，且不顯示原始 installer output、命令列或秘密。若 custom script 需要 Internet，請把該依賴放在這個 post-logon sequence 內處理；deployment 階段不應依賴 client 外網。SetupComplete 會在 deployment 完成前停用 Windows Update / BITS 自動活動，因此依賴 BITS 或 Windows Update 的 custom script 必須自行啟動必要服務，或改用直接下載工具。
 
 ### 07. 監控與完成判定
 
@@ -591,7 +591,7 @@ windows-logon-start
 windows-desktop-ready
 ```
 
-The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage. If a custom script needs Internet, put that dependency inside this post-logon sequence; the deployment phase must not depend on client external Internet. SetupComplete disables automatic Windows Update / BITS activity before deployment completion, so custom scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.
+The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage. The first-logon client screen shows the active step, liveness, live elapsed time, a slow warning, and completed-step durations; it refreshes every two seconds and never displays raw installer output, command lines, or secrets. If a custom script needs Internet, put that dependency inside this post-logon sequence; the deployment phase must not depend on client external Internet. SetupComplete disables automatic Windows Update / BITS activity before deployment completion, so custom scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.
 
 ### 07. Monitoring And Completion Criteria
 
