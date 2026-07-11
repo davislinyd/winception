@@ -313,7 +313,7 @@
 
   <div id="locale-zh" class="locale-view" lang="zh-Hant">
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.5-1</p>
+      <p class="eyebrow">Operations Manual · v0.6.5-2</p>
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
@@ -386,7 +386,7 @@ cd '&lt;repo-root&gt;'
             <tr><td>TFTP service</td><td>提供 Secure Boot chain 需要的 Microsoft-signed boot files。</td></tr>
             <tr><td>HTTP media service</td><td>提供 iPXE script、WinPE boot files、status API、screenshot API 與 Torrent control API。</td></tr>
             <tr><td>SMB share</td><td>供 WinPE 讀取 selected OS WIM、Apps、Scripts 與 manifests。</td></tr>
-            <tr><td>Torrent tracker/seeder</td><td>多台 client 同時部署時分散 OS WIM 傳輸壓力；Tracker card 預設 wait 15 分鐘，可設定後續 client 的 0–1440 分鐘預設，或延長單一 fresh waiting client。完成後總 wait 上限為 1440 分鐘。</td></tr>
+            <tr><td>Torrent tracker/seeder</td><td>多台 client 同時部署時分散 OS WIM 傳輸壓力；Tracker card 顯示 Base、client console <code>E</code> 的 Client 累積延長、Web 累積延長、總 wait、剩餘時間與 deadline。預設 wait 15 分鐘，可設定後續 client 的 0–1440 分鐘預設；完成後總 wait 上限為 1440 分鐘。</td></tr>
           </tbody></table></div>
         </section>
 
@@ -525,7 +525,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 
   <div id="locale-en" class="locale-view" lang="en" hidden>
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.5-1</p>
+      <p class="eyebrow">Operations Manual · v0.6.5-2</p>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
@@ -598,7 +598,7 @@ cd '&lt;repo-root&gt;'
             <tr><td>TFTP service</td><td>Serves the Microsoft-signed boot files required by the Secure Boot chain.</td></tr>
             <tr><td>HTTP media service</td><td>Serves iPXE script, WinPE boot files, status API, screenshot API, and Torrent control API.</td></tr>
             <tr><td>SMB share</td><td>Lets WinPE read the selected OS WIM, Apps, Scripts, and manifests.</td></tr>
-            <tr><td>Torrent tracker/seeder</td><td>Distributes OS WIM transfer load when many clients deploy together. The Tracker card defaults to 15 minutes, can set the 0–1440 minute default for future clients, or extend one fresh waiting client. The total post-download wait is capped at 1440 minutes.</td></tr>
+            <tr><td>Torrent tracker/seeder</td><td>Distributes OS WIM transfer load when many clients deploy together. The Tracker card shows Base, cumulative Client extension entered through console <code>E</code>, cumulative Web extension, total wait, remaining time, and deadline. It defaults to 15 minutes and can set the 0–1440 minute default for future clients; the total post-download wait is capped at 1440 minutes.</td></tr>
           </tbody></table></div>
         </section>
 
@@ -735,7 +735,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
     </div>
   </div>
 
-  <footer>Winception deployment manual · Product documentation for Web v0.6.5-1.</footer>
+  <footer>Winception deployment manual · Product documentation for Web v0.6.5-2.</footer>
 
   <dialog id="lightbox" aria-label="Image preview">
     <div class="lightbox-inner">

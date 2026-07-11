@@ -467,12 +467,19 @@ export class TorrentDistributionCoordinator extends EventEmitter {
     this.tick(now);
     const activeClients = [...this.telemetry.values()]
       .filter((item) => now - item.updatedAt <= this.telemetryRemoveMs)
-      .map((item) => ({
-        ...item,
-        ...this.publicAssignment(this.assignmentForIp(item.ip)),
-        stale: now - item.updatedAt > this.telemetryStaleMs,
-        lastSeenSeconds: Math.floor((now - item.updatedAt) / 1000),
-      }));
+      .map((item) => {
+        const control = this.getControl(item.runId);
+        return {
+          ...item,
+          // A Web extension is effective as soon as the control is stored. The
+          // client echoes it on its next telemetry interval, but the Tracker
+          // should not make the operator wait for that echo to see it.
+          seedHostExtensionMinutes: Math.max(item.seedHostExtensionMinutes, finiteNumber(control.extensionMinutes)),
+          ...this.publicAssignment(this.assignmentForIp(item.ip)),
+          stale: now - item.updatedAt > this.telemetryStaleMs,
+          lastSeenSeconds: Math.floor((now - item.updatedAt) / 1000),
+        };
+      });
     const activeAssignments = [...this.assignments.values()].filter((item) => now - item.lastSeen <= this.activeSourceMs);
     const coverage = new Set();
     for (const item of activeAssignments) for (const piece of item.pieces) coverage.add(piece);

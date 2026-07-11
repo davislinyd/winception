@@ -102,6 +102,20 @@
   overflow-wrap: anywhere;
 }
 
+.torrent-seed-wait-summary {
+  display: grid;
+  gap: 2px;
+  min-width: 185px;
+}
+
+.torrent-seed-wait-summary > div:first-child {
+  color: var(--on-surface);
+}
+
+.torrent-seed-wait-summary > div:not(:first-child) {
+  color: var(--on-surface-variant);
+}
+
 .torrent-client-table tr.stale {
   opacity: 0.55;
 }

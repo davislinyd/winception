@@ -287,7 +287,7 @@ ImageFileDestination.PSDrive.DisplayRoot : \\<service-ip>\OSDCloudiPXE
 OSImageIndex                         : 1
 ```
 
-若使用 Torrent P2P，Tracker card 會顯示 wave、batch、slot、host ratio、active peers、piece coverage、download/upload rates 與 seed deadline。預設 seed wait 是 15 分鐘；可在 card 設定 0–1440 分鐘，設定只會套用到之後讀取 boot-config 的 WinPE client。每台 fresh waiting client 可個別延長 1–1440 分鐘，下載完成後的總 wait 不可超過 1440 分鐘；WinPE console 也可按 `E` 延長，deadline 後保留 60 秒按 `E` 或 Enter 決策。Torrent telemetry 短暫中斷不等於部署失敗；以 client 本機進度、SHA-256 驗證與最終 status 為準。更新 WinPE 行為後必須 Endpoint Sync 重新注入 `boot.wim`。
+若使用 Torrent P2P，Tracker card 會顯示 wave、batch、slot、host ratio、active peers、piece coverage、download/upload rates 與 seed wait 摘要。摘要列出 `Base`、client console `E` 的累積 `Client` 延長、Web 的累積 `Web` 延長、總 wait、剩餘時間與 deadline。預設 seed wait 是 15 分鐘；可在 card 設定 0–1440 分鐘，設定只會套用到之後讀取 boot-config 的 WinPE client。每台 fresh waiting client 可個別延長 1–1440 分鐘，下載完成後的總 wait 不可超過 1440 分鐘；WinPE console 也可按 `E` 延長，deadline 後保留 60 秒按 `E` 或 Enter 決策。Torrent telemetry 短暫中斷不等於部署失敗；以 client 本機進度、SHA-256 驗證與最終 status 為準。更新 WinPE 行為後必須 Endpoint Sync 重新注入 `boot.wim`。
 
 ### 08. 日常維護與故障排除
 
@@ -627,7 +627,7 @@ ImageFileDestination.PSDrive.DisplayRoot : \\<service-ip>\OSDCloudiPXE
 OSImageIndex                         : 1
 ```
 
-When Torrent P2P is enabled, the Tracker card shows wave, batch, slot, host ratio, active peers, piece coverage, download/upload rates, and each seed deadline. The default seed wait is 15 minutes; the card accepts 0–1440 minutes and affects only WinPE clients that read boot-config afterwards. Each fresh waiting client can be extended by 1–1440 minutes, with a maximum total wait of 1440 minutes after download completion. The WinPE console also accepts `E` to extend and gives a 60-second `E`/Enter decision window after the deadline. Short observation API interruptions do not mean deployment failure; rely on local client progress, SHA-256 verification, and final status. Run Endpoint Sync after a WinPE behavior update so `boot.wim` receives it.
+When Torrent P2P is enabled, the Tracker card shows wave, batch, slot, host ratio, active peers, piece coverage, download/upload rates, and a seed-wait summary. It lists the Base wait, the cumulative Client extension entered with WinPE console `E`, the cumulative Web extension, total wait, remaining time, and deadline. The default seed wait is 15 minutes; the card accepts 0–1440 minutes and affects only WinPE clients that read boot-config afterwards. Each fresh waiting client can be extended by 1–1440 minutes, with a maximum total wait of 1440 minutes after download completion. The WinPE console also accepts `E` to extend and gives a 60-second `E`/Enter decision window after the deadline. Short observation API interruptions do not mean deployment failure; rely on local client progress, SHA-256 verification, and final status. Run Endpoint Sync after a WinPE behavior update so `boot.wim` receives it.
 
 ### 08. Routine Maintenance And Troubleshooting
 

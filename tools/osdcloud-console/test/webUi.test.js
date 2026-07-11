@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.5-1', () => {
+test('release metadata is aligned to v0.6.5-2', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.5-1');
-  assert.equal(packageLock.version, '0.6.5-1');
-  assert.equal(packageLock.packages[''].version, '0.6.5-1');
-  assert.match(changelog, /## v0\.6\.5-1 — 2026-07-11/);
-  assert.match(manual, /Operations Manual · v0\.6\.5-1/);
-  assert.match(manual, /Product documentation for Web v0\.6\.5-1/);
+  assert.equal(packageJson.version, '0.6.5-2');
+  assert.equal(packageLock.version, '0.6.5-2');
+  assert.equal(packageLock.packages[''].version, '0.6.5-2');
+  assert.match(changelog, /## v0\.6\.5-2 — 2026-07-11/);
+  assert.match(manual, /Operations Manual · v0\.6\.5-2/);
+  assert.match(manual, /Product documentation for Web v0\.6\.5-2/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -87,7 +87,10 @@ test('torrent card renders live wave telemetry and release controls', () => {
   assert.match(script, /Default seed wait \(minutes\)/);
   assert.match(script, /\/api\/torrent\/settings/);
   assert.match(script, /\/api\/torrent\/extend/);
-  assert.match(script, /Seed deadline/);
+  assert.match(script, /Seed wait/);
+  assert.match(script, /Base \$\{base\}m · Client \+\$\{local\}m · Web \+\$\{host\}m/);
+  assert.match(script, /Total \$\{total\}m/);
+  assert.match(script, /remaining/);
   assert.match(script, /torrentExtensionMinutesByRun/);
   assert.match(script, /captureTorrentInputSelection/);
   assert.match(script, /restoreTorrentInputSelection/);

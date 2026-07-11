@@ -154,9 +154,15 @@ test('waiting clients can receive persisted cumulative extensions up to 1440 min
       runId: 'run-extend', clientId: 'client-extend', phase: 'waiting',
       seedBaseMinutes: 15, seedLocalExtensionMinutes: 60,
     }, '10.0.0.8');
+    let visible = f.coordinator.state().clients[0];
+    assert.equal(visible.seedBaseMinutes, 15);
+    assert.equal(visible.seedLocalExtensionMinutes, 60);
+    assert.equal(visible.seedHostExtensionMinutes, 0);
     const first = f.coordinator.extend({ runId: 'run-extend', additionalMinutes: 900 });
     assert.equal(first.extensionId, 1);
     assert.equal(first.extensionMinutes, 900);
+    visible = f.coordinator.state().clients[0];
+    assert.equal(visible.seedHostExtensionMinutes, 900, 'shows a Web extension before the next client telemetry poll');
     const second = f.coordinator.extend({ runId: 'run-extend', additionalMinutes: 465 });
     assert.equal(second.extensionId, 2);
     assert.equal(second.extensionMinutes, 1365);

@@ -633,19 +633,35 @@ function Stop-TorrentTransfer {
     Remove-Item -LiteralPath $Context.contextPath, $Context.stopPath -Force -ErrorAction SilentlyContinue
 }
 
+function Stop-OSDCloudProgressReporter {
+    # The hidden reporter reads stale DISM/transcript lines. Stop it before the
+    # interactive seed window so it cannot overwrite the waiting status or hide
+    # the operator prompt with an old apply-image event.
+    New-Item -ItemType File -Path $stopProgressPath -Force | Out-Null
+    Start-Sleep -Seconds 6
+}
+
 function Wait-TorrentSeedWindow {
     param([object] $Context)
     if (-not $Context) { return }
 
+    Stop-OSDCloudProgressReporter
     Set-TorrentTransferPhase -Context $Context -Phase 'waiting'
     Send-DeploymentStatus -Stage 'torrent-seed-wait' -Message 'Windows apply complete; waiting for torrent receivers before reboot.' -Extra @{
         seedDeadline = $Context.seedDeadline.ToString('o')
     }
     Write-Host ''
-    Write-Host 'Torrent seed wait. Press E to extend time, or Enter to continue to reboot now.' -ForegroundColor Cyan
+    Write-Host ('=' * 72) -ForegroundColor Cyan
+    Write-Host ' TORRENT SEED WAIT ACTIVE' -ForegroundColor Cyan
+    Write-Host " Deadline: $($Context.seedDeadline.ToString('G'))" -ForegroundColor Cyan
+    Write-Host ' [E] Extend seed time    [Enter] Continue to reboot now' -ForegroundColor Yellow
+    Write-Host ('=' * 72) -ForegroundColor Cyan
+    Start-Sleep -Milliseconds 250
+    Send-Screenshot -Stage 'torrent-seed-wait'
     $reason = 'deadline'
     $graceDeadline = $null
     $lastDisplay = [datetime]::MinValue
+    $lastConsoleReminder = [datetime]::MinValue
     $lastUpload = [double] 0
     while ($true) {
         if ($Context.process.HasExited) { $reason = 'aria2-exit'; break }
@@ -711,6 +727,11 @@ function Wait-TorrentSeedWindow {
                 Write-Progress -Id 23 -Activity 'Torrent seed wait' -Status ("remaining {0} | uploaded {1:N2} GiB | receivers {2}" -f (Format-TorrentEta -Seconds $remaining.TotalSeconds), ($lastUpload / 1GB), $receivers.Count) -PercentComplete ([math]::Max(0, [math]::Min(100, 100 - (($remaining.TotalSeconds / [math]::Max(1, $totalWaitMinutes * 60)) * 100))))
             } catch {}
             $lastDisplay = Get-Date
+        }
+        if (((Get-Date) - $lastConsoleReminder).TotalSeconds -ge 30) {
+            $remaining = if ($graceDeadline) { $graceDeadline - (Get-Date) } else { $Context.seedDeadline - (Get-Date) }
+            Write-Host ("Torrent seed wait active: {0} remaining. [E] Extend | [Enter] Reboot now" -f (Format-TorrentEta -Seconds $remaining.TotalSeconds)) -ForegroundColor Cyan
+            $lastConsoleReminder = Get-Date
         }
         Start-Sleep -Seconds 1
     }
@@ -897,11 +918,13 @@ function Invoke-TorrentOsImageDownload {
         # aria2 removes the .aria2 control file once the download completes, then
         # keeps running to seed to peers. Poll for completion; do not block on the
         # seeding window (the apply proceeds while this client keeps seeding).
-        # No intermediate stall check: file-size and file-mtime are both unreliable
-        # for BT (falloc pre-fills to full size; rarest-first writes are non-sequential;
-        # Windows delays LastWriteTime until file close). aria2 has its own retry/
-        # reconnect logic; a 30-min outer deadline covers genuine hung downloads.
+        # Use aria2's monotonic completedLength rather than file size or mtime:
+        # falloc pre-fills the file and rarest-first writes are non-sequential.
+        # If every peer disappears, fail closed to the mapped SMB image instead
+        # of leaving one client waiting for sources until the 30-minute deadline.
         $deadline = (Get-Date).AddMinutes(30)
+        $lastCompletedBytes = [double] -1
+        $lastTorrentProgressAt = Get-Date
         while ($true) {
             Start-Sleep -Seconds 5
             $downloadComplete = (Test-Path -LiteralPath $targetWim) -and (-not (Test-Path -LiteralPath $controlFile))
@@ -933,6 +956,10 @@ function Invoke-TorrentOsImageDownload {
                 $completedBytes = [double] $status.completedLength
                 $downloadSpeed = [double] $status.downloadSpeed
                 $uploadSpeed = [double] $status.uploadSpeed
+                if ($completedBytes -gt $lastCompletedBytes) {
+                    $lastCompletedBytes = $completedBytes
+                    $lastTorrentProgressAt = Get-Date
+                }
                 $lastUploadLength = [math]::Max($lastUploadLength, [double] $status.uploadLength)
                 $percent = if ($totalBytes -gt 0) { [math]::Min(100, [math]::Floor(($completedBytes / $totalBytes) * 100)) } else { 0 }
                 $eta = if ($downloadSpeed -gt 0 -and $totalBytes -gt $completedBytes) {
@@ -984,6 +1011,9 @@ function Invoke-TorrentOsImageDownload {
             }
             if ($proc.HasExited) {
                 throw "aria2c exited (code $($proc.ExitCode)) before completing the download."
+            }
+            if (((Get-Date) - $lastTorrentProgressAt).TotalSeconds -ge 180) {
+                throw 'BitTorrent download made no aria2 completedLength progress for 180 seconds; falling back to SMB-direct apply.'
             }
             if ((Get-Date) -gt $deadline) {
                 throw 'BitTorrent download timed out (30 min).'

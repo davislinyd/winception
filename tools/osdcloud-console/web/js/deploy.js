@@ -370,7 +370,7 @@ export function renderServices(appState) {
       table.className = 'torrent-client-table';
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
-      for (const label of ['Client', 'Phase', 'Batch', 'Progress', 'Down / up', 'ETA', 'Uploaded', 'Sources / receivers', 'Seed deadline', 'Last seen', '']) {
+      for (const label of ['Client', 'Phase', 'Batch', 'Progress', 'Down / up', 'ETA', 'Uploaded', 'Sources / receivers', 'Seed wait', 'Last seen', '']) {
         const cell = document.createElement('th');
         cell.textContent = label;
         headerRow.append(cell);
@@ -390,7 +390,7 @@ export function renderServices(appState) {
           client.etaSeconds ? FormatTorrentEta(client.etaSeconds) : '-',
           bytes(client.uploadLength),
           `${client.sources?.join(', ') || '-'} / ${client.receivers?.join(', ') || '-'}`,
-          client.seedDeadline ? localCompactDateTime(client.seedDeadline) : '-',
+          client.phase === 'waiting' ? makeTorrentSeedWaitSummary(client) : '-',
           `${client.lastSeenSeconds ?? 0}s`,
         ];
         for (const [index, value] of values.entries()) {
@@ -404,6 +404,8 @@ export function renderServices(appState) {
             fill.style.width = `${progress}%`;
             track.append(fill);
             td.append(label, track);
+          } else if (index === 8 && value instanceof Node) {
+            td.append(value);
           } else {
             td.textContent = value;
           }
@@ -476,6 +478,27 @@ function FormatTorrentEta(seconds) {
   const minutes = Math.floor((total % 3600) / 60);
   const secs = total % 60;
   return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}` : `${minutes}:${String(secs).padStart(2, '0')}`;
+}
+
+function makeTorrentSeedWaitSummary(client) {
+  const base = Number(client.seedBaseMinutes) || 0;
+  const local = Number(client.seedLocalExtensionMinutes) || 0;
+  const host = Number(client.seedHostExtensionMinutes) || 0;
+  const total = base + local + host;
+  const deadline = client.seedDeadline ? new Date(client.seedDeadline) : null;
+  const remainingSeconds = deadline && !Number.isNaN(deadline.getTime())
+    ? Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 1000))
+    : null;
+  const wrap = document.createElement('div');
+  wrap.className = 'torrent-seed-wait-summary';
+  const breakdown = document.createElement('div');
+  breakdown.textContent = `Base ${base}m · Client +${local}m · Web +${host}m`;
+  const totalLine = document.createElement('div');
+  totalLine.textContent = `Total ${total}m · ${remainingSeconds === null ? '-' : `${FormatTorrentEta(remainingSeconds)} remaining`}`;
+  const deadlineLine = document.createElement('div');
+  deadlineLine.textContent = deadline ? localCompactDateTime(deadline) : 'Deadline unavailable';
+  wrap.append(breakdown, totalLine, deadlineLine);
+  return wrap;
 }
 
 function setDeploySummaryTooltip(target, payload) {

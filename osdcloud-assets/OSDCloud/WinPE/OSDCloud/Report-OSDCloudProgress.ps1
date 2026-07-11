@@ -318,10 +318,16 @@ while (-not (Test-Path -LiteralPath $StopFile)) {
     $signature = "$stage|$percent|$message"
     $shouldSend = ($signature -ne $lastSignature) -or (((Get-Date) - $lastSent).TotalSeconds -ge $HeartbeatSeconds)
     if ($shouldSend) {
+        if (Test-Path -LiteralPath $StopFile) {
+            break
+        }
         $extra = @{
             elapsedSeconds = [int] ((Get-Date) - $started).TotalSeconds
         }
         Send-Status -Stage $stage -Message $message -Percent $percent -LogTail $lines -Extra $extra
+        if (Test-Path -LiteralPath $StopFile) {
+            break
+        }
         if (Should-CaptureScreenshot -Stage $stage -Percent $percent) {
             Send-Screenshot -Stage $stage
         }

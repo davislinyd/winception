@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.5-2 — 2026-07-11
+
+- WinPE 進入 torrent seed wait 前停止 hidden progress reporter，避免舊的 `apply-image` 回報覆蓋等待狀態；client console 會顯示持續可見的 seed-wait banner、`E` 延長／Enter reboot 提示與專用 screenshot
+- torrent client 以 aria2 `completedLength` 監控實際進度；180 秒無進度時回落 SMB-direct apply，避免最後一台在 peer 離開後卡到 30 分鐘總 timeout
+- Tracker 的 Seed wait 摘要現在拆分 Base、Client 本機 `E` 累積延長、Web 累積延長、總 wait、剩餘時間與 deadline；Web 延長提交後立即反映，不等待下一輪 client telemetry
+
 ## v0.6.5-1 — 2026-07-11
 
 ### 修正：WinPE HTTP 相容性與 Torrent 啟動
