@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.5-3 — 2026-07-11
 
 - Client post-logon finalization now runs as a SYSTEM startup task that waits for the configured user's interactive Explorer session before serial app/script installation. The first-logon viewer shows safe waiting/finalizer phases and elapsed time before the first installer starts; `windows-apps-finished` adds only completed step name/type/status/duration for host Evidence.
 - Validation Evidence now uses host-observed `Asia/Taipei (UTC+8)` timestamps. Completed/failed runs are immutable snapshots; late events are retained in an audit stream without changing Evidence, summary, latest pointers, status, or completion time.
