@@ -371,6 +371,7 @@ function Get-ClientInstallerProgressSummary {
 
     $summary = [ordered]@{
         installerStatus = [string] $progress.status
+        installerPhase = [string] $progress.phase
         installerTotalSteps = if ($null -ne $progress.totalSteps) { [int] $progress.totalSteps } else { 0 }
         installerElapsedSeconds = if ($null -ne $progress.elapsedSeconds) { [double] $progress.elapsedSeconds } else { $null }
     }
@@ -496,6 +497,15 @@ function Invoke-ClientAppInstallers {
     $failureDetails = Get-InstallSequenceFailureDetails -LogRoot $LogDir
     foreach ($key in $failureDetails.Keys) {
         $result[$key] = $failureDetails[$key]
+    }
+
+    $installerProgress = Get-JsonFileObject -Path $DeploymentProgressPath
+    if ($installerProgress -and [string] $installerProgress.status -eq 'reboot_pending') {
+        $result.rebootPending = $true
+        $result.resumeFromStep = if ($null -ne $installerProgress.resumeFromStep) { [int] $installerProgress.resumeFromStep } else { $null }
+        $result.rebootCount = if ($null -ne $installerProgress.rebootCount) { [int] $installerProgress.rebootCount } else { 1 }
+        [void] (Send-DeploymentStatus -Stage 'windows-apps-reboot-pending' -Message 'Client applications are waiting for a required reboot before continuing.' -Percent 95 -Extra (Get-SafeInstallerCompletionSummary))
+        return $result
     }
 
     if ($timedOut) {
@@ -1053,6 +1063,7 @@ function Install-PostLogonFinalizer {
 }
 
 function Invoke-PostLogonFinalization {
+    $keepFinalizerForReboot = $false
     if ($RegisteredBootTimeUtcTicks -gt 0) {
         $currentBootTimeUtcTicks = [long] (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
         if ($currentBootTimeUtcTicks -eq $RegisteredBootTimeUtcTicks) {
@@ -1086,6 +1097,11 @@ function Invoke-PostLogonFinalization {
             targetUserEnvironment = $targetUserEnvironment
         })
         $clientAppsResult = Invoke-ClientAppInstallers
+        if ($clientAppsResult.rebootPending) {
+            $keepFinalizerForReboot = $true
+            [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-reboot-pending' -Message 'Post-logon finalization is waiting for the required reboot.' -Percent 95 -Extra (Get-SafeInstallerCompletionSummary))
+            return $true
+        }
         $driverPackCacheRequestSent = Send-DriverPackCacheRequest
         [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-finished' -Message 'Post-logon client finalization finished.' -Percent 96 -Extra @{
             clientApps = $clientAppsResult
@@ -1104,7 +1120,9 @@ function Invoke-PostLogonFinalization {
         return $false
     }
     finally {
-        Unregister-ScheduledTask -TaskName $PostLogonTaskName -Confirm:$false -ErrorAction SilentlyContinue
+        if (-not $keepFinalizerForReboot) {
+            Unregister-ScheduledTask -TaskName $PostLogonTaskName -Confirm:$false -ErrorAction SilentlyContinue
+        }
     }
 }
 

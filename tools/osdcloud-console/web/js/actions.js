@@ -1,6 +1,6 @@
 import { api, loadInterfaces, loadOsDownloadCatalog, mutate, refresh } from './api.js';
 import { currentInterfaceChoice, fillImportMetadataDefaults, importMetadataFromInputs, showValidationEvidence } from './deploy.js';
-import { closeDialog, confirmAction, confirmEndpointSync, handleScriptAdd, openDialog, showAddProfileDialog, showAddScriptDialog, showAddSoftwareDialog, showPicker, showSoftwareDialog } from './dialogs.js';
+import { closeDialog, confirmAction, confirmEndpointSync, handleScriptAdd, openDialog, showAddProfileDialog, showAddScriptDialog, showAddSoftwareDialog, showPicker, showSoftwareAddedDialog, showSoftwareDialog, showSoftwareTestDialog } from './dialogs.js';
 import { $, elements } from './dom.js';
 import { visibleFleetRuns } from './fleet.js';
 import { osImageLabel } from './format.js';
@@ -205,20 +205,22 @@ export async function handleOsImageImport(row) {
 
 export async function handleSoftwareAdd(input) {
   const ok = await confirmAction({
-    title: 'Add software package',
-    message: 'This writes a new Softwares folder and catalog entry only. It does not publish Apps or change the active profile.',
+    title: '加入 Software Catalog',
+    message: '這只會建立 Softwares folder 與 catalog entry；不會 publish Apps，也不會改變 active profile。',
     details: [
       `Software: ${input.name}`,
       `Software ID: ${input.softwareId}`,
-      `Installer: ${input.file.name}`,
-      `Script mode: ${input.scriptMode}`,
-      `Post-install verification: ${
+      `Installer payload: ${input.file.name}`,
+      `安裝方式: ${input.scriptMode === 'template' ? 'Guided installer' : 'Custom PowerShell'}`,
+      `前置 software: ${input.dependsOn?.length ? input.dependsOn.join(', ') : '無'}`,
+      `Client 網路: ${input.network?.requirement === 'client-internet' ? `必須可連外 (${input.network.probeHost})` : 'Host 預載 payload'}`,
+      `安裝後驗證: ${
         input.scriptMode === 'template'
-          ? (input.verifyPath || 'installer exit code only')
-          : 'raw install.ps1'
+          ? (input.verifyPath || '只信任 installer 回傳碼')
+          : 'Custom install.ps1'
       }`,
     ],
-    confirmLabel: 'Add to catalog',
+    confirmLabel: '加入 Catalog',
     severity: 'warning',
   });
   if (!ok || state.busy) {
@@ -227,12 +229,20 @@ export async function handleSoftwareAdd(input) {
 
   state.busy = true;
   setControlsDisabled(true);
+  let addedSoftware = null;
   try {
     const uploadPayload = await api(`/api/software-upload?fileName=${encodeURIComponent(input.file.name)}`, {
       method: 'POST',
       headers: { 'content-type': 'application/octet-stream' },
       body: input.file,
     });
+    const installationFields = input.scriptMode === 'template'
+      ? {
+          silentArgs: input.silentArgs,
+          successExitCodes: input.successExitCodes,
+          verifyPath: input.verifyPath,
+        }
+      : { rawScript: input.rawScript };
     const createPayload = await api('/api/software/create', {
       method: 'POST',
       body: JSON.stringify({
@@ -241,21 +251,34 @@ export async function handleSoftwareAdd(input) {
         name: input.name,
         scriptMode: input.scriptMode,
         installerType: input.installerType,
-        silentArgs: input.silentArgs,
-        successExitCodes: input.successExitCodes,
-        verifyPath: input.verifyPath,
-        rawScript: input.rawScript,
+        ...installationFields,
+        dependsOn: input.dependsOn,
+        network: input.network,
       }),
     });
     state.current = createPayload.state;
     state.selectedRunId = createPayload.state?.selectedRunId ?? state.selectedRunId;
     render();
-    window.alert(`Added ${createPayload.result.software.name} (${createPayload.result.software.id}) to the software catalog. Select it in a deployment profile before publishing.`);
+    addedSoftware = createPayload.result.software;
   } catch (error) {
     window.alert(error.message);
   } finally {
     state.busy = false;
     setControlsDisabled(false);
+  }
+  if (!addedSoftware) {
+    return;
+  }
+  const followUp = await showSoftwareAddedDialog(addedSoftware);
+  if (followUp === 'profile') {
+    openDialog(elements.deploymentProfilesDialog);
+    return;
+  }
+  if (followUp === 'another') {
+    const nextInput = await showAddSoftwareDialog();
+    if (nextInput) {
+      await handleSoftwareAdd(nextInput);
+    }
   }
 }
 
@@ -591,6 +614,37 @@ export async function handleAction(action, source = null) {
     const input = await showAddProfileDialog(payload.profile);
     if (input) {
       await mutate('/api/profiles/create', input);
+    }
+  } else if (action === 'software-test-toggle') {
+    const expanded = elements.softwareTestContent.hidden;
+    elements.softwareTestContent.hidden = !expanded;
+    elements.softwareTestToggle.textContent = expanded ? '收合' : '展開';
+    elements.softwareTestToggle.setAttribute('aria-expanded', String(expanded));
+  } else if (action === 'software-test-settings') {
+    const input = await showSoftwareTestDialog(state.current?.softwareTest?.configuration ?? {});
+    if (input) {
+      await mutate('/api/software-test/config', input);
+    }
+  } else if (action === 'profile-test') {
+    const profileId = source?.dataset?.profileId;
+    const profile = state.current?.profile?.profiles?.find((item) => item.id === profileId);
+    if (!profile) {
+      window.alert('找不到 Deployment profile。');
+      return;
+    }
+    const ok = await confirmAction({
+      title: '測試此 profile 的 software',
+      message: '系統會還原專用乾淨 VM、以 SYSTEM 執行此 profile 的 software、收集安全摘要，再還原快照。不會 publish live Apps，也不會變更 active profile。',
+      details: [
+        'Profile：' + profile.name,
+        'Software：' + (profile.softwareIds?.join(', ') || '無'),
+        'Test VM：' + (state.current?.softwareTest?.configuration?.vmName || '-'),
+      ],
+      confirmLabel: '開始測試',
+      severity: 'warning',
+    });
+    if (ok) {
+      await mutate('/api/software-test/run', { profileId: profile.id });
     }
   } else if (action === 'profile-edit') {
     const payload = await api('/api/profiles');

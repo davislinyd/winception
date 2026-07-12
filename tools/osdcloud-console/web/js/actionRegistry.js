@@ -116,6 +116,8 @@ export function handleDocumentClick(event) {
       handleProfileDelete(profile).catch((error) => window.alert(error.message));
     } else if (profileButton.dataset.profileAction === 'edit') {
       handleAction('profile-edit', profileButton).catch((error) => window.alert(error.message));
+    } else if (profileButton.dataset.profileAction === 'test') {
+      handleAction('profile-test', profileButton).catch((error) => window.alert(error.message));
     }
     return;
   }

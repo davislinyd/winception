@@ -359,6 +359,24 @@
         <section class="drawer-section">
           <div class="drawer-section-header">
             <div>
+              <h4>Software Test VM</h4>
+              <div id="software-test-summary" class="drawer-subtitle">一次登記專用乾淨 VM，之後不用 PXE 就能測試 software。</div>
+            </div>
+            <div class="drawer-actions">
+              <button id="software-test-toggle" data-action="software-test-toggle" aria-controls="software-test-content" aria-expanded="false" type="button">展開</button>
+            </div>
+          </div>
+          <div id="software-test-content" hidden>
+            <div class="drawer-actions mt-3">
+              <button data-action="software-test-settings" data-icon="settings" type="button">測試 VM 設定</button>
+            </div>
+            <dl id="software-test-details" class="stitch-details"></dl>
+          </div>
+        </section>
+
+        <section class="drawer-section">
+          <div class="drawer-section-header">
+            <div>
               <h4>Software Catalog</h4>
               <div class="drawer-subtitle">
                 <span>Add packages here, then use Edit active to include them in a profile.</span>
@@ -411,6 +429,26 @@
             </table>
           </div>
         </section>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="software-test-dialog">
+    <form id="software-test-form" class="dialog-card">
+      <div class="dialog-header">
+        <h3>Software Test VM</h3>
+        <button id="software-test-cancel" type="button">關閉</button>
+      </div>
+      <div class="dialog-summary">使用已用 Minimal profile 部署一次、目前關機的專用第 2 代 VM。登記只會驗證乾淨快照，不會建立或覆寫 VM。</div>
+      <div class="form-grid compact">
+        <label>VM 名稱 <input id="software-test-vm-name" type="text" value="winception-software-test-01" required maxlength="63"></label>
+        <label>乾淨快照 <input id="software-test-checkpoint-name" type="text" value="Winception-SoftwareTest-Clean" required maxlength="127"></label>
+        <label>目標使用者 <input id="software-test-target-user" type="text" autocomplete="username" required maxlength="63"></label>
+      </div>
+      <p id="software-test-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="software-test-cancel-secondary" type="button">取消</button>
+        <button type="submit" class="warning">登記並驗證</button>
       </div>
     </form>
   </dialog>
@@ -815,46 +853,134 @@
   </dialog>
 
   <dialog id="software-add-dialog">
-    <form id="software-add-form" class="dialog-card wide">
+    <form id="software-add-form" class="dialog-card wide software-add-wizard">
       <div class="dialog-header">
-        <h3>Add client software</h3>
-        <button id="software-add-cancel" type="button">Close</button>
+        <h3>新增 Client Software</h3>
+        <button id="software-add-cancel" type="button">關閉</button>
       </div>
-      <div class="dialog-summary" id="software-add-summary">Adds a package to the catalog only. It will not install until a deployment profile selects and publishes it.</div>
-      <div class="form-grid compact">
-        <label>Software ID <input id="software-add-id" name="softwareId" type="text" autocomplete="off" required maxlength="16" pattern="[a-z0-9][a-z0-9-]{0,15}" placeholder="vlc"></label>
-        <label>Display name <input id="software-add-name" name="name" type="text" autocomplete="off" required placeholder="VLC media player"></label>
-        <label>Installer file <input id="software-add-file" type="file" accept=".msi,.exe" required></label>
-      </div>
-      <div class="form-grid compact">
-        <label>Script mode
-          <select id="software-add-script-mode">
-            <option value="template">Template</option>
-            <option value="raw">Raw install.ps1</option>
-          </select>
-        </label>
-        <label>Installer type
-          <select id="software-add-installer-type">
-            <option value="msi">MSI</option>
-            <option value="exe">EXE</option>
-          </select>
-        </label>
-        <label>Success exit codes <input id="software-add-success-codes" type="text" value="0,1641,3010"></label>
-      </div>
-      <div id="software-add-template-fields" class="form-grid compact">
-        <label>Silent arguments <input id="software-add-silent-args" type="text" value="/qn /norestart REBOOT=ReallySuppress"></label>
-        <label class="span-2">Installed file to verify (optional)
-          <input id="software-add-verify-path" type="text" placeholder="C:\Program Files\App\App.exe">
-          <span class="field-hint">Leave blank to trust the installer success exit code only. Enter the main EXE or another installed file for stronger verification.</span>
-        </label>
-      </div>
-      <div id="software-add-raw-fields" class="form-grid" hidden>
-        <label>Raw install.ps1 <textarea id="software-add-raw-script" rows="10" spellcheck="false"></textarea></label>
-      </div>
+      <div class="dialog-summary" id="software-add-summary">此精靈只會建立 Software Catalog package。完成後仍需在 Deployment profile 選取並 publish，client 才會安裝。</div>
+      <ol id="software-add-stepper" class="software-add-stepper" aria-label="新增 Client Software 步驟">
+        <li data-software-add-step-indicator="1"><span>1</span><strong>Package</strong><small>payload 與識別資料</small></li>
+        <li data-software-add-step-indicator="2"><span>2</span><strong>Installation</strong><small>選擇安裝方式</small></li>
+        <li data-software-add-step-indicator="3"><span>3</span><strong>Requirements</strong><small>相依性與確認</small></li>
+      </ol>
+
+      <section id="software-add-step-package" class="software-add-step" aria-labelledby="software-add-package-title">
+        <div>
+          <h4 id="software-add-package-title">1. Package</h4>
+          <p>每個 software package 都需要一個 MSI 或 EXE payload；檔案類型會自動判定。</p>
+          <p class="software-add-required-note"><span class="required-marker" aria-hidden="true">*</span> 必填欄位</p>
+        </div>
+        <div class="form-grid compact">
+          <label><span class="field-label-row">Software ID <span class="required-marker" aria-hidden="true">*</span></span><input id="software-add-id" name="softwareId" type="text" autocomplete="off" required maxlength="16" pattern="[a-z0-9][a-z0-9-]{0,15}" placeholder="vlc"></label>
+          <label><span class="field-label-row">顯示名稱 <span class="required-marker" aria-hidden="true">*</span></span><input id="software-add-name" name="name" type="text" autocomplete="off" required placeholder="VLC media player"></label>
+          <div class="software-add-file-field">
+            <span class="field-label-row">Installer payload <span class="required-marker" aria-hidden="true">*</span></span>
+            <div class="software-add-file-picker">
+              <button id="software-add-file-browse" type="button">選擇檔案</button>
+              <output id="software-add-file-name" aria-live="polite">尚未選擇檔案</output>
+              <input id="software-add-file" class="visually-hidden" type="file" accept=".msi,.exe" aria-label="Installer payload" aria-required="true">
+            </div>
+            <span class="field-hint">重新開啟選檔視窗後按取消，會保留目前已選的 payload。</span>
+          </div>
+        </div>
+        <div class="software-add-installer-kind" aria-live="polite">
+          <strong>Installer type</strong>
+          <output id="software-add-installer-type-display">選擇 MSI 或 EXE 後自動判定</output>
+          <input id="software-add-installer-type" type="hidden" value="msi">
+        </div>
+      </section>
+
+      <section id="software-add-step-install" class="software-add-step" aria-labelledby="software-add-install-title" hidden>
+        <div>
+          <h4 id="software-add-install-title">2. Installation</h4>
+          <p>一般軟體選 Guided installer；只有需要自行控制完整 <code>install.ps1</code> 時才選 Custom PowerShell。</p>
+        </div>
+        <div class="software-add-mode-options" role="radiogroup" aria-label="安裝方式">
+          <label id="software-add-mode-template-card" class="software-add-mode-card selected">
+            <input id="software-add-mode-template" name="software-add-script-mode" type="radio" value="template" checked>
+            <strong>Guided installer</strong>
+            <span>Winception 產生 MSI／EXE 靜默安裝腳本。</span>
+          </label>
+          <label id="software-add-mode-raw-card" class="software-add-mode-card">
+            <input id="software-add-mode-raw" name="software-add-script-mode" type="radio" value="raw">
+            <strong>Custom PowerShell</strong>
+            <span>使用受信任管理員提供的完整 <code>install.ps1</code>。</span>
+          </label>
+        </div>
+        <div id="software-add-template-fields" class="form-grid compact">
+          <label>Silent arguments <input id="software-add-silent-args" type="text" value="/qn /norestart REBOOT=ReallySuppress"></label>
+          <label>視為成功的 installer 回傳碼 <input id="software-add-success-codes" type="text" value="0,1641,3010">
+            <span class="field-hint">MSI 預設 <code>0,1641,3010</code>；EXE 預設 <code>0</code>。只有廠商文件明示時，才把 <code>1641</code>／<code>3010</code> 加入 EXE。<code>0</code> 成功；<code>3010</code> 成功但建議重開機；<code>1641</code> 成功且會在重開機後從下一步續跑。</span>
+          </label>
+          <label class="span-2">安裝後檔案驗證（選填）
+            <input id="software-add-verify-path" type="text" placeholder="C:\Program Files\App\App.exe">
+            <span class="field-hint">留白時只信任 installer 回傳碼。填入主 EXE 或其他已安裝檔案，可取得更可靠的驗證。</span>
+          </label>
+        </div>
+        <div id="software-add-raw-fields" class="form-grid" hidden>
+          <label><span class="field-label-row">Custom PowerShell <span class="required-marker" aria-hidden="true">*</span></span><textarea id="software-add-raw-script" rows="10" spellcheck="false" disabled aria-required="false"></textarea>
+            <span class="field-hint">以 SYSTEM、非互動方式執行。儲存前只做 Windows PowerShell 5.1 syntax 檢查，因為 client 實際也使用該 runtime；不是 sandbox 或實機安裝測試。</span>
+          </label>
+          <div class="software-add-template-guide">
+            <strong>不知道從哪裡開始？</strong>
+            <span>先選擇 payload，再載入可直接修改的參考範本；範本會尋找 package 資料夾中的 MSI 或 EXE，並包含 exit code、重開機與選填驗證範例。</span>
+            <button id="software-add-raw-template" type="button">載入 MSI 參考範本</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="software-add-step-requirements" class="software-add-step" aria-labelledby="software-add-requirements-title" hidden>
+        <div>
+          <h4 id="software-add-requirements-title">3. Requirements &amp; review</h4>
+          <p>設定前置軟體與 client 外網條件，再確認即將加入 catalog 的內容。</p>
+        </div>
+        <div class="form-grid compact">
+          <fieldset class="software-add-dependencies">
+            <legend>Software 相依性（選填）</legend>
+            <div id="software-add-depends-on" class="checkbox-list" aria-describedby="software-add-dependencies-hint"></div>
+            <span id="software-add-dependencies-hint" class="field-hint">選取的 software 會先安裝；使用此 package 的 profile 必須同時選取所有前置 software，順序會自動正規化。</span>
+          </fieldset>
+          <label>Client 外網需求
+            <select id="software-add-network-requirement">
+              <option value="offline">Host 預載 payload（預設，不需 client 外網）</option>
+              <option value="client-internet">Client 必須可連外</option>
+            </select>
+            <span class="field-hint">Host 預下載／發布不等於 client 需要外網；一般 MSI／EXE payload 請維持預設。</span>
+          </label>
+          <label id="software-add-network-fields" hidden><span class="field-label-row">Network probe hostname <span class="required-marker" aria-hidden="true">*</span></span>
+            <input id="software-add-network-probe-host" type="text" placeholder="download.vendor.example" disabled aria-required="false">
+            <span class="field-hint">此步驟會先等待 DNS 與 TCP 443 成功；timeout 是等待與安裝共用的總時間。未就緒時不會執行 installer。</span>
+          </label>
+        </div>
+        <section class="software-add-review" aria-labelledby="software-add-review-title">
+          <h5 id="software-add-review-title">確認內容</h5>
+          <dl id="software-add-review-list"></dl>
+        </section>
+      </section>
+
       <p id="software-add-error" class="form-error" role="alert"></p>
       <div class="dialog-actions">
-        <button id="software-add-cancel-secondary" type="button">Cancel</button>
-        <button type="submit" class="warning">Add to catalog</button>
+        <button id="software-add-cancel-secondary" type="button">取消</button>
+        <button id="software-add-back" type="button" hidden>上一步</button>
+        <button id="software-add-next" type="button" class="warning">下一步</button>
+        <button id="software-add-submit" type="submit" class="warning" hidden>加入 Software Catalog</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="software-add-success-dialog">
+    <form class="dialog-card">
+      <div class="dialog-header">
+        <h3>已加入 Software Catalog</h3>
+        <button id="software-add-success-close" type="button">關閉</button>
+      </div>
+      <div class="dialog-summary">
+        <strong id="software-add-success-name"></strong> 已建立為 catalog package，尚未加入任何 Deployment profile，也尚未 publish 到 live Apps。
+      </div>
+      <div class="dialog-actions">
+        <button id="software-add-success-another" type="button">再新增一套</button>
+        <button id="software-add-success-profile" class="warning" type="button">前往 Deployment profile</button>
       </div>
     </form>
   </dialog>

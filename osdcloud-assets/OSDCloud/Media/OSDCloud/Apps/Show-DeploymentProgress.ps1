@@ -23,7 +23,7 @@ function Read-ProgressState {
 function ConvertTo-ProgressView {
     param($State)
 
-    $allowedStatuses = @('pending', 'running', 'succeeded', 'failed')
+    $allowedStatuses = @('pending', 'running', 'reboot_pending', 'succeeded', 'failed')
     $status = if ($State -and $allowedStatuses -contains [string] $State.status) { [string] $State.status } else { 'pending' }
     $total = if ($State -and $State.totalSteps -as [int]) { [int] $State.totalSteps } else { 0 }
     $completed = if ($State -and $State.completedSteps) { @($State.completedSteps) } else { @() }
@@ -44,7 +44,8 @@ function ConvertTo-ProgressView {
             $value = [timespan]::FromSeconds($durationSeconds)
         $duration = ' - Completed in {0:D2}:{1:D2}:{2:D2}' -f [int] $value.TotalHours, $value.Minutes, $value.Seconds
         }
-        "{0}  {1}: {2}{3}" -f ($(if ([string] $_.status -eq 'succeeded') { '[OK]' } else { '[!]' })), $kind, $label, $duration
+        $restartHint = if ([bool] $_.rebootRecommended) { ' - Restart recommended' } else { '' }
+        "{0}  {1}: {2}{3}{4}" -f ($(if ([string] $_.status -eq 'succeeded') { '[OK]' } else { '[!]' })), $kind, $label, $duration, $restartHint
     })
 
     $headline = 'Preparing this PC'
@@ -52,11 +53,18 @@ function ConvertTo-ProgressView {
     if ($status -eq 'succeeded') {
         $headline = 'Deployment complete'
         $detail = 'This PC is ready to use.'
+        if ($State -and [bool] $State.restartRecommended) {
+            $detail = 'This PC is ready to use. A restart is recommended by one or more installers.'
+        }
         $percent = 100
     }
     elseif ($status -eq 'failed') {
         $headline = 'Deployment needs attention'
         $detail = 'A deployment step failed. Record the details below before returning to the desktop.'
+    }
+    elseif ($status -eq 'reboot_pending') {
+        $headline = 'Restarting to continue deployment'
+        $detail = 'An installer requested a restart. Remaining steps will continue after the next target-user sign-in.'
     }
 
     $activityMessage = ''
@@ -74,9 +82,18 @@ function ConvertTo-ProgressView {
     }
     if ($status -eq 'succeeded') {
         $activityMessage = 'Completed - this PC is ready to use.'
+        if ($State -and [bool] $State.restartRecommended) {
+            $activityMessage = 'Completed - restart is recommended by an installer.'
+        }
     }
     if ($status -eq 'failed') {
         $activityMessage = 'The deployment stopped before all work completed.'
+    }
+    if ($status -eq 'reboot_pending') {
+        $activityMessage = 'Waiting for the required restart before continuing the install sequence.'
+    }
+    if ($status -eq 'running' -and $currentStatus -eq 'waiting_for_network') {
+        $activityMessage = 'Waiting for the required client Internet connection.'
     }
     if ($status -eq 'running' -and $currentStatus -eq 'starting') {
         $activityMessage = 'Starting this step...'
@@ -126,7 +143,7 @@ function ConvertTo-ProgressView {
         detail = $detail
         progressPercent = [int] $percent
         isIndeterminate = ($status -eq 'pending' -and $total -eq 0)
-        stepLabel = if ($current -and $total -gt 0) { "Step $currentIndex of $total" } elseif ($status -eq 'pending' -and $phase -eq 'awaiting-user-session') { 'Waiting for target user sign-in' } elseif ($status -eq 'pending' -and $phase -eq 'finalizer-started') { 'Finalizer is starting' } elseif ($status -eq 'pending') { 'Waiting for post-logon finalization' } else { "$($completed.Count) of $total steps completed" }
+        stepLabel = if ($current -and $total -gt 0) { "Step $currentIndex of $total" } elseif ($status -eq 'reboot_pending') { 'Restart required before the next step' } elseif ($status -eq 'pending' -and $phase -eq 'awaiting-user-session') { 'Waiting for target user sign-in' } elseif ($status -eq 'pending' -and $phase -eq 'finalizer-started') { 'Finalizer is starting' } elseif ($status -eq 'pending') { 'Waiting for post-logon finalization' } else { "$($completed.Count) of $total steps completed" }
         elapsedLabel = $elapsedLabel
         currentType = $currentType
         currentName = $currentName

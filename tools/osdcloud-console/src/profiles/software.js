@@ -94,7 +94,75 @@ export function softwareInstallMetadata(row, sourcePath, installScript) {
     installerBytes,
     installerSha256: maybeString(row.installerSha256 ?? row.sha256),
     downloadUrl: maybeString(row.downloadUrl),
+    dependsOn: Array.isArray(row.dependsOn) ? row.dependsOn : [],
+    network: row.network ?? { requirement: 'offline' },
   };
+}
+
+export function normalizeSoftwareDependencies(value, label, softwareId = null) {
+  if (value === undefined || value === null || value === '') {
+    return [];
+  }
+  const seen = new Set();
+  return arrayFrom(value, label).map((entry) => {
+    const id = normalizeId(entry, label);
+    if (softwareId && id === softwareId) {
+      throw inputError(`${label} cannot reference itself: ${id}`);
+    }
+    if (seen.has(id)) {
+      throw inputError(`Duplicate ${label}: ${id}`);
+    }
+    seen.add(id);
+    return id;
+  });
+}
+
+export function normalizeSoftwareNetwork(value, label) {
+  const source = value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : { requirement: value };
+  const requirement = String(source.requirement ?? source.mode ?? 'offline').trim().toLowerCase();
+  if (requirement === 'offline') {
+    return { requirement: 'offline' };
+  }
+  if (requirement !== 'client-internet') {
+    throw inputError(`${label}.requirement must be offline or client-internet`);
+  }
+  const probeHost = String(source.probeHost ?? '').trim().toLowerCase();
+  if (!probeHost) {
+    throw inputError(`${label}.probeHost is required when client Internet is required`);
+  }
+  if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/iu.test(probeHost)) {
+    throw inputError(`${label}.probeHost must be a DNS hostname without a scheme, port, or path`);
+  }
+  return { requirement: 'client-internet', probeHost };
+}
+
+export function assertSoftwareDependencyGraph(software) {
+  const byId = new Map(software.map((item) => [item.id, item]));
+  const visiting = new Set();
+  const visited = new Set();
+  const visit = (id, trail = []) => {
+    if (visited.has(id)) {
+      return;
+    }
+    if (visiting.has(id)) {
+      throw new Error(`Software dependency cycle: ${[...trail, id].join(' -> ')}`);
+    }
+    visiting.add(id);
+    const item = byId.get(id);
+    for (const dependencyId of item.dependsOn) {
+      if (!byId.has(dependencyId)) {
+        throw new Error(`Software ${id} depends on unknown software: ${dependencyId}`);
+      }
+      visit(dependencyId, [...trail, id]);
+    }
+    visiting.delete(id);
+    visited.add(id);
+  };
+  for (const item of software) {
+    visit(item.id);
+  }
 }
 
 export function resolveSoftwareInstallScript(config = {}, softwareId, options = {}) {
@@ -246,8 +314,12 @@ export function loadSoftwareCatalog(config = {}, options = {}) {
       sourcePath,
       installScript,
       ...metadata,
+      dependsOn: normalizeSoftwareDependencies(row.dependsOn, `software ${id} dependsOn`, id),
+      network: normalizeSoftwareNetwork(row.network, `software ${id} network`),
     };
   });
+
+  assertSoftwareDependencyGraph(software);
 
   return {
     path: profileOptions.softwareCatalogPath,
@@ -623,6 +695,13 @@ if ($successExitCodes -notcontains $process.ExitCode) {
 }
 
 ${verificationBlock}
+
+if ($process.ExitCode -eq 1641) {
+    Write-Output 'WINCEPTION_REBOOT_PENDING'
+}
+if ($process.ExitCode -eq 3010) {
+    Write-Output 'WINCEPTION_REBOOT_RECOMMENDED'
+}
 `;
 }
 
@@ -635,6 +714,29 @@ export function normalizeRawInstallScript(value) {
     throw inputError(`Raw install.ps1 script is too large: ${defaultRawInstallScriptMaxBytes} bytes max`);
   }
   return script.endsWith('\n') ? script : `${script}\n`;
+}
+
+export async function validateRawInstallScriptSyntax(script, options = {}) {
+  if (options.validateRawInstallScriptSyntax) {
+    return options.validateRawInstallScriptSyntax(script);
+  }
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const encodedScript = Buffer.from(script, 'utf8').toString('base64');
+  const parserScript = `$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedScript}'))
+$tokens = $null
+$errors = $null
+[void][System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors)
+if ($errors.Count -gt 0) {
+  $errors | Select-Object -First 1 @{ Name = 'message'; Expression = { $_.Message } }, @{ Name = 'line'; Expression = { $_.Extent.StartLineNumber } } | ConvertTo-Json -Compress
+  exit 1
+}`;
+  try {
+    await spawnAndWait('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', parserScript]);
+  } catch (error) {
+    throw inputError(`Raw install.ps1 syntax error: ${error.message.replace(/^powershell\.exe exited \d+:\s*/u, '')}`);
+  }
 }
 
 export function renderSoftwareInstallScript(input) {
@@ -656,6 +758,7 @@ export async function createSoftwarePackage(config = {}, input = {}, options = {
   const uploaded = resolveUploadedSoftwareInstaller(profileOptions, uploadId);
   const installerFileName = cleanSoftwareInstallerFileName(uploaded.fileName);
   const installerType = normalizeInstallerType(input.installerType, installerFileName);
+  const scriptMode = String(input.scriptMode ?? input.mode ?? 'template').trim().toLowerCase();
 
   const catalogRaw = readJson(profileOptions.softwareCatalogPath, 'software catalog');
   const softwareRows = arrayFrom(catalogRaw.software, 'software catalog software');
@@ -696,6 +799,17 @@ export async function createSoftwarePackage(config = {}, input = {}, options = {
     installerFileName,
     installerType,
   });
+  if (scriptMode === 'raw') {
+    await validateRawInstallScriptSyntax(installScript, options);
+  }
+  const existingCatalog = loadSoftwareCatalog(config, { ...options, validateSources: options.validateSources });
+  const dependsOn = normalizeSoftwareDependencies(input.dependsOn, `software ${id} dependsOn`, id);
+  for (const dependencyId of dependsOn) {
+    if (!existingCatalog.byId.has(dependencyId)) {
+      throw inputError(`software ${id} depends on unknown software: ${dependencyId}`);
+    }
+  }
+  const network = normalizeSoftwareNetwork(input.network, `software ${id} network`);
   const installerTargetPath = assertInside(sourcePath, path.join(sourcePath, installerFileName), 'Software installer target');
   const installScriptPath = assertInside(sourcePath, path.join(sourcePath, 'install.ps1'), 'Software install.ps1 target');
   let sourceCreated = false;
@@ -713,13 +827,19 @@ export async function createSoftwarePackage(config = {}, input = {}, options = {
         id,
         name,
         source,
-        scriptMode: String(input.scriptMode ?? input.mode ?? 'template').trim().toLowerCase(),
+        scriptMode,
         installerType,
         installerFileName,
-        silentArgs: String(input.silentArgs ?? defaultSilentArgs(installerType)).trim(),
-        successExitCodes: normalizeSuccessExitCodes(input.successExitCodes, installerType),
-        verifyPath: String(input.verifyPath ?? '').trim(),
-        verificationMode: String(input.verifyPath ?? '').trim() ? 'installed file' : 'installer exit code only',
+        ...(scriptMode === 'template' ? {
+          silentArgs: String(input.silentArgs ?? defaultSilentArgs(installerType)).trim(),
+          successExitCodes: normalizeSuccessExitCodes(input.successExitCodes, installerType),
+          verifyPath: String(input.verifyPath ?? '').trim(),
+          verificationMode: String(input.verifyPath ?? '').trim() ? 'installed file' : 'installer exit code only',
+        } : {
+          verificationMode: 'custom install.ps1',
+        }),
+        dependsOn,
+        network,
         installerBytes: stat.size,
         installerSha256: sha256,
       },
@@ -766,6 +886,12 @@ export function deleteSoftwarePackage(config = {}, softwareId, options = {}) {
 
   const catalog = loadSoftwareCatalog(config, options);
   const profiles = loadDeploymentProfiles(config, { ...options, catalog });
+  const requiredBySoftware = catalog.software
+    .filter((candidate) => candidate.id !== id && candidate.dependsOn.includes(id))
+    .map((candidate) => candidate.id);
+  if (requiredBySoftware.length) {
+    throw inputError(`Software ${id} is required by catalog software: ${requiredBySoftware.join(', ')}`, 409);
+  }
   const usedByProfiles = profiles
     .filter((profile) => profile.softwareIds.includes(id))
     .map((profile) => ({ id: profile.id, name: profile.name }));

@@ -114,6 +114,7 @@ const apiRouteTable = [
   { method: 'GET', path: '/api/os-images' },
   { method: 'GET', path: '/api/os-download-catalog' },
   { method: 'GET', path: '/api/diagnostics/latest' },
+  { method: 'GET', path: '/api/software-test/status' },
   { method: 'GET', path: '/api/diagnostics/download' },
   { method: 'GET', path: '/api/software/script' },
   { method: 'GET', path: '/api/scripts/content' },
@@ -133,6 +134,8 @@ const apiRouteTable = [
   { method: 'POST', path: '/api/network/prepare' },
   { method: 'POST', path: '/api/network/remove' },
   { method: 'POST', path: '/api/profile' },
+  { method: 'POST', path: '/api/software-test/config' },
+  { method: 'POST', path: '/api/software-test/run' },
   { method: 'POST', path: '/api/os-image-delete' },
   { method: 'POST', path: '/api/os-download' },
   { method: 'POST', path: '/api/offline-iso/create' },
@@ -441,6 +444,10 @@ export class WebManagementServer {
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }
+    if (pathname === '/api/software-test/status') {
+      sendJson(res, 200, { ok: true, result: this.controller.getSoftwareTestStatus(), state: this.controller.getState() });
+      return;
+    }
     if (pathname === '/api/secrets') {
       const body = await readBody(json16KiB);
       const result = await this.controller.saveDeploymentSecrets(body);
@@ -491,6 +498,18 @@ export class WebManagementServer {
       const body = await readBody();
       const result = await this.controller.changeDeploymentProfile(body.profileId ?? body.id);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/software-test/config') {
+      const body = await readBody(json16KiB);
+      const result = await this.controller.configureSoftwareTest(body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/software-test/run') {
+      const body = await readBody(json16KiB);
+      const result = await this.controller.startSoftwareTest(body.profileId ?? body.id);
+      sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
       return;
     }
     if (pathname === '/api/os-image-delete') {

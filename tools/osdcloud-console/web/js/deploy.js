@@ -1425,7 +1425,40 @@ export function renderInterfaces(appState) {
   });
 }
 
+export function renderSoftwareTest(appState) {
+  if (!elements.softwareTestSummary || !elements.softwareTestDetails) {
+    return;
+  }
+  const test = appState.softwareTest ?? {};
+  const configuration = test.configuration ?? {};
+  const latest = test.latest ?? null;
+  const stepSummary = latest?.steps?.length
+    ? latest.steps.map((step) => {
+      const duration = Number.isFinite(Number(step.durationSeconds)) ? '，' + Math.round(Number(step.durationSeconds)) + ' 秒' : '';
+      const networkWait = Number(step.networkWaitSeconds ?? 0) > 0 ? '，網路等待 ' + Math.round(Number(step.networkWaitSeconds)) + ' 秒' : '';
+      return step.name + '：' + step.status + duration + networkWait;
+    }).join('；')
+    : '-';
+  const networkWaitSeconds = (latest?.steps ?? []).reduce((total, step) => total + (Number(step.networkWaitSeconds) || 0), 0);
+  elements.softwareTestSummary.textContent = configuration.ready
+    ? (latest?.status === 'running'
+      ? '正在測試 ' + (latest.profileName || latest.profileId) + '：' + (latest.phase || '執行中')
+      : '已登記 ' + configuration.vmName + '；選擇 profile 後可測試 software，不會 publish live Apps。')
+    : (configuration.detail || '請先登記專用測試 VM 與乾淨快照。');
+  setDefinitionList(elements.softwareTestDetails, [
+    ['VM', configuration.vmName || '-'],
+    ['快照', configuration.checkpointName || '-'],
+    ['最新結果', latest ? latest.status + ' / ' + latest.cleanup : '尚無測試'],
+    ['步驟', stepSummary],
+    ['總耗時', latest?.elapsedSeconds == null ? '-' : Math.round(Number(latest.elapsedSeconds)) + ' 秒'],
+    ['網路等待', networkWaitSeconds ? Math.round(networkWaitSeconds) + ' 秒' : '-'],
+    ['重開機次數', latest?.rebootCount ?? 0],
+    ['清理', latest?.cleanup ?? '-'],
+  ]);
+}
+
 export function renderProfiles(appState) {
+  renderSoftwareTest(appState);
   elements.profilesBody.replaceChildren();
   const profileState = appState.profile;
   if (profileState?.error) {
@@ -1470,8 +1503,25 @@ export function renderProfiles(appState) {
     edit.dataset.icon = 'edit';
     edit.dataset.profileAction = 'edit';
     edit.dataset.profileId = profile.id;
+    const testButton = document.createElement('button');
+    const softwareTest = appState.softwareTest?.configuration;
+    const activeDeployment = (appState.fleet?.runs ?? []).some((run) => run.status === 'running');
+    const testInProgress = appState.softwareTest?.latest?.status === 'running';
+    const testBlocked = !softwareTest?.ready || Boolean(appState.operation?.running) || activeDeployment || testInProgress;
+    testButton.type = 'button';
+    testButton.textContent = '測試 software';
+    testButton.className = 'warning';
+    testButton.dataset.icon = 'science';
+    testButton.dataset.profileAction = 'test';
+    testButton.dataset.profileId = profile.id;
+    testButton.disabled = testBlocked;
+    testButton.title = testBlocked
+      ? (activeDeployment
+        ? '請先等待目前 deployment 完成。'
+        : (testInProgress ? '目前已有 software test 執行中。' : (softwareTest?.detail || '請先登記專用 Software Test VM。')))
+      : '還原乾淨 VM、執行此 profile 的 software，最後再次還原快照。';
     if (active) {
-      actionGroup.append(edit);
+      actionGroup.append(edit, testButton);
     } else {
       const select = document.createElement('button');
       select.type = 'button';
@@ -1487,7 +1537,7 @@ export function renderProfiles(appState) {
       del.dataset.icon = 'delete';
       del.dataset.profileAction = 'delete';
       del.dataset.profileId = profile.id;
-      actionGroup.append(edit, select, del);
+      actionGroup.append(edit, testButton, select, del);
     }
     action.append(actionGroup);
     tr.append(action);

@@ -253,6 +253,14 @@ windows-desktop-ready
 
 `Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。重開後的 SYSTEM finalizer 會先等待目標使用者桌面，再開始安裝；首次登入的 client 畫面會分別顯示等待登入、finalizer 啟動、目前步驟、是否仍在運作、即時 elapsed、slow warning 與已完成步驟耗時。這些安全狀態每兩秒刷新；完成時 Validation Evidence 只收到每步名稱、類型、status 與實際 duration，不含原始 installer output、命令列或秘密。若 custom script 需要 Internet，請把該依賴放在這個 post-logon sequence 內處理；deployment 階段不應依賴 client 外網。SetupComplete 會在 deployment 完成前停用 Windows Update / BITS 自動活動，因此依賴 BITS 或 Windows Update 的 custom script 必須自行啟動必要服務，或改用直接下載工具。
 
+Software Catalog 的新增精靈分三步：先建立 `Package`（Software ID、顯示名稱與必填 MSI/EXE payload；每個必填欄位都有紅色 `*`，installer type 依副檔名自動判定），再選擇 `Installation`，最後設定 `Requirements & review`。選檔後若重新開啟檔案選擇器再按取消，已選 payload 會保留。`Guided installer` 會由 Winception 產生 MSI/EXE 靜默安裝腳本；`Custom PowerShell` 仍需附帶 payload，並執行受信任管理員提供的 `install.ps1`。可先選擇 payload 後載入 MSI/EXE 參考範本，再依實際安裝器修改。Custom PowerShell 會先做 Windows PowerShell 5.1 語法檢查，因為 client 固定以 Windows 內建的 `powershell.exe`（PowerShell 5.1）在 SYSTEM、非互動環境執行；syntax preflight 只確保語法可被同一個 runtime 解析，不是 sandbox 或實機安裝測試。
+
+Guided installer 的「視為成功的 installer 回傳碼」中，MSI 預設 `0,1641,3010`，EXE 預設 `0`：`0` 為成功、`3010` 為成功但建議重開機、`1641` 會把 sequence 標為 restart pending，重開機與目標使用者登入後從下一步續跑。請填入安裝後檔案驗證取得更可靠的結果；留白時只信任 installer 回傳碼。
+
+Software 可宣告前置 software；profile 儲存時會拒絕缺少或循環相依，並只重排 software slots、保留 custom script 的位置。預設 installer 先在 host publish 時下載／驗證並由 client 離線執行。若軟體確實需要 client Internet，設定 `Client Internet required` 與 DNS probe host；post-logon sequence 會每 10 秒等待 DNS/TCP 443，直到該步 timeout，未就緒不執行安裝器。Shared LAN 由既有 router 提供路由；隔離 PXE 網段應使用 Dual NIC NAT。
+
+需要快速驗證 profile 的 software 時，先一次性用 `Minimal` profile 完整部署專用的第 2 代 Hyper-V VM，關機後手動建立 `Winception-SoftwareTest-Clean` checkpoint。`Software Test VM` 區塊在 Deployment Profiles 預設收合，需要時再展開。到 `Profiles` 的 `Software Test VM` 登記 VM 名稱、checkpoint 與目標使用者；登記只驗證既有 VM/快照，絕不建立或覆寫 VM。之後每個 profile 的 `測試 software` 都會把等同 publish 的 Apps/Scripts payload 建在 `C:\OSDCloud\HostTools\State\software-test-runs\<runId>`，不會改 active profile、live Apps、services 或 PXE。提升權限的 host runner 會還原快照、啟動 VM、用 PowerShell Direct 複製隔離 payload，並以 SYSTEM 執行同一份 `Install-Apps.ps1`；遇到 `1641` 會重開後續跑，最多為 sequence 步數。無論成功或失敗皆關機並還原乾淨快照；cleanup 失敗會封鎖後續測試。Web 只顯示安全的步驟／耗時／網路等待／重開機／cleanup 摘要，原始 log 僅留在 HostTools State。本功能不取代完整 PXE 驗收。
+
 ### 07. 監控與完成判定
 
 部署期間主要看四個區塊：
@@ -308,7 +316,7 @@ OSImageIndex                         : 1
 
 變更服務介面時，優先使用 Web Console 的 `Select service interface`。這會停止 running services、更新 local overlay、重算 DHCP pool/router、更新 live boot files、提交 WinPE endpoint、同步 SMB firewall，並刷新必要 metadata。不要只修改 Windows NIC IP 或單一 JSON 檔。
 
-新增 client software 時，使用 `Profiles` > `Software Catalog` > `Add software`。新增 catalog row 不會自動加入 active profile，也不會立即發布到 live Apps；需要在 profile editor 加入 selected install sequence 後再 publish。
+新增 client software 時，使用 `Profiles` > `Software Catalog` > `Add software`。依序完成 Package、Installation、Requirements & review：一般 MSI/EXE 選 `Guided installer`；只有需要完整自訂 `install.ps1` 時才選 `Custom PowerShell`。所有必填欄位均有紅色 `*`；Custom PowerShell 可先載入 MSI/EXE 參考範本，並以 client 實際使用的 Windows PowerShell 5.1 做 syntax preflight。預設使用 host 預載 payload，只有該步真的需要 client 外網才填 DNS probe host。新增成功後可選擇再新增一套或前往 Deployment profile；catalog row 不會自動加入 active profile，也不會立即發布到 live Apps。請在 profile editor 加入 selected install sequence 後再 publish。
 
 ### 09. 停止服務與交接
 
@@ -593,6 +601,14 @@ windows-desktop-ready
 
 The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage. After reboot, the SYSTEM finalizer waits for the target user's desktop before installation starts; the first-logon client screen separately shows the sign-in wait, finalizer start, active step, liveness, live elapsed time, slow warning, and completed-step durations. These safe fields refresh every two seconds; on completion, Validation Evidence receives only each step's name, type, status, and actual duration, never raw installer output, command lines, or secrets. If a custom script needs Internet, put that dependency inside this post-logon sequence; the deployment phase must not depend on client external Internet. SetupComplete disables automatic Windows Update / BITS activity before deployment completion, so custom scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.
 
+The Software Catalog add wizard has three steps: `Package` collects the Software ID, display name, and required MSI/EXE payload (each required field has a red `*`, and the installer type is inferred from its extension); `Installation` selects the install method; `Requirements & review` records dependencies and client-network conditions. Reopening the file picker and cancelling preserves an already selected payload. `Guided installer` generates an MSI/EXE silent install script. `Custom PowerShell` still includes a payload and runs a trusted administrator-provided `install.ps1`. After choosing a payload, an MSI/EXE reference template can be loaded and adapted. Custom PowerShell receives Windows PowerShell 5.1 syntax validation because the client runs the inbox `powershell.exe` (PowerShell 5.1) as non-interactive SYSTEM. The preflight confirms that this same runtime can parse the syntax; it is neither a sandbox nor an installation test.
+
+Guided installer accepted return codes default to `0,1641,3010` for MSI and `0` for EXE: `0` is success, `3010` is success with a restart recommendation, and `1641` creates a restart-pending checkpoint that resumes with the next step after reboot and target-user sign-in. Add installed-file verification for stronger confirmation; leaving it blank trusts installer return codes only.
+
+Software can declare prerequisite software. Saving a profile rejects missing or cyclic dependencies and reorders only the software slots, preserving custom-script positions. The default path prefetches and validates installers during host publish so clients install offline. For software that truly needs client Internet, select `Client Internet required` and provide a DNS probe host; the post-logon sequence waits for DNS/TCP 443 every 10 seconds until that step times out and does not start the installer before the probe passes. Shared LAN relies on the existing router; an isolated PXE segment needs Dual NIC NAT.
+
+For fast profile-software verification, deploy a dedicated Generation 2 Hyper-V VM once with the `Minimal` profile, power it off, then manually create `Winception-SoftwareTest-Clean`. The `Software Test VM` section is collapsed by default in Deployment Profiles and can be expanded when needed. In `Profiles` > `Software Test VM`, register its VM name, checkpoint, and target user; registration only verifies the existing VM/checkpoint and never creates or overwrites one. Each profile's `Test software` action materializes the publish-equivalent Apps/Scripts payload under `C:\OSDCloud\HostTools\State\software-test-runs\<runId>` without changing the active profile, live Apps, services, or PXE. An elevated host runner restores the checkpoint, starts the VM, uses PowerShell Direct to copy the isolated payload, and runs the same `Install-Apps.ps1` as SYSTEM. It reboots and resumes after `1641`, up to the sequence step count, then powers off and restores the clean checkpoint on both success and failure; cleanup failure blocks later tests. The Web surface contains only safe step/elapsed/network-wait/reboot/cleanup summaries; raw logs stay in HostTools State. This feature does not replace full PXE acceptance.
+
 ### 07. Monitoring And Completion Criteria
 
 During deployment, use four primary areas:
@@ -649,7 +665,7 @@ Common actions:
 
 When changing the service interface, prefer Web Console `Select service interface`. It stops running services, updates local overlay, recalculates DHCP pool/router, updates live boot files, commits the WinPE endpoint, syncs SMB firewall, and refreshes required metadata. Do not only change the Windows NIC IP or a single JSON file.
 
-When adding client software, use `Profiles` > `Software Catalog` > `Add software`. Adding a catalog row does not automatically add it to the active profile and does not immediately publish it to live Apps; add it to the selected install sequence in the profile editor, then publish.
+When adding client software, use `Profiles` > `Software Catalog` > `Add software`. Complete Package, Installation, and Requirements & review in order: use `Guided installer` for normal MSI/EXE payloads and `Custom PowerShell` only when a complete custom `install.ps1` is required. Required fields have a red `*`; Custom PowerShell can load an MSI/EXE reference template and uses a Windows PowerShell 5.1 syntax preflight that matches the client runtime. Host-prefetched payload is the default; enter a DNS probe host only when that client step truly requires external Internet. After creation, choose either Add another or Go to Deployment profile. The catalog row is not automatically added to the active profile or published to live Apps; add it to the selected install sequence in the profile editor, then publish.
 
 ### 09. Stop Services And Handoff
 

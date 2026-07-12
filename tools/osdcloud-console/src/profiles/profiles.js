@@ -100,6 +100,59 @@ export function validateProfileCustomScriptsRemoved(value, label) {
   }
 }
 
+export function sortInstallSequenceBySoftwareDependencies(sequence = [], catalog, label) {
+  const softwareEntries = sequence
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => entry.type === 'software');
+  const byId = new Map(softwareEntries.map(({ entry }) => [entry.id, entry]));
+  const inDegree = new Map(softwareEntries.map(({ entry }) => [entry.id, 0]));
+  const dependents = new Map(softwareEntries.map(({ entry }) => [entry.id, []]));
+
+  for (const { entry } of softwareEntries) {
+    const software = catalog.byId.get(entry.id);
+    for (const dependencyId of software?.dependsOn ?? []) {
+      if (!byId.has(dependencyId)) {
+        throw new Error(`${label} selects ${entry.id} but is missing required software dependency: ${dependencyId}`);
+      }
+      inDegree.set(entry.id, inDegree.get(entry.id) + 1);
+      dependents.get(dependencyId).push(entry.id);
+    }
+  }
+
+  const originalIndex = new Map(softwareEntries.map(({ entry, index }) => [entry.id, index]));
+  const ready = softwareEntries
+    .filter(({ entry }) => inDegree.get(entry.id) === 0)
+    .map(({ entry }) => entry.id)
+    .sort((left, right) => originalIndex.get(left) - originalIndex.get(right));
+  const sortedIds = [];
+  while (ready.length) {
+    const id = ready.shift();
+    sortedIds.push(id);
+    for (const dependentId of dependents.get(id)) {
+      const nextDegree = inDegree.get(dependentId) - 1;
+      inDegree.set(dependentId, nextDegree);
+      if (nextDegree === 0) {
+        ready.push(dependentId);
+        ready.sort((left, right) => originalIndex.get(left) - originalIndex.get(right));
+      }
+    }
+  }
+  if (sortedIds.length !== softwareEntries.length) {
+    throw new Error(`${label} contains a software dependency cycle`);
+  }
+
+  const sortedEntries = sortedIds.map((id) => ({ ...byId.get(id) }));
+  let nextSoftwareIndex = 0;
+  return sequence.map((entry) => entry.type === 'software'
+    ? sortedEntries[nextSoftwareIndex++]
+    : entry);
+}
+
+export function sameSoftwareSelection(left = [], right = []) {
+  return left.length === right.length
+    && left.every((id) => right.includes(id));
+}
+
 export function assertUniqueProfileName(profiles, name, options = {}) {
   const key = profileNameKey(name);
   const duplicate = profiles.find((profile) => profileNameKey(profile.name) === key && profile.id !== options.excludeId);
@@ -145,7 +198,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
     );
     const declaredSoftware = raw.software ?? raw.selectedSoftware ?? [];
     const normalizedDeclaredSoftware = normalizeSoftwareSelection(declaredSoftware, catalog, `deployment profile ${id} software`);
-    const installSequence = rawInstallSequence
+    const unnormalizedInstallSequence = rawInstallSequence
       ?? (raw.customScripts !== undefined
         ? normalizeInstallSequence(
           legacyInstallSequenceFromSelections(normalizedDeclaredSoftware, raw.customScripts),
@@ -154,9 +207,14 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
           `deployment profile ${id} legacy installSequence`,
         )
         : installSequenceFromSoftwareIds(normalizedDeclaredSoftware));
+    const installSequence = sortInstallSequenceBySoftwareDependencies(
+      unnormalizedInstallSequence,
+      catalog,
+      `deployment profile ${id} installSequence`,
+    );
     const selectedIds = softwareIdsFromInstallSequence(installSequence);
     if (rawInstallSequence !== null && (raw.software !== undefined || raw.selectedSoftware !== undefined)) {
-      if (JSON.stringify(normalizedDeclaredSoftware) !== JSON.stringify(selectedIds)) {
+      if (!sameSoftwareSelection(normalizedDeclaredSoftware, selectedIds)) {
         throw new Error(`Profile ${id} software must match installSequence`);
       }
     }
@@ -311,9 +369,12 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
     throw new Error(`Deployment profile file already exists: ${filePath}`);
   }
 
-  const softwareIds = [...state.activeProfile.softwareIds];
-  const installSequence = (state.activeProfile.installSequence ?? [])
-    .map((entry) => ({ ...entry }));
+  const installSequence = sortInstallSequenceBySoftwareDependencies(
+    (state.activeProfile.installSequence ?? []).map((entry) => ({ ...entry })),
+    state.catalog,
+    `deployment profile ${id} installSequence`,
+  );
+  const softwareIds = softwareIdsFromInstallSequence(installSequence);
   const rawOsImageId = String(input.osImageId ?? state.activeProfile.osImageId ?? '').trim();
   const osImageId = rawOsImageId ? normalizeId(rawOsImageId, `deployment profile ${id} osImage`) : null;
   const explicitExecution = Object.prototype.hasOwnProperty.call(input, 'execution')
@@ -393,13 +454,18 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const selectedIds = input.softwareIds === undefined
     ? profile.softwareIds
     : normalizeSoftwareSelection(input.softwareIds, catalog, `deployment profile ${id} software`);
-  const installSequence = input.installSequence === undefined
+  const unnormalizedInstallSequence = input.installSequence === undefined
     ? (input.softwareIds === undefined
       ? profile.installSequence.map((entry) => ({ ...entry }))
       : replaceSoftwareIdsInInstallSequence(profile.installSequence, selectedIds))
     : normalizeInstallSequence(input.installSequence, catalog, scriptCatalog, `deployment profile ${id} installSequence`);
+  const installSequence = sortInstallSequenceBySoftwareDependencies(
+    unnormalizedInstallSequence,
+    catalog,
+    `deployment profile ${id} installSequence`,
+  );
   const sequenceSoftwareIds = softwareIdsFromInstallSequence(installSequence);
-  if (input.softwareIds !== undefined && JSON.stringify(selectedIds) !== JSON.stringify(sequenceSoftwareIds)) {
+  if (input.softwareIds !== undefined && !sameSoftwareSelection(selectedIds, sequenceSoftwareIds)) {
     throw new Error(`deployment profile ${id} softwareIds must match installSequence`);
   }
   const name = input.name === undefined

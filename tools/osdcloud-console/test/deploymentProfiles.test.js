@@ -5,8 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, loadDeploymentProfiles, resolveDeploymentProfileState, updateDeploymentProfile, updateDeploymentProfileSoftware } from '../src/profiles/profiles.js';
-import { publishDeploymentProfile } from '../src/profiles/publish.js';
+import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, loadDeploymentProfiles, resolveDeploymentProfileState, sortInstallSequenceBySoftwareDependencies, updateDeploymentProfile, updateDeploymentProfileSoftware } from '../src/profiles/profiles.js';
+import { materializeSoftwareTestPayload, publishDeploymentProfile } from '../src/profiles/publish.js';
 import { createCustomScript, deleteCustomScript, loadCustomScriptCatalog, readCustomScriptContent, uploadCustomScript } from '../src/profiles/scripts.js';
 import { deploymentProfileOptions, generateDeploymentProfileId } from '../src/profiles/shared.js';
 import { createSoftwarePackage, deleteSoftwarePackage, loadSoftwareCatalog, openSoftwareInstallScript, readSoftwareInstallScript, uploadSoftwareInstaller } from '../src/profiles/software.js';
@@ -115,6 +115,54 @@ test('loads active deployment profile with selected software order', () => {
     assert.equal(state.activeProfile.id, 'default');
     assert.deepEqual(state.activeProfile.softwareIds, ['two', 'one']);
     assert.deepEqual(state.selectedSoftware.map((software) => software.id), ['two', 'one']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('software dependencies require prerequisites, reject cycles, and sort only software slots', () => {
+  const root = makeRoot();
+  try {
+    const catalog = [
+      catalogSoftware('one', 'One App'),
+      { ...catalogSoftware('two', 'Two App'), dependsOn: ['one'] },
+    ];
+    writeBaseFiles(root, {
+      catalog,
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['two', 'one'],
+        installSequence: installSequenceFromSoftware(['two', 'one']),
+        osImage: 'TEST-OS',
+      },
+    });
+    const state = resolveDeploymentProfileState(configFor(root));
+    assert.deepEqual(state.activeProfile.softwareIds, ['one', 'two']);
+
+    const sorted = sortInstallSequenceBySoftwareDependencies([
+      { type: 'software', id: 'two' },
+      { type: 'script', id: 'SC-MIDDLE1' },
+      { type: 'software', id: 'one' },
+    ], state.catalog, 'test installSequence');
+    assert.deepEqual(sorted, [
+      { type: 'software', id: 'one' },
+      { type: 'script', id: 'SC-MIDDLE1' },
+      { type: 'software', id: 'two' },
+    ]);
+
+    writeJson(path.join(root, 'profiles', 'default.json'), {
+      id: 'default', name: 'Default', software: ['two'], installSequence: installSequenceFromSoftware(['two']), osImage: 'TEST-OS',
+    });
+    assert.throws(() => loadDeploymentProfiles(configFor(root)), /missing required software dependency: one/);
+
+    writeJson(path.join(root, 'software-catalog.json'), {
+      software: [
+        { ...catalogSoftware('one', 'One App'), dependsOn: ['two'] },
+        { ...catalogSoftware('two', 'Two App'), dependsOn: ['one'] },
+      ],
+    });
+    assert.throws(() => loadSoftwareCatalog(configFor(root)), /dependency cycle/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -391,6 +439,8 @@ test('creates template software package without installed-file verification', as
     assert.match(installScript, /Installer not found/);
     assert.match(installScript, /msiexec\.exe/);
     assert.match(installScript, /\$successExitCodes = @\(0, 1641, 3010\)/);
+    assert.match(installScript, /WINCEPTION_REBOOT_PENDING/);
+    assert.match(installScript, /WINCEPTION_REBOOT_RECOMMENDED/);
     assert.match(installScript, /no installed-file verification configured/);
     assert.doesNotMatch(installScript, /\$verifyPath =/);
     assert.doesNotMatch(installScript, /verification file was not found/);
@@ -419,12 +469,21 @@ test('creates software package with raw install script', async () => {
       scriptMode: 'raw',
       installerType: 'exe',
       rawScript: "$ErrorActionPreference = 'Stop'\nWrite-Host 'raw install'\n",
+      dependsOn: ['one'],
+      network: { requirement: 'client-internet', probeHost: 'download.vendor.example' },
     });
 
     assert.equal(
       fs.readFileSync(path.join(root, 'Softwares', 'raw-tool', 'install.ps1'), 'utf8'),
       "$ErrorActionPreference = 'Stop'\nWrite-Host 'raw install'\n",
     );
+    const catalog = loadSoftwareCatalog(config);
+    assert.deepEqual(catalog.byId.get('raw-tool').dependsOn, ['one']);
+    assert.deepEqual(catalog.byId.get('raw-tool').network, { requirement: 'client-internet', probeHost: 'download.vendor.example' });
+    const rawCatalogRow = JSON.parse(fs.readFileSync(path.join(root, 'software-catalog.json'), 'utf8')).software.find((software) => software.id === 'raw-tool');
+    assert.equal(Object.hasOwn(rawCatalogRow, 'silentArgs'), false);
+    assert.equal(Object.hasOwn(rawCatalogRow, 'successExitCodes'), false);
+    assert.equal(Object.hasOwn(rawCatalogRow, 'verifyPath'), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -491,6 +550,32 @@ test('software package onboarding rejects unsafe inputs and invalid human ids', 
       installerType: 'msi',
       rawScript: 'Write-Host bad',
     }), /Invalid software upload id/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('raw install script syntax errors do not create a software folder or catalog row', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root);
+    const config = configFor(root);
+    await uploadSoftwareInstaller(config, {
+      fileName: 'broken.exe',
+      buffer: Buffer.from('exe bytes'),
+    }, { uploadId: 'upload-broken-raw' });
+
+    await assert.rejects(() => createSoftwarePackage(config, {
+      uploadId: 'upload-broken-raw',
+      softwareId: 'broken-raw',
+      name: 'Broken Raw',
+      scriptMode: 'raw',
+      installerType: 'exe',
+      rawScript: 'function {',
+    }), /Raw install\.ps1 syntax error/);
+    assert.equal(fs.existsSync(path.join(root, 'Softwares', 'broken-raw')), false);
+    const catalog = JSON.parse(fs.readFileSync(path.join(root, 'software-catalog.json'), 'utf8'));
+    assert.equal(catalog.software.some((software) => software.id === 'broken-raw'), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -1026,6 +1111,47 @@ test('publishes only selected software and removes stale apps', async () => {
   }
 });
 
+test('software test payload is isolated and matches the regular publish manifest', async () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['two', 'one'],
+        installSequence: installSequenceFromSoftware(['two', 'one']),
+        osImage: 'TEST-OS',
+      },
+    });
+    const liveAppsRoot = path.join(root, 'Live', 'Apps');
+    fs.mkdirSync(liveAppsRoot, { recursive: true });
+    fs.writeFileSync(path.join(liveAppsRoot, 'keep.txt'), 'live payload remains untouched by test materialization', 'utf8');
+    const config = configFor(root, {
+      appsRoot: liveAppsRoot,
+      customScriptsAppsRoot: path.join(root, 'Live', 'Scripts'),
+    });
+
+    const testRoot = path.join(root, 'State', 'software-test-runs', 'test-001');
+    const testPayload = await materializeSoftwareTestPayload(config, 'default', testRoot);
+
+    assert.equal(testPayload.appsRoot, path.join(testRoot, 'Apps'));
+    assert.equal(fs.readFileSync(path.join(liveAppsRoot, 'keep.txt'), 'utf8'), 'live payload remains untouched by test materialization');
+    assert.equal(fs.existsSync(path.join(liveAppsRoot, 'Install-Apps.ps1')), false);
+    assert.equal(fs.existsSync(path.join(testRoot, 'Apps', 'Install-Apps.ps1')), true);
+    assert.equal(fs.existsSync(path.join(testRoot, 'Apps', 'one', 'install.ps1')), true);
+    assert.equal(fs.existsSync(path.join(testRoot, 'Apps', 'two', 'install.ps1')), true);
+
+    const published = await publishDeploymentProfile(config, 'default');
+    const testManifest = JSON.parse(fs.readFileSync(testPayload.manifestPath, 'utf8'));
+    const publishedManifest = JSON.parse(fs.readFileSync(published.manifestPath, 'utf8'));
+    delete testManifest.publishedAt;
+    delete publishedManifest.publishedAt;
+    assert.deepEqual(testManifest, publishedManifest);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('profile publish resolves independent international settings from profile and OS image', async () => {
   const root = makeRoot();
   try {
@@ -1381,6 +1507,79 @@ test('installer script installs selected apps in selected-profile order', () => 
     assert.deepEqual(progress.completedSteps.map((step) => step.name), ['Two App', 'One App']);
     assert.equal(progress.currentStep, null);
     assert.equal(progress.failure, null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installer script checkpoints exit 1641 and resumes at the next step', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const root = makeRoot('osdcloud-installer-reboot-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const logRoot = path.join(root, 'logs');
+    const marker = path.join(root, 'resumed.marker');
+    fs.mkdirSync(path.join(appsRoot, 'first'), { recursive: true });
+    fs.mkdirSync(path.join(appsRoot, 'second'), { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(appsRoot, 'first', 'install.ps1'), "Write-Output 'WINCEPTION_REBOOT_PENDING'\n", 'utf8');
+    fs.writeFileSync(path.join(appsRoot, 'second', 'install.ps1'), "Set-Content -LiteralPath $env:RESUME_MARKER -Value 'done'\n", 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'reboot',
+      software: [{ id: 'first', name: 'First App' }, { id: 'second', name: 'Second App' }],
+      installSequence: [{ type: 'software', id: 'first', name: 'First App' }, { type: 'software', id: 'second', name: 'Second App' }],
+    });
+    const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(appsRoot, 'Install-Apps.ps1')];
+    const env = { ...process.env, OSDCloudLogDir: logRoot, RESUME_MARKER: marker };
+    const firstRun = spawnSync('powershell.exe', args, { encoding: 'utf8', env });
+    assert.equal(firstRun.status, 0, firstRun.stderr || firstRun.stdout);
+    const paused = JSON.parse(fs.readFileSync(path.join(logRoot, 'deployment-progress.json'), 'utf8'));
+    assert.equal(paused.status, 'reboot_pending');
+    assert.equal(paused.resumeFromStep, 2);
+    assert.equal(fs.existsSync(marker), false);
+
+    const resumedRun = spawnSync('powershell.exe', args, { encoding: 'utf8', env });
+    assert.equal(resumedRun.status, 0, resumedRun.stderr || resumedRun.stdout);
+    const completed = JSON.parse(fs.readFileSync(path.join(logRoot, 'deployment-progress.json'), 'utf8'));
+    assert.equal(completed.status, 'succeeded');
+    assert.equal(fs.readFileSync(marker, 'utf8').trim(), 'done');
+    assert.deepEqual(completed.completedSteps.map((step) => step.name), ['First App', 'Second App']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installer script waits for required client Internet and fails without running the step', () => {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const root = makeRoot('osdcloud-installer-network-test-');
+  try {
+    const appsRoot = path.join(root, 'Apps');
+    const logRoot = path.join(root, 'logs');
+    const marker = path.join(root, 'network.marker');
+    fs.mkdirSync(path.join(appsRoot, 'online'), { recursive: true });
+    fs.copyFileSync(path.resolve('Softwares', 'Install-Apps.ps1'), path.join(appsRoot, 'Install-Apps.ps1'));
+    fs.writeFileSync(path.join(appsRoot, 'online', 'install.ps1'), "Set-Content -LiteralPath $env:NETWORK_MARKER -Value 'should-not-run'\n", 'utf8');
+    writeJson(path.join(appsRoot, 'selected-profile.json'), {
+      profileId: 'network',
+      execution: { defaultTimeoutSeconds: 1 },
+      software: [{ id: 'online', name: 'Online App', network: { requirement: 'client-internet', probeHost: 'not-found.invalid' } }],
+      installSequence: [{ type: 'software', id: 'online', name: 'Online App' }],
+    });
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(appsRoot, 'Install-Apps.ps1'),
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OSDCloudLogDir: logRoot, NETWORK_MARKER: marker },
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(fs.existsSync(marker), false);
+    const progress = JSON.parse(fs.readFileSync(path.join(logRoot, 'deployment-progress.json'), 'utf8'));
+    assert.equal(progress.status, 'failed');
+    assert.equal(progress.failure.category, 'network_unavailable');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -952,6 +952,9 @@ test('SetupComplete defers client sequence to a SYSTEM startup task and gates de
   assert.match(setup, /completedSteps = \$completedSteps/);
   assert.match(setup, /\$finishedSummary = Get-SafeInstallerCompletionSummary/);
   assert.match(setup, /windows-apps-finished'.*-Extra \$finishedSummary/);
+  assert.match(setup, /windows-apps-reboot-pending/);
+  assert.match(setup, /\$keepFinalizerForReboot = \$true/);
+  assert.match(setup, /if \(-not \$keepFinalizerForReboot\)/);
   assert.doesNotMatch(setup, /Start-Sleep -Seconds \$AppInstallerHeartbeatSeconds/);
   assert.match(setup, /-MultipleInstances IgnoreNew/);
   assert.doesNotMatch(setup, /\$deadline = \(Get-Date\)\.AddMinutes\(30\)/);
@@ -1008,6 +1011,8 @@ test('client progress viewer is full-screen, topmost, and has no running close p
   assert.match(viewer, /Waiting for the target user desktop/);
   assert.match(viewer, /phaseElapsedSeconds/);
   assert.match(viewer, /\$view\.status -eq 'succeeded'/);
+  assert.match(viewer, /reboot_pending/);
+  assert.match(viewer, /waiting_for_network/);
   assert.doesNotMatch(viewer, /rawException|stdoutTailText|stderrTailText/);
 });
 
@@ -1019,7 +1024,37 @@ test('client installer records elapsed time from monotonic timers', () => {
   assert.match(installer, /lastHeartbeatAt/);
   assert.match(installer, /\$durationTimer = \[System\.Diagnostics\.Stopwatch\]::StartNew\(\)/);
   assert.match(installer, /durationSeconds = \[Math\]::Round\(\$durationTimer\.Elapsed\.TotalSeconds, 3\)/);
+  assert.match(installer, /Wait-ForClientInternet/);
+  assert.match(installer, /Test-ClientInternetProbe/);
+  assert.match(installer, /resumeFromStep/);
+  assert.match(installer, /reboot_pending/);
+  assert.match(installer, /networkWaitSeconds = \$result\.networkWaitSeconds/);
   assert.doesNotMatch(installer, /durationSeconds = \[Math\]::Round\(\(\$ended - \$started\)\.TotalSeconds, 3\)/);
+});
+
+test('software test VM runner uses the same installer with PowerShell Direct and fail-closed cleanup', () => {
+  const runnerPath = path.join(process.cwd(), 'tools', 'Invoke-SoftwareTestVm.ps1');
+  const runner = fs.readFileSync(runnerPath, 'utf8');
+  assert.match(runner, /ValidateSet\('Validate', 'Run'\)/);
+  assert.match(runner, /Get-VMSnapshot -VMName \$VmName -Name \$CheckpointName/);
+  assert.match(runner, /Dedicated software test VM must be off before registration or a new test run/);
+  assert.match(runner, /Restore-VMSnapshot -VMName \$VmName -Name \$CheckpointName/);
+  assert.match(runner, /New-PSSession -VMName \$VmName -Credential \$Credential/);
+  assert.match(runner, /Copy-Item -ToSession \$session -Path \(Join-Path \$PayloadRoot 'Apps'\)/);
+  assert.match(runner, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
+  assert.match(runner, /Install-Apps\.ps1/);
+  assert.match(runner, /reboot_pending/);
+  assert.match(runner, /Stop-VM -Name \$VmName -TurnOff/);
+  assert.match(runner, /cleanup = 'failed'/);
+  assert.match(runner, /WINCEPTION_SOFTWARE_TEST_RESULT:/);
+
+  const escapedPath = runnerPath.replace(/'/gu, "''");
+  const parse = spawnSync('powershell.exe', [
+    '-NoProfile',
+    '-Command',
+    "$tokens = $null; $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile('" + escapedPath + "', [ref]$tokens, [ref]$errors) | Out-Null; if ($errors.Count) { $errors | ForEach-Object { $_.Message }; exit 1 }",
+  ], { encoding: 'utf8', windowsHide: true });
+  assert.equal(parse.status, 0, parse.stderr || parse.stdout);
 });
 
 test('client installer keeps post-logon app and custom script execution unrestricted', () => {

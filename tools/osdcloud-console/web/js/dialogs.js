@@ -8,6 +8,7 @@ import { makeIcon, setControlsDisabled, setDefinitionListNodes, setSetupRailColl
 
 export let suppressBackdropClickUntil = 0;
 export const humanCatalogIdPattern = /^[a-z0-9][a-z0-9-]{0,15}$/u;
+let selectedSoftwareInstallerFile = null;
 
 export function validateHumanCatalogId(value, label) {
   if (!value) {
@@ -390,6 +391,49 @@ export function showAddProfileDialog(profile) {
     elements.profileDialog.addEventListener('cancel', cancel);
     openDialog(elements.profileDialog);
     elements.profileName.focus();
+  });
+}
+
+export function showSoftwareTestDialog(configuration = {}) {
+  return new Promise((resolve) => {
+    elements.softwareTestForm.reset();
+    elements.softwareTestVmName.value = configuration.vmName ?? 'winception-software-test-01';
+    elements.softwareTestCheckpointName.value = configuration.checkpointName ?? 'Winception-SoftwareTest-Clean';
+    elements.softwareTestTargetUser.value = configuration.targetUser ?? '';
+    elements.softwareTestError.textContent = '';
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      elements.softwareTestForm.removeEventListener('submit', submit);
+      elements.softwareTestCancel.removeEventListener('click', cancel);
+      elements.softwareTestCancelSecondary.removeEventListener('click', cancel);
+      elements.softwareTestDialog.removeEventListener('cancel', cancel);
+      if (isDialogOpen(elements.softwareTestDialog)) {
+        closeDialog(elements.softwareTestDialog, 'cancel');
+      }
+      resolve(value);
+    };
+    const cancel = (event) => {
+      event?.preventDefault();
+      done(null);
+    };
+    const submit = (event) => {
+      event.preventDefault();
+      if (!elements.softwareTestForm.reportValidity()) {
+        return;
+      }
+      done({
+        vmName: elements.softwareTestVmName.value.trim(),
+        checkpointName: elements.softwareTestCheckpointName.value.trim(),
+        targetUser: elements.softwareTestTargetUser.value.trim(),
+      });
+    };
+    elements.softwareTestForm.addEventListener('submit', submit);
+    elements.softwareTestCancel.addEventListener('click', cancel);
+    elements.softwareTestCancelSecondary.addEventListener('click', cancel);
+    elements.softwareTestDialog.addEventListener('cancel', cancel);
+    openDialog(elements.softwareTestDialog);
   });
 }
 
@@ -828,35 +872,149 @@ export function setAddSoftwareTemplateDefaults(installerType) {
   elements.softwareAddSuccessCodes.value = defaultSoftwareSuccessCodes(installerType);
 }
 
+export function customPowerShellTemplate(installerType) {
+  const isMsi = installerType === 'msi';
+  const installerFilter = isMsi ? '*.msi' : '*.exe';
+  const startProcess = isMsi
+    ? `$logPath = Join-Path $logRoot 'custom-installer-msi.log'
+$arguments = '/i "' + $installer.FullName + '" /qn /norestart REBOOT=ReallySuppress /L*v "' + $logPath + '"'
+$process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden`
+    : `$process = Start-Process -FilePath $installer.FullName -ArgumentList '/quiet /norestart' -Wait -PassThru -WindowStyle Hidden`;
+  const successCodes = isMsi ? '0,1641,3010' : '0';
+  return `# Custom PowerShell runs as non-interactive SYSTEM in Windows PowerShell 5.1.
+# This package publishes this install.ps1 and the selected ${isMsi ? 'MSI' : 'EXE'} payload together.
+# The normal flow is: find the payload, run it silently, validate its exit code, then optionally verify installation.
+# Change the vendor-specific arguments and verification below; do not add interactive prompts or forced restarts.
+$ErrorActionPreference = 'Stop'
+
+# Use a durable local log folder so technicians can inspect installer output after deployment.
+$logRoot = 'C:\\Windows\\Temp\\osdcloud-logs'
+New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
+
+# A package normally contains one installer. If you intentionally add several matching files,
+# replace this discovery with the exact filename so selection is deterministic.
+$installer = Get-ChildItem -LiteralPath $PSScriptRoot -File -Filter '${installerFilter}' | Select-Object -First 1
+if ($null -eq $installer) {
+    throw 'Expected ${isMsi ? 'MSI' : 'EXE'} payload was not found beside install.ps1.'
+}
+
+# Start-Process waits for the child installer before checking its exit code.
+# MSI uses /qn and /norestart to stay non-interactive; /L*v records a verbose installer log.
+# For an EXE, replace /quiet /norestart only with silent switches documented by that vendor.
+${startProcess}
+
+# MSI commonly uses 0, 1641, and 3010. EXE success codes are vendor-specific, so this template trusts 0.
+# A non-listed code stops the deployment sequence and retains the diagnostic failure state.
+$successExitCodes = @(${successCodes})
+if ($successExitCodes -notcontains $process.ExitCode) {
+    throw ('Installer failed with exit code ' + $process.ExitCode)
+}
+
+# Optional: set this to a durable installed file, service, or registry check.
+# Leave it empty only when the installer exit code is sufficient evidence for this package.
+$verifyPath = ''
+if ($verifyPath -and -not (Test-Path -LiteralPath $verifyPath -PathType Leaf)) {
+    throw ('Installer completed but verification was not found: ' + $verifyPath)
+}
+
+# Preserve Winception's reboot semantics. Do not call Restart-Computer from this script.
+# 3010 completes this step but recommends a restart; 1641 checkpoints and resumes at the next step after sign-in.
+if ($process.ExitCode -eq 3010) {
+    Write-Output 'WINCEPTION_REBOOT_RECOMMENDED'
+}
+if ($process.ExitCode -eq 1641) {
+    Write-Output 'WINCEPTION_REBOOT_PENDING'
+}`;
+}
+
+export function updateAddSoftwareFileDisplay() {
+  elements.softwareAddFileName.textContent = selectedSoftwareInstallerFile?.name ?? '尚未選擇檔案';
+}
+
+export function selectedAddSoftwareMode() {
+  return elements.softwareAddModeRaw.checked ? 'raw' : 'template';
+}
+
+export function selectedAddSoftwareDependencies() {
+  return Array.from(
+    elements.softwareAddDependsOn.querySelectorAll('input[data-software-dependency]:checked'),
+    (input) => input.value,
+  );
+}
+
+export function updateAddSoftwareInstallerTypeDisplay() {
+  const inferred = installerTypeForFile(selectedSoftwareInstallerFile);
+  elements.softwareAddInstallerTypeDisplay.textContent = inferred
+    ? inferred.toUpperCase()
+    : '選擇 MSI 或 EXE 後自動判定';
+  elements.softwareAddRawTemplate.textContent = `載入 ${(inferred || elements.softwareAddInstallerType.value).toUpperCase()} 參考範本`;
+}
+
 export function updateAddSoftwareMode() {
-  const mode = elements.softwareAddScriptMode.value;
+  const mode = selectedAddSoftwareMode();
   const installerType = elements.softwareAddInstallerType.value;
-  elements.softwareAddTemplateFields.hidden = mode === 'raw';
-  elements.softwareAddRawFields.hidden = mode !== 'raw';
-  if (!elements.softwareAddSilentArgs.value.trim()) {
+  const isTemplate = mode === 'template';
+  elements.softwareAddTemplateFields.hidden = !isTemplate;
+  elements.softwareAddRawFields.hidden = isTemplate;
+  elements.softwareAddTemplateFields.querySelectorAll('input').forEach((input) => {
+    input.disabled = !isTemplate;
+  });
+  elements.softwareAddRawScript.disabled = isTemplate;
+  elements.softwareAddRawScript.required = !isTemplate;
+  elements.softwareAddRawScript.setAttribute('aria-required', String(!isTemplate));
+  elements.softwareAddRawTemplate.disabled = isTemplate;
+  elements.softwareAddModeTemplateCard.classList.toggle('selected', isTemplate);
+  elements.softwareAddModeRawCard.classList.toggle('selected', !isTemplate);
+  if (isTemplate && !elements.softwareAddSilentArgs.value.trim()) {
     elements.softwareAddSilentArgs.value = defaultSoftwareArgs(installerType);
   }
-  if (!elements.softwareAddSuccessCodes.value.trim()) {
+  if (isTemplate && !elements.softwareAddSuccessCodes.value.trim()) {
     elements.softwareAddSuccessCodes.value = defaultSoftwareSuccessCodes(installerType);
+  }
+  updateAddSoftwareNetworkMode();
+}
+
+export function updateAddSoftwareNetworkMode() {
+  const needsInternet = elements.softwareAddNetworkRequirement.value === 'client-internet';
+  elements.softwareAddNetworkFields.hidden = !needsInternet;
+  elements.softwareAddNetworkProbeHost.disabled = !needsInternet;
+  elements.softwareAddNetworkProbeHost.required = needsInternet;
+  elements.softwareAddNetworkProbeHost.setAttribute('aria-required', String(needsInternet));
+  if (!elements.softwareAddStepRequirements.hidden) {
+    updateAddSoftwareReview();
   }
 }
 
 export function updateAddSoftwareInstallerDefaults() {
   const file = elements.softwareAddFile.files?.[0];
+  if (file) {
+    selectedSoftwareInstallerFile = file;
+  }
   const inferred = installerTypeForFile(file);
   if (inferred) {
     elements.softwareAddInstallerType.value = inferred;
     setAddSoftwareTemplateDefaults(inferred);
   }
+  updateAddSoftwareFileDisplay();
+  updateAddSoftwareInstallerTypeDisplay();
   updateAddSoftwareMode();
 }
 
-export function updateAddSoftwareSelectedInstallerDefaults() {
-  setAddSoftwareTemplateDefaults(elements.softwareAddInstallerType.value);
-  updateAddSoftwareMode();
+export function openAddSoftwareFilePicker() {
+  elements.softwareAddFile.click();
 }
 
-export function validateAddSoftwareInput(input) {
+export function insertAddSoftwareRawTemplate() {
+  if (elements.softwareAddRawScript.value.trim()) {
+    elements.softwareAddError.textContent = '已輸入 Custom PowerShell。為避免覆寫內容，請先自行清空後再載入範本。';
+    return;
+  }
+  elements.softwareAddRawScript.value = customPowerShellTemplate(elements.softwareAddInstallerType.value);
+  elements.softwareAddError.textContent = '';
+  elements.softwareAddRawScript.focus();
+}
+
+export function validateAddSoftwarePackageInput(input) {
   const idError = validateHumanCatalogId(input.softwareId, 'Software ID');
   if (idError) {
     return idError;
@@ -874,8 +1032,107 @@ export function validateAddSoftwareInput(input) {
   if (inferred !== input.installerType) {
     return `Installer type ${input.installerType.toUpperCase()} does not match ${input.file.name}.`;
   }
+  return '';
+}
+
+export function validateAddSoftwareInput(input) {
+  const packageError = validateAddSoftwarePackageInput(input);
+  if (packageError) {
+    return packageError;
+  }
   if (input.scriptMode === 'raw' && !input.rawScript.trim()) {
-    return 'Raw mode requires install.ps1 content.';
+    return 'Custom PowerShell requires install.ps1 content.';
+  }
+  if (input.network.requirement === 'client-internet' && !input.network.probeHost) {
+    return 'Client Internet mode requires a network probe hostname.';
+  }
+  if (input.network.requirement === 'client-internet' && !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/iu.test(input.network.probeHost)) {
+    return 'Network probe hostname must be a DNS hostname without a scheme, port, or path.';
+  }
+  return '';
+}
+
+export function collectAddSoftwareInput() {
+  const scriptMode = selectedAddSoftwareMode();
+  const networkRequirement = elements.softwareAddNetworkRequirement.value;
+  const input = {
+    softwareId: elements.softwareAddId.value.trim(),
+    name: elements.softwareAddName.value.trim(),
+    file: selectedSoftwareInstallerFile,
+    scriptMode,
+    installerType: elements.softwareAddInstallerType.value,
+    dependsOn: selectedAddSoftwareDependencies(),
+    network: {
+      requirement: networkRequirement,
+      ...(networkRequirement === 'client-internet' ? {
+        probeHost: elements.softwareAddNetworkProbeHost.value.trim(),
+      } : {}),
+    },
+  };
+  if (scriptMode === 'template') {
+    input.silentArgs = elements.softwareAddSilentArgs.value.trim();
+    input.successExitCodes = elements.softwareAddSuccessCodes.value.trim();
+    input.verifyPath = elements.softwareAddVerifyPath.value.trim();
+  } else {
+    input.rawScript = elements.softwareAddRawScript.value;
+  }
+  return input;
+}
+
+export function updateAddSoftwareReview() {
+  const input = collectAddSoftwareInput();
+  const dependencyNames = Array.from(
+    elements.softwareAddDependsOn.querySelectorAll('input[data-software-dependency]:checked'),
+    (checkbox) => checkbox.dataset.softwareName ?? checkbox.value,
+  );
+  const installerName = input.file?.name ?? '尚未選擇';
+  const installerType = input.file ? input.installerType.toUpperCase() : '—';
+  const installation = input.scriptMode === 'template'
+    ? `Guided installer；回傳碼 ${input.successExitCodes || '預設值'}；${input.verifyPath ? `驗證 ${input.verifyPath}` : '僅信任回傳碼'}`
+    : 'Custom PowerShell；儲存前會做 Windows PowerShell 5.1 syntax 檢查';
+  const network = input.network.requirement === 'client-internet'
+    ? `Client 必須可連外（${input.network.probeHost || '尚未填寫 hostname'}）`
+    : 'Host 預載 payload；client 不需外網';
+  setDefinitionListNodes(elements.softwareAddReviewList, [
+    ['Software', input.name ? `${input.name} (${input.softwareId || '未填 ID'})` : '尚未填寫'],
+    ['Payload', `${installerName} / ${installerType}`],
+    ['安裝方式', installation],
+    ['前置 software', dependencyNames.length ? dependencyNames.join('、') : '無'],
+    ['Client 網路', network],
+  ]);
+}
+
+export function updateAddSoftwareStep(step) {
+  const currentStep = Number(step);
+  const steps = [
+    elements.softwareAddStepPackage,
+    elements.softwareAddStepInstall,
+    elements.softwareAddStepRequirements,
+  ];
+  steps.forEach((section, index) => {
+    section.hidden = index + 1 !== currentStep;
+  });
+  elements.softwareAddStepIndicators.forEach((indicator, index) => {
+    const indicatorStep = index + 1;
+    indicator.classList.toggle('active', indicatorStep === currentStep);
+    indicator.classList.toggle('complete', indicatorStep < currentStep);
+    indicator.setAttribute('aria-current', indicatorStep === currentStep ? 'step' : 'false');
+  });
+  elements.softwareAddBack.hidden = currentStep === 1;
+  elements.softwareAddNext.hidden = currentStep === 3;
+  elements.softwareAddSubmit.hidden = currentStep !== 3;
+  if (currentStep === 3) {
+    updateAddSoftwareReview();
+  }
+}
+
+export function validateAddSoftwareStep(step) {
+  const input = collectAddSoftwareInput();
+  if (step === 1) {
+    return validateAddSoftwarePackageInput(input);
+  }
+  if (step === 2 && input.scriptMode === 'raw' && !input.rawScript.trim()) {
+    return 'Custom PowerShell requires install.ps1 content.';
   }
   return '';
 }
@@ -913,7 +1170,7 @@ export function showSoftwareDetails(software) {
       button.dataset.softwareId = software.id;
       return button;
     })()
-    : software.scriptMode;
+    : software.scriptMode === 'template' ? 'Guided installer' : software.scriptMode === 'raw' ? 'Custom PowerShell' : software.scriptMode;
   elements.softwareDetailTitle.textContent = software.name || software.id;
   elements.softwareDetailSummary.textContent = `${software.id} / ${software.source ?? software.id}`;
   setDefinitionListNodes(elements.softwareDetailList, [
@@ -925,10 +1182,16 @@ export function showSoftwareDetails(software) {
     ['Installer size', bytes(software.installerBytes)],
     ['Installer SHA256', software.installerSha256],
     ['Script mode', scriptModeValue],
-    ['Silent arguments', software.silentArgs],
-    ['Success exit codes', Array.isArray(software.successExitCodes) ? software.successExitCodes.join(',') : software.successExitCodes],
-    ['Verification', software.verificationMode],
-    ['Installed file to verify', software.verifyPath],
+    ...(software.scriptMode === 'raw' ? [] : [
+      ['Silent arguments', software.silentArgs],
+      ['Success exit codes', Array.isArray(software.successExitCodes) ? software.successExitCodes.join(',') : software.successExitCodes],
+    ]),
+    ...(software.scriptMode === 'raw' ? [] : [
+      ['Verification', software.verificationMode],
+      ['Installed file to verify', software.verifyPath],
+    ]),
+    ['Dependencies', software.dependsOn?.length ? software.dependsOn.join(', ') : 'none'],
+    ['Client network', software.network?.requirement === 'client-internet' ? `required (${software.network.probeHost})` : 'not required'],
     ['Applied profiles', usedByProfiles.length ? usedByProfiles.join(', ') : 'not selected'],
     ['Source path', software.sourcePath],
     ['install.ps1', software.installScript],
@@ -939,10 +1202,41 @@ export function showSoftwareDetails(software) {
 export function showAddSoftwareDialog() {
   return new Promise((resolve) => {
     elements.softwareAddForm.reset();
+    selectedSoftwareInstallerFile = null;
+    elements.softwareAddFile.value = '';
+    updateAddSoftwareFileDisplay();
     elements.softwareAddError.textContent = '';
     elements.softwareAddInstallerType.value = 'msi';
+    elements.softwareAddModeTemplate.checked = true;
+    elements.softwareAddNetworkRequirement.value = 'offline';
+    elements.softwareAddNetworkProbeHost.value = '';
+    elements.softwareAddDependsOn.replaceChildren();
+    for (const software of state.current?.profile?.softwareCatalog ?? []) {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = software.id;
+      checkbox.id = `software-add-dependency-${software.id}`;
+      checkbox.dataset.softwareDependency = 'true';
+      checkbox.dataset.softwareName = software.name ?? software.id;
+      const label = document.createElement('label');
+      label.className = 'checkbox-item';
+      label.htmlFor = checkbox.id;
+      const name = document.createElement('span');
+      name.textContent = `${software.name ?? software.id} (${software.id})`;
+      label.append(checkbox, name);
+      elements.softwareAddDependsOn.append(label);
+    }
+    if (!elements.softwareAddDependsOn.childElementCount) {
+      const empty = document.createElement('span');
+      empty.className = 'field-hint';
+      empty.textContent = '目前沒有可選的前置 software。';
+      elements.softwareAddDependsOn.append(empty);
+    }
     setAddSoftwareTemplateDefaults('msi');
+    updateAddSoftwareInstallerTypeDisplay();
     updateAddSoftwareMode();
+    let currentStep = 1;
+    updateAddSoftwareStep(currentStep);
 
     let settled = false;
     const done = (value) => {
@@ -955,8 +1249,14 @@ export function showAddSoftwareDialog() {
       elements.softwareAddCancelSecondary.removeEventListener('click', cancel);
       elements.softwareAddDialog.removeEventListener('cancel', cancel);
       elements.softwareAddFile.removeEventListener('change', updateAddSoftwareInstallerDefaults);
-      elements.softwareAddScriptMode.removeEventListener('change', updateAddSoftwareMode);
-      elements.softwareAddInstallerType.removeEventListener('change', updateAddSoftwareSelectedInstallerDefaults);
+      elements.softwareAddFileBrowse.removeEventListener('click', openAddSoftwareFilePicker);
+      elements.softwareAddModeTemplate.removeEventListener('change', updateAddSoftwareMode);
+      elements.softwareAddModeRaw.removeEventListener('change', updateAddSoftwareMode);
+      elements.softwareAddNetworkRequirement.removeEventListener('change', updateAddSoftwareNetworkMode);
+      elements.softwareAddDependsOn.removeEventListener('change', refreshReview);
+      elements.softwareAddRawTemplate.removeEventListener('click', insertAddSoftwareRawTemplate);
+      elements.softwareAddBack.removeEventListener('click', previous);
+      elements.softwareAddNext.removeEventListener('click', next);
       if (isDialogOpen(elements.softwareAddDialog)) {
         closeDialog(elements.softwareAddDialog);
       }
@@ -966,22 +1266,39 @@ export function showAddSoftwareDialog() {
       event?.preventDefault();
       done(null);
     };
+    const refreshReview = () => {
+      if (!elements.softwareAddStepRequirements.hidden) {
+        updateAddSoftwareReview();
+      }
+    };
+    const showError = (error) => {
+      elements.softwareAddError.textContent = error;
+    };
+    const next = () => {
+      const error = validateAddSoftwareStep(currentStep);
+      if (error) {
+        showError(error);
+        return;
+      }
+      elements.softwareAddError.textContent = '';
+      currentStep = Math.min(3, currentStep + 1);
+      updateAddSoftwareStep(currentStep);
+    };
+    const previous = () => {
+      elements.softwareAddError.textContent = '';
+      currentStep = Math.max(1, currentStep - 1);
+      updateAddSoftwareStep(currentStep);
+    };
     const submit = (event) => {
       event.preventDefault();
-      const input = {
-        softwareId: elements.softwareAddId.value.trim(),
-        name: elements.softwareAddName.value.trim(),
-        file: elements.softwareAddFile.files?.[0] ?? null,
-        scriptMode: elements.softwareAddScriptMode.value,
-        installerType: elements.softwareAddInstallerType.value,
-        silentArgs: elements.softwareAddSilentArgs.value.trim(),
-        successExitCodes: elements.softwareAddSuccessCodes.value.trim(),
-        verifyPath: elements.softwareAddVerifyPath.value.trim(),
-        rawScript: elements.softwareAddRawScript.value,
-      };
+      if (currentStep !== 3) {
+        next();
+        return;
+      }
+      const input = collectAddSoftwareInput();
       const error = validateAddSoftwareInput(input);
       if (error) {
-        elements.softwareAddError.textContent = error;
+        showError(error);
         return;
       }
       done(input);
@@ -992,10 +1309,49 @@ export function showAddSoftwareDialog() {
     elements.softwareAddCancelSecondary.addEventListener('click', cancel);
     elements.softwareAddDialog.addEventListener('cancel', cancel);
     elements.softwareAddFile.addEventListener('change', updateAddSoftwareInstallerDefaults);
-    elements.softwareAddScriptMode.addEventListener('change', updateAddSoftwareMode);
-    elements.softwareAddInstallerType.addEventListener('change', updateAddSoftwareSelectedInstallerDefaults);
+    elements.softwareAddFileBrowse.addEventListener('click', openAddSoftwareFilePicker);
+    elements.softwareAddModeTemplate.addEventListener('change', updateAddSoftwareMode);
+    elements.softwareAddModeRaw.addEventListener('change', updateAddSoftwareMode);
+    elements.softwareAddNetworkRequirement.addEventListener('change', updateAddSoftwareNetworkMode);
+    elements.softwareAddDependsOn.addEventListener('change', refreshReview);
+    elements.softwareAddRawTemplate.addEventListener('click', insertAddSoftwareRawTemplate);
+    elements.softwareAddBack.addEventListener('click', previous);
+    elements.softwareAddNext.addEventListener('click', next);
     openDialog(elements.softwareAddDialog);
     elements.softwareAddName.focus();
+  });
+}
+
+export function showSoftwareAddedDialog(software) {
+  return new Promise((resolve) => {
+    elements.softwareAddSuccessName.textContent = `${software.name} (${software.id})`;
+    let settled = false;
+    const done = (action = null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      elements.softwareAddSuccessAnother.removeEventListener('click', addAnother);
+      elements.softwareAddSuccessProfile.removeEventListener('click', openProfile);
+      elements.softwareAddSuccessClose.removeEventListener('click', close);
+      elements.softwareAddSuccessDialog.removeEventListener('cancel', close);
+      if (isDialogOpen(elements.softwareAddSuccessDialog)) {
+        closeDialog(elements.softwareAddSuccessDialog);
+      }
+      resolve(action);
+    };
+    const addAnother = () => done('another');
+    const openProfile = () => done('profile');
+    const close = (event) => {
+      event?.preventDefault();
+      done();
+    };
+    elements.softwareAddSuccessAnother.addEventListener('click', addAnother);
+    elements.softwareAddSuccessProfile.addEventListener('click', openProfile);
+    elements.softwareAddSuccessClose.addEventListener('click', close);
+    elements.softwareAddSuccessDialog.addEventListener('cancel', close);
+    openDialog(elements.softwareAddSuccessDialog);
+    elements.softwareAddSuccessProfile.focus();
   });
 }
 

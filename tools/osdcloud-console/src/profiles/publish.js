@@ -49,6 +49,7 @@ export function profileManifest(state, osImageResult = null) {
     software: state.selectedSoftware.map((software) => ({
       id: software.id,
       name: software.name,
+      network: software.network,
     })),
     execution: {
       defaultTimeoutSeconds: state.activeProfile.execution?.defaultTimeoutSeconds ?? defaultInstallSequenceTimeoutSeconds,
@@ -123,9 +124,9 @@ export function removeScriptsRootContents(scriptsRoot) {
   return removed;
 }
 
-export async function publishDeploymentProfile(config = {}, profileId = null, options = {}) {
+export async function materializeDeploymentProfilePayload(config = {}, profileId = null, options = {}) {
   const state = resolveDeploymentProfileState(config, profileId, options);
-  const appsRoot = assertSafeAppsRoot(state.options.appsRoot);
+  const appsRoot = assertSafeAppsRoot(options.appsRoot ?? state.options.appsRoot);
   if (!state.activeProfile.osImageId) {
     throw new Error('No OS image selected for the active deployment profile. Use Web OS Image Cache to download/import, export a WIM, set it active, then publish the profile.');
   }
@@ -164,7 +165,7 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
 
   let scriptsPublished = null;
   const selectedScripts = state.selectedScripts ?? [];
-  const configuredScriptsRoot = state.options.customScriptsAppsRoot;
+  const configuredScriptsRoot = options.customScriptsAppsRoot ?? state.options.customScriptsAppsRoot;
   if (configuredScriptsRoot && (selectedScripts.length > 0 || fs.existsSync(configuredScriptsRoot))) {
     const scriptsRoot = assertSafeCustomScriptsRoot(configuredScriptsRoot);
     const scriptsRemoved = removeScriptsRootContents(scriptsRoot);
@@ -198,4 +199,19 @@ export async function publishDeploymentProfile(config = {}, profileId = null, op
     softwarePayloads,
     supportFiles: ['Install-Apps.ps1', 'Show-DeploymentProgress.ps1'],
   };
+}
+
+export async function materializeSoftwareTestPayload(config = {}, profileId, testRoot, options = {}) {
+  const root = path.resolve(testRoot);
+  const appsRoot = path.join(root, 'Apps');
+  const customScriptsAppsRoot = path.join(root, 'Scripts');
+  return materializeDeploymentProfilePayload(config, profileId, {
+    ...options,
+    appsRoot,
+    customScriptsAppsRoot,
+  });
+}
+
+export async function publishDeploymentProfile(config = {}, profileId = null, options = {}) {
+  return materializeDeploymentProfilePayload(config, profileId, options);
 }

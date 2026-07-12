@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+## v0.6.6 — 2026-07-12
+
+- Software Catalog now distinguishes `Guided installer` from `Custom PowerShell` while preserving the existing persisted modes. Guided installer explains and records installer success codes; Custom PowerShell is syntax-checked with the Windows PowerShell 5.1 parser before it can write a package.
+- Add software is now a Traditional-Chinese three-step wizard. It separates package payload, Guided installer/Custom PowerShell behavior, dependencies, client-network conditions, and review; hidden mode fields cannot be focused or submitted. Catalog creation ends with explicit add-another/profile guidance without selecting or publishing Apps.
+- Required Add software fields now have red `*` markers. The Custom PowerShell view provides payload-specific MSI/EXE reference templates with execution guidance, explains why its syntax preflight matches the client Windows PowerShell 5.1 runtime, and retains an already selected payload if a later file-picker attempt is cancelled. Guided installer now explicitly distinguishes MSI's `0,1641,3010` default from EXE's vendor-safe `0` default.
+- Catalog software supports validated prerequisite dependencies and optional post-logon client-Internet probes. Profile saves reject missing/cyclic prerequisites and stably reorder software without moving custom-script slots; default host-prefetched payload publishing remains offline-first.
+- Post-logon installation now exposes waiting-network and reboot-pending progress. A Guided installer `1641` creates an explicit checkpoint, stops later steps, and resumes from the next step after reboot; `3010` remains successful and reports a restart recommendation. Unrelated interrupted runs remain fail-closed.
+- Profiles now support a dedicated `Software Test VM`: it materializes an isolated State payload, restores a manually prepared clean Hyper-V checkpoint, runs the production `Install-Apps.ps1` as SYSTEM through PowerShell Direct, handles reboot-pending continuation, collects safe summaries, and restores the checkpoint again without publishing or changing live Apps. Cleanup failure blocks another run; raw logs remain host-local.
+- The optional Software Test VM section is collapsed by default in Deployment Profiles and can be expanded only when its setup, status, or results are needed.
+
 ## v0.6.5-3 — 2026-07-11
 
 - Client post-logon finalization now runs as a SYSTEM startup task that waits for the configured user's interactive Explorer session before serial app/script installation. The first-logon viewer shows safe waiting/finalizer phases and elapsed time before the first installer starts; `windows-apps-finished` adds only completed step name/type/status/duration for host Evidence.

@@ -65,14 +65,15 @@ function Write-DeploymentProgress {
 function Update-CurrentStepProgress {
     param(
         [Parameter(Mandatory)] $Progress,
-        [Parameter(Mandatory)][double] $StepElapsedSeconds
+        [Parameter(Mandatory)][double] $StepElapsedSeconds,
+        [string] $Status = 'running'
     )
 
     if (-not $Progress.currentStep) {
         return
     }
 
-    $Progress.currentStep.status = 'running'
+    $Progress.currentStep.status = $Status
     $Progress.currentStep.elapsedSeconds = [Math]::Round($StepElapsedSeconds, 3)
     $Progress.currentStep.lastHeartbeatAt = (Get-Date).ToString('o')
     $Progress.currentStep.slow = ($StepElapsedSeconds -ge $SlowStepSeconds)
@@ -202,11 +203,20 @@ function Get-InstallSequence {
             $stepName = $stepId
         }
 
+        $network = $null
+        if ($stepType -eq 'software' -and $Profile) {
+            $catalogRow = @($Profile.software | Where-Object { [string] $_.id -eq $stepId } | Select-Object -First 1)
+            if ($catalogRow.Count -gt 0 -and $catalogRow[0].PSObject.Properties['network']) {
+                $network = $catalogRow[0].network
+            }
+        }
+
         [pscustomobject]@{
             type = $stepType
             id = $stepId
             name = $stepName
             timeoutSeconds = if ($entry.PSObject.Properties['timeoutSeconds']) { $entry.timeoutSeconds } else { $null }
+            network = $network
         }
     })
 }
@@ -406,6 +416,61 @@ function Stop-StepProcessTree {
     }
 }
 
+function Test-ClientInternetProbe {
+    param([Parameter(Mandatory)][string] $HostName)
+
+    try {
+        $addresses = @([System.Net.Dns]::GetHostAddresses($HostName) | Where-Object { $_.AddressFamily -in @('InterNetwork', 'InterNetworkV6') })
+        foreach ($address in $addresses) {
+            $client = New-Object System.Net.Sockets.TcpClient($address.AddressFamily)
+            try {
+                $connect = $client.BeginConnect($address, 443, $null, $null)
+                if ($connect.AsyncWaitHandle.WaitOne(3000) -and $client.Connected) {
+                    $client.EndConnect($connect)
+                    return $true
+                }
+            }
+            finally {
+                $client.Dispose()
+            }
+        }
+    }
+    catch {
+    }
+    return $false
+}
+
+function Wait-ForClientInternet {
+    param(
+        $Network,
+        [Parameter(Mandatory)][int] $TimeoutSeconds,
+        [Parameter(Mandatory)] $Progress
+    )
+
+    if ($null -eq $Network -or [string] $Network.requirement -ne 'client-internet') {
+        return 0
+    }
+    $probeHost = [string] $Network.probeHost
+    if ([string]::IsNullOrWhiteSpace($probeHost)) {
+        throw 'Client Internet requirement is missing a probe hostname.'
+    }
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        while ($timer.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+            Update-CurrentStepProgress -Progress $Progress -StepElapsedSeconds $timer.Elapsed.TotalSeconds -Status 'waiting_for_network'
+            if (Test-ClientInternetProbe -HostName $probeHost) {
+                return [Math]::Round($timer.Elapsed.TotalSeconds, 3)
+            }
+            $remainingSeconds = [Math]::Max(1, $TimeoutSeconds - [int]$timer.Elapsed.TotalSeconds)
+            Start-Sleep -Seconds ([Math]::Min(10, $remainingSeconds))
+        }
+    }
+    finally {
+        $timer.Stop()
+    }
+    throw "Client Internet was not reachable before the step timeout ($TimeoutSeconds seconds)."
+}
+
 function Invoke-StepProcess {
     param(
         [Parameter(Mandatory)][string] $ScriptPath,
@@ -566,6 +631,9 @@ function Invoke-SequenceStep {
         error = $null
         stdoutTailText = ''
         stderrTailText = ''
+        networkWaitSeconds = 0
+        rebootRecommended = $false
+        rebootPending = $false
     }
 
     Write-Host "Running $stepType (#$StepIndex): $stepId"
@@ -594,9 +662,14 @@ function Invoke-SequenceStep {
         $result.script = $scriptPath
         Write-StepLog -Path $logPath -Message "Script: $scriptPath"
 
-        $processResult = Invoke-StepProcess -ScriptPath $scriptPath -StatePathValue $StatePathValue -StepId $stepId -StepType $stepType -StepIndex $StepIndex -TimeoutSeconds $timeoutSeconds -LogPath $logPath -Progress $Progress
+        $networkWaitSeconds = Wait-ForClientInternet -Network $Entry.network -TimeoutSeconds $timeoutSeconds -Progress $Progress
+        $result.networkWaitSeconds = $networkWaitSeconds
+        $remainingTimeoutSeconds = [Math]::Max(1, $timeoutSeconds - [int][Math]::Ceiling($networkWaitSeconds))
+        $processResult = Invoke-StepProcess -ScriptPath $scriptPath -StatePathValue $StatePathValue -StepId $stepId -StepType $stepType -StepIndex $StepIndex -TimeoutSeconds $remainingTimeoutSeconds -LogPath $logPath -Progress $Progress
         $result.stdoutTailText = $processResult.stdoutTailText
         $result.stderrTailText = $processResult.stderrTailText
+        $result.rebootRecommended = ($processResult.stdoutTailText -match 'WINCEPTION_REBOOT_RECOMMENDED')
+        $result.rebootPending = ($processResult.stdoutTailText -match 'WINCEPTION_REBOOT_PENDING')
         $hasPowerShellErrorOutput = -not [string]::IsNullOrWhiteSpace($processResult.stderrTailText) -and (
             $processResult.stderrTailText -match 'CategoryInfo\s+:' -or
             $processResult.stderrTailText -match 'FullyQualifiedErrorId\s+:'
@@ -612,7 +685,12 @@ function Invoke-SequenceStep {
 
         $result.exitCode = if ($processResult.exitCode -eq 0 -and $hasPowerShellErrorOutput) { 1 } else { $processResult.exitCode }
         Assert-ValidInstallStateFile -Path $StatePathValue -Label "After step $StepIndex"
-        if ($result.exitCode -eq 0) {
+        if ($result.rebootPending -or $result.exitCode -eq 1641) {
+            $result.status = 'reboot_pending'
+            $result.reason = 'Installer requested reboot before later steps can run'
+            Write-Host "Completed $stepType ${stepId}; reboot is required before the next step."
+        }
+        elseif ($result.exitCode -eq 0) {
             $result.status = 'succeeded'
             Write-Host "Completed ${stepType}: $stepId"
         }
@@ -624,7 +702,10 @@ function Invoke-SequenceStep {
         }
     }
     catch {
-        if ($_.Exception.Message -match 'not found') {
+        if ($_.Exception.Message -match 'Client Internet') {
+            $result.status = 'network_unavailable'
+        }
+        elseif ($_.Exception.Message -match 'not found') {
             $result.status = 'missing'
         }
         else {
@@ -662,7 +743,8 @@ function Write-InstallSequenceSummary {
     )
 
     $steps = @($Results)
-    $failedStep = @($steps | Where-Object { $_.status -ne 'succeeded' } | Select-Object -First 1)
+    $failedStep = @($steps | Where-Object { $_.status -notin @('succeeded', 'reboot_pending') } | Select-Object -First 1)
+    $rebootPendingStep = @($steps | Where-Object { $_.status -eq 'reboot_pending' } | Select-Object -First 1)
     $summary = [ordered]@{
         generatedAt = (Get-Date).ToString('o')
         total = $steps.Count
@@ -670,6 +752,8 @@ function Write-InstallSequenceSummary {
         failed = @($steps | Where-Object { $_.status -eq 'failed' }).Count
         missing = @($steps | Where-Object { $_.status -eq 'missing' }).Count
         timedOut = @($steps | Where-Object { $_.status -eq 'timed_out' }).Count
+        rebootPending = ($rebootPendingStep.Count -gt 0)
+        rebootPendingStep = if ($rebootPendingStep.Count -gt 0) { $rebootPendingStep[0] } else { $null }
         statePath = $StatePathValue
         execution = $Execution
         failedStep = if ($failedStep.Count -gt 0) { $failedStep[0] } else { $null }
@@ -709,8 +793,6 @@ try {
 
     $profile = Get-SelectedProfile -AppsRoot $appsRoot
     $execution = Get-ExecutionConfig -Profile $profile
-    Initialize-InstallStateFile -Path $StatePath
-    Assert-ValidInstallStateFile -Path $StatePath -Label 'Initial'
     $installSequence = @(Get-InstallSequence -AppsRoot $appsRoot -Profile $profile)
     $previousProgress = $null
     if (Test-Path -LiteralPath $ProgressPath -PathType Leaf) {
@@ -720,23 +802,42 @@ try {
         catch {
         }
     }
+    $resumeFromStep = 1
+    $completedSteps = @()
+    $rebootCount = 0
+    if ($previousProgress -and [string] $previousProgress.status -eq 'reboot_pending') {
+        $resumeFromStep = ConvertTo-PositiveIntegerValue -Value $previousProgress.resumeFromStep -Label 'deployment-progress.resumeFromStep'
+        if ($resumeFromStep -gt ($installSequence.Count + 1)) {
+            throw "Invalid deployment-progress.resumeFromStep: $resumeFromStep"
+        }
+        $completedSteps = @($previousProgress.completedSteps)
+        $rebootCount = if ($null -ne $previousProgress.rebootCount) { [int] $previousProgress.rebootCount } else { 1 }
+        Assert-ValidInstallStateFile -Path $StatePath -Label 'Resume'
+    }
+    else {
+        Initialize-InstallStateFile -Path $StatePath
+        Assert-ValidInstallStateFile -Path $StatePath -Label 'Initial'
+    }
     $progressStartedAt = (Get-Date).ToString('o')
     $progress = [ordered]@{
         schemaVersion = 2
         status = 'running'
-        phase = 'installing'
+        phase = if ($resumeFromStep -gt 1) { 'resuming' } else { 'installing' }
         queuedAt = if ($previousProgress) { $previousProgress.queuedAt } else { $progressStartedAt }
         phaseStartedAt = $progressStartedAt
         finalizerStartedAt = if ($previousProgress) { $previousProgress.finalizerStartedAt } else { $progressStartedAt }
         heartbeatAt = $progressStartedAt
         totalSteps = $installSequence.Count
-        completedSteps = @()
+        completedSteps = $completedSteps
         currentStep = $null
         failure = $null
         startedAt = $progressStartedAt
         updatedAt = $null
         finishedAt = $null
         elapsedSeconds = 0
+        resumeFromStep = $null
+        rebootCount = $rebootCount
+        restartRecommended = if ($previousProgress) { [bool] $previousProgress.restartRecommended } else { $false }
     }
     Write-DeploymentProgress -Progress $progress
     if ($installSequence.Count -eq 0) {
@@ -744,8 +845,9 @@ try {
     }
 
     $failedStep = $null
-    $stepIndex = 0
-    foreach ($entry in $installSequence) {
+    $rebootPendingStep = $null
+    $stepIndex = $resumeFromStep - 1
+    foreach ($entry in @($installSequence | Select-Object -Skip ($resumeFromStep - 1))) {
         $stepIndex += 1
         $progress.currentStep = [ordered]@{
             index = $stepIndex
@@ -772,11 +874,27 @@ try {
             endedAt = $result.endedAt
             durationSeconds = $result.durationSeconds
             timeoutSeconds = $result.timeoutSeconds
+            networkWaitSeconds = $result.networkWaitSeconds
             exitCode = $result.exitCode
             logPath = $result.logPath
+            rebootRecommended = [bool] $result.rebootRecommended
         }
         $progress.completedSteps = @($progress.completedSteps) + @($safeResult)
+        if ($result.rebootRecommended) {
+            $progress.restartRecommended = $true
+        }
         $progress.currentStep = $null
+        if ($result.status -eq 'reboot_pending') {
+            $rebootPendingStep = $result
+            $progress.status = 'reboot_pending'
+            $progress.phase = 'awaiting-reboot'
+            $progress.phaseStartedAt = (Get-Date).ToString('o')
+            $progress.heartbeatAt = $progress.phaseStartedAt
+            $progress.resumeFromStep = $stepIndex + 1
+            $progress.rebootCount = $rebootCount + 1
+            Write-DeploymentProgress -Progress $progress
+            break
+        }
         if ($result.status -ne 'succeeded') {
             $failedStep = $result
             $progress.status = 'failed'
@@ -798,6 +916,11 @@ try {
     $customScriptSummaryPath = Write-CustomScriptSummary -Results $results
     if ($customScriptSummaryPath) {
         Write-Host "Custom script summary: $customScriptSummaryPath"
+    }
+
+    if ($rebootPendingStep) {
+        Write-Host "Install sequence is waiting for a reboot before step $($progress.resumeFromStep)."
+        return
     }
 
     if ($failedStep) {

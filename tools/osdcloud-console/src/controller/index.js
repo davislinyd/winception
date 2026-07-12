@@ -29,6 +29,7 @@ import { EventEmitter } from 'node:events';
 import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, osImageDeployableStatus, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
 import { buildInitializationState, osImageSummary, osImageUsageFromProfiles, profileSummary, retailOnlyCatalogFilters, runtimeReadinessFailureMessage } from './state.js';
 import { readLatestDiagnostics, resolveDiagnosticsBundlePath, runDiagnostics } from '../diagnostics/index.js';
+import { prepareSoftwareTestRun, readSoftwareTestStatus, runPreparedSoftwareTest, saveSoftwareTestConfiguration } from '../softwareTest.js';
 
 export class ServiceController extends EventEmitter {
   constructor(options = {}) {
@@ -65,6 +66,7 @@ export class ServiceController extends EventEmitter {
       prepareRuntimeArtifacts,
       readCustomScriptContent,
       readSoftwareInstallScript,
+      readSoftwareTestStatus,
       readFleetStatus,
       readRecentScreenshotMetadata,
       readRunLatestScreenshot,
@@ -74,10 +76,13 @@ export class ServiceController extends EventEmitter {
       resolveDeploymentProfileState,
       resolveOsImageState,
       runPreflight,
+      runPreparedSoftwareTest,
       saveConfig,
+      saveSoftwareTestConfiguration,
       summarizeDriverPackCache,
       summarizeValidation,
       syncIpxeEndpoint,
+      prepareSoftwareTestRun,
       createOsImageTorrent,
       createOfflineIso,
       isElevated: isElevatedSync,
@@ -116,6 +121,7 @@ export class ServiceController extends EventEmitter {
     this.osDownloadPromise = null;
     this.osImportStatus = null;
     this.offlineIsoStatus = null;
+    this.softwareTestPromise = null;
     this.operation = null;
     this.networkGatewayState = networkTopology(this.config) === 'shared-lan'
       ? { topology: 'shared-lan', ready: true, detail: 'Client Internet is provided by the existing LAN/router.' }
@@ -472,6 +478,10 @@ export class ServiceController extends EventEmitter {
       osDownloadStatus: this.osDownloadStatus,
       osImportStatus: this.osImportStatus,
       offlineIsoStatus: this.offlineIsoStatus,
+      softwareTest: safeRead(() => this.getSoftwareTestStatus(), {
+        configuration: { configured: false, ready: false, detail: 'Software test status is unavailable.' },
+        latest: null,
+      }).value,
       preflight: this.preflightResults,
       endpointUpdateStatus: this.endpointUpdateStatus,
       operation: this.operation,
@@ -920,6 +930,46 @@ export class ServiceController extends EventEmitter {
         throw error;
       }
     });
+  }
+
+  getSoftwareTestStatus() {
+    return this.dependencies.readSoftwareTestStatus(this.config);
+  }
+
+  async configureSoftwareTest(input) {
+    if (!this.dependencies.isElevated()) {
+      throw errorWithStatus('Restart the Web console from an elevated PowerShell session before registering a software test VM.', 403);
+    }
+    return this.runOperation('Registering software test VM', async () =>
+      this.dependencies.saveSoftwareTestConfiguration(this.config, input), { mutating: false });
+  }
+
+  async startSoftwareTest(profileId) {
+    if (this.softwareTestPromise) {
+      throw errorWithStatus('A software test is already running.', 409);
+    }
+    if (!this.dependencies.isElevated()) {
+      throw errorWithStatus('Restart the Web console from an elevated PowerShell session before running a software test.', 403);
+    }
+    const fleet = this.dependencies.readFleetStatus(this.config);
+    if ((fleet.runs ?? []).some((run) => run.status === 'running')) {
+      throw errorWithStatus('Wait for active deployments to finish before running the dedicated software test VM.', 409);
+    }
+    const prepared = await this.dependencies.prepareSoftwareTestRun(this.config, profileId);
+    const promise = this.runOperation('Testing deployment profile software', async () =>
+      this.dependencies.runPreparedSoftwareTest(this.config, prepared), { mutating: false });
+    this.softwareTestPromise = promise;
+    void promise.then(
+      () => this.addLog('Software test ' + prepared.runId + ' completed.'),
+      () => this.addLog('Software test ' + prepared.runId + ' did not complete.'),
+    ).finally(() => {
+      this.softwareTestPromise = null;
+    });
+    return {
+      runId: prepared.runId,
+      profile: { id: prepared.profile.id, name: prepared.profile.name },
+      status: prepared.status,
+    };
   }
 
   async downloadOsImage(catalogId) {

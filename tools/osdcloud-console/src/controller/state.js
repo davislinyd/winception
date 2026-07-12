@@ -448,6 +448,8 @@ export function profileSummary(state) {
       verificationMode: software.verificationMode,
       installerBytes: software.installerBytes,
       installerSha256: software.installerSha256,
+      dependsOn: software.dependsOn,
+      network: software.network,
       usedByProfiles: usageBySoftware.get(software.id) ?? [],
     })),
     customScriptCatalog: (state.scriptCatalog?.scripts ?? []).map((script) => ({

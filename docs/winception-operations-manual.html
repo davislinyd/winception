@@ -313,7 +313,7 @@
 
   <div id="locale-zh" class="locale-view" lang="zh-Hant">
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.5-3</p>
+      <p class="eyebrow">Operations Manual · v0.6.6</p>
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
@@ -458,6 +458,8 @@ cd '&lt;repo-root&gt;'
             <li>Web Console 收到 <code>windows-desktop-ready</code>。</li>
           </ol>
           <div class="callout"><strong>Client 網路邊界</strong>WinPE、OSDCloud、OOBE injection 與 SetupComplete staging 只需要連到 Winception server，不需要外部 Internet。Dual NIC NAT 會讓 client 全程具有路由，但 WinPE 仍不依賴它；post-logon finalizer 才是 software/custom scripts 的預期外網使用階段。NAT 不修改 WAN IP/gateway/DNS 或關閉 firewall，停止 HTTP/TFTP/DHCP 也不會停止 NAT。</div>
+          <div class="callout"><strong>新增 Client Software</strong>在 <code>Profiles → Software Catalog → Add software</code> 依序完成 Package、Installation、Requirements &amp; review。所有必填欄位都有紅色 <code>*</code>；已選 payload 即使重新開啟檔案選擇器後按取消也會保留。一般 MSI/EXE 選 Guided installer；Custom PowerShell 仍需附帶 payload，並以 SYSTEM、非互動方式執行受信任的 <code>install.ps1</code>。先選 payload 後可載入 MSI/EXE 參考範本；syntax preflight 採 Windows PowerShell 5.1，因為 client 實際就是以內建 <code>powershell.exe</code> 執行，不是 sandbox 或實機測試。預設使用 host 預載 payload；只有該 client 步驟確實要連外時才設定 DNS probe host。加入 catalog 不會選取 profile 或發布 Apps，請在 Deployment profile 加入後再 publish。</div>
+          <div class="callout"><strong>Software Test VM</strong>此區塊在 Deployment Profiles 預設收合，需要設定、查看狀態或結果時再按「展開」。先用 <code>Minimal</code> profile 完整部署一台專用第 2 代 Hyper-V VM，關機後手動建立 <code>Winception-SoftwareTest-Clean</code> 快照。到 <code>Profiles → Software Test VM</code> 登記 VM、快照與目標使用者；登記只驗證既有資源。之後在 profile 按「測試 software」會還原快照、以 SYSTEM 執行正式 <code>Install-Apps.ps1</code>、處理必要重開機並再次還原。測試 payload 與 raw logs 只留在 HostTools State，不會 publish 或覆寫 live Apps、active profile、services 或 PXE；Web 只顯示安全摘要。cleanup failed 時先手動復原乾淨快照，才可再測。這是 software 快速驗證，不取代完整 PXE 驗收。</div>
           <div class="sequence" aria-label="正常 deployment event sequence"><span>winpe-start</span><span>smb-mounted</span><span>torrent-download</span><span>torrent-verify</span><span>osdcloud-start</span><span>apply-image</span><span>osdcloud-finished</span><span>rebooting</span><span>windows-setupcomplete-start</span><span>windows-apps-finished</span><span>windows-desktop-ready</span></div>
         </section>
 
@@ -525,7 +527,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 
   <div id="locale-en" class="locale-view" lang="en" hidden>
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v0.6.5-3</p>
+      <p class="eyebrow">Operations Manual · v0.6.6</p>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
@@ -670,6 +672,8 @@ cd '&lt;repo-root&gt;'
             <li>The Web Console receives <code>windows-desktop-ready</code>.</li>
           </ol>
           <div class="callout"><strong>Client network boundary</strong>WinPE, OSDCloud, OOBE injection, and SetupComplete staging only need the Winception server and do not require external Internet. Dual NIC NAT gives clients a route throughout deployment without making WinPE depend on it; post-logon finalizer is the intended software/custom-script Internet phase. NAT does not change WAN IP/gateway/DNS or disable firewall profiles, and stopping HTTP/TFTP/DHCP does not stop NAT.</div>
+          <div class="callout"><strong>Add Client Software</strong>Use <code>Profiles → Software Catalog → Add software</code> and complete Package, Installation, then Requirements &amp; review. Every required field has a red <code>*</code>; reopening the picker and cancelling keeps an already selected payload. Choose Guided installer for normal MSI/EXE payloads. Custom PowerShell still includes a payload and runs a trusted <code>install.ps1</code> as non-interactive SYSTEM. After choosing a payload, load the MSI/EXE reference template as a starting point; its Windows PowerShell 5.1 syntax preflight matches the inbox <code>powershell.exe</code> that executes on the client and is not a sandbox or installation test. Host-prefetched payload is the default; specify a DNS probe host only when that client step truly needs external Internet. Adding to the catalog neither selects a profile nor publishes Apps; add the software to a Deployment profile and publish afterward.</div>
+          <div class="callout"><strong>Software Test VM</strong>This Deployment Profiles section is collapsed by default; choose <em>Expand</em> only when setup, status, or results are needed. Deploy one dedicated Generation 2 Hyper-V VM completely with the <code>Minimal</code> profile, power it off, then manually create <code>Winception-SoftwareTest-Clean</code>. In <code>Profiles → Software Test VM</code>, register the VM, checkpoint, and target user; registration verifies existing resources only. The profile <em>Test software</em> action restores the checkpoint, runs the production <code>Install-Apps.ps1</code> as SYSTEM, handles necessary reboots, and restores the checkpoint again. Test payloads and raw logs stay only in HostTools State; the action does not publish or overwrite live Apps, the active profile, services, or PXE. If cleanup fails, manually restore the clean checkpoint before another test. This is fast software verification, not a replacement for full PXE acceptance.</div>
           <div class="sequence" aria-label="Normal deployment event sequence"><span>winpe-start</span><span>smb-mounted</span><span>torrent-download</span><span>torrent-verify</span><span>osdcloud-start</span><span>apply-image</span><span>osdcloud-finished</span><span>rebooting</span><span>windows-setupcomplete-start</span><span>windows-apps-finished</span><span>windows-desktop-ready</span></div>
         </section>
 
@@ -735,7 +739,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
     </div>
   </div>
 
-  <footer>Winception deployment manual · Product documentation for Web v0.6.5-3.</footer>
+  <footer>Winception deployment manual · Product documentation for Web v0.6.6.</footer>
 
   <dialog id="lightbox" aria-label="Image preview">
     <div class="lightbox-inner">

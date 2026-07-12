@@ -76,6 +76,30 @@ async function makeServer(root, overrides = {}) {
       listIpv4ServiceInterfaces: async () => [{ interfaceAlias: 'LAN', ipAddress: '127.0.0.1', prefixLength: 24 }],
       isElevated: () => true,
       readFleetStatus: () => ({ total: 1, counts: { running: 1 }, runs: [{ runId: 'run-1', status: 'running', latestStage: 'winpe-start' }] }),
+      readSoftwareTestStatus: () => ({
+        configuration: {
+          configured: false,
+          ready: false,
+          vmName: null,
+          checkpointName: null,
+          targetUser: null,
+          detail: 'Register a dedicated software test VM and clean checkpoint.',
+          verifiedAt: null,
+        },
+        latest: null,
+      }),
+      saveSoftwareTestConfiguration: async (_config, input) => ({
+        configured: true,
+        ready: true,
+        ...input,
+        verifiedAt: '2026-07-12T00:00:00.000Z',
+      }),
+      prepareSoftwareTestRun: async (_config, profileId) => ({
+        runId: 'software-test-001',
+        profile: { id: profileId, name: 'Default' },
+        status: { runId: 'software-test-001', status: 'running', phase: 'payload-ready', cleanup: 'pending' },
+      }),
+      runPreparedSoftwareTest: async () => ({ status: 'succeeded', cleanup: 'succeeded' }),
       readRecentScreenshotMetadata: () => [],
       readRunLatestScreenshot: () => null,
       readStatusEvents: () => [],
@@ -1260,6 +1284,98 @@ test('OS image download API starts a background job and rejects concurrent downl
     releaseDownload();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(server.controller.getState().osDownloadStatus.status, 'downloaded');
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('software test routes register a dedicated VM and start an isolated profile run without publishing', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-software-test-'));
+  let savedConfiguration = null;
+  let preparedProfileId = null;
+  let runnerCalled = false;
+  let publishCalled = false;
+  const server = await makeServer(root, {
+    dependencies: {
+      readFleetStatus: () => ({ total: 0, counts: { running: 0 }, runs: [] }),
+      readSoftwareTestStatus: () => ({
+        configuration: {
+          configured: true,
+          ready: true,
+          vmName: 'winception-software-test-01',
+          checkpointName: 'Winception-SoftwareTest-Clean',
+          targetUser: 'operator',
+          detail: 'Dedicated software test VM is registered.',
+          verifiedAt: '2026-07-12T00:00:00.000Z',
+        },
+        latest: null,
+      }),
+      saveSoftwareTestConfiguration: async (_config, input) => {
+        savedConfiguration = input;
+        return {
+          configured: true,
+          ready: true,
+          ...input,
+          verifiedAt: '2026-07-12T00:00:00.000Z',
+        };
+      },
+      prepareSoftwareTestRun: async (_config, profileId) => {
+        preparedProfileId = profileId;
+        return {
+          runId: 'software-test-001',
+          profile: { id: profileId, name: 'Default' },
+          status: { runId: 'software-test-001', status: 'running', phase: 'payload-ready', cleanup: 'pending' },
+        };
+      },
+      runPreparedSoftwareTest: async () => {
+        runnerCalled = true;
+        return { status: 'succeeded', cleanup: 'succeeded' };
+      },
+      publishDeploymentProfile: () => {
+        publishCalled = true;
+        throw new Error('live publish must not run for a software test');
+      },
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/software-test/status`);
+    assert.equal(response.status, 200);
+    let payload = await response.json();
+    assert.equal(payload.result.configuration.vmName, 'winception-software-test-01');
+    assert.equal(payload.result.latest, null);
+
+    response = await fetch(`${base}/api/software-test/config`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        vmName: 'winception-software-test-01',
+        checkpointName: 'Winception-SoftwareTest-Clean',
+        targetUser: 'operator',
+      }),
+    });
+    assert.equal(response.status, 200);
+    payload = await response.json();
+    assert.equal(payload.result.ready, true);
+    assert.deepEqual(savedConfiguration, {
+      vmName: 'winception-software-test-01',
+      checkpointName: 'Winception-SoftwareTest-Clean',
+      targetUser: 'operator',
+    });
+
+    response = await fetch(`${base}/api/software-test/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profileId: 'default' }),
+    });
+    assert.equal(response.status, 202);
+    payload = await response.json();
+    assert.equal(payload.result.runId, 'software-test-001');
+    assert.equal(preparedProfileId, 'default');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(runnerCalled, true);
+    assert.equal(publishCalled, false);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });
