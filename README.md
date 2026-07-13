@@ -4,6 +4,8 @@
 
 ## 繁體中文
 
+> Winception 2.0 目前是內部候選版；[互動安裝與技術文件來源](https://github.com/davislinyd/winception/tree/codex/v2-rewrite/apps/docs) 已完成，但必須等全新 VM 驗收後才手動發布 Pages 與 prerelease。
+
 ### 01. 產品概要
 
 Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在部署主機上安裝 Web Console，準備 runtime、Windows 映像、deployment profile 與服務端點後，目標電腦只需要從 UEFI IPv4 PXE 開機，後續的 WinPE、OSDCloud、Windows SetupComplete、應用程式與自訂腳本流程會自動完成。
@@ -351,6 +353,8 @@ Last completed run : <run-id>
 - [`AGENTS.md`](AGENTS.md)：agent-only operational contract。
 
 ## English
+
+> Winception 2.0 is currently an internal candidate. Its [interactive installation and technical documentation source](https://github.com/davislinyd/winception/tree/codex/v2-rewrite/apps/docs) is available, but Pages and the prerelease remain gated on fresh-VM acceptance.
 
 ### 01. Product Overview
 
