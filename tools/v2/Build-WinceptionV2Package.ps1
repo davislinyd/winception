@@ -71,7 +71,7 @@ try {
   Copy-Item -LiteralPath $winSwCache -Destination (Join-Path $stage 'node\Winception.Web.exe')
   Copy-Item -LiteralPath 'installer\winsw\Winception.Agent.xml', 'installer\winsw\Winception.Web.xml' -Destination (Join-Path $stage 'node')
   Copy-Item -LiteralPath 'package.json', 'package-lock.json' -Destination (Join-Path $stage 'app')
-  Copy-Item -LiteralPath 'README.md', 'SECURITY.md', 'SUPPORT.md', 'THIRD-PARTY-NOTICES.md' -Destination (Join-Path $stage 'app')
+  Copy-Item -LiteralPath 'LICENSE', 'README.md', 'SECURITY.md', 'SUPPORT.md', 'THIRD-PARTY-NOTICES.md' -Destination (Join-Path $stage 'app')
   New-Item -ItemType Directory -Path (Join-Path $stage 'app\licenses') | Out-Null
   Copy-Item -LiteralPath $winSwLicenseCache -Destination (Join-Path $stage 'app\licenses\WinSW-LICENSE.txt')
   Copy-Item -LiteralPath $nodeLicenseCache -Destination (Join-Path $stage 'app\licenses\Node.js-LICENSE.txt')
@@ -84,7 +84,13 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Production dependency install failed.' }
   $sbomText = (& npm.cmd sbom --omit=dev --sbom-format=cyclonedx) -join "`n"
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($sbomText)) { throw 'Production SBOM generation failed.' }
-  [void]($sbomText | ConvertFrom-Json)
+  $packageMetadata = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
+  $sbom = $sbomText | ConvertFrom-Json
+  $sbom.metadata.component.name = [string]$packageMetadata.name
+  $sbom.metadata.component.version = [string]$packageMetadata.version
+  $sbomLicenseIds = @($sbom.metadata.component.licenses | ForEach-Object { [string]$_.license.id })
+  if ($sbomLicenseIds -notcontains [string]$packageMetadata.license) { throw 'Production SBOM does not contain the declared product license.' }
+  $sbomText = $sbom | ConvertTo-Json -Depth 100
   [IO.File]::WriteAllText((Join-Path $stage 'app\winception-v2-sbom.cdx.json'), $sbomText, [Text.UTF8Encoding]::new($false))
   Invoke-PackageSigning $stage
   & node.exe scripts/v2/create-package-manifest.mjs $stage

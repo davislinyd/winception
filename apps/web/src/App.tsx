@@ -63,6 +63,7 @@ export function App(): React.JSX.Element {
         <ActionPanel onCompleted={(message) => { setNotice(message); void refresh(); }} onError={(caught) => setError(normalizeError(caught))} />
         <Operations operations={operations} />
       </main>
+      <ProductLegalNotice />
     </div>
   );
 }
@@ -79,14 +80,27 @@ function Login({ onSuccess, onError, error }: { onSuccess: () => void; onError: 
   }
   return (
     <main className="login-shell">
-      <form className="login-card" onSubmit={(event) => { void submit(event); }}>
-        <span className="brand-mark large">W</span><p className="eyebrow">Local management</p><h1>Open Winception</h1>
-        <p>Enter the setup code created by the signed installer.</p>
-        {error && <ErrorBanner error={error} onClose={() => undefined} />}
-        <label>Setup code<input type="password" autoComplete="current-password" value={token} onChange={(event) => setToken(event.target.value)} /></label>
-        <button type="submit" disabled={busy || token.length < 32}>{busy ? 'Signing in…' : 'Sign in'}</button>
-      </form>
+      <div className="login-stack">
+        <form className="login-card" onSubmit={(event) => { void submit(event); }}>
+          <span className="brand-mark large">W</span><p className="eyebrow">Local management</p><h1>Open Winception</h1>
+          <p>Enter the setup code created by the signed installer.</p>
+          {error && <ErrorBanner error={error} onClose={() => undefined} />}
+          <label>Setup code<input type="password" autoComplete="current-password" value={token} onChange={(event) => setToken(event.target.value)} /></label>
+          <button type="submit" disabled={busy || token.length < 32}>{busy ? 'Signing in…' : 'Sign in'}</button>
+        </form>
+        <ProductLegalNotice />
+      </div>
     </main>
+  );
+}
+
+function ProductLegalNotice(): React.JSX.Element {
+  return (
+    <footer className="legal-footer">
+      <span>Copyright © 2026 Winception contributors · No warranty</span>
+      <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noreferrer">AGPL-3.0-only</a>
+      <a href="https://github.com/davislinyd/winception/tree/codex/v2-rewrite" target="_blank" rel="noreferrer">Source code</a>
+    </footer>
   );
 }
 

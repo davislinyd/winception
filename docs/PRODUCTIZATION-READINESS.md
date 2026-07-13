@@ -10,10 +10,11 @@
 - v1 dry-run/idempotent importer with backup and report; transient runtime state is not imported and runtime rebuild is required.
 - Fixed Node 24.15.0 package staging, WiX service definitions, State/legacy ACL provisioning, service-SID pipe DACL readback, transaction-style LAN endpoint configuration and upgrade rollback.
 - Self-signed Authenticode/TLS baseline with exported trust certificates; public/organization certificate thumbprints can replace it later without code changes.
+- `AGPL-3.0-only` product license, complete license text in source/MSI/SBOM, and unauthenticated Web links to the license and corresponding source repository.
 - Local gates for fixed aria2 integration, coverage, PowerShell parse, dependency audit, pinned Gitleaks history/working-tree scan, embedded SBOM, browser E2E and MSI/package smoke. Remote CI is intentionally not required in the current phase.
 - Single official manual, generated flowchart policy, per-version evidence matrix, Security/Support/third-party policies and reduced agent-context budget.
 
-Local 2026-07-13 evidence: v1 405/405 and v2 40/40 with no skips; global coverage 93.48%/85.44%, critical coverage 99.28%/92.23%; Playwright 2/2; Gitleaks 0 findings. The final self-signed MSI built with 0 warnings/errors, matched 6,649 manifest files after extraction, contained 66 valid signed payloads and a `2.0.0-alpha.1` SBOM, and its extracted Agent/Web passed health, authentication, profile read, SQLite and Node 24.15.0 smoke.
+Local 2026-07-13 evidence: v1 405/405 and v2 40/40 with no skips; global coverage 93.48%/85.44%, critical coverage 99.28%/92.23%; Playwright 2/2; Gitleaks 0 findings. The final self-signed MSI built with 0 warnings/errors, matched 6,650 manifest files after extraction, contained 66 valid signed payloads, the complete product license and a `winception` / `2.0.0-alpha.1` / `AGPL-3.0-only` SBOM; its extracted Agent/Web passed health, authentication, profile read, SQLite and Node 24.15.0 smoke.
 
 ## Remaining external release acceptance
 
@@ -24,6 +25,6 @@ Local 2026-07-13 evidence: v1 405/405 and v2 40/40 with no skips; global coverag
 | v2 live runtime not deployment-accepted | Prove installed Agent/Web health, ACL, DPAPI, named pipe and v1 migration against the exact MSI |
 | Feature parity not deployment-accepted | One client, two consecutive four-VM rounds, physical laptop, Software Test, torrent, Offline ISO, diagnostics/evidence export |
 | LAN management not live-tested | Loopback default plus certificate-store HTTPS opt-in and invalid-certificate fail-closed tests |
-| Legal notices incomplete | Product license and upstream redistribution review using release SBOM |
+| Upstream redistribution review incomplete | Confirm OSDCloud/ADK/WinPE, aria2 and every bundled client payload against the release SBOM; the Winception product license is already `AGPL-3.0-only` |
 
 Do not merge v2 to `master` or label it production-ready until every row is closed in `TEST-RESULT.md` for the exact release build.

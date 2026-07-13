@@ -5,11 +5,15 @@ const setupCode = 'winception-e2e-management-token-0000000000000000';
 
 test('login, keyboard focus, operation mutation and refresh recovery', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('link', { name: 'AGPL-3.0-only' })).toHaveAttribute('href', 'https://www.gnu.org/licenses/agpl-3.0.html');
+  await expect(page.getByRole('link', { name: 'Source code' })).toHaveAttribute('href', 'https://github.com/davislinyd/winception/tree/codex/v2-rewrite');
   const input = page.getByLabel('Setup code');
   await input.fill(setupCode);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Deployment control plane' })).toBeVisible();
   await expect(page.getByText('connected', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'AGPL-3.0-only' })).toHaveAttribute('href', 'https://www.gnu.org/licenses/agpl-3.0.html');
+  await expect(page.getByRole('link', { name: 'Source code' })).toHaveAttribute('href', 'https://github.com/davislinyd/winception/tree/codex/v2-rewrite');
 
   const imageInput = page.getByLabel('Image or catalog ID');
   await imageInput.fill('windows-11');

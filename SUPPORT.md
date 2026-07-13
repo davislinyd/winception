@@ -19,3 +19,5 @@ v2 is not production-supported until the `TEST-RESULT.md` matrix records the sam
 Unsupported: Windows Server/Linux host, ARM64 host/client, public-Internet management exposure, arbitrary command execution, unsigned release MSI, manual runtime patching, installation inside the deployment root, retired ISO path as active PXE, or using VM evidence as physical-laptop proof.
 
 OSDCloud, Windows ADK/WinPE, aria2 and other upstream components retain their own support and licensing terms. Exact approved versions and redistributable rights must be recorded before production release.
+
+Winception v2 source is provided under `AGPL-3.0-only`; see [LICENSE](LICENSE). This support matrix does not alter the permissions or obligations of that license.

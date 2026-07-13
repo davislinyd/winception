@@ -14,6 +14,7 @@
 - Replaced invalid direct `node.exe` service registration with pinned, hash-verified WinSW 2.12 wrappers; limited LocalService write access to staging and Web logs instead of the complete State tree.
 - Added Windows CI gates for legacy/v2 tests, aria2 integration, coverage, dependency cycles, OpenAPI drift, PowerShell parsing, audit, secret scan, SBOM, Playwright accessibility/recovery workflows, and MSI fresh-install/repair/uninstall smoke.
 - Added reproducible local Gitleaks 8.30.1 history/working-tree scanning with pinned checksum, embedded CycloneDX SBOM, bundled Node/WinSW licenses, and critical coverage enforcement for contracts, coordination, persistence, migration and IPC.
+- Licensed Winception under `AGPL-3.0-only`, embedded the complete license in source/MSI/SBOM, and exposed license, no-warranty and source-code notices before and after Web authentication.
 - Fixed v1 operation-lock gaps for OS download/re-export and torrent settings, required Software Test deployment ingress to be stopped, bounded log tail reads, and corrected documentation to treat warnings as non-blocking.
 - Reduced always-on agent documentation, standardized `.ai/status.json` to four local handoff fields, established one official manual, and separated historical evidence from per-version release readiness.
 

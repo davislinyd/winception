@@ -1,6 +1,7 @@
 {
   "name": "winception",
   "version": "2.0.0-alpha.1",
+  "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
   "scripts": {

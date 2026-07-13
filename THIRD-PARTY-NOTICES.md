@@ -1,5 +1,7 @@
 # Third-Party Notices
 
+Winception itself is licensed under `AGPL-3.0-only`; see [LICENSE](LICENSE). That product license does not replace or relicense the third-party components listed below.
+
 Winception v2 directly uses the following npm packages. The generated release SBOM is authoritative for the complete transitive dependency set and exact shipped versions.
 
 | Component | Version validated | License |
@@ -15,4 +17,4 @@ Development tooling includes TypeScript (Apache-2.0), Playwright (Apache-2.0), a
 
 The deployment workflow also depends on Microsoft Windows/ADK/WinPE, OSDCloud, aria2 and optional installer payloads supplied by the organization. Their licenses, redistribution rights, notices and exact approved versions are release inputs and are not granted by this repository.
 
-Production release is blocked until legal review confirms the product license, OSDCloud/ADK/WinPE redistribution model, aria2 notice obligations, and every bundled client software payload. Each package build embeds a CycloneDX SBOM for that review; remote CI is optional and is not required for the current local-validation phase.
+The Winception product license is selected and embedded in each package. Production release still requires legal review of the OSDCloud/ADK/WinPE redistribution model, aria2 notice obligations, and every bundled client software payload. Each package build embeds a CycloneDX SBOM for that review; remote CI is optional and is not required for the current local-validation phase.
