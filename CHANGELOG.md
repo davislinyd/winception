@@ -4,6 +4,8 @@
 
 ### v2 productization rewrite
 
+- Fixed clean-host bootstrap validation for the expected self-signed signer: exact-hash payloads with only an untrusted root may proceed to explicit trust, while signer mismatch, invalid chains and `HashMismatch` remain blocking. The immutable replacement test release is `v2.0.0-alpha.2`.
+
 - Preserved the clean v1 source at annotated tag `v0.6.7` and branch `release/v1`; v2 development is isolated on `codex/v2-rewrite` without including the existing `tools/Restart-HyperVms.ps1` worktree change.
 - Added Node 24 TypeScript/Fastify/React applications with versioned JSON Schema/OpenAPI contracts, zero-cycle dependency enforcement, feature boundaries, and a low-privilege Web/high-privilege allow-list Agent split over an authenticated named pipe.
 - Added resource-aware operation coordination, Software Test ingress/Fleet rechecks under lock, operation crash recovery, standardized safe API errors, SSE snapshot recovery, atomic file writes, SQLite migrations, DPAPI secrets, controlled upload staging, retention/quota primitives, and a dry-run/idempotent v1 importer.

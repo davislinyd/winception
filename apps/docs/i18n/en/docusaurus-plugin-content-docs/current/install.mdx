@@ -16,6 +16,8 @@ import { InstallationWizard } from '@site/src/components/InstallationWizard';
 
 A self-signed CER is imported into `LocalMachine\Root` and `LocalMachine\TrustedPublisher` only after the operator verifies its subject, thumbprint, Code Signing EKU, validity and manifest, then explicitly supplies `-TrustSelfSignedCertificate`.
 
+Before a fresh VM trusts the CER, `Check` still verifies manifest SHA-256, signer thumbprint, Code Signing EKU, validity and the certificate chain. Only the expected self-signed root being untrusted may continue; `HashMismatch`, signer mismatch or any other chain error remains blocking.
+
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\Install-Winception.ps1 -Action Check `

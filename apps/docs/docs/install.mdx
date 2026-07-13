@@ -16,6 +16,8 @@ import { InstallationWizard } from '@site/src/components/InstallationWizard';
 
 自簽 CER 只有在使用者先核對 subject、thumbprint、Code Signing EKU、有效期與 manifest，再明確加入 `-TrustSelfSignedCertificate` 時，才匯入 `LocalMachine\Root` 與 `LocalMachine\TrustedPublisher`。
 
+在全新 VM 尚未信任 CER 時，`Check` 仍會先核對 manifest SHA-256、signer thumbprint、Code Signing EKU、有效期與 certificate chain。只有預期自簽 root 尚未受信任可以通過；`HashMismatch`、signer mismatch 或其他 chain error 一律阻擋。
+
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\Install-Winception.ps1 -Action Check `

@@ -102,11 +102,27 @@ function Assert-CodeSigningCertificate([string]$Path, $Manifest) {
   $certificate
 }
 
-function Assert-PayloadSigner([string]$Path, $Certificate, [string]$Role) {
+function Test-PayloadSignatureIntegrity($Signature, $Certificate, [bool]$AllowUntrustedSelfSigned) {
+  if ([string]$Signature.Status -eq 'Valid') { return $true }
+  if (-not $AllowUntrustedSelfSigned -or [string]$Signature.Status -notin @('NotTrusted', 'UnknownError')) { return $false }
+  if ($null -eq $Signature.SignerCertificate -or $Signature.SignerCertificate.Thumbprint -ne $Certificate.Thumbprint -or $Certificate.Subject -ne $Certificate.Issuer) { return $false }
+  $chain = [Security.Cryptography.X509Certificates.X509Chain]::new()
+  try {
+    $chain.ChainPolicy.RevocationMode = [Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
+    $chain.ChainPolicy.VerificationFlags = [Security.Cryptography.X509Certificates.X509VerificationFlags]::AllowUnknownCertificateAuthority
+    $built = $chain.Build($Signature.SignerCertificate)
+    $unexpected = @($chain.ChainStatus | Where-Object { $_.Status -notin @([Security.Cryptography.X509Certificates.X509ChainStatusFlags]::NoError, [Security.Cryptography.X509Certificates.X509ChainStatusFlags]::UntrustedRoot) })
+    $root = if ($chain.ChainElements.Count -gt 0) { $chain.ChainElements[$chain.ChainElements.Count - 1].Certificate } else { $null }
+    $built -and $unexpected.Count -eq 0 -and $null -ne $root -and $root.Thumbprint -eq $Certificate.Thumbprint
+  }
+  finally { $chain.Dispose() }
+}
+
+function Assert-PayloadSigner([string]$Path, $Certificate, [string]$Role, [bool]$AllowUntrustedSelfSigned) {
   $signature = Get-AuthenticodeSignature -LiteralPath $Path
   Add-Check "$Role-signature-present" ($null -ne $signature.SignerCertificate) "The $Role does not contain an Authenticode signature."
   Add-Check "$Role-signer" ($signature.SignerCertificate.Thumbprint -eq $Certificate.Thumbprint) "The $Role signer does not match the release certificate."
-  Add-Check "$Role-signature-integrity" ($signature.Status -in @('Valid', 'NotTrusted')) "The $Role signature failed integrity validation: $($signature.StatusMessage)"
+  Add-Check "$Role-signature-integrity" (Test-PayloadSignatureIntegrity $signature $Certificate $AllowUntrustedSelfSigned) "The $Role signature failed integrity validation: $($signature.StatusMessage)"
 }
 
 function Import-ExplicitTrust([string]$Path, $Certificate, $Manifest) {
@@ -215,6 +231,8 @@ function Show-SetupCodeToConsole {
   Write-Host "Winception setup code: $code" -ForegroundColor Yellow
 }
 
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 try {
   $mutation = $Action -in @('Install', 'Repair', 'Uninstall')
   Assert-HostRequirements $mutation
@@ -229,8 +247,9 @@ try {
     if ([string]::IsNullOrWhiteSpace($PSCommandPath)) { throw 'The installer must run from its signed script file.' }
     Assert-Asset $PSCommandPath $bootstrapAsset
     $certificate = Assert-CodeSigningCertificate $assets.Certificate $assets.Manifest
-    Assert-PayloadSigner $assets.Msi $certificate 'msi'
-    Assert-PayloadSigner $PSCommandPath $certificate 'bootstrap'
+    $allowUntrustedSelfSigned = [bool]$assets.Manifest.certificate.selfSigned
+    Assert-PayloadSigner $assets.Msi $certificate 'msi' $allowUntrustedSelfSigned
+    Assert-PayloadSigner $PSCommandPath $certificate 'bootstrap' $allowUntrustedSelfSigned
   }
   if ($Action -eq 'Install') { Import-ExplicitTrust $assets.Certificate $certificate $assets.Manifest; Invoke-Msi 'Install' $assets.Msi; Test-WinceptionInstallation }
   elseif ($Action -eq 'Repair') { Invoke-Msi 'Repair' $assets.Msi; Test-WinceptionInstallation }

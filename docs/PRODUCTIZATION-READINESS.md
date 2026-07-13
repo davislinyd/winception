@@ -16,6 +16,8 @@
 
 Local 2026-07-14 evidence: v1 405/405 and v2 41/41 with no skips; global coverage 93.88%/84.77%, critical coverage 99.28%/92.23%; Web Playwright 3/3, Docs Playwright 2/2 and Gitleaks 0 findings across 373 commits plus the working tree. The self-signed candidate MSI SHA-256 is `E2EFCEE6EE3E9B1191C27E5DDA814EE7B714B59F7D316BA7432FECCE527D0E27`; its signed bootstrap SHA-256 is `0D19F91B3DADA25DC1698A36D42F84D269FC74D10B1374BC6C382828B0FD2A69`. Administrative extraction matched 6,842/6,842 manifest files and 68/68 applicable signatures. The package contains the complete license, SBOM, offline manual and generated CSP hashes; extracted Agent/Web passed Agent ready, health, authentication, profile read, `/manual/` and SQLite smoke. Bootstrap `Check` passed 20/20 and emitted no secret-named report fields.
 
+Alpha.2 local evidence: global coverage 93.88%/84.77% and critical coverage 99.28%/92.23%; audit and Gitleaks reported 0 findings. An untrusted temporary code-signing certificate reproduced clean-host `UnknownError`; the expected self-signed root was accepted, while a modified signed payload was blocked as `HashMismatch`. MSI SHA-256 is `1E37967389D92771596C004306851AB268388B93B56C776D29D9C2AC872CCD57`; bootstrap SHA-256 is `E97A35B2831FA63546C395678A8141A713B593449F4B75702D6C53C693F93D03`. Extraction matched 6,842/6,842 manifest files and 68/68 applicable signatures. Packaged Agent/Web passed version `2.0.0-alpha.2`, health, authentication, profile read, `/manual/` and SQLite smoke. Alpha 1 remains immutable but is superseded for installation acceptance.
+
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |

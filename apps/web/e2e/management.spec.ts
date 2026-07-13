@@ -7,7 +7,7 @@ test('login, keyboard focus, operation mutation and refresh recovery', async ({ 
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'AGPL-3.0-only' })).toHaveAttribute('href', 'https://www.gnu.org/licenses/agpl-3.0.html');
   await expect(page.getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', '/manual/');
-  await expect(page.getByRole('link', { name: 'Release source' })).toHaveAttribute('href', 'https://github.com/davislinyd/winception/tree/v2.0.0-alpha.1');
+  await expect(page.getByRole('link', { name: 'Release source' })).toHaveAttribute('href', 'https://github.com/davislinyd/winception/tree/v2.0.0-alpha.2');
   const input = page.getByLabel('Setup code');
   await input.fill(setupCode);
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -15,7 +15,7 @@ test('login, keyboard focus, operation mutation and refresh recovery', async ({ 
   await expect(page.getByText('connected', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'AGPL-3.0-only' })).toHaveAttribute('href', 'https://www.gnu.org/licenses/agpl-3.0.html');
   await expect(page.getByRole('link', { name: 'Documentation' })).toHaveAttribute('href', '/manual/');
-  await expect(page.getByRole('link', { name: 'Release source' })).toHaveAttribute('href', 'https://github.com/davislinyd/winception/tree/v2.0.0-alpha.1');
+  await expect(page.getByRole('link', { name: 'Release source' })).toHaveAttribute('href', 'https://github.com/davislinyd/winception/tree/v2.0.0-alpha.2');
 
   const imageInput = page.getByLabel('Image or catalog ID');
   await imageInput.fill('windows-11');

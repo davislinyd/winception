@@ -4,7 +4,7 @@ param()
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
-$files = @(Get-ChildItem -LiteralPath (Join-Path $repo 'tools'), (Join-Path $repo 'installer') -Recurse -Filter '*.ps1' -File)
+$files = @(Get-ChildItem -LiteralPath (Join-Path $repo 'tools'), (Join-Path $repo 'installer'), (Join-Path $repo 'Scripts\v2') -Recurse -Filter '*.ps1' -File)
 $failed = @()
 foreach ($file in $files) {
   $tokens = $null
