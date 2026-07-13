@@ -1,2 +1,5 @@
 # Repo-only handoff does not track installer payloads with Git LFS.
 # Keep MSI/EXE payloads ignored and rebuild them from config/runtime-artifacts.json.
+* text=auto
+docs/manual-assets/*.svg text eol=lf
+packages/contracts/openapi.v2.json text eol=lf
