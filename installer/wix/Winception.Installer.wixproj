@@ -1,0 +1,7 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <OutputName>Winception-v2</OutputName>
+    <OutputPath>..\output\</OutputPath>
+    <InstallerPlatform>x64</InstallerPlatform>
+  </PropertyGroup>
+</Project>

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeJsonAtomic } from './atomicFile.js';
 
 export const winpeEndStages = new Set(['osdcloud-finished', 'rebooting']);
 export const windowsStartStages = new Set(['windows-setupcomplete-start', 'windows-logon-start']);
@@ -157,7 +158,7 @@ export function buildRunsIndex(statusRoot, now = new Date()) {
 export function writeRunsIndex(statusRoot, now = new Date()) {
   const index = buildRunsIndex(statusRoot, now);
   fs.mkdirSync(statusRoot, { recursive: true });
-  fs.writeFileSync(path.join(statusRoot, 'runs-index.json'), `${JSON.stringify(index, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(path.join(statusRoot, 'runs-index.json'), index);
   return index;
 }
 
@@ -284,8 +285,8 @@ export function updateRunSummary(statusRoot, event) {
   }
 
   fs.mkdirSync(statusRoot, { recursive: true });
-  fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
-  fs.writeFileSync(path.join(statusRoot, 'latest-summary.json'), `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(summaryPath, summary);
+  writeJsonAtomic(path.join(statusRoot, 'latest-summary.json'), summary);
   for (const record of records) {
     appendRecord(statusRoot, record);
   }

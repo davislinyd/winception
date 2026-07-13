@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "operator": {
+    "zh-TW": {
+      "title": "Winception 操作流程 · Setup → Deploy / Monitor → desktop-ready",
+      "subtitle": "warning 不阻擋；blocking failure、DHCP 安全與 Software Test 隔離不可跳過",
+      "steps": ["安裝簽章 MSI並登入 loopback Web", "設定 root、DPAPI secrets、endpoint、DHCP / boot mode", "Prepare runtime、OS image、publish profile", "Run preflight", "確認 DHCP 安排後啟動 deployment ingress", "Client UEFI IPv4 PXE", "在 Deploy / Monitor 追蹤 Fleet 與 evidence", "windows-desktop-ready；停止 services"],
+      "gate": "有 blocking failure？",
+      "retry": "有：依 corrective action 修正並重跑",
+      "continue": "沒有：warning 可保留並記錄",
+      "softwareTest": "Software Test 旁支：同一 lock 內確認 ingress stopped + Fleet empty；完成後還原 checkpoint",
+      "offline": "Offline ISO 是 additive snapshot；不取代 PXE acceptance"
+    },
+    "en": {
+      "title": "Winception operator flow · Setup → Deploy / Monitor → desktop-ready",
+      "subtitle": "Warnings do not block; blocking failures, DHCP safety and Software Test isolation cannot be skipped",
+      "steps": ["Install the signed MSI and sign in to loopback Web", "Set root, DPAPI secrets, endpoint, DHCP and boot mode", "Prepare runtime, OS image and publish profile", "Run preflight", "Confirm DHCP safety and start deployment ingress", "Client UEFI IPv4 PXE", "Track Fleet and evidence in Deploy / Monitor", "windows-desktop-ready; stop services"],
+      "gate": "Any blocking failure?",
+      "retry": "Yes: follow corrective action and rerun",
+      "continue": "No: warnings may remain and are recorded",
+      "softwareTest": "Software Test branch: under one lock require ingress stopped + Fleet empty; restore checkpoint afterward",
+      "offline": "Offline ISO is an additive snapshot; it does not replace PXE acceptance"
+    }
+  },
+  "architecture": {
+    "zh-TW": {
+      "title": "Winception v2 權限、資料與部署邊界",
+      "browser": "Browser\nHttpOnly session · REST/SSE",
+      "web": "Winception.Web（低權限）\nFastify · React assets · auth · read model",
+      "ipc": "ACL named pipe\n版本化 schema · allow-list commands",
+      "agent": "Winception.Agent（高權限）\nOperationCoordinator · safe errors",
+      "state": "SQLite + DPAPI State\nsettings · operations · migrations · secret ciphertext",
+      "files": "Filesystem\nWIM / ISO / logs / evidence · hash · quota",
+      "adapters": "Infrastructure adapters\nPowerShell · Hyper-V · Windows network",
+      "runtime": "Web-selected deployment root\nWinPE · profile payload · image cache",
+      "data": "獨立 PXE data plane\nDHCP · TFTP · HTTP · torrent · SMB",
+      "clients": "Windows 11 clients\nWinPE → apply → SetupComplete → desktop-ready"
+    },
+    "en": {
+      "title": "Winception v2 privilege, data and deployment boundaries",
+      "browser": "Browser\nHttpOnly session · REST/SSE",
+      "web": "Winception.Web (low privilege)\nFastify · React assets · auth · read model",
+      "ipc": "ACL named pipe\nversioned schema · allow-list commands",
+      "agent": "Winception.Agent (privileged)\nOperationCoordinator · safe errors",
+      "state": "SQLite + DPAPI State\nsettings · operations · migrations · secret ciphertext",
+      "files": "Filesystem\nWIM / ISO / logs / evidence · hash · quota",
+      "adapters": "Infrastructure adapters\nPowerShell · Hyper-V · Windows network",
+      "runtime": "Web-selected deployment root\nWinPE · profile payload · image cache",
+      "data": "Independent PXE data plane\nDHCP · TFTP · HTTP · torrent · SMB",
+      "clients": "Windows 11 clients\nWinPE → apply → SetupComplete → desktop-ready"
+    }
+  }
+}

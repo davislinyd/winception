@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeJsonAtomic } from '../atomicFile.js';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { normalizeAllowedHosts, osImageOptions } from './catalog.js';
@@ -83,8 +84,7 @@ export function readJson(filePath, label, fallback = null) {
 }
 
 export function writeJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(filePath, value);
 }
 
 export function arrayFrom(value, label) {

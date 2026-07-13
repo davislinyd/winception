@@ -1,0 +1,96 @@
+name: Winception v2 Windows
+
+on:
+  push:
+    branches: [codex/v2-rewrite]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - name: Install fixed aria2 integration runner
+        shell: pwsh
+        run: |
+          choco install aria2 --version=1.37.0 -y --no-progress
+          "ARIA2_EXE=$((Get-Command aria2c.exe -ErrorAction Stop).Source)" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - run: npm run check
+      - run: npm run test
+      - run: npm run v2:test:coverage
+      - run: npm run v2:test:critical-coverage
+      - run: npm run v2:openapi:check
+      - run: npm run v2:diagrams:check
+      - name: Parse every PowerShell source file
+        shell: pwsh
+        run: ./tools/v2/Test-PowerShellSyntax.ps1
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Browser dependencies
+        run: npx playwright install chromium
+      - run: npm run v2:e2e
+      - name: Generate CycloneDX SBOM
+        shell: pwsh
+        run: npm sbom --omit=dev --sbom-format=cyclonedx | Set-Content -LiteralPath winception-v2-sbom.cdx.json -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@v4
+        with:
+          name: winception-v2-sbom
+          path: winception-v2-sbom.cdx.json
+          if-no-files-found: error
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+
+  msi-smoke:
+    needs: [test, secret-scan]
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - name: Build unsigned internal-test MSI
+        shell: pwsh
+        run: ./tools/v2/Build-WinceptionV2Package.ps1 -BuildMsi
+      - name: Fresh install, health probe, repair and uninstall
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem installer/output -Filter *.msi | Select-Object -First 1
+          if (-not $msi) { throw 'MSI was not produced.' }
+          $install = Start-Process msiexec.exe -ArgumentList @('/i', $msi.FullName, '/qn', '/norestart', '/l*v', 'installer/output/install.log') -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Fresh install failed: $($install.ExitCode)" }
+          $health = Invoke-RestMethod http://127.0.0.1:8080/api/v2/health -TimeoutSec 10
+          if (-not $health.ok) { throw 'Installed Web health probe failed.' }
+          $repair = Start-Process msiexec.exe -ArgumentList @('/fa', $msi.FullName, '/qn', '/norestart', '/l*v', 'installer/output/repair.log') -Wait -PassThru
+          if ($repair.ExitCode -ne 0) { throw "Repair failed: $($repair.ExitCode)" }
+          $uninstall = Start-Process msiexec.exe -ArgumentList @('/x', $msi.FullName, '/qn', '/norestart', '/l*v', 'installer/output/uninstall.log') -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "Uninstall failed: $($uninstall.ExitCode)" }
+          if (-not (Test-Path "$env:ProgramData\Winception\State")) { throw 'Uninstall did not preserve product data.' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: winception-v2-msi-smoke
+          path: |
+            installer/output/*.msi
+            installer/output/*.log
+          if-no-files-found: warn

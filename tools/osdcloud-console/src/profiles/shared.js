@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeJsonAtomic } from '../atomicFile.js';
 import { appRootForConfig, stateRootForConfig } from '../config.js';
 import { randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -282,7 +283,7 @@ export function readJson(filePath, label) {
 }
 
 export function writeJson(filePath, value) {
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(filePath, value);
 }
 
 export function maybeString(value) {

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### v2 productization rewrite
+
+- Preserved the clean v1 source at annotated tag `v0.6.7` and branch `release/v1`; v2 development is isolated on `codex/v2-rewrite` without including the existing `tools/Restart-HyperVms.ps1` worktree change.
+- Added Node 24 TypeScript/Fastify/React applications with versioned JSON Schema/OpenAPI contracts, zero-cycle dependency enforcement, feature boundaries, and a low-privilege Web/high-privilege allow-list Agent split over an authenticated named pipe.
+- Added resource-aware operation coordination, Software Test ingress/Fleet rechecks under lock, operation crash recovery, standardized safe API errors, SSE snapshot recovery, atomic file writes, SQLite migrations, DPAPI secrets, controlled upload staging, retention/quota primitives, and a dry-run/idempotent v1 importer.
+- Added dual Windows service WiX sources, fixed-runtime package staging, hash manifest, service provisioning ACLs, code-signing helper, transaction-style upgrade/health-probe/DB rollback, and fail-closed HTTPS LAN provisioning.
+- Replaced invalid direct `node.exe` service registration with pinned, hash-verified WinSW 2.12 wrappers; limited LocalService write access to staging and Web logs instead of the complete State tree.
+- Added Windows CI gates for legacy/v2 tests, aria2 integration, coverage, dependency cycles, OpenAPI drift, PowerShell parsing, audit, secret scan, SBOM, Playwright accessibility/recovery workflows, and MSI fresh-install/repair/uninstall smoke.
+- Fixed v1 operation-lock gaps for OS download/re-export and torrent settings, required Software Test deployment ingress to be stopped, bounded log tail reads, and corrected documentation to treat warnings as non-blocking.
+- Reduced always-on agent documentation, standardized `.ai/status.json` to four local handoff fields, established one official manual, and separated historical evidence from per-version release readiness.
+
 ## v0.6.7 — 2026-07-13
 
 - Software Test VM now keeps `Stop test` reachable from the global Console dock as well as Deployment Profiles. During its active run, Profile, OS Image, and Endpoint are inspection-only; all mutation and deployment controls remain locked.

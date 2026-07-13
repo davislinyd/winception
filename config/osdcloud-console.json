@@ -1,4 +1,5 @@
 {
+    "schemaVersion":  1,
     "adapter":  {
                     "interfaceAlias":  "Ethernet",
                     "serverIp":  "192.168.100.1",

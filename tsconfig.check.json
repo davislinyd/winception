@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": [
+    "apps/agent/**/*.ts",
+    "apps/server/**/*.ts",
+    "packages/**/*.ts",
+    "scripts/v2/**/*.ts"
+  ]
+}

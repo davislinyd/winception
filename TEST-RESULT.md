@@ -1,6 +1,19 @@
 # Deployment Test Result
 
-Authoritative evidence and no-AI operator runbook for a completed from-zero deployment setup test.
+Authoritative versioned evidence and no-AI operator runbook. Evidence proves only the exact version, layer, path and date shown; historical v1 evidence does not constitute v2 release acceptance.
+
+## Release-readiness matrix
+
+| Version | Source/CI | Installed bundle/MSI | VM deployment | Physical laptop | Decision |
+|---|---|---|---|---|---|
+| `2.0.0-alpha.1` / `codex/v2-rewrite` | Local source gates verified 2026-07-13: v1 405/405 including 3 aria2 integrations, v2 29/29, 0 skipped; 92.40% line/81.57% branch global coverage; critical modules meet 90% line/85% branch; typecheck, lint, zero-cycle, OpenAPI, build and Chromium E2E 1/1 passed. Full Windows CI pending remote run | Package staging, pinned WinSW execution, manifest/WiX generation and production dependency audit (0 vulnerabilities) verified; local MSI compile/install unavailable because .NET/WiX is absent | Not run | Not run | Development alpha; not releasable |
+| `v0.6.7` / `08be089` | Frozen Git restore point created 2026-07-13 | No new installed-bundle acceptance recorded for this exact commit in this document | Earlier-version evidence below | Earlier-version evidence below | Stable v1 source line; historical deployment evidence must not be relabelled as v0.6.7 acceptance |
+
+v2 release requires domain-specific contracts and complete UI parity, signed MSI fresh install/repair/upgrade rollback/uninstall, v1 migration, Software Test VM, one client, two consecutive four-VM rounds, physical-laptop PXE, torrent, Offline ISO, diagnostics/evidence export, loopback management and HTTPS LAN opt-in. Skipped tests are not accepted.
+
+## Historical v1 evidence
+
+The following records predate v0.6.7 and are retained for audit and regression planning.
 
 **Date validated**: 2026-06-24
 **Boot mode**: `secureboot` (default) — Microsoft-signed `bootmgfw.efi` → network BCD → TFTP windowed `boot.wim` → WinPE
@@ -97,7 +110,7 @@ Open `http://127.0.0.1:8080` and run **Guided Setup** (Initialization Wizard):
 4. **Select endpoint** — choose service NIC (e.g., `LAN 192.168.88.1/24`); syncs `boot.ipxe`, WinPE endpoint, SMB firewall, and publishes `boot.wim`
 5. **OS Image Cache** — download or import Windows ISO/ESD; select DISM index; export deployable WIM
 6. **Publish profile** — set active profile (`Default` / `All in One` / `Minimal`) to bind OS image and publish `selected-os.json`
-7. **Run preflight** — all checks must pass before starting services
+7. **Run preflight** — clear every blocking failure before starting services; non-blocking warnings may remain
 
 ### 3. Confirm boot mode
 
@@ -110,7 +123,7 @@ Default boot mode is `secureboot`. Check in Web console under **Endpoint Setting
 
 - Confirm `PXE-TFTP\bootmgfw.efi`, `Boot\BCD`, `Boot\boot.sdi`, `sources\boot.wim` exist (secureboot mode)
 - Confirm real LAN DHCP server is disabled
-- Run preflight — all items green before starting services
+- Run preflight — resolve all blocking failures before starting services; review and record any remaining warnings
 
 ### 5. Start services and boot
 

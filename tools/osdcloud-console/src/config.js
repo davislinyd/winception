@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeJsonAtomic } from './atomicFile.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..', '..');
@@ -94,8 +95,9 @@ function publicConfig(config) {
 
 export function saveConfig(config, configPath = config.__savePath || config.__configPath || defaultConfigPath) {
   const resolved = path.resolve(configPath);
-  fs.mkdirSync(path.dirname(resolved), { recursive: true });
-  fs.writeFileSync(resolved, `${JSON.stringify(publicConfig(config), null, 2)}\n`, 'utf8');
+  const serialized = publicConfig(config);
+  serialized.schemaVersion ??= 1;
+  writeJsonAtomic(resolved, serialized);
   if (config.__savePath || config.__localConfigPath) {
     config.__savePath = resolved;
     config.__localConfigPath = resolved;

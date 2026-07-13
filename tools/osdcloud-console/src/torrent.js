@@ -8,6 +8,7 @@ import bencode from 'bencode';
 import Wire from 'bittorrent-protocol';
 import createTorrent from 'create-torrent';
 import { TorrentDistributionCoordinator } from './torrentCoordinator.js';
+import { writeJsonAtomic } from './atomicFile.js';
 import {
   torrentServerConfig,
   trackerAnnounceUrl,
@@ -297,7 +298,7 @@ export async function createOsImageTorrent(config, options = {}) {
     pieceLengthBytes: torrent.pieceLengthBytes,
     generatedAt: new Date().toISOString(),
   };
-  fs.writeFileSync(path.join(cacheRoot, osTorrentManifestName), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(path.join(cacheRoot, osTorrentManifestName), manifest);
 
   return result;
 }

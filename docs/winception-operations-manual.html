@@ -347,11 +347,11 @@
         <section id="product-overview">
           <p class="section-kicker">01 · Overview</p>
           <h2>產品概要</h2>
-          <p>Winception 是 Windows 11 zero-touch deployment 工具。部署主機提供 Web Console 與部署資料服務；目標電腦只需從 UEFI IPv4 PXE 開機，後續 WinPE、OSDCloud、SetupComplete、client software 與 custom scripts 會自動完成。</p>
+          <p>Winception 是給內部 IT 技師使用的 Windows 11 zero-touch deployment 產品。部署主機提供低權限 Web 管理面與獨立 PXE 資料面；目標電腦只需從 UEFI IPv4 PXE 開機，後續 WinPE、OSDCloud、SetupComplete、client software 與 custom scripts 會自動完成。v2 在完成本手冊要求的 release matrix 前仍是 alpha。</p>
           <div class="grid-3">
             <article class="card"><span class="status ok">HOST</span><h3>部署主機</h3><p>安裝 Web Console、管理 runtime、OS images、profiles、services 與部署狀態。</p></article>
             <article class="card"><span class="status info">CLIENT</span><h3>目標電腦</h3><p>從 PXE 進入 WinPE，掛載 SMB share，套用 Windows image，首次開機後完成 finalizer。</p></article>
-            <article class="card"><span class="status warn">CONTROL</span><h3>安全閘門</h3><p>所有服務啟動前都要完成 endpoint sync、profile publish 與 preflight。</p></article>
+            <article class="card"><span class="status warn">CONTROL</span><h3>安全閘門</h3><p>服務啟動前完成 endpoint、profile 與 preflight；warning 不阻擋，但 blocking failure 必須清除。</p></article>
           </div>
           <figure>
             <div class="media-frame"><img src="manual-assets/operator-flow.svg" alt="Winception operator 從 setup、preflight、DHCP 安全閘門到 desktop-ready 的流程圖"><button class="zoom" type="button" data-zoom-src="manual-assets/operator-flow.svg" data-zoom-alt="Operator 部署流程圖">放大流程圖</button></div>
@@ -362,24 +362,22 @@
         <section id="host-install">
           <p class="section-kicker">02 · Host install</p>
           <h2>部署主機安裝</h2>
-          <pre><code>git clone &lt;repo-url&gt; &lt;repo-root&gt;
-cd '&lt;repo-root&gt;'
-.\Setup-DeploymentServer.cmd</code></pre>
-          <p>Setup 會安裝 host management bundle 到 <code>C:\OSDCloud\HostTools\App</code>，並建立可變狀態根目錄 <code>C:\OSDCloud\HostTools\State</code>。它只準備 Web Console 與主機 prerequisites，不會自動啟動 deployment services。</p>
+          <pre><code>msiexec /i Winception-v2-signed.msi</code></pre>
+          <p>正式 v2 只接受組織簽章 MSI。MSI 內含固定 Node 24 runtime，安裝低權限 <code>Winception.Web</code> 與高權限 <code>Winception.Agent</code>，並在 <code>C:\ProgramData\Winception\State</code> 建立 ACL/DPAPI 保護的狀態；它不會自動啟動 PXE deployment ingress。v1 的 clone/setup 流程僅適用於 <code>release/v1</code>。</p>
           <div class="table-wrap"><table><thead><tr><th>階段</th><th>做什麼</th><th>不做什麼</th></tr></thead><tbody>
-            <tr><td>Prerequisites</td><td>檢查 Git、Node.js、npm、PowerShell modules。</td><td>不建立 deployment runtime。</td></tr>
-            <tr><td>Install bundle</td><td>安裝 App 與 State。</td><td>不寫入 deployment secrets。</td></tr>
-            <tr><td>Web launch</td><td>啟動 <code>http://127.0.0.1:8080</code>。</td><td>不啟動 DHCP/TFTP/HTTP deployment services。</td></tr>
+            <tr><td>Package validation</td><td>驗證 Authenticode、package hash 與 MSI。</td><td>簽章無效時不安裝。</td></tr>
+            <tr><td>Install services</td><td>安裝 Web/Agent、State ACL、DPAPI tokens 與 migration schema。</td><td>不建立或啟動 deployment runtime。</td></tr>
+            <tr><td>Web launch</td><td>預設啟動 <code>http://127.0.0.1:8080</code>。</td><td>不啟動 DHCP/TFTP/HTTP；LAN 未設定有效 HTTPS 時 fail closed。</td></tr>
           </tbody></table></div>
         </section>
 
         <section id="architecture">
           <p class="section-kicker">03 · Services</p>
           <h2>服務如何運作</h2>
-          <p>Web Console 是控制面；DHCP、TFTP、HTTP、SMB 與 Torrent 是資料面。Endpoint Sync 負責讓 live boot files、WinPE embedded endpoint、SMB firewall 與 local overlay 保持一致；每次同步也會把 service IP 寫入 WinPE 的優先 health probe。更新後的 WinPE startup script 必須透過 Endpoint Sync 注入既有 <code>boot.wim</code>。</p>
+          <p><code>Winception.Web</code> 是低權限控制面，只能以版本化 schema 經 ACL named pipe 呼叫 allow-list <code>Winception.Agent</code>；Agent 以 resource-aware lock 編排 PowerShell、Hyper-V 與 Windows network。DHCP、TFTP、HTTP、SMB 與 Torrent 是獨立資料面。Endpoint Sync 仍負責 live boot files、WinPE endpoint、SMB firewall 與 local state 一致。</p>
           <figure>
             <div class="media-frame"><img src="manual-assets/system-architecture.svg" alt="Winception Web Console、DHCP、TFTP、HTTP、Torrent、SMB、WinPE、OSDCloud 與 Windows client 的資料流"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.svg" data-zoom-alt="Winception 系統架構與資料流">放大架構圖</button></div>
-            <figcaption>實線表示控制或階段交接，藍色虛線表示 boot/image 資料，綠色虛線表示 status 與 evidence。</figcaption>
+            <figcaption>管理面、privileged Agent、persistent State、deployment runtime 與 PXE data plane 使用明確信任邊界。</figcaption>
           </figure>
           <div class="table-wrap"><table><thead><tr><th>服務</th><th>角色</th></tr></thead><tbody>
             <tr><td>DHCP responder</td><td>依 DHCP mode 提供 lease 或 PXE boot options。</td></tr>
@@ -395,8 +393,9 @@ cd '&lt;repo-root&gt;'
           <h2>Runtime/State/Secrets 邊界</h2>
           <div class="table-wrap"><table><thead><tr><th>路徑</th><th>用途</th><th>管理方式</th></tr></thead><tbody>
             <tr><td><code>&lt;repo-root&gt;</code></td><td>Source、docs、config defaults、scripts。</td><td>Git。</td></tr>
-            <tr><td><code>C:\OSDCloud\HostTools\App</code></td><td>已安裝 Web Console 與 helper scripts。</td><td>setup/reload。</td></tr>
-            <tr><td><code>C:\OSDCloud\HostTools\State</code></td><td>local overlay、secrets、staging、host-only state。</td><td>Web Console 與 helper scripts。</td></tr>
+            <tr><td><code>%ProgramFiles%\Winception\app</code></td><td>v2 已安裝且簽章的 application payload。</td><td>MSI/交易式升級。</td></tr>
+            <tr><td><code>C:\ProgramData\Winception\State</code></td><td>SQLite、DPAPI ciphertext、staging、logs 與 host-only state。</td><td>Web/Agent services；ACL 保護。</td></tr>
+            <tr><td><code>C:\OSDCloud\HostTools\App/State</code></td><td>v1 source/state；migration 時唯讀匯入並備份。</td><td><code>release/v1</code> 或 v2 importer。</td></tr>
             <tr><td><code>&lt;deployment-root&gt;</code></td><td>Web 選定的 deployment runtime。</td><td>product workflows。</td></tr>
           </tbody></table></div>
           <div class="callout"><strong>不要直接修改 runtime root</strong>部署行為要先在 source 修正，再透過 publish、reload、Endpoint Sync 或 profile publish 更新 runtime。</div>
@@ -518,6 +517,9 @@ Last completed run : &lt;run-id&gt;</code></pre>
             <li><a href="../README.md">README.md</a>：同檔雙語產品文件。</li>
             <li><a href="diagrams/technical-flow.md">technical-flow.md</a>：系統架構與資料流。</li>
             <li><a href="diagrams/user-flow.md">user-flow.md</a>：Web Console 操作流程。</li>
+            <li><a href="../TEST-RESULT.md">TEST-RESULT.md</a>：每版 release matrix、歷史 evidence 與 no-AI runbook。</li>
+            <li><a href="PRODUCTIZATION-READINESS.md">Productization readiness</a>：v2 已完成項目與 release blockers。</li>
+            <li><a href="../SECURITY.md">SECURITY.md</a> / <a href="../SUPPORT.md">SUPPORT.md</a>：安全回報與正式支援邊界。</li>
             <li><a href="../osdcloud-assets/README.md">osdcloud-assets README</a>：versioned runtime mirror 的用途與邊界。</li>
           </ul>
         </section>
@@ -561,11 +563,11 @@ Last completed run : &lt;run-id&gt;</code></pre>
         <section id="en-product-overview">
           <p class="section-kicker">01 · Overview</p>
           <h2>Product Overview</h2>
-          <p>Winception is a Windows 11 zero-touch deployment toolkit. The deployment host provides the Web Console and deployment data services; the target computer only needs to boot from UEFI IPv4 PXE, and WinPE, OSDCloud, SetupComplete, client software, and custom scripts finish automatically.</p>
+          <p>Winception is a Windows 11 zero-touch deployment product for internal IT technicians. The host provides a low-privilege Web management plane and a separate PXE data plane; the target only boots from UEFI IPv4 PXE, then WinPE, OSDCloud, SetupComplete, client software, and custom scripts finish automatically. v2 remains alpha until the release matrix in this manual is complete.</p>
           <div class="grid-3">
             <article class="card"><span class="status ok">HOST</span><h3>Deployment host</h3><p>Installs the Web Console and manages runtime, OS images, profiles, services, and deployment state.</p></article>
             <article class="card"><span class="status info">CLIENT</span><h3>Target computer</h3><p>Boots into WinPE from PXE, mounts the SMB share, applies the Windows image, and finishes the finalizer after first boot.</p></article>
-            <article class="card"><span class="status warn">CONTROL</span><h3>Safety gates</h3><p>Endpoint sync, profile publish, and preflight must finish before services start.</p></article>
+            <article class="card"><span class="status warn">CONTROL</span><h3>Safety gates</h3><p>Complete endpoint, profile, and preflight first. Warnings do not block, but every blocking failure must be cleared.</p></article>
           </div>
           <figure>
             <div class="media-frame"><img src="manual-assets/operator-flow.en.svg" alt="Operator flow from setup and preflight through DHCP safety decisions to desktop-ready"><button class="zoom" type="button" data-zoom-src="manual-assets/operator-flow.en.svg" data-zoom-alt="Operator deployment flow">Enlarge flowchart</button></div>
@@ -576,24 +578,22 @@ Last completed run : &lt;run-id&gt;</code></pre>
         <section id="en-host-install">
           <p class="section-kicker">02 · Host install</p>
           <h2>Deployment Host Installation</h2>
-          <pre><code>git clone &lt;repo-url&gt; &lt;repo-root&gt;
-cd '&lt;repo-root&gt;'
-.\Setup-DeploymentServer.cmd</code></pre>
-          <p>Setup installs the host management bundle at <code>C:\OSDCloud\HostTools\App</code> and creates mutable state under <code>C:\OSDCloud\HostTools\State</code>. It only prepares the Web Console and host prerequisites; it does not automatically start deployment services.</p>
+          <pre><code>msiexec /i Winception-v2-signed.msi</code></pre>
+          <p>Production v2 accepts only an organization-signed MSI. The MSI bundles a fixed Node 24 runtime, installs low-privilege <code>Winception.Web</code> and privileged <code>Winception.Agent</code>, and creates ACL/DPAPI-protected state under <code>C:\ProgramData\Winception\State</code>. It does not start PXE deployment ingress. The clone/setup workflow remains v1-only on <code>release/v1</code>.</p>
           <div class="table-wrap"><table><thead><tr><th>Stage</th><th>Does</th><th>Does not do</th></tr></thead><tbody>
-            <tr><td>Prerequisites</td><td>Checks Git, Node.js, npm, and PowerShell modules.</td><td>Does not create deployment runtime.</td></tr>
-            <tr><td>Install bundle</td><td>Installs App and State.</td><td>Does not write deployment secrets.</td></tr>
-            <tr><td>Web launch</td><td>Starts <code>http://127.0.0.1:8080</code>.</td><td>Does not start DHCP/TFTP/HTTP deployment services.</td></tr>
+            <tr><td>Package validation</td><td>Validates Authenticode, package hashes, and MSI.</td><td>Does not install an invalid signature.</td></tr>
+            <tr><td>Install services</td><td>Installs Web/Agent, State ACLs, DPAPI tokens, and migration schema.</td><td>Does not create or start deployment runtime.</td></tr>
+            <tr><td>Web launch</td><td>Starts <code>http://127.0.0.1:8080</code> by default.</td><td>Does not start DHCP/TFTP/HTTP; LAN fails closed without valid HTTPS.</td></tr>
           </tbody></table></div>
         </section>
 
         <section id="en-architecture">
           <p class="section-kicker">03 · Services</p>
           <h2>How The Services Work</h2>
-          <p>The Web Console is the control plane; DHCP, TFTP, HTTP, SMB, and Torrent form the data plane. Endpoint Sync keeps live boot files, the WinPE embedded endpoint, SMB firewall rules, and local overlay aligned; each sync also writes the service IP as WinPE's preferred health probe. Inject an updated WinPE startup script into an existing <code>boot.wim</code> by running Endpoint Sync.</p>
+          <p><code>Winception.Web</code> is the low-privilege control plane and can call only versioned allow-list commands over an ACL-protected named pipe to <code>Winception.Agent</code>. The Agent applies resource-aware locks around PowerShell, Hyper-V, and Windows networking. DHCP, TFTP, HTTP, SMB, and Torrent remain a separate data plane. Endpoint Sync keeps live boot files, WinPE endpoint, SMB firewall, and local state aligned.</p>
           <figure>
             <div class="media-frame"><img src="manual-assets/system-architecture.en.svg" alt="Data flow among the Winception Web Console, DHCP, TFTP, HTTP, Torrent, SMB, WinPE, OSDCloud, and Windows clients"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.en.svg" data-zoom-alt="Winception architecture and data flow">Enlarge architecture</button></div>
-            <figcaption>Solid lines show control or stage handoff, blue dashed lines show boot/image data, and green dashed lines show status and evidence.</figcaption>
+            <figcaption>Management, privileged Agent, persistent State, deployment runtime, and PXE data plane have explicit trust boundaries.</figcaption>
           </figure>
           <div class="table-wrap"><table><thead><tr><th>Service</th><th>Role</th></tr></thead><tbody>
             <tr><td>DHCP responder</td><td>Provides leases or PXE boot options according to DHCP mode.</td></tr>
@@ -609,8 +609,9 @@ cd '&lt;repo-root&gt;'
           <h2>Runtime/State/Secrets Boundaries</h2>
           <div class="table-wrap"><table><thead><tr><th>Path</th><th>Purpose</th><th>Managed by</th></tr></thead><tbody>
             <tr><td><code>&lt;repo-root&gt;</code></td><td>Source, docs, config defaults, and scripts.</td><td>Git.</td></tr>
-            <tr><td><code>C:\OSDCloud\HostTools\App</code></td><td>Installed Web Console and helper scripts.</td><td>setup/reload.</td></tr>
-            <tr><td><code>C:\OSDCloud\HostTools\State</code></td><td>local overlay, secrets, staging, and host-only state.</td><td>Web Console and helper scripts.</td></tr>
+            <tr><td><code>%ProgramFiles%\Winception\app</code></td><td>Installed signed v2 application payload.</td><td>MSI/transactional upgrade.</td></tr>
+            <tr><td><code>C:\ProgramData\Winception\State</code></td><td>SQLite, DPAPI ciphertext, staging, logs, and host-only state.</td><td>ACL-protected Web/Agent services.</td></tr>
+            <tr><td><code>C:\OSDCloud\HostTools\App/State</code></td><td>v1 source/state; read-only migration input with backup.</td><td><code>release/v1</code> or v2 importer.</td></tr>
             <tr><td><code>&lt;deployment-root&gt;</code></td><td>Web-selected deployment runtime.</td><td>product workflows.</td></tr>
           </tbody></table></div>
           <div class="callout"><strong>Do not directly edit the runtime root</strong>Fix deployment behavior in source first, then update runtime through publish, reload, Endpoint Sync, or profile publish.</div>
@@ -732,6 +733,9 @@ Last completed run : &lt;run-id&gt;</code></pre>
             <li><a href="../README.md">README.md</a>: bilingual product document in one file.</li>
             <li><a href="diagrams/technical-flow.md">technical-flow.md</a>: system architecture and data flow.</li>
             <li><a href="diagrams/user-flow.md">user-flow.md</a>: Web Console operator flow.</li>
+            <li><a href="../TEST-RESULT.md">TEST-RESULT.md</a>: per-release matrix, historical evidence, and no-AI runbook.</li>
+            <li><a href="PRODUCTIZATION-READINESS.md">Productization readiness</a>: implemented v2 baseline and release blockers.</li>
+            <li><a href="../SECURITY.md">SECURITY.md</a> / <a href="../SUPPORT.md">SUPPORT.md</a>: security reporting and supported production boundaries.</li>
             <li><a href="../osdcloud-assets/README.md">osdcloud-assets README</a>: purpose and boundaries of the versioned runtime mirror.</li>
           </ul>
         </section>

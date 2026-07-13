@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeJsonAtomic } from '../atomicFile.js';
 import { stateRootForConfig } from '../config.js';
 
 export const RESERVED_WINDOWS_USERNAMES = new Set([
@@ -190,8 +191,7 @@ export function writeDeploymentSecrets(config, input = {}) {
   }
 
   const filePath = deploymentSecretsPath(config);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify({ windowsUsername, windowsPassword, pxeinstallPassword }, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(filePath, { schemaVersion: 1, windowsUsername, windowsPassword, pxeinstallPassword });
   return deploymentSecretsStatus(config);
 }
 

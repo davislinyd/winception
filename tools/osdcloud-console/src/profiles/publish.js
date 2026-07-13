@@ -4,6 +4,7 @@ import { resolveDeploymentProfileState } from './profiles.js';
 import { retrySleepView } from './scripts.js';
 import { assertSafeAppsRoot, assertSafeCustomScriptsRoot, defaultInstallSequenceTimeoutSeconds, selectedProfileFileName } from './shared.js';
 import { ensureSelectedSoftwarePayloads } from './software.js';
+import { writeJsonAtomic } from '../atomicFile.js';
 
 export function retrySyncOnTransientWindowsError(operation, { attempts = 10, delayMs = 200 } = {}) {
   const transientCodes = new Set(['EPERM', 'EBUSY', 'EACCES', 'ENOTEMPTY']);
@@ -184,7 +185,7 @@ export async function materializeDeploymentProfilePayload(config = {}, profileId
 
   const manifest = profileManifest(state, osImageResult);
   const manifestPath = path.join(appsRoot, selectedProfileFileName);
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(manifestPath, manifest);
 
   return {
     profile: state.activeProfile,

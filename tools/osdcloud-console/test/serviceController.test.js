@@ -1596,3 +1596,80 @@ test('dual NIC NAT preparation forces DHCP Server and preserves the service life
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('software test start fails closed while deployment ingress is running', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-software-test-ingress-'));
+  try {
+    let prepared = false;
+    const { controller, services } = makeController(root, {
+      dependencies: {
+        prepareSoftwareTestRun: async () => {
+          prepared = true;
+          return { runId: 'test-001', profile: { id: 'default', name: 'Default' }, status: {} };
+        },
+        runPreparedSoftwareTest: async () => ({}),
+      },
+    });
+    services.http.runningValue = true;
+    await assert.rejects(() => controller.startSoftwareTest('default'), (error) => {
+      assert.equal(error.statusCode, 409);
+      assert.equal(error.publicError.code, 'software_test_services_running');
+      return true;
+    });
+    assert.equal(prepared, false);
+    assert.equal(controller.operation.running, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('software test owns the operation lock before preparation and blocks conflicting legacy mutations', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-software-test-lock-'));
+  try {
+    let finishPreparation;
+    let finishTest;
+    const preparationGate = new Promise((resolve) => { finishPreparation = resolve; });
+    const testGate = new Promise((resolve) => { finishTest = resolve; });
+    const { controller } = makeController(root, {
+      dependencies: {
+        prepareSoftwareTestRun: async () => {
+          await preparationGate;
+          return { runId: 'test-locked-001', profile: { id: 'default', name: 'Default' }, status: { status: 'running' } };
+        },
+        runPreparedSoftwareTest: async () => testGate,
+      },
+    });
+    const starting = controller.startSoftwareTest('default');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(controller.operation.running, true);
+    assert.throws(() => controller.startOsDownload('SMOKE-DOWNLOAD-PRO'), /Operation already running/u);
+    assert.throws(() => controller.startReexportOsImage('SMOKE-WIN11-PRO'), /Operation already running/u);
+    assert.throws(() => controller.updateTorrentSettings(10), /Operation already running/u);
+    assert.throws(() => controller.releaseTorrentClients({ runId: 'run-1' }), /Operation already running/u);
+    assert.throws(() => controller.extendTorrentClient({ runId: 'run-1', additionalMinutes: 5 }), /Operation already running/u);
+    finishPreparation();
+    const started = await starting;
+    assert.equal(started.runId, 'test-locked-001');
+    finishTest();
+    await controller.softwareTestPromise;
+    assert.equal(controller.operation.running, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('software test rejects an existing operation without waiting for preparation', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-software-test-existing-operation-'));
+  try {
+    let releaseOperation;
+    const operationGate = new Promise((resolve) => { releaseOperation = resolve; });
+    const { controller } = makeController(root);
+    const activeOperation = controller.runOperation('Existing mutation', async () => operationGate);
+    await new Promise((resolve) => setImmediate(resolve));
+    await assert.rejects(() => controller.startSoftwareTest('default'), /Operation already running: Existing mutation/u);
+    releaseOperation();
+    await activeOperation;
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

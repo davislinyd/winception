@@ -13,6 +13,15 @@ downloads/
 deployment-server-bundle/
 *.deployment-server.zip
 node_modules/
+.npm-cache/
+.v2-cache/
+dist/
+.v2-stage/
+installer/wix/GeneratedFiles.wxs
+installer/output/
+test-results/
+playwright-report/
+coverage/
 .osdcloud-console/
 .claude/*
 !.claude/launch.json

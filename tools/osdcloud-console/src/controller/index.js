@@ -719,12 +719,18 @@ export class ServiceController extends EventEmitter {
   }
 
   releaseTorrentClients(payload) {
+    if (this.operation?.running) {
+      throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
+    }
     const result = this.torrentCoordinator.release(payload);
     this.addLog(`[TORRENT] release requested for ${result.count} waiting client${result.count === 1 ? '' : 's'}`);
     return result;
   }
 
   updateTorrentSettings(seedMinutes) {
+    if (this.operation?.running) {
+      throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
+    }
     const minutes = Number(seedMinutes);
     if (!Number.isInteger(minutes) || minutes < 0 || minutes > maxTorrentSeedMinutes) {
       throw errorWithStatus(`Torrent seed wait must be an integer from 0 to ${maxTorrentSeedMinutes} minutes.`, 400);
@@ -739,6 +745,9 @@ export class ServiceController extends EventEmitter {
   }
 
   extendTorrentClient(payload) {
+    if (this.operation?.running) {
+      throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
+    }
     try {
       const result = this.torrentCoordinator.extend(payload);
       this.addLog(`[TORRENT] extended ${result.runId} by ${Number(payload.additionalMinutes)} minutes`);
@@ -978,32 +987,62 @@ export class ServiceController extends EventEmitter {
     if (this.softwareTestPromise) {
       throw errorWithStatus('A software test is already running.', 409);
     }
+    if (this.operation?.running) {
+      throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
+    }
     if (!this.dependencies.isElevated()) {
       throw errorWithStatus('Restart the Web console from an elevated PowerShell session before running a software test.', 403);
     }
-    const fleet = this.dependencies.readFleetStatus(this.config);
-    if ((fleet.runs ?? []).some((run) => run.status === 'running')) {
-      throw errorWithStatus('Wait for active deployments to finish before running the dedicated software test VM.', 409);
-    }
-    const prepared = await this.dependencies.prepareSoftwareTestRun(this.config, profileId);
-    const promise = this.runOperation('Testing deployment profile software', async () =>
-      this.dependencies.runPreparedSoftwareTest(this.config, prepared), { mutating: false });
+    let resolvePrepared;
+    let rejectPrepared;
+    const preparedReady = new Promise((resolve, reject) => {
+      resolvePrepared = resolve;
+      rejectPrepared = reject;
+    });
+    const promise = this.runOperation('Testing deployment profile software', async () => {
+      try {
+        this.assertSoftwareTestIsolation();
+        const prepared = await this.dependencies.prepareSoftwareTestRun(this.config, profileId);
+        this.assertSoftwareTestIsolation();
+        this.softwareTestRunId = prepared.runId;
+        this.softwareTestAbortRequested = false;
+        resolvePrepared(prepared);
+        return await this.dependencies.runPreparedSoftwareTest(this.config, prepared);
+      } catch (error) {
+        rejectPrepared(error);
+        throw error;
+      }
+    }, { mutating: false });
     this.softwareTestPromise = promise;
-    this.softwareTestRunId = prepared.runId;
-    this.softwareTestAbortRequested = false;
     void promise.then(
-      () => this.addLog('Software test ' + prepared.runId + ' completed.'),
-      () => this.addLog('Software test ' + prepared.runId + ' did not complete.'),
+      () => this.addLog('Software test ' + (this.softwareTestRunId ?? 'unknown') + ' completed.'),
+      () => this.addLog('Software test ' + (this.softwareTestRunId ?? 'unknown') + ' did not complete.'),
     ).finally(() => {
       this.softwareTestPromise = null;
       this.softwareTestRunId = null;
       this.softwareTestAbortRequested = false;
     });
+    const prepared = await preparedReady;
     return {
       runId: prepared.runId,
       profile: { id: prepared.profile.id, name: prepared.profile.name },
       status: prepared.status,
     };
+  }
+
+  assertSoftwareTestIsolation() {
+    const services = this.servicesState();
+    const activeServices = ['http', 'tftp', 'dhcp'].filter((name) => services[name]?.running);
+    if (activeServices.length > 0) {
+      throw errorWithStatus('Stop HTTP, TFTP, and DHCP before running the dedicated software test VM.', 409, {
+        code: 'software_test_services_running',
+        action: 'Stop deployment services, confirm the active fleet is empty, and try again.',
+      });
+    }
+    const fleet = this.dependencies.readFleetStatus(this.config);
+    if ((fleet.runs ?? []).some((run) => run.status === 'running')) {
+      throw errorWithStatus('Wait for active deployments to finish before running the dedicated software test VM.', 409);
+    }
   }
 
   async abortSoftwareTest(runId) {
@@ -1063,6 +1102,9 @@ export class ServiceController extends EventEmitter {
   }
 
   startOsDownload(catalogId) {
+    if (this.operation?.running) {
+      throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
+    }
     if (this.osDownloadStatus?.running) {
       throw errorWithStatus(`Operation already running: Downloading OS image ${this.osDownloadStatus.catalogId}`, 409);
     }
@@ -1146,6 +1188,9 @@ export class ServiceController extends EventEmitter {
   }
 
   startReexportOsImage(imageId) {
+    if (this.operation?.running) {
+      throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
+    }
     if (this.osDownloadStatus?.running) {
       throw errorWithStatus(`Operation already running: ${this.osDownloadStatus.catalogId ? `Downloading OS image ${this.osDownloadStatus.catalogId}` : 'Re-exporting OS image'}`, 409);
     }

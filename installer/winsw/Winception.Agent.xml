@@ -1,0 +1,11 @@
+<service>
+  <id>Winception.Agent</id>
+  <name>Winception Privileged Agent</name>
+  <description>Executes allow-listed Winception host operations.</description>
+  <executable>%BASE%\node.exe</executable>
+  <arguments>&quot;%BASE%\..\app\dist\v2\node\apps\agent\src\main.js&quot;</arguments>
+  <workingdirectory>%BASE%\..\app</workingdirectory>
+  <stoptimeout>30sec</stoptimeout>
+  <logpath>%ProgramData%\Winception\State\logs\agent</logpath>
+  <log mode="roll" />
+</service>

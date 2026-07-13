@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeJsonAtomic } from './atomicFile.js';
 
 const BATCH_WINDOW_MS = 24_000;
 const ACTIVE_SOURCE_MS = 15_000;
@@ -138,10 +139,7 @@ export class TorrentDistributionCoordinator extends EventEmitter {
       pieces: [...pieces],
     }));
     const payload = { version: 1, wave: this.wave, assignments, releases };
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const tempPath = `${filePath}.${process.pid}.tmp`;
-    fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-    fs.renameSync(tempPath, filePath);
+    writeJsonAtomic(filePath, payload);
     this.persistedServedBytes = finiteNumber(this.wave?.hostServedBytes);
   }
 

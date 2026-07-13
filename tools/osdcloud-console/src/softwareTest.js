@@ -5,6 +5,7 @@ import { appRootForConfig, stateRootForConfig } from './config.js';
 import { materializeSoftwareTestPayload } from './profiles/publish.js';
 import { deploymentSecretsPath, errorWithStatus } from './controller/helpers.js';
 import { runPowerShell } from './windows/powershell.js';
+import { writeJsonAtomic } from './atomicFile.js';
 
 const configFileName = 'software-test.json';
 const runsDirectoryName = 'software-test-runs';
@@ -37,8 +38,7 @@ function isStalePayloadReadyRun(value, now = Date.now()) {
 }
 
 function writeJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n', 'utf8');
+  writeJsonAtomic(filePath, value);
 }
 
 function cleanValue(value, label, pattern, maxLength = 128) {

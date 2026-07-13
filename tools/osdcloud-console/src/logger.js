@@ -95,8 +95,30 @@ export function tailFile(filePath, maxLines = 80) {
     return [];
   }
 
-  const text = fs.readFileSync(filePath, 'utf8');
-  return text.split(/\r?\n/).filter(Boolean).slice(-maxLines);
+  const limit = Math.max(1, Math.min(1000, Math.trunc(Number(maxLines) || 80)));
+  const size = fs.statSync(filePath).size;
+  const maxBytes = 1024 * 1024;
+  const chunks = [];
+  let position = size;
+  let bytesReadTotal = 0;
+  let newlineCount = 0;
+  const descriptor = fs.openSync(filePath, 'r');
+  try {
+    while (position > 0 && bytesReadTotal < maxBytes && newlineCount <= limit) {
+      const length = Math.min(64 * 1024, position, maxBytes - bytesReadTotal);
+      position -= length;
+      const buffer = Buffer.allocUnsafe(length);
+      const bytesRead = fs.readSync(descriptor, buffer, 0, length, position);
+      const chunk = buffer.subarray(0, bytesRead);
+      chunks.unshift(chunk);
+      bytesReadTotal += bytesRead;
+      for (const byte of chunk) if (byte === 10) newlineCount += 1;
+    }
+  }
+  finally {
+    fs.closeSync(descriptor);
+  }
+  return Buffer.concat(chunks).toString('utf8').split(/\r?\n/).filter(Boolean).slice(-limit);
 }
 
 export class RingBuffer {

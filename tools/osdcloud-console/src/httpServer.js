@@ -12,6 +12,7 @@ import {
 import { driverPackCacheStage, handleDriverPackCacheRequest } from './driverPackCache.js';
 import { appendLog, formatSyslog } from './logger.js';
 import { buildRunsIndex, isRunTerminal, updateRunSummary } from './runSummary.js';
+import { writeJsonAtomic } from './atomicFile.js';
 
 function loadSecrets(config) {
   const stateRoot = stateRootForConfig(config);
@@ -361,8 +362,8 @@ export class MediaHttpServer extends EventEmitter {
     }
     fs.appendFileSync(statusLogPath, line, 'utf8');
     fs.appendFileSync(path.join(statusRoot, `${runId}.jsonl`), line, 'utf8');
-    fs.writeFileSync(latestStatusPath, `${JSON.stringify(event, null, 2)}\n`, 'utf8');
-    fs.writeFileSync(path.join(statusRoot, `${runId}.latest.json`), `${JSON.stringify(event, null, 2)}\n`, 'utf8');
+    writeJsonAtomic(latestStatusPath, event);
+    writeJsonAtomic(path.join(statusRoot, `${runId}.latest.json`), event);
     const runSummary = updateRunSummary(statusRoot, event);
 
     const logsDir = this.config.paths?.logsDir || path.join(path.dirname(statusRoot), 'logs');
@@ -491,7 +492,7 @@ export class MediaHttpServer extends EventEmitter {
     };
     const line = `${JSON.stringify(metadata)}\n`;
     fs.appendFileSync(path.join(statusRoot, `${runId}.screenshots.jsonl`), line, 'utf8');
-    fs.writeFileSync(path.join(statusRoot, 'latest-screenshot.json'), `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+    writeJsonAtomic(path.join(statusRoot, 'latest-screenshot.json'), metadata);
 
     sendJson(res, 201, metadata);
     this.log(`${remote} POST ${requestUrl.pathname} 201 run=${runId} client=${clientId} stage=${stage} source=${source} bytes=${body.length} file=${filePath}`);
@@ -790,11 +791,11 @@ export class MediaHttpServer extends EventEmitter {
           };
           try {
             fs.mkdirSync(statusRoot, { recursive: true });
-            fs.writeFileSync(bootingSummaryPath, `${JSON.stringify(bootingSummary, null, 2)}\n`, 'utf8');
+            writeJsonAtomic(bootingSummaryPath, bootingSummary);
             
             // Rebuild runs index
             const indexJson = buildRunsIndex(statusRoot, new Date());
-            fs.writeFileSync(path.join(statusRoot, 'runs-index.json'), `${JSON.stringify(indexJson, null, 2)}\n`, 'utf8');
+            writeJsonAtomic(path.join(statusRoot, 'runs-index.json'), indexJson);
             this.emit('status', { event: bootingSummary, summary: bootingSummary, runsIndex: indexJson });
           } catch (e) {
             this.log(`Failed to create synthetic booting summary: ${e.message}`);

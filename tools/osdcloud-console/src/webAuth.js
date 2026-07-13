@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { stateRootForConfig, webServerConfig } from './config.js';
+import { writeJsonAtomic } from './atomicFile.js';
 
 const tokenFileName = 'web-console-token.json';
 
@@ -38,12 +39,12 @@ export function ensureWebConsoleToken(config = {}) {
     return { token: existing, filePath, created: false };
   }
   const token = crypto.randomBytes(32).toString('base64url');
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify({
+  writeJsonAtomic(filePath, {
+    schemaVersion: 1,
     token,
     createdAt: new Date().toISOString(),
     purpose: 'Winception Web Console API token for non-loopback access.',
-  }, null, 2)}\n`, 'utf8');
+  });
   return { token, filePath, created: true };
 }
 

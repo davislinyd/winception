@@ -3,10 +3,10 @@ import path from 'node:path';
 import { runPowerShell } from '../windows/powershell.js';
 import { redactJson, redactText } from './redact.js';
 import { diagnosticsLatestPathForConfig, diagnosticsRootForConfig, diagnosticsTimestamp, ensureInside, sanitizeName } from './shared.js';
+import { writeJsonAtomic } from '../atomicFile.js';
 
 function writeJson(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(filePath, value);
 }
 
 async function compressArchive(sourceDir, zipPath) {
