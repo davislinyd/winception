@@ -105,6 +105,21 @@ export const SystemStateSchema = Type.Object({
 });
 export type SystemState = Static<typeof SystemStateSchema>;
 
+export const InstallSequenceEntrySchema = Type.Object({
+  type: Type.Union([Type.Literal('software'), Type.Literal('script')]),
+  id: Type.String({ minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$' }),
+  timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86400 })),
+}, { additionalProperties: false });
+export type InstallSequenceEntry = Static<typeof InstallSequenceEntrySchema>;
+
+export const SoftwareNetworkSchema = Type.Union([
+  Type.Object({ requirement: Type.Literal('offline') }, { additionalProperties: false }),
+  Type.Object({
+    requirement: Type.Literal('client-internet'),
+    probeHost: Type.String({ minLength: 1, maxLength: 253, pattern: '^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$' }),
+  }, { additionalProperties: false }),
+]);
+
 export const AgentCommandNameSchema = Type.Union([
   Type.Literal('system.health'),
   Type.Literal('system.state'),
@@ -165,6 +180,157 @@ export const AgentCommandNameSchema = Type.Union([
 ]);
 export type AgentCommandName = Static<typeof AgentCommandNameSchema>;
 
+export const NetworkInterfaceSchema = Type.Object({
+  interfaceAlias: Type.String(),
+  interfaceIndex: Type.Integer(),
+  interfaceDescription: Type.String(),
+  status: Type.String(),
+  macAddress: Type.String(),
+  linkSpeed: Type.String(),
+  ipAddress: Type.String({ format: 'ipv4' }),
+  prefixLength: Type.Integer({ minimum: 0, maximum: 32 }),
+  gateway: Type.String(),
+}, { additionalProperties: false });
+export type NetworkInterface = Static<typeof NetworkInterfaceSchema>;
+
+export const ProfileReferenceSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+}, { additionalProperties: false });
+export const DeploymentProfileSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.String(),
+  softwareIds: Type.Array(Type.String()),
+  execution: Type.Object({ defaultTimeoutSeconds: Type.Integer() }),
+  installSequence: Type.Array(InstallSequenceEntrySchema),
+  osImageId: Type.Union([Type.String(), Type.Null()]),
+  displayLanguage: Type.Optional(Type.String()),
+  locale: Type.Optional(Type.String()),
+  inputLanguage: Type.Optional(Type.String()),
+  timeZone: Type.Optional(Type.String()),
+}, { additionalProperties: false });
+export type DeploymentProfile = Static<typeof DeploymentProfileSchema>;
+export const SoftwareCatalogItemSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  source: Type.String(),
+  sourcePath: Type.String(),
+  installScript: Type.String(),
+  scriptMode: Type.String(),
+  installerType: Type.Union([Type.String(), Type.Null()]),
+  installerFileName: Type.Union([Type.String(), Type.Null()]),
+  silentArgs: Type.Union([Type.String(), Type.Null()]),
+  successExitCodes: Type.Union([Type.Array(Type.Integer()), Type.Null()]),
+  verifyPath: Type.Union([Type.String(), Type.Null()]),
+  verificationMode: Type.String(),
+  installerBytes: Type.Union([Type.Integer(), Type.Null()]),
+  installerSha256: Type.Union([Type.String(), Type.Null()]),
+  dependsOn: Type.Array(Type.String()),
+  network: SoftwareNetworkSchema,
+  usedByProfiles: Type.Array(ProfileReferenceSchema),
+}, { additionalProperties: false });
+export type SoftwareCatalogItem = Static<typeof SoftwareCatalogItemSchema>;
+export const CustomScriptCatalogItemSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  source: Type.String(),
+  sourcePath: Type.String(),
+  scriptFile: Type.String(),
+  fileName: Type.String(),
+  bytes: Type.Union([Type.Integer(), Type.Null()]),
+  sha256: Type.Union([Type.String(), Type.Null()]),
+  usedByProfiles: Type.Array(ProfileReferenceSchema),
+}, { additionalProperties: false });
+export type CustomScriptCatalogItem = Static<typeof CustomScriptCatalogItemSchema>;
+export const ProfilesResultSchema = Type.Object({
+  activeProfile: DeploymentProfileSchema,
+  softwareCatalog: Type.Array(SoftwareCatalogItemSchema),
+  customScriptCatalog: Type.Array(CustomScriptCatalogItemSchema),
+  selectedSoftware: Type.Array(ProfileReferenceSchema),
+  selectedSoftwareText: Type.String(),
+  selectedScripts: Type.Array(ProfileReferenceSchema),
+  profiles: Type.Array(DeploymentProfileSchema),
+}, { additionalProperties: false });
+export type ProfilesResult = Static<typeof ProfilesResultSchema>;
+
+export const OsImageSchema = Type.Object({
+  id: Type.String(), name: Type.String(), version: Type.String(), releaseId: Type.String(), build: Type.String(),
+  architecture: Type.String(), language: Type.String(), locale: Type.String(), timeZone: Type.String(), edition: Type.String(),
+  editionId: Type.String(), activation: Type.String(), imageIndex: Type.Integer(), fileName: Type.String(), osFamily: Type.String(),
+  size: Type.Union([Type.Integer(), Type.Null()]), sha256: Type.String(), sha1: Type.String(), url: Type.String(), sourceType: Type.String(),
+  sourceFileName: Type.String(), sourceContainerType: Type.String(), sourceImageIndex: Type.Union([Type.Integer(), Type.Null()]),
+  sourceSize: Type.Union([Type.Integer(), Type.Null()]), sourceSha256: Type.String(),
+  usedByProfiles: Type.Optional(Type.Array(ProfileReferenceSchema)),
+}, { additionalProperties: false });
+export type OsImage = Static<typeof OsImageSchema>;
+export const OsImagesResultSchema = Type.Object({
+  activeImage: Type.Union([OsImageSchema, Type.Null()]),
+  activeImageId: Type.Union([Type.String(), Type.Null()]),
+  activeLabel: Type.String(), catalogPath: Type.String(), downloadSourcesPath: Type.String(), cacheRoot: Type.String(),
+  downloadStagingRoot: Type.String(), selectedOsPath: Type.String(), cacheLogPath: Type.String(),
+  selectedOs: Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()]),
+  images: Type.Array(OsImageSchema),
+  cachedFiles: Type.Array(Type.String()),
+}, { additionalProperties: false });
+export type OsImagesResult = Static<typeof OsImagesResultSchema>;
+
+export const ScriptContentResultSchema = Type.Object({
+  softwareId: Type.Optional(Type.String()),
+  scriptId: Type.Optional(Type.String()),
+  filePath: Type.String(),
+  content: Type.String({ maxLength: 1048576 }),
+}, { additionalProperties: false });
+export type ScriptContentResult = Static<typeof ScriptContentResultSchema>;
+export const StagedFileResultSchema = Type.Object({
+  uploadToken: Type.String(), fileName: Type.String(), sizeBytes: Type.Integer({ minimum: 0 }), sha256: Type.String(),
+}, { additionalProperties: false });
+export type StagedFileResult = Static<typeof StagedFileResultSchema>;
+export const DeploymentSnapshotResultSchema = Type.Object({
+  generatedAt: Type.String({ format: 'date-time' }),
+  app: Type.Record(Type.String(), Type.Unknown()),
+  config: Type.Record(Type.String(), Type.Unknown()),
+  services: Type.Record(Type.String(), Type.Unknown()),
+  fleet: Type.Record(Type.String(), Type.Unknown()),
+}, { additionalProperties: true });
+export type DeploymentSnapshotResult = Static<typeof DeploymentSnapshotResultSchema>;
+export const GatewayResultSchema = Type.Object({
+  topology: Type.Union([Type.Literal('shared-lan'), Type.Literal('dual-nic-nat')]),
+  ready: Type.Boolean(),
+  detail: Type.String(),
+}, { additionalProperties: true });
+export type GatewayResult = Static<typeof GatewayResultSchema>;
+export const DiagnosticsResultSchema = Type.Union([
+  Type.Null(),
+  Type.Object({ generatedAt: Type.String({ format: 'date-time' }) }, { additionalProperties: true }),
+]);
+export type DiagnosticsResult = Static<typeof DiagnosticsResultSchema>;
+const NullableTextSchema = Type.Union([Type.String(), Type.Null()]);
+export const SoftwareTestRunSchema = Type.Object({
+  runId: Type.String(), profileId: Type.String(), profileName: Type.String(), status: Type.String(), phase: Type.String(),
+  startedAt: NullableTextSchema, finishedAt: NullableTextSchema, abortRequestedAt: NullableTextSchema,
+  elapsedSeconds: Type.Union([Type.Number(), Type.Null()]), rebootCount: Type.Integer(), cleanup: Type.String(),
+  cleanupReason: Type.String(), cleanupAction: Type.String(),
+  recovery: Type.Union([Type.Object({ status: Type.Literal('verified'), verifiedAt: Type.String() }, { additionalProperties: false }), Type.Null()]),
+  detail: Type.String(),
+  steps: Type.Array(Type.Object({
+    index: Type.Number(), type: Type.String(), id: Type.String(), name: Type.String(), status: Type.String(),
+    durationSeconds: Type.Union([Type.Number(), Type.Null()]), timeoutSeconds: Type.Union([Type.Number(), Type.Null()]),
+    networkWaitSeconds: Type.Number(), rebootRecommended: Type.Boolean(),
+  }, { additionalProperties: false })),
+  failure: Type.Union([Type.Object({ category: Type.String(), stepId: Type.String(), stepType: Type.String() }, { additionalProperties: false }), Type.Null()]),
+}, { additionalProperties: false });
+export type SoftwareTestRun = Static<typeof SoftwareTestRunSchema>;
+export const SoftwareTestStatusResultSchema = Type.Object({
+  configuration: Type.Object({
+    configured: Type.Boolean(), ready: Type.Boolean(), vmName: NullableTextSchema, checkpointName: NullableTextSchema,
+    targetUser: NullableTextSchema, detail: Type.String(), verifiedAt: NullableTextSchema,
+  }, { additionalProperties: false }),
+  latest: Type.Union([SoftwareTestRunSchema, Type.Null()]),
+  active: Type.Union([Type.Object({ runId: Type.String(), abortAvailable: Type.Boolean(), phase: Type.String() }, { additionalProperties: false }), Type.Null()]),
+}, { additionalProperties: false });
+export type SoftwareTestStatusResult = Static<typeof SoftwareTestStatusResultSchema>;
+
 export const EmptyPayloadSchema = Type.Object({}, { additionalProperties: false });
 export const SafeObjectPayloadSchema = Type.Record(Type.String({ minLength: 1, maxLength: 256 }), JsonValueSchema);
 export type SafeObjectPayload = Static<typeof SafeObjectPayloadSchema>;
@@ -188,6 +354,7 @@ export const DeploymentSecretsPayloadSchema = Type.Object({
   windowsPassword: Type.String({ minLength: 1, maxLength: 4096 }),
   pxeinstallPassword: Type.String({ minLength: 1, maxLength: 4096 }),
 }, { additionalProperties: false });
+export type DeploymentSecretsPayload = Static<typeof DeploymentSecretsPayloadSchema>;
 export const ScriptReadPayloadSchema = Type.Object({ id: Type.String({ minLength: 1, maxLength: 128 }) }, { additionalProperties: false });
 export const DiagnosticsBundlePayloadSchema = Type.Object({ bundleName: Type.String({ minLength: 1, maxLength: 256, pattern: '^[A-Za-z0-9._-]+$' }) }, { additionalProperties: false });
 export type DiagnosticsBundlePayload = Static<typeof DiagnosticsBundlePayloadSchema>;
@@ -224,16 +391,111 @@ export const OsImagePayloadSchema = Type.Object({
 }, { additionalProperties: false });
 export type OsImagePayload = Static<typeof OsImagePayloadSchema>;
 
+const CatalogIdSchema = Type.String({ minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$' });
+const HumanCatalogIdSchema = Type.String({ minLength: 1, maxLength: 16, pattern: '^[a-z0-9][a-z0-9-]*$' });
+const OptionalTextSchema = Type.Optional(Type.String({ maxLength: 4096 }));
+const OptionalNullableTextSchema = Type.Optional(Type.Union([Type.String({ maxLength: 256 }), Type.Null()]));
+
+export const DeploymentSnapshotPayloadSchema = Type.Object({
+  selectedRunId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+  includeEvidence: Type.Optional(Type.Boolean()),
+}, { additionalProperties: false });
+export type DeploymentSnapshotPayload = Static<typeof DeploymentSnapshotPayloadSchema>;
+
+export const OsCatalogPayloadSchema = Type.Object({
+  osFamily: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 32 }), { maxItems: 16, uniqueItems: true })),
+  edition: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 64 }), { maxItems: 32, uniqueItems: true })),
+  activation: Type.Optional(Type.Array(Type.Literal('Retail'), { maxItems: 1, uniqueItems: true })),
+  language: Type.Optional(Type.Array(Type.String({ minLength: 2, maxLength: 32 }), { maxItems: 64, uniqueItems: true })),
+  releaseId: Type.Optional(Type.Array(Type.String({ minLength: 2, maxLength: 32 }), { maxItems: 64, uniqueItems: true })),
+  sourceType: Type.Optional(Type.Array(Type.Literal('official'), { maxItems: 1, uniqueItems: true })),
+}, { additionalProperties: false });
+export type OsCatalogPayload = Static<typeof OsCatalogPayloadSchema>;
+
+export const DiagnosticsRunPayloadSchema = Type.Object({
+  scope: Type.Optional(Type.Union([Type.Literal('full'), Type.Literal('host'), Type.Literal('run')])),
+  runId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+  trigger: Type.Optional(Type.String({ minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9._-]+$' })),
+}, { additionalProperties: false });
+export type DiagnosticsRunPayload = Static<typeof DiagnosticsRunPayloadSchema>;
+
+export const EndpointPayloadSchema = Type.Object({
+  interfaceAlias: Type.String({ minLength: 1, maxLength: 256 }),
+  ipAddress: Type.String({ format: 'ipv4' }),
+  prefixLength: Type.Integer({ minimum: 8, maximum: 30 }),
+  gateway: Type.Optional(Type.String({ format: 'ipv4' })),
+}, { additionalProperties: false });
+export type EndpointPayload = Static<typeof EndpointPayloadSchema>;
+
+export const NetworkPreparePayloadSchema = Type.Object({
+  wanInterfaceAlias: Type.String({ minLength: 1, maxLength: 256 }),
+  pxeInterfaceAlias: Type.String({ minLength: 1, maxLength: 256 }),
+  internalSubnet: Type.Optional(Type.String({ minLength: 9, maxLength: 18, pattern: '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\/(?:[89]|[12][0-9]|30)$' })),
+}, { additionalProperties: false });
+export type NetworkPreparePayload = Static<typeof NetworkPreparePayloadSchema>;
+
+const ProfileFields = {
+  name: Type.String({ minLength: 1, maxLength: 128 }),
+  description: OptionalTextSchema,
+  softwareIds: Type.Optional(Type.Array(CatalogIdSchema, { maxItems: 256, uniqueItems: true })),
+  installSequence: Type.Optional(Type.Array(InstallSequenceEntrySchema, { maxItems: 512 })),
+  execution: Type.Optional(Type.Object({
+    defaultTimeoutSeconds: Type.Integer({ minimum: 1, maximum: 86400 }),
+  }, { additionalProperties: false })),
+  osImageId: Type.Optional(CatalogIdSchema),
+  displayLanguage: OptionalNullableTextSchema,
+  locale: OptionalNullableTextSchema,
+  inputLanguage: OptionalNullableTextSchema,
+  timeZone: OptionalNullableTextSchema,
+};
+
+export const ProfileCreatePayloadSchema = Type.Object(ProfileFields, { additionalProperties: false });
+export type ProfileCreatePayload = Static<typeof ProfileCreatePayloadSchema>;
+export const ProfileUpdatePayloadSchema = Type.Object({
+  profileId: CatalogIdSchema,
+  ...Object.fromEntries(Object.entries(ProfileFields).map(([key, schema]) => [key, Type.Optional(schema)])),
+}, { additionalProperties: false });
+export type ProfileUpdatePayload = Static<typeof ProfileUpdatePayloadSchema>;
+
+export const SoftwareTestConfigurePayloadSchema = Type.Object({
+  vmName: Type.String({ minLength: 1, maxLength: 128 }),
+  checkpointName: Type.String({ minLength: 1, maxLength: 128 }),
+  targetUser: Type.String({ minLength: 1, maxLength: 256 }),
+}, { additionalProperties: false });
+export type SoftwareTestConfigurePayload = Static<typeof SoftwareTestConfigurePayloadSchema>;
+
+export const SoftwareCreatePayloadSchema = Type.Object({
+  uploadToken: UploadTokenPayloadSchema.properties.uploadToken,
+  softwareId: HumanCatalogIdSchema,
+  name: Type.String({ minLength: 1, maxLength: 128 }),
+  scriptMode: Type.Union([Type.Literal('template'), Type.Literal('raw')]),
+  installerType: Type.Union([Type.Literal('exe'), Type.Literal('msi'), Type.Literal('msix'), Type.Literal('zip')]),
+  silentArgs: Type.Optional(Type.String({ maxLength: 4096 })),
+  successExitCodes: Type.Optional(Type.Array(Type.Integer({ minimum: -2147483648, maximum: 2147483647 }), { maxItems: 32, uniqueItems: true })),
+  verifyPath: Type.Optional(Type.String({ maxLength: 32768 })),
+  rawScript: Type.Optional(Type.String({ minLength: 1, maxLength: 262144 })),
+  dependsOn: Type.Optional(Type.Array(HumanCatalogIdSchema, { maxItems: 64, uniqueItems: true })),
+  network: SoftwareNetworkSchema,
+}, { additionalProperties: false });
+export type SoftwareCreatePayload = Static<typeof SoftwareCreatePayloadSchema>;
+
+export const CustomScriptCreatePayloadSchema = Type.Object({
+  uploadToken: UploadTokenPayloadSchema.properties.uploadToken,
+  scriptId: HumanCatalogIdSchema,
+  name: Type.String({ minLength: 1, maxLength: 128 }),
+}, { additionalProperties: false });
+export type CustomScriptCreatePayload = Static<typeof CustomScriptCreatePayloadSchema>;
+
 export const AGENT_COMMAND_PAYLOAD_SCHEMAS: Readonly<Record<AgentCommandName, TSchema>> = Object.freeze({
   'system.health': EmptyPayloadSchema,
   'system.state': EmptyPayloadSchema,
   'operations.list': EmptyPayloadSchema,
-  'deployment.snapshot': SafeObjectPayloadSchema,
+  'deployment.snapshot': DeploymentSnapshotPayloadSchema,
   'interfaces.list': EmptyPayloadSchema,
   'network.inspect': EmptyPayloadSchema,
   'profiles.list': EmptyPayloadSchema,
   'os-images.list': EmptyPayloadSchema,
-  'os-images.catalog': SafeObjectPayloadSchema,
+  'os-images.catalog': OsCatalogPayloadSchema,
   'diagnostics.latest': EmptyPayloadSchema,
   'diagnostics.bundle.stage': DiagnosticsBundlePayloadSchema,
   'software.script.read': ScriptReadPayloadSchema,
@@ -244,20 +506,20 @@ export const AGENT_COMMAND_PAYLOAD_SCHEMAS: Readonly<Record<AgentCommandName, TS
   'services.start-all': EmptyPayloadSchema,
   'services.stop-all': EmptyPayloadSchema,
   'preflight.run': EmptyPayloadSchema,
-  'diagnostics.run': SafeObjectPayloadSchema,
+  'diagnostics.run': DiagnosticsRunPayloadSchema,
   'secrets.save': DeploymentSecretsPayloadSchema,
   'runtime.prepare': EmptyPayloadSchema,
   'project-root.update': ProjectRootPayloadSchema,
-  'endpoint.update': SafeObjectPayloadSchema,
-  'network.prepare': SafeObjectPayloadSchema,
+  'endpoint.update': EndpointPayloadSchema,
+  'network.prepare': NetworkPreparePayloadSchema,
   'network.remove': EmptyPayloadSchema,
   'boot-mode.update': BootModePayloadSchema,
   'dhcp-mode.update': DhcpModePayloadSchema,
   'profile.publish': IdPayloadSchema,
-  'profile.create': SafeObjectPayloadSchema,
-  'profile.update': SafeObjectPayloadSchema,
+  'profile.create': ProfileCreatePayloadSchema,
+  'profile.update': ProfileUpdatePayloadSchema,
   'profile.delete': IdPayloadSchema,
-  'software-test.configure': SafeObjectPayloadSchema,
+  'software-test.configure': SoftwareTestConfigurePayloadSchema,
   'software-test.start': SoftwareTestStartPayloadSchema,
   'software-test.abort': SoftwareTestAbortPayloadSchema,
   'os-image.delete': IdPayloadSchema,
@@ -267,10 +529,10 @@ export const AGENT_COMMAND_PAYLOAD_SCHEMAS: Readonly<Record<AgentCommandName, TS
   'os-image.download.start': OsImagePayloadSchema,
   'os-image.reexport.start': OsImagePayloadSchema,
   'offline-iso.start': EmptyPayloadSchema,
-  'software.create': SafeObjectPayloadSchema,
+  'software.create': SoftwareCreatePayloadSchema,
   'software.delete': IdPayloadSchema,
   'software.script.open': IdPayloadSchema,
-  'custom-script.create': SafeObjectPayloadSchema,
+  'custom-script.create': CustomScriptCreatePayloadSchema,
   'custom-script.delete': IdPayloadSchema,
   'status.clear': EmptyPayloadSchema,
   'status.run.delete': IdPayloadSchema,
@@ -281,6 +543,24 @@ export const AGENT_COMMAND_PAYLOAD_SCHEMAS: Readonly<Record<AgentCommandName, TS
   'upload.os-image.commit': UploadTokenPayloadSchema,
   'upload.software.commit': UploadTokenPayloadSchema,
   'upload.custom-script.commit': UploadTokenPayloadSchema,
+});
+
+export const AGENT_COMMAND_RESULT_SCHEMAS: Readonly<Partial<Record<AgentCommandName, TSchema>>> = Object.freeze({
+  'system.health': HealthSchema,
+  'system.state': SystemStateSchema,
+  'operations.list': Type.Array(OperationRecordSchema),
+  'deployment.snapshot': DeploymentSnapshotResultSchema,
+  'interfaces.list': Type.Array(NetworkInterfaceSchema),
+  'network.inspect': GatewayResultSchema,
+  'profiles.list': ProfilesResultSchema,
+  'os-images.list': OsImagesResultSchema,
+  'os-images.catalog': Type.Array(OsImageSchema),
+  'diagnostics.latest': DiagnosticsResultSchema,
+  'diagnostics.bundle.stage': StagedFileResultSchema,
+  'software.script.read': ScriptContentResultSchema,
+  'custom-script.read': ScriptContentResultSchema,
+  'software-test.status': SoftwareTestStatusResultSchema,
+  'software-test.abort': SoftwareTestRunSchema,
 });
 
 export const AgentRequestSchema = Type.Object({

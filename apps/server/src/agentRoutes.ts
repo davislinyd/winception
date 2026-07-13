@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import type { TSchema } from '@sinclair/typebox';
+import { Type, type TSchema } from '@sinclair/typebox';
 import {
   AGENT_COMMAND_PAYLOAD_SCHEMAS,
+  AGENT_COMMAND_RESULT_SCHEMAS,
   ApiErrorSchema,
   OperationAcceptedSchema,
-  ResultSchema,
   type AgentCommandName,
 } from '../../../packages/contracts/src/index.js';
 import type { ManagementAuth } from './auth.js';
@@ -77,8 +77,8 @@ export function registerAgentRoutes(app: FastifyInstance, auth: ManagementAuth, 
   for (const route of AGENT_HTTP_ROUTES) {
     const payloadSchema = AGENT_COMMAND_PAYLOAD_SCHEMAS[route.command];
     const schema = route.method === 'GET'
-      ? { querystring: payloadSchema, response: responseSchemas(route.mode) }
-      : { body: payloadSchema, response: responseSchemas(route.mode) };
+      ? { querystring: payloadSchema, response: responseSchemas(route) }
+      : { body: payloadSchema, response: responseSchemas(route) };
     app.route({
       method: route.method,
       url: route.url,
@@ -96,8 +96,14 @@ export function registerAgentRoutes(app: FastifyInstance, auth: ManagementAuth, 
   }
 }
 
-function responseSchemas(mode: RouteDefinition['mode']): Record<number, TSchema> {
-  return mode === 'accepted'
+function responseSchemas(route: RouteDefinition): Record<number, TSchema> {
+  const success = route.mode === 'accepted'
+    ? OperationAcceptedSchema
+    : Type.Object({
+      ok: Type.Literal(true),
+      result: AGENT_COMMAND_RESULT_SCHEMAS[route.command] ?? Type.Never(),
+    }, { additionalProperties: false });
+  return route.mode === 'accepted'
     ? { 202: OperationAcceptedSchema, 400: ApiErrorSchema, 401: ApiErrorSchema, 409: ApiErrorSchema, 503: ApiErrorSchema }
-    : { 200: ResultSchema, 400: ApiErrorSchema, 401: ApiErrorSchema, 409: ApiErrorSchema, 503: ApiErrorSchema };
+    : { 200: success, 400: ApiErrorSchema, 401: ApiErrorSchema, 409: ApiErrorSchema, 503: ApiErrorSchema };
 }

@@ -1,5 +1,6 @@
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { ProductStateSnapshot } from '../../../packages/infrastructure/src/productState.js';
 
 interface LegacyStartResult {
   promise?: Promise<unknown>;
@@ -7,6 +8,9 @@ interface LegacyStartResult {
 }
 
 export interface LegacyController {
+  runExternallyCoordinated<T>(action: () => T): T;
+  exportProductState(): ProductStateSnapshot;
+  reloadProductState(configPath: string): void;
   getState(options?: Record<string, unknown>): Record<string, unknown>;
   listInterfaces(): Promise<unknown>;
   inspectNetworkGateway(): Promise<unknown>;
@@ -65,13 +69,16 @@ export interface LegacyController {
 }
 
 interface LegacyControllerConstructor {
-  new(options?: { configPath?: string }): LegacyController;
+  new(options?: { configPath?: string; dependencies?: Record<string, unknown> }): LegacyController;
 }
 
-export async function loadLegacyController(options: { appRoot: string; configPath?: string }): Promise<LegacyController> {
+export async function loadLegacyController(options: { appRoot: string; configPath?: string; dependencies?: Record<string, unknown> }): Promise<LegacyController> {
   const appRoot = resolve(options.appRoot);
   const modulePath = join(appRoot, 'tools', 'osdcloud-console', 'src', 'controller', 'index.js');
   const module = await import(pathToFileURL(modulePath).href) as { ServiceController?: LegacyControllerConstructor };
   if (!module.ServiceController) throw new Error('The legacy ServiceController adapter could not be loaded.');
-  return new module.ServiceController(options.configPath ? { configPath: resolve(options.configPath) } : undefined);
+  return new module.ServiceController({
+    ...(options.configPath ? { configPath: resolve(options.configPath) } : {}),
+    ...(options.dependencies ? { dependencies: options.dependencies } : {}),
+  });
 }

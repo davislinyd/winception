@@ -9,6 +9,7 @@ interface Arguments {
   backupRoot: string;
   databasePath: string;
   protectorScript: string;
+  v2StateRoot: string;
   dryRun: boolean;
 }
 
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
       backupRoot: args.backupRoot,
       database,
       secretProtector: new DpapiSecretProtector(args.protectorScript),
+      targetAssetRoot: join(args.v2StateRoot, 'legacy'),
       ...(args.dryRun ? { dryRun: true } : {}),
     });
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -51,6 +53,7 @@ function parseArguments(values: string[]): Arguments {
     backupRoot: resolve(parsed.get('--backup-root') ?? join(v2StateRoot, 'migration-backups')),
     databasePath: resolve(parsed.get('--database') ?? join(v2StateRoot, 'winception-v2.db')),
     protectorScript: resolve(parsed.get('--protector-script') ?? join(process.cwd(), 'tools', 'v2', 'Protect-WinceptionSecret.ps1')),
+    v2StateRoot,
     dryRun,
   };
 }

@@ -13,7 +13,7 @@ function withTempDirectory(action: (root: string) => void): void {
 
 test('SQLite migrations and repositories are transactional', () => withTempDirectory((root) => {
   const database = new WinceptionDatabase(join(root, 'state', 'winception.db'));
-  assert.equal(database.schemaVersion(), 1);
+  assert.equal(database.schemaVersion(), 2);
   database.setSetting('network', { mode: 'shared-lan' });
   database.saveDocument('profiles', 'minimal', { name: 'Minimal' });
   database.save({
@@ -61,7 +61,7 @@ test('interrupted migration rolls back and a later startup can migrate cleanly',
   const path = join(root, 'interrupted.db');
   assert.throws(() => new WinceptionDatabase(path, { migrationFailpoint: () => { throw new Error('simulated migration interruption'); } }), /migration interruption/u);
   const recovered = new WinceptionDatabase(path);
-  assert.equal(recovered.schemaVersion(), 1);
+  assert.equal(recovered.schemaVersion(), 2);
   recovered.close();
 }));
 

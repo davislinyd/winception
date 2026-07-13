@@ -26,6 +26,7 @@ import { gatewayOptions, inspectNetworkGateway, networkTopology, prepareNetworkG
 import { isElevatedSync } from '../windows/powershell.js';
 import { prepareRuntimeArtifacts, removeStatusFiles, runPreflight } from '../windows/preflight.js';
 import { EventEmitter } from 'node:events';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, osImageDeployableStatus, publicApiError, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
 import { buildInitializationState, osImageSummary, osImageUsageFromProfiles, profileSummary, retailOnlyCatalogFilters, runtimeReadinessFailureMessage } from './state.js';
 import { readLatestDiagnostics, resolveDiagnosticsBundlePath, runDiagnostics } from '../diagnostics/index.js';
@@ -126,6 +127,7 @@ export class ServiceController extends EventEmitter {
     this.softwareTestRunId = null;
     this.softwareTestAbortRequested = false;
     this.operation = null;
+    this.externalCoordination = new AsyncLocalStorage();
     this.networkGatewayState = networkTopology(this.config) === 'shared-lan'
       ? { topology: 'shared-lan', ready: true, detail: 'Client Internet is provided by the existing LAN/router.' }
       : { topology: 'dual-nic-nat', ready: false, detail: 'Gateway state has not been inspected yet.' };
@@ -231,6 +233,15 @@ export class ServiceController extends EventEmitter {
   }
 
   async runOperation(label, action, options = {}) {
+    if (this.isExternallyCoordinated()) {
+      try {
+        return await action();
+      } finally {
+        if (options.mutating !== false) {
+          this.invalidateRuntimeReadiness();
+        }
+      }
+    }
     if (this.operation?.running) {
       throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
     }
@@ -278,6 +289,14 @@ export class ServiceController extends EventEmitter {
       this.emit('operation', this.operation);
       throw error;
     }
+  }
+
+  runExternallyCoordinated(action) {
+    return this.externalCoordination.run(true, action);
+  }
+
+  isExternallyCoordinated() {
+    return this.externalCoordination.getStore() === true;
   }
 
   servicesState() {
@@ -356,6 +375,21 @@ export class ServiceController extends EventEmitter {
       usage = osImageUsageFromProfiles(profileState);
     } catch {}
     return osImageSummary(state, usage);
+  }
+
+  exportProductState() {
+    return {
+      config: Object.fromEntries(Object.entries(this.config).filter(([key]) => !key.startsWith('__'))),
+      profiles: this.getProfiles(),
+      osImages: this.getOsImages(),
+    };
+  }
+
+  reloadProductState(configPath) {
+    this.config = this.dependencies.loadConfig(configPath);
+    this.refreshServiceConfigs();
+    this.preflightResults = [];
+    this.invalidateRuntimeReadiness();
   }
 
   async getOsDownloadCatalog(filters = {}) {
@@ -719,7 +753,7 @@ export class ServiceController extends EventEmitter {
   }
 
   releaseTorrentClients(payload) {
-    if (this.operation?.running) {
+    if (!this.isExternallyCoordinated() && this.operation?.running) {
       throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
     }
     const result = this.torrentCoordinator.release(payload);
@@ -728,7 +762,7 @@ export class ServiceController extends EventEmitter {
   }
 
   updateTorrentSettings(seedMinutes) {
-    if (this.operation?.running) {
+    if (!this.isExternallyCoordinated() && this.operation?.running) {
       throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
     }
     const minutes = Number(seedMinutes);
@@ -745,7 +779,7 @@ export class ServiceController extends EventEmitter {
   }
 
   extendTorrentClient(payload) {
-    if (this.operation?.running) {
+    if (!this.isExternallyCoordinated() && this.operation?.running) {
       throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
     }
     try {
@@ -987,7 +1021,7 @@ export class ServiceController extends EventEmitter {
     if (this.softwareTestPromise) {
       throw errorWithStatus('A software test is already running.', 409);
     }
-    if (this.operation?.running) {
+    if (!this.isExternallyCoordinated() && this.operation?.running) {
       throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
     }
     if (!this.dependencies.isElevated()) {
@@ -1102,7 +1136,7 @@ export class ServiceController extends EventEmitter {
   }
 
   startOsDownload(catalogId) {
-    if (this.operation?.running) {
+    if (!this.isExternallyCoordinated() && this.operation?.running) {
       throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
     }
     if (this.osDownloadStatus?.running) {
@@ -1188,7 +1222,7 @@ export class ServiceController extends EventEmitter {
   }
 
   startReexportOsImage(imageId) {
-    if (this.operation?.running) {
+    if (!this.isExternallyCoordinated() && this.operation?.running) {
       throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
     }
     if (this.osDownloadStatus?.running) {
@@ -1263,7 +1297,7 @@ export class ServiceController extends EventEmitter {
   }
 
   startOfflineIsoExport() {
-    if (this.operation?.running) {
+    if (!this.isExternallyCoordinated() && this.operation?.running) {
       throw errorWithStatus(`Operation already running: ${this.operation.label}`, 409);
     }
     if (safeRead(() => this.dependencies.isElevated(), false).value !== true) {

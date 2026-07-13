@@ -34,6 +34,10 @@ label { display: grid; gap: .35rem; margin: .8rem 0; color: #bccddd; font-size: 
 input { width: 100%; border: 1px solid #34536f; border-radius: .5rem; padding: .65rem .7rem; color: #f4f8fb; background: #071522; }
 select { width: 100%; border: 1px solid #34536f; border-radius: .5rem; padding: .65rem .7rem; color: #f4f8fb; background: #071522; }
 .product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
+.monitor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; margin-top: 1rem; }
+.inline-field { max-width: 28rem; }
+.check-list { margin: 0; padding-left: 1.2rem; color: #bccddd; font-size: .82rem; line-height: 1.6; }
+.button-link { display: inline-block; margin-top: .8rem; border-radius: .55rem; padding: .72rem 1rem; color: #06121e; background: #8cf0c8; font-weight: 750; text-decoration: none; }
 .data-preview { max-height: 14rem; overflow: auto; padding: .7rem; border-radius: .5rem; color: #c9d8e5; background: #071522; font-size: .72rem; white-space: pre-wrap; }
 .upload-row { padding-top: .35rem; border-top: 1px solid #20364c; }
 .button-row { display: flex; gap: .55rem; flex-wrap: wrap; }
@@ -42,6 +46,6 @@ select { width: 100%; border: 1px solid #34536f; border-radius: .5rem; padding: 
 .empty-state { margin: 0; padding: 1rem; color: #8fa7bd; border: 1px dashed #34536f; border-radius: .65rem; }
 .notice, .error-banner { display: flex; justify-content: space-between; gap: 1rem; margin: 1rem 0; padding: .9rem 1rem; border-radius: .7rem; }.notice { color: #baf6df; background: #123b36; border: 1px solid #23685d; }.error-banner { color: #ffe1e5; background: #451f2a; border: 1px solid #8f4353; }.notice button, .error-banner button { align-self: start; padding: .1rem .35rem; color: inherit; background: transparent; }.error-banner p { margin: .35rem 0; }.error-banner small { color: #dcaeba; }
 .centered, .login-shell { display: grid; place-items: center; min-height: 100vh; padding: 1rem; }.login-card { width: min(28rem, 100%); padding: 2rem; border: 1px solid #29455f; border-radius: 1rem; background: #0d2033; box-shadow: 0 30px 80px rgba(0,0,0,.4); }.login-card h1 { margin: .4rem 0; }.login-card > p:not(.eyebrow) { color: #9eb2c4; }
-@media (max-width: 860px) { .metric-grid { grid-template-columns: repeat(2, 1fr); }.action-grid, .product-grid { grid-template-columns: 1fr; }.action-card p { min-height: 0; } }
+@media (max-width: 860px) { .metric-grid { grid-template-columns: repeat(2, 1fr); }.action-grid, .product-grid, .monitor-grid { grid-template-columns: 1fr; }.action-card p { min-height: 0; } }
 @media (max-width: 520px) { .metric-grid { grid-template-columns: 1fr; }.section-heading { align-items: start; flex-direction: column; } main { width: min(100% - 1rem, 1180px); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }

@@ -6,10 +6,10 @@ Authoritative versioned evidence and no-AI operator runbook. Evidence proves onl
 
 | Version | Source/CI | Installed bundle/MSI | VM deployment | Physical laptop | Decision |
 |---|---|---|---|---|---|
-| `2.0.0-alpha.1` / `codex/v2-rewrite` | Local source gates verified 2026-07-13: v1 405/405 including 3 aria2 integrations, v2 29/29, 0 skipped; 92.40% line/81.57% branch global coverage; critical modules meet 90% line/85% branch; typecheck, lint, zero-cycle, OpenAPI, build and Chromium E2E 1/1 passed. Full Windows CI pending remote run | Package staging, pinned WinSW execution, manifest/WiX generation and production dependency audit (0 vulnerabilities) verified; local MSI compile/install unavailable because .NET/WiX is absent | Not run | Not run | Development alpha; not releasable |
+| `2.0.0-alpha.1` / `codex/v2-rewrite` | Local gates verified 2026-07-13: v1 405/405 including 3 real aria2 integrations; v2 40/40; 0 skipped. Global coverage 93.48% line/85.44% branch; critical contracts/coordinator/persistence/migration/IPC 99.28%/92.23%. Typecheck, lint, zero-cycle, docs/diagram/OpenAPI drift, PowerShell parse, build and Chromium E2E 2/2 passed. Production audit: 0 vulnerabilities and no outdated package. Pinned Gitleaks scanned 371 commits plus working tree with 0 findings. Remote CI intentionally not run | Self-signed MSI compiled with 0 warnings/errors; Authenticode and exported CER valid. Administrative extraction matched all 6,649 manifest files; all 66 EXE/DLL/PS1 payloads had valid signatures. Embedded SBOM identifies `2.0.0-alpha.1`; Node/WinSW licenses are present. Extracted Node 24.15.0 Agent/Web passed health, login, profile read and SQLite creation. Backup/restore/fail-closed probe/commit passed. Current shell is not elevated, so actual per-machine service install/repair/uninstall and installed service-SID access proof remain unrecorded | Not run | Not run | Local source/product core passes; external release acceptance remains open |
 | `v0.6.7` / `08be089` | Frozen Git restore point created 2026-07-13 | No new installed-bundle acceptance recorded for this exact commit in this document | Earlier-version evidence below | Earlier-version evidence below | Stable v1 source line; historical deployment evidence must not be relabelled as v0.6.7 acceptance |
 
-v2 release requires domain-specific contracts and complete UI parity, signed MSI fresh install/repair/upgrade rollback/uninstall, v1 migration, Software Test VM, one client, two consecutive four-VM rounds, physical-laptop PXE, torrent, Offline ISO, diagnostics/evidence export, loopback management and HTTPS LAN opt-in. Skipped tests are not accepted.
+Remaining v2 release acceptance requires elevated signed-MSI fresh install/repair/upgrade rollback/uninstall, installed v1 migration, Software Test VM, one client, two consecutive four-VM rounds, physical-laptop PXE, torrent, Offline ISO, diagnostics/evidence export, loopback management and HTTPS LAN opt-in. Current self-signed certificates are for approved internal test hosts; public/organization certificates are a later release input. Skipped tests are not accepted.
 
 ## Historical v1 evidence
 
@@ -105,7 +105,7 @@ Setup installs Node.js LTS if missing, installs the host management bundle to `C
 Open `http://127.0.0.1:8080` and run **Guided Setup** (Initialization Wizard):
 
 1. **Project root** — confirm `C:\OSDCloud` (or choose a different root)
-2. **Deployment secrets** — set `windowsUsername`, `windowsPassword`, `pxeinstallPassword` via Web form; written to ignored `config\osdcloud-secrets.json`
+2. **Deployment secrets** — set `windowsUsername`, `windowsPassword`, `pxeinstallPassword` via Web form. v1 writes the ignored `config\osdcloud-secrets.json`; v2 stores DPAPI ciphertext in SQLite and creates the privileged compatibility file only for the locked action, then scrubs it
 3. **Prepare runtime** — downloads and verifies all `config\runtime-artifacts.json` entries, builds WinPE `boot.wim`, stages the Secure Boot TFTP tree (`PXE-TFTP\bootmgfw.efi`, `Boot\BCD`, `Boot\boot.sdi`, `Boot\Fonts`, `sources\boot.wim` hardlink)
 4. **Select endpoint** — choose service NIC (e.g., `LAN 192.168.88.1/24`); syncs `boot.ipxe`, WinPE endpoint, SMB firewall, and publishes `boot.wim`
 5. **OS Image Cache** — download or import Windows ISO/ESD; select DISM index; export deployable WIM

@@ -1,6 +1,6 @@
 {
   "name": "winception",
-  "version": "0.6.7",
+  "version": "2.0.0-alpha.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,10 +24,11 @@
     "v2:check": "npm run v2:typecheck && npm run v2:lint && npm run v2:cycles && npm run v2:docs:check && npm run v2:diagrams:check",
     "v2:test": "node --import tsx --test \"apps/**/*.test.ts\" \"packages/**/*.test.ts\"",
     "v2:test:coverage": "node --experimental-test-coverage --test-coverage-lines=80 --test-coverage-branches=70 --import tsx --test \"apps/**/*.test.ts\" \"packages/**/*.test.ts\"",
-    "v2:test:critical-coverage": "c8 --all --per-file --check-coverage --lines 90 --branches 85 --include packages/contracts/src/index.ts --include packages/application/src/operationCoordinator.ts --include packages/infrastructure/src/database.ts --include packages/infrastructure/src/v1Importer.ts --include packages/infrastructure/src/ipc.ts node --import tsx --test \"apps/**/*.test.ts\" \"packages/**/*.test.ts\"",
+    "v2:test:critical-coverage": "c8 --all --per-file --check-coverage --lines 90 --branches 85 --include packages/contracts/src/index.ts --include packages/application/src/operationCoordinator.ts --include packages/infrastructure/src/database.ts --include packages/infrastructure/src/deploymentSecrets.ts --include packages/infrastructure/src/evidence.ts --include packages/infrastructure/src/productState.ts --include packages/infrastructure/src/v1Importer.ts --include packages/infrastructure/src/ipc.ts node --import tsx --test \"apps/**/*.test.ts\" \"packages/**/*.test.ts\"",
     "v2:e2e": "playwright test",
     "v2:openapi:write": "tsx scripts/v2/openapi.ts --write",
     "v2:openapi:check": "tsx scripts/v2/openapi.ts --check",
+    "v2:secrets": "powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/v2/Test-Secrets.ps1",
     "v2:build:node": "tsc -p tsconfig.node.json",
     "v2:build:web": "vite build --config apps/web/vite.config.ts",
     "v2:build": "npm run v2:check && npm run v2:build:node && npm run v2:build:web",

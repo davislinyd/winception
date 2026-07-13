@@ -1,9 +1,12 @@
 [CmdletBinding()]
 param([string]$Root = '')
 $ErrorActionPreference = 'Stop'
-if ([string]::IsNullOrWhiteSpace($Root)) { $Root = Join-Path $PSScriptRoot '..\..' }
+$excludeBuildOutputs = [string]::IsNullOrWhiteSpace($Root)
+if ($excludeBuildOutputs) { $Root = Join-Path $PSScriptRoot '..\..' }
 $errors = [Collections.Generic.List[object]]::new()
-foreach ($file in Get-ChildItem -LiteralPath $Root -Recurse -File -Filter *.ps1 | Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' }) {
+foreach ($file in Get-ChildItem -LiteralPath $Root -Recurse -File -Filter *.ps1 | Where-Object {
+  $_.FullName -notmatch '[\\/]node_modules[\\/]' -and (-not $excludeBuildOutputs -or $_.FullName -notmatch '[\\/](?:\.v2-stage|\.v2-cache|\.tmp-v2[^\\/]*|test-results|installer[\\/]output|installer[\\/]wix[\\/]obj)[\\/]')
+}) {
   $tokens = $null
   $parseErrors = $null
   $source = Get-Content -LiteralPath $file.FullName -Raw -Encoding utf8

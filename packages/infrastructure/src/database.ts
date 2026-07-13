@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { OperationRecord } from '../../contracts/src/index.js';
 import type { OperationRepository } from '../../domain/src/ports.js';
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 export interface DatabaseOptions {
   migrationFailpoint?: (version: number) => void;
@@ -68,7 +68,7 @@ export class WinceptionDatabase implements OperationRepository {
     return row ? JSON.parse(row.value_json) as T : undefined;
   }
 
-  saveDocument(table: 'profiles' | 'software_packages' | 'custom_scripts', id: string, document: unknown): void {
+  saveDocument(table: 'profiles' | 'software_packages' | 'custom_scripts' | 'os_images', id: string, document: unknown): void {
     this.#database.prepare(`
       INSERT INTO ${table} (id, document_json, updated_at)
       VALUES (?, ?, ?)
@@ -76,9 +76,75 @@ export class WinceptionDatabase implements OperationRepository {
     `).run(id, JSON.stringify(document), new Date().toISOString());
   }
 
-  listDocuments<T>(table: 'profiles' | 'software_packages' | 'custom_scripts'): Array<{ id: string; document: T }> {
+  listDocuments<T>(table: 'profiles' | 'software_packages' | 'custom_scripts' | 'os_images'): Array<{ id: string; document: T }> {
     const rows = this.#database.prepare(`SELECT id, document_json FROM ${table} ORDER BY id`).all() as Array<{ id: string; document_json: string }>;
     return rows.map((row) => ({ id: row.id, document: JSON.parse(row.document_json) as T }));
+  }
+
+  replaceDocuments(table: 'profiles' | 'software_packages' | 'custom_scripts' | 'os_images', documents: ReadonlyArray<{ id: string; document: unknown }>): void {
+    this.transaction(() => {
+      this.#replaceDocuments(table, documents);
+    });
+  }
+
+  replaceProductState(input: {
+    config: unknown;
+    profiles: ReadonlyArray<{ id: string; document: unknown }>;
+    softwarePackages: ReadonlyArray<{ id: string; document: unknown }>;
+    customScripts: ReadonlyArray<{ id: string; document: unknown }>;
+    osImages: ReadonlyArray<{ id: string; document: unknown }>;
+  }): void {
+    this.transaction(() => {
+      this.setSetting('product.config', input.config);
+      this.#replaceDocuments('profiles', input.profiles);
+      this.#replaceDocuments('software_packages', input.softwarePackages);
+      this.#replaceDocuments('custom_scripts', input.customScripts);
+      this.#replaceDocuments('os_images', input.osImages);
+      this.setSetting('product.updatedAt', new Date().toISOString());
+    });
+  }
+
+  saveDeploymentRun(input: { id: string; state: string; summary: unknown; startedAt: string; finishedAt?: string | null }): void {
+    this.#database.prepare(`
+      INSERT INTO deployment_runs (id, state, summary_json, started_at, finished_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET state = excluded.state, summary_json = excluded.summary_json,
+        started_at = excluded.started_at, finished_at = excluded.finished_at
+    `).run(input.id, input.state, JSON.stringify(input.summary), input.startedAt, input.finishedAt ?? null);
+  }
+
+  saveEvidence(input: { id: string; runId?: string | null; kind: string; relativePath: string; sha256: string; sizeBytes: number; retainedUntil?: string | null; createdAt: string }): void {
+    this.#database.prepare(`
+      INSERT INTO evidence_index (id, run_id, kind, relative_path, sha256, size_bytes, retained_until, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET run_id = excluded.run_id, kind = excluded.kind,
+        relative_path = excluded.relative_path, sha256 = excluded.sha256, size_bytes = excluded.size_bytes,
+        retained_until = excluded.retained_until, created_at = excluded.created_at
+    `).run(input.id, input.runId ?? null, input.kind, input.relativePath, input.sha256, input.sizeBytes, input.retainedUntil ?? null, input.createdAt);
+  }
+
+  replaceEvidence(entries: ReadonlyArray<{ id: string; runId?: string | null; kind: string; relativePath: string; sha256: string; sizeBytes: number; retainedUntil?: string | null; createdAt: string }>): void {
+    this.transaction(() => {
+      this.#database.prepare('DELETE FROM evidence_index').run();
+      for (const entry of entries) this.saveEvidence(entry);
+    });
+  }
+
+  replaceEvidenceCatalog(input: {
+    runs: ReadonlyArray<{ id: string; state: string; summary: unknown; startedAt: string; finishedAt?: string | null }>;
+    entries: ReadonlyArray<{ id: string; runId?: string | null; kind: string; relativePath: string; sha256: string; sizeBytes: number; retainedUntil?: string | null; createdAt: string }>;
+  }): void {
+    this.transaction(() => {
+      this.#database.prepare('DELETE FROM evidence_index').run();
+      this.#database.prepare('DELETE FROM deployment_runs').run();
+      for (const run of input.runs) this.saveDeploymentRun(run);
+      for (const entry of input.entries) this.saveEvidence(entry);
+    });
+  }
+
+  evidenceCount(): number {
+    const row = this.#database.prepare('SELECT COUNT(*) AS count FROM evidence_index').get() as { count: number };
+    return row.count;
   }
 
   setProtectedSecret(name: string, ciphertext: string): void {
@@ -211,6 +277,24 @@ export class WinceptionDatabase implements OperationRepository {
         this.#database.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)').run(new Date().toISOString());
       });
     }
+    if (current < 2) {
+      this.transaction(() => {
+        this.#database.exec(`
+          CREATE TABLE os_images (
+            id TEXT PRIMARY KEY,
+            document_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+        `);
+        options.migrationFailpoint?.(2);
+        this.#database.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (2, ?)').run(new Date().toISOString());
+      });
+    }
+  }
+
+  #replaceDocuments(table: 'profiles' | 'software_packages' | 'custom_scripts' | 'os_images', documents: ReadonlyArray<{ id: string; document: unknown }>): void {
+    this.#database.prepare(`DELETE FROM ${table}`).run();
+    for (const item of documents) this.saveDocument(table, item.id, item.document);
   }
 }
 

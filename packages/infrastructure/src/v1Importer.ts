@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import type { SecretProtector } from '../../domain/src/ports.js';
 import { ValidationError } from '../../domain/src/errors.js';
@@ -14,6 +14,7 @@ export interface V1ImportOptions {
   backupRoot: string;
   database: WinceptionDatabase;
   secretProtector: SecretProtector;
+  targetAssetRoot?: string;
   dryRun?: boolean;
 }
 
@@ -26,6 +27,8 @@ export interface V1ImportReport {
     softwarePackages: number;
     customScripts: number;
     protectedSecrets: number;
+    softwareFiles: number;
+    customScriptFiles: number;
   };
   evidenceArchive: string | null;
   warnings: string[];
@@ -52,15 +55,17 @@ export async function importV1State(options: V1ImportOptions): Promise<V1ImportR
     baseConfig: join(appRoot, 'config', 'osdcloud-console.json'),
     localConfig: join(stateRoot, 'config', 'osdcloud-console.local.json'),
     secrets: join(stateRoot, 'config', 'osdcloud-secrets.json'),
-    profiles: join(stateRoot, 'config', 'deployment-profiles'),
-    software: join(stateRoot, 'config', 'software-catalog.json'),
-    scripts: join(stateRoot, 'config', 'scripts-catalog.json'),
+    profiles: preferPath(join(stateRoot, 'config', 'deployment-profiles'), join(appRoot, 'config', 'deployment-profiles')),
+    software: preferPath(join(stateRoot, 'config', 'software-catalog.json'), join(appRoot, 'config', 'software-catalog.json')),
+    scripts: preferPath(join(stateRoot, 'config', 'scripts-catalog.json'), join(appRoot, 'config', 'scripts-catalog.json')),
     evidence: join(stateRoot, 'status'),
   };
   if (!existsSync(paths.baseConfig)) throw new ValidationError('The v1 base configuration was not found.');
 
   const sourceFiles = collectSourceFiles(paths);
-  const fingerprint = fingerprintFiles(sourceFiles);
+  const softwareFiles = collectTreeFiles(join(appRoot, 'Softwares'));
+  const customScriptFiles = collectTreeFiles(join(appRoot, 'Scripts'));
+  const fingerprint = fingerprintFiles([...sourceFiles, ...softwareFiles, ...customScriptFiles]);
   const previous = options.database.getSetting<{ fingerprint: string }>('migration.v1');
   if (previous?.fingerprint === fingerprint) {
     return emptyReport('already-imported', fingerprint, existsSync(paths.evidence) ? relative(stateRoot, paths.evidence) : null);
@@ -89,6 +94,8 @@ export async function importV1State(options: V1ImportOptions): Promise<V1ImportR
       softwarePackages: software.length,
       customScripts: scripts.length,
       protectedSecrets: protectedSecrets.size,
+      softwareFiles: softwareFiles.length,
+      customScriptFiles: customScriptFiles.length,
     },
     evidenceArchive: existsSync(paths.evidence) ? relative(stateRoot, paths.evidence) : null,
     warnings: protectedSecrets.size === SECRET_KEYS.length ? [] : ['One or more v1 deployment secrets were absent and must be entered after migration.'],
@@ -96,16 +103,23 @@ export async function importV1State(options: V1ImportOptions): Promise<V1ImportR
   if (options.dryRun) return report;
 
   backupCoreFiles(sourceFiles, stateRoot, backupRoot, fingerprint);
-  options.database.transaction(() => {
-    options.database.setSetting('legacy.config', mergedConfig);
-    options.database.setSetting('legacy.evidenceArchive', report.evidenceArchive);
-    options.database.setSetting('runtime.rebuildRequired', true);
-    for (const document of profiles) options.database.saveDocument('profiles', document.id, document.value);
-    for (const document of software) options.database.saveDocument('software_packages', document.id, document.value);
-    for (const document of scripts) options.database.saveDocument('custom_scripts', document.id, document.value);
-    for (const [name, ciphertext] of protectedSecrets) options.database.setProtectedSecret(name, ciphertext);
-    options.database.setSetting('migration.v1', { fingerprint, importedAt: new Date().toISOString() });
-  });
+  const movedAssets = stageAssets(options.targetAssetRoot, appRoot, fingerprint);
+  try {
+    options.database.transaction(() => {
+      options.database.setSetting('legacy.config', mergedConfig);
+      options.database.setSetting('legacy.evidenceArchive', report.evidenceArchive);
+      options.database.setSetting('runtime.rebuildRequired', true);
+      for (const document of profiles) options.database.saveDocument('profiles', document.id, document.value);
+      for (const document of software) options.database.saveDocument('software_packages', document.id, document.value);
+      for (const document of scripts) options.database.saveDocument('custom_scripts', document.id, document.value);
+      for (const [name, ciphertext] of protectedSecrets) options.database.setProtectedSecret(name, ciphertext);
+      options.database.setSetting('migration.v1', { fingerprint, importedAt: new Date().toISOString() });
+    });
+  }
+  catch (error) {
+    for (const path of movedAssets) rmSync(path, { recursive: true, force: true });
+    throw error;
+  }
   writeJsonAtomic(join(backupRoot, fingerprint, 'migration-report.json'), report);
   return report;
 }
@@ -118,6 +132,14 @@ function collectSourceFiles(paths: V1SourcePaths): string[] {
       .map((name) => join(paths.profiles, name)));
   }
   return files.sort();
+}
+
+function collectTreeFiles(root: string): string[] {
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name))
+    .sort();
 }
 
 function fingerprintFiles(files: readonly string[]): string {
@@ -191,6 +213,41 @@ function assertDistinctRoots(appRoot: string, stateRoot: string, backupRoot: str
   if (isInside(appRoot, backupRoot) || backupRoot === appRoot) throw new ValidationError('The migration backup must not be stored in the v1 App root.');
 }
 
+function stageAssets(targetAssetRoot: string | undefined, appRoot: string, fingerprint: string): string[] {
+  if (!targetAssetRoot) return [];
+  const target = resolve(targetAssetRoot);
+  const stage = join(target, `.v1-import-${fingerprint}`);
+  if (existsSync(stage)) rmSync(stage, { recursive: true, force: true });
+  const names = ['Softwares', 'Scripts'] as const;
+  mkdirSync(stage, { recursive: true });
+  for (const name of names) {
+    const source = join(appRoot, name);
+    if (existsSync(source)) cpSync(source, join(stage, name), { recursive: true, errorOnExist: true, force: false });
+  }
+  const moved: string[] = [];
+  try {
+    for (const name of names) {
+      const source = join(stage, name);
+      if (!existsSync(source)) continue;
+      const destination = join(target, name);
+      if (existsSync(destination)) throw new ValidationError(`The v2 ${name} payload directory already exists.`, 'Use a fresh v2 State root or restore its pre-migration backup.');
+      mkdirSync(target, { recursive: true });
+      renameSync(source, destination);
+      moved.push(destination);
+    }
+    return moved;
+  }
+  catch (error) {
+    for (const path of moved) rmSync(path, { recursive: true, force: true });
+    throw error;
+  }
+  finally { rmSync(stage, { recursive: true, force: true }); }
+}
+
+function preferPath(primary: string, fallback: string): string {
+  return existsSync(primary) ? primary : fallback;
+}
+
 function isInside(root: string, candidate: string): boolean {
   const value = relative(root, candidate);
   return value !== '' && !value.startsWith(`..${sep}`) && value !== '..';
@@ -200,7 +257,7 @@ function emptyReport(status: V1ImportReport['status'], fingerprint: string, evid
   return {
     status,
     fingerprint,
-    imported: { settings: 0, profiles: 0, softwarePackages: 0, customScripts: 0, protectedSecrets: 0 },
+    imported: { settings: 0, profiles: 0, softwarePackages: 0, customScripts: 0, protectedSecrets: 0, softwareFiles: 0, customScriptFiles: 0 },
     evidenceArchive,
     warnings: [],
   };

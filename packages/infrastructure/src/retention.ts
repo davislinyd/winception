@@ -12,19 +12,22 @@ export interface RetentionResult {
   removed: number;
   removedBytes: number;
   remainingBytes: number;
+  protectedFiles: number;
+  quotaSatisfied: boolean;
 }
 
-interface Candidate { path: string; size: number; mtimeMs: number }
+interface Candidate { path: string; relativePath: string; size: number; mtimeMs: number; protected: boolean }
 
-export function enforceRetention(rootPath: string, policy: RetentionPolicy, now = Date.now()): RetentionResult {
+export function enforceRetention(rootPath: string, policy: RetentionPolicy, now = Date.now(), options: { protect?: (relativePath: string) => boolean } = {}): RetentionResult {
   validatePolicy(policy);
   const root = resolve(rootPath);
-  const files = collectFiles(root).sort((left, right) => left.mtimeMs - right.mtimeMs || left.path.localeCompare(right.path));
+  const files = collectFiles(root, options.protect).sort((left, right) => left.mtimeMs - right.mtimeMs || left.path.localeCompare(right.path));
   let totalBytes = files.reduce((sum, file) => sum + file.size, 0);
   let remainingFiles = files.length;
   let removed = 0;
   let removedBytes = 0;
   for (const file of files) {
+    if (file.protected) continue;
     const expired = now - file.mtimeMs > policy.maxAgeMs;
     const overQuota = remainingFiles > policy.maxFiles || totalBytes > policy.maxTotalBytes;
     if (!expired && !overQuota) continue;
@@ -34,10 +37,17 @@ export function enforceRetention(rootPath: string, policy: RetentionPolicy, now 
     removed += 1;
     removedBytes += file.size;
   }
-  return { scanned: files.length, removed, removedBytes, remainingBytes: totalBytes };
+  return {
+    scanned: files.length,
+    removed,
+    removedBytes,
+    remainingBytes: totalBytes,
+    protectedFiles: files.filter((file) => file.protected).length,
+    quotaSatisfied: remainingFiles <= policy.maxFiles && totalBytes <= policy.maxTotalBytes,
+  };
 }
 
-function collectFiles(root: string): Candidate[] {
+function collectFiles(root: string, protect: ((relativePath: string) => boolean) | undefined): Candidate[] {
   const candidates: Candidate[] = [];
   for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile()) continue;
@@ -45,7 +55,8 @@ function collectFiles(root: string): Candidate[] {
     if (!isInside(root, path)) throw new Error('Retention candidate escaped the configured root.');
     const stats = lstatSync(path);
     if (stats.isSymbolicLink() || !stats.isFile()) continue;
-    candidates.push({ path, size: stats.size, mtimeMs: stats.mtimeMs });
+    const relativePath = relative(root, path);
+    candidates.push({ path, relativePath, size: stats.size, mtimeMs: stats.mtimeMs, protected: protect?.(relativePath) === true });
   }
   return candidates;
 }

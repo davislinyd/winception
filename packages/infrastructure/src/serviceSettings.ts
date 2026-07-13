@@ -12,7 +12,7 @@ export interface ServiceSettings {
   managementPort: number;
   managementToken: string;
   agentToken: string;
-  tls?: { pfxPath: string; pfxPassword: string; thumbprint: string; notAfter: string };
+  tls?: { pfxPath: string; pfxPassword: string; thumbprint: string; notAfter: string; selfSigned?: boolean };
 }
 
 interface StoredServiceSettings {
@@ -25,7 +25,7 @@ interface StoredServiceSettings {
   managementPort: number;
   managementTokenProtected: string;
   agentTokenProtected: string;
-  tls?: { pfxPath: string; pfxPasswordProtected: string; thumbprint: string; notAfter: string };
+  tls?: { pfxPath: string; pfxPasswordProtected: string; thumbprint: string; notAfter: string; selfSigned?: boolean };
 }
 
 export async function loadServiceSettings(settingsPath?: string): Promise<ServiceSettings> {
@@ -52,6 +52,7 @@ export async function loadServiceSettings(settingsPath?: string): Promise<Servic
     settings.tls = {
       pfxPath: resolve(stored.tls.pfxPath), thumbprint: stored.tls.thumbprint, notAfter: stored.tls.notAfter,
       pfxPassword: await protector.unprotect('tls-pfx-password', stored.tls.pfxPasswordProtected),
+      ...(stored.tls.selfSigned === true ? { selfSigned: true } : {}),
     };
   }
   return settings;

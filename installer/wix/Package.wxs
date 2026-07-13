@@ -1,5 +1,5 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Winception" Manufacturer="Winception" Version="2.0.0" UpgradeCode="A72C07E4-3F62-4A7B-88D3-C66F594115B4" Scope="perMachine">
+  <Package Name="Winception" Manufacturer="Winception" Version="$(var.ProductVersion)" UpgradeCode="A72C07E4-3F62-4A7B-88D3-C66F594115B4" Scope="perMachine">
     <MajorUpgrade DowngradeErrorMessage="A newer version of Winception is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
@@ -14,11 +14,16 @@
       <ComponentRef Id="NodeRuntimeComponent" />
       <ComponentRef Id="AgentServiceComponent" />
       <ComponentRef Id="WebServiceComponent" />
+      <ComponentRef Id="PackageManifestComponent" />
       <ComponentGroupRef Id="AppPayload" />
     </Feature>
 
     <Component Id="NodeRuntimeComponent" Directory="NODEFOLDER" Guid="*" Bitness="always64">
       <File Id="NodeRuntime" Source="$(var.StageRoot)\node\node.exe" Name="node.exe" KeyPath="yes" />
+    </Component>
+
+    <Component Id="PackageManifestComponent" Directory="INSTALLFOLDER" Guid="*" Bitness="always64">
+      <File Id="PackageManifest" Source="$(var.StageRoot)\package-manifest.json" Name="package-manifest.json" KeyPath="yes" />
     </Component>
 
     <Component Id="AgentServiceComponent" Directory="NODEFOLDER" Guid="*" Bitness="always64">
@@ -31,11 +36,14 @@
     <Component Id="WebServiceComponent" Directory="NODEFOLDER" Guid="*" Bitness="always64">
       <File Id="WebWrapper" Source="$(var.StageRoot)\node\Winception.Web.exe" Name="Winception.Web.exe" KeyPath="yes" />
       <File Id="WebWrapperConfig" Source="$(var.StageRoot)\node\Winception.Web.xml" Name="Winception.Web.xml" />
-      <ServiceInstall Id="WebService" Name="Winception.Web" DisplayName="Winception Web" Description="Hosts the low-privilege Winception management interface." Account="NT AUTHORITY\LocalService" Start="auto" Type="ownProcess" ErrorControl="normal" Dependencies="Winception.Agent" />
+      <ServiceInstall Id="WebService" Name="Winception.Web" DisplayName="Winception Web" Description="Hosts the low-privilege Winception management interface." Account="NT AUTHORITY\LocalService" Start="auto" Type="ownProcess" ErrorControl="normal">
+        <ServiceDependency Id="Winception.Agent" />
+      </ServiceInstall>
       <ServiceControl Id="WebServiceControl" Name="Winception.Web" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
     </Component>
 
     <CustomAction Id="ProvisionServiceSettings" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Initialize-WinceptionServices.ps1&quot; -AppRoot &quot;[APPFOLDER]&quot;" />
+    <CustomAction Id="ConfigureWebServiceSid" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="sc.exe sidtype &quot;Winception.Web&quot; unrestricted" />
     <CustomAction Id="RollbackDatabase" Directory="System64Folder" Execute="rollback" Impersonate="no" Return="ignore" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Restore" />
     <CustomAction Id="BackupDatabase" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Backup" />
     <CustomAction Id="ProbeWebHealth" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Probe" />
@@ -44,6 +52,7 @@
       <Custom Action="RollbackDatabase" After="InstallFiles" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="BackupDatabase" After="RollbackDatabase" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="ProvisionServiceSettings" After="BackupDatabase" Condition="NOT Installed" />
+      <Custom Action="ConfigureWebServiceSid" After="InstallServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="ProbeWebHealth" After="StartServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="CommitDatabase" After="ProbeWebHealth" Condition="NOT REMOVE~=&quot;ALL&quot;" />
     </InstallExecuteSequence>

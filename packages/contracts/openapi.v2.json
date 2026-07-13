@@ -657,35 +657,122 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
-                          "type": "string"
-                        },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "boolean"
-                        },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "label",
+                          "resources",
+                          "status",
+                          "startedAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "label": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "resources": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "config"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "deployment-ingress"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "runtime"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "os-cache"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "profile-payload"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "software-test-vm"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "evidence"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "runtime-control"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "running"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "succeeded"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "failed"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "aborted"
+                                ]
+                              }
+                            ]
+                          },
+                          "startedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "finishedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "errorCode": {
+                            "type": "string"
                           }
                         }
-                      ],
-                      "title": "T0"
+                      }
                     }
                   }
                 }
@@ -711,36 +798,17 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    }
-                  ]
+                "properties": {
+                  "selectedRunId": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "includeEvidence": {
+                    "type": "boolean"
+                  }
                 }
               }
             }
@@ -752,6 +820,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -765,34 +834,37 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "generatedAt",
+                        "app",
+                        "config",
+                        "services",
+                        "fleet"
+                      ],
+                      "properties": {
+                        "generatedAt": {
+                          "format": "date-time",
                           "type": "string"
                         },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "boolean"
-                        },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
+                        "app": {
                           "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
+                          "additionalProperties": {}
+                        },
+                        "config": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "services": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "fleet": {
+                          "type": "object",
+                          "additionalProperties": {}
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -1254,6 +1326,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -1267,34 +1340,54 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
-                          "type": "string"
-                        },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "boolean"
-                        },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "interfaceAlias",
+                          "interfaceIndex",
+                          "interfaceDescription",
+                          "status",
+                          "macAddress",
+                          "linkSpeed",
+                          "ipAddress",
+                          "prefixLength",
+                          "gateway"
+                        ],
+                        "properties": {
+                          "interfaceAlias": {
+                            "type": "string"
+                          },
+                          "interfaceIndex": {
+                            "type": "integer"
+                          },
+                          "interfaceDescription": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "macAddress": {
+                            "type": "string"
+                          },
+                          "linkSpeed": {
+                            "type": "string"
+                          },
+                          "ipAddress": {
+                            "format": "ipv4",
+                            "type": "string"
+                          },
+                          "prefixLength": {
+                            "minimum": 0,
+                            "maximum": 32,
+                            "type": "integer"
+                          },
+                          "gateway": {
+                            "type": "string"
                           }
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -1756,6 +1849,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -1769,34 +1863,37 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
-                          "type": "string"
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "topology",
+                        "ready",
+                        "detail"
+                      ],
+                      "properties": {
+                        "topology": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "shared-lan"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "dual-nic-nat"
+                              ]
+                            }
+                          ]
                         },
-                        {
-                          "type": "number"
-                        },
-                        {
+                        "ready": {
                           "type": "boolean"
                         },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
+                        "detail": {
+                          "type": "string"
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -2258,6 +2355,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -2271,34 +2369,534 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
-                          "type": "string"
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "activeProfile",
+                        "softwareCatalog",
+                        "customScriptCatalog",
+                        "selectedSoftware",
+                        "selectedSoftwareText",
+                        "selectedScripts",
+                        "profiles"
+                      ],
+                      "properties": {
+                        "activeProfile": {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name",
+                            "description",
+                            "softwareIds",
+                            "execution",
+                            "installSequence",
+                            "osImageId"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "softwareIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "execution": {
+                              "type": "object",
+                              "required": [
+                                "defaultTimeoutSeconds"
+                              ],
+                              "properties": {
+                                "defaultTimeoutSeconds": {
+                                  "type": "integer"
+                                }
+                              }
+                            },
+                            "installSequence": {
+                              "type": "array",
+                              "items": {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "type",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "software"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "script"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "id": {
+                                    "minLength": 1,
+                                    "maxLength": 64,
+                                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                                    "type": "string"
+                                  },
+                                  "timeoutSeconds": {
+                                    "minimum": 1,
+                                    "maximum": 86400,
+                                    "type": "integer"
+                                  }
+                                }
+                              }
+                            },
+                            "osImageId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "displayLanguage": {
+                              "type": "string"
+                            },
+                            "locale": {
+                              "type": "string"
+                            },
+                            "inputLanguage": {
+                              "type": "string"
+                            },
+                            "timeZone": {
+                              "type": "string"
+                            }
+                          }
                         },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "boolean"
-                        },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
+                        "softwareCatalog": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/def-0"
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "source",
+                              "sourcePath",
+                              "installScript",
+                              "scriptMode",
+                              "installerType",
+                              "installerFileName",
+                              "silentArgs",
+                              "successExitCodes",
+                              "verifyPath",
+                              "verificationMode",
+                              "installerBytes",
+                              "installerSha256",
+                              "dependsOn",
+                              "network",
+                              "usedByProfiles"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string"
+                              },
+                              "sourcePath": {
+                                "type": "string"
+                              },
+                              "installScript": {
+                                "type": "string"
+                              },
+                              "scriptMode": {
+                                "type": "string"
+                              },
+                              "installerType": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "installerFileName": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "silentArgs": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "successExitCodes": {
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "verifyPath": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "verificationMode": {
+                                "type": "string"
+                              },
+                              "installerBytes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "installerSha256": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "dependsOn": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "network": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "requirement"
+                                    ],
+                                    "properties": {
+                                      "requirement": {
+                                        "type": "string",
+                                        "enum": [
+                                          "offline"
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "requirement",
+                                      "probeHost"
+                                    ],
+                                    "properties": {
+                                      "requirement": {
+                                        "type": "string",
+                                        "enum": [
+                                          "client-internet"
+                                        ]
+                                      },
+                                      "probeHost": {
+                                        "minLength": 1,
+                                        "maxLength": 253,
+                                        "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$",
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "usedByProfiles": {
+                                "type": "array",
+                                "items": {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           }
                         },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
+                        "customScriptCatalog": {
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "source",
+                              "sourcePath",
+                              "scriptFile",
+                              "fileName",
+                              "bytes",
+                              "sha256",
+                              "usedByProfiles"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string"
+                              },
+                              "sourcePath": {
+                                "type": "string"
+                              },
+                              "scriptFile": {
+                                "type": "string"
+                              },
+                              "fileName": {
+                                "type": "string"
+                              },
+                              "bytes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "sha256": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "usedByProfiles": {
+                                "type": "array",
+                                "items": {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "selectedSoftware": {
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "selectedSoftwareText": {
+                          "type": "string"
+                        },
+                        "selectedScripts": {
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "profiles": {
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "description",
+                              "softwareIds",
+                              "execution",
+                              "installSequence",
+                              "osImageId"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "softwareIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "execution": {
+                                "type": "object",
+                                "required": [
+                                  "defaultTimeoutSeconds"
+                                ],
+                                "properties": {
+                                  "defaultTimeoutSeconds": {
+                                    "type": "integer"
+                                  }
+                                }
+                              },
+                              "installSequence": {
+                                "type": "array",
+                                "items": {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "software"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "script"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "id": {
+                                      "minLength": 1,
+                                      "maxLength": 64,
+                                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                                      "type": "string"
+                                    },
+                                    "timeoutSeconds": {
+                                      "minimum": 1,
+                                      "maximum": 86400,
+                                      "type": "integer"
+                                    }
+                                  }
+                                }
+                              },
+                              "osImageId": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "displayLanguage": {
+                                "type": "string"
+                              },
+                              "locale": {
+                                "type": "string"
+                              },
+                              "inputLanguage": {
+                                "type": "string"
+                              },
+                              "timeZone": {
+                                "type": "string"
+                              }
+                            }
                           }
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -2760,6 +3358,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -2773,34 +3372,378 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "activeImage",
+                        "activeImageId",
+                        "activeLabel",
+                        "catalogPath",
+                        "downloadSourcesPath",
+                        "cacheRoot",
+                        "downloadStagingRoot",
+                        "selectedOsPath",
+                        "cacheLogPath",
+                        "selectedOs",
+                        "images",
+                        "cachedFiles"
+                      ],
+                      "properties": {
+                        "activeImage": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "version",
+                                "releaseId",
+                                "build",
+                                "architecture",
+                                "language",
+                                "locale",
+                                "timeZone",
+                                "edition",
+                                "editionId",
+                                "activation",
+                                "imageIndex",
+                                "fileName",
+                                "osFamily",
+                                "size",
+                                "sha256",
+                                "sha1",
+                                "url",
+                                "sourceType",
+                                "sourceFileName",
+                                "sourceContainerType",
+                                "sourceImageIndex",
+                                "sourceSize",
+                                "sourceSha256"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "type": "string"
+                                },
+                                "releaseId": {
+                                  "type": "string"
+                                },
+                                "build": {
+                                  "type": "string"
+                                },
+                                "architecture": {
+                                  "type": "string"
+                                },
+                                "language": {
+                                  "type": "string"
+                                },
+                                "locale": {
+                                  "type": "string"
+                                },
+                                "timeZone": {
+                                  "type": "string"
+                                },
+                                "edition": {
+                                  "type": "string"
+                                },
+                                "editionId": {
+                                  "type": "string"
+                                },
+                                "activation": {
+                                  "type": "string"
+                                },
+                                "imageIndex": {
+                                  "type": "integer"
+                                },
+                                "fileName": {
+                                  "type": "string"
+                                },
+                                "osFamily": {
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "sha256": {
+                                  "type": "string"
+                                },
+                                "sha1": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                },
+                                "sourceType": {
+                                  "type": "string"
+                                },
+                                "sourceFileName": {
+                                  "type": "string"
+                                },
+                                "sourceContainerType": {
+                                  "type": "string"
+                                },
+                                "sourceImageIndex": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "sourceSize": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "sourceSha256": {
+                                  "type": "string"
+                                },
+                                "usedByProfiles": {
+                                  "type": "array",
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "name"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "activeImageId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "activeLabel": {
                           "type": "string"
                         },
-                        {
-                          "type": "number"
+                        "catalogPath": {
+                          "type": "string"
                         },
-                        {
-                          "type": "boolean"
+                        "downloadSourcesPath": {
+                          "type": "string"
                         },
-                        {
-                          "type": "null"
+                        "cacheRoot": {
+                          "type": "string"
                         },
-                        {
-                          "maxItems": 4096,
+                        "downloadStagingRoot": {
+                          "type": "string"
+                        },
+                        "selectedOsPath": {
+                          "type": "string"
+                        },
+                        "cacheLogPath": {
+                          "type": "string"
+                        },
+                        "selectedOs": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": {}
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "images": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/def-0"
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "version",
+                              "releaseId",
+                              "build",
+                              "architecture",
+                              "language",
+                              "locale",
+                              "timeZone",
+                              "edition",
+                              "editionId",
+                              "activation",
+                              "imageIndex",
+                              "fileName",
+                              "osFamily",
+                              "size",
+                              "sha256",
+                              "sha1",
+                              "url",
+                              "sourceType",
+                              "sourceFileName",
+                              "sourceContainerType",
+                              "sourceImageIndex",
+                              "sourceSize",
+                              "sourceSha256"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "string"
+                              },
+                              "releaseId": {
+                                "type": "string"
+                              },
+                              "build": {
+                                "type": "string"
+                              },
+                              "architecture": {
+                                "type": "string"
+                              },
+                              "language": {
+                                "type": "string"
+                              },
+                              "locale": {
+                                "type": "string"
+                              },
+                              "timeZone": {
+                                "type": "string"
+                              },
+                              "edition": {
+                                "type": "string"
+                              },
+                              "editionId": {
+                                "type": "string"
+                              },
+                              "activation": {
+                                "type": "string"
+                              },
+                              "imageIndex": {
+                                "type": "integer"
+                              },
+                              "fileName": {
+                                "type": "string"
+                              },
+                              "osFamily": {
+                                "type": "string"
+                              },
+                              "size": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "sha256": {
+                                "type": "string"
+                              },
+                              "sha1": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "sourceType": {
+                                "type": "string"
+                              },
+                              "sourceFileName": {
+                                "type": "string"
+                              },
+                              "sourceContainerType": {
+                                "type": "string"
+                              },
+                              "sourceImageIndex": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "sourceSize": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "sourceSha256": {
+                                "type": "string"
+                              },
+                              "usedByProfiles": {
+                                "type": "array",
+                                "items": {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           }
                         },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
+                        "cachedFiles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
                           }
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -3261,36 +4204,71 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
+                "properties": {
+                  "osFamily": {
+                    "maxItems": 16,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 1,
+                      "maxLength": 32,
                       "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
                     }
-                  ]
+                  },
+                  "edition": {
+                    "maxItems": 32,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "type": "string"
+                    }
+                  },
+                  "activation": {
+                    "maxItems": 1,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "Retail"
+                      ]
+                    }
+                  },
+                  "language": {
+                    "maxItems": 64,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 32,
+                      "type": "string"
+                    }
+                  },
+                  "releaseId": {
+                    "maxItems": 64,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 2,
+                      "maxLength": 32,
+                      "type": "string"
+                    }
+                  },
+                  "sourceType": {
+                    "maxItems": 1,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "official"
+                      ]
+                    }
+                  }
                 }
               }
             }
@@ -3302,6 +4280,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -3315,34 +4294,155 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
-                          "type": "string"
-                        },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "boolean"
-                        },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "version",
+                          "releaseId",
+                          "build",
+                          "architecture",
+                          "language",
+                          "locale",
+                          "timeZone",
+                          "edition",
+                          "editionId",
+                          "activation",
+                          "imageIndex",
+                          "fileName",
+                          "osFamily",
+                          "size",
+                          "sha256",
+                          "sha1",
+                          "url",
+                          "sourceType",
+                          "sourceFileName",
+                          "sourceContainerType",
+                          "sourceImageIndex",
+                          "sourceSize",
+                          "sourceSha256"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "releaseId": {
+                            "type": "string"
+                          },
+                          "build": {
+                            "type": "string"
+                          },
+                          "architecture": {
+                            "type": "string"
+                          },
+                          "language": {
+                            "type": "string"
+                          },
+                          "locale": {
+                            "type": "string"
+                          },
+                          "timeZone": {
+                            "type": "string"
+                          },
+                          "edition": {
+                            "type": "string"
+                          },
+                          "editionId": {
+                            "type": "string"
+                          },
+                          "activation": {
+                            "type": "string"
+                          },
+                          "imageIndex": {
+                            "type": "integer"
+                          },
+                          "fileName": {
+                            "type": "string"
+                          },
+                          "osFamily": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sha256": {
+                            "type": "string"
+                          },
+                          "sha1": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "sourceType": {
+                            "type": "string"
+                          },
+                          "sourceFileName": {
+                            "type": "string"
+                          },
+                          "sourceContainerType": {
+                            "type": "string"
+                          },
+                          "sourceImageIndex": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sourceSize": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sourceSha256": {
+                            "type": "string"
+                          },
+                          "usedByProfiles": {
+                            "type": "array",
+                            "items": {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              }
+                            }
                           }
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -3804,6 +4904,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -3819,29 +4920,19 @@
                     "result": {
                       "anyOf": [
                         {
-                          "maxLength": 32768,
-                          "type": "string"
-                        },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "boolean"
-                        },
-                        {
                           "type": "null"
                         },
                         {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
+                          "additionalProperties": true,
                           "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
+                          "required": [
+                            "generatedAt"
+                          ],
+                          "properties": {
+                            "generatedAt": {
+                              "format": "date-time",
+                              "type": "string"
+                            }
                           }
                         }
                       ]
@@ -4318,6 +5409,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -4331,34 +5423,27 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "filePath",
+                        "content"
+                      ],
+                      "properties": {
+                        "softwareId": {
                           "type": "string"
                         },
-                        {
-                          "type": "number"
+                        "scriptId": {
+                          "type": "string"
                         },
-                        {
-                          "type": "boolean"
+                        "filePath": {
+                          "type": "string"
                         },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
+                        "content": {
+                          "maxLength": 1048576,
+                          "type": "string"
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -4832,6 +5917,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -4845,34 +5931,27 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "filePath",
+                        "content"
+                      ],
+                      "properties": {
+                        "softwareId": {
                           "type": "string"
                         },
-                        {
-                          "type": "number"
+                        "scriptId": {
+                          "type": "string"
                         },
-                        {
-                          "type": "boolean"
+                        "filePath": {
+                          "type": "string"
                         },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
+                        "content": {
+                          "maxLength": 1048576,
+                          "type": "string"
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -5334,6 +6413,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -5347,34 +6427,322 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
-                          "type": "string"
-                        },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "boolean"
-                        },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "configuration",
+                        "latest",
+                        "active"
+                      ],
+                      "properties": {
+                        "configuration": {
+                          "additionalProperties": false,
                           "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
+                          "required": [
+                            "configured",
+                            "ready",
+                            "vmName",
+                            "checkpointName",
+                            "targetUser",
+                            "detail",
+                            "verifiedAt"
+                          ],
+                          "properties": {
+                            "configured": {
+                              "type": "boolean"
+                            },
+                            "ready": {
+                              "type": "boolean"
+                            },
+                            "vmName": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "checkpointName": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "targetUser": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "detail": {
+                              "type": "string"
+                            },
+                            "verifiedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
                           }
+                        },
+                        "latest": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "runId",
+                                "profileId",
+                                "profileName",
+                                "status",
+                                "phase",
+                                "startedAt",
+                                "finishedAt",
+                                "abortRequestedAt",
+                                "elapsedSeconds",
+                                "rebootCount",
+                                "cleanup",
+                                "cleanupReason",
+                                "cleanupAction",
+                                "recovery",
+                                "detail",
+                                "steps",
+                                "failure"
+                              ],
+                              "properties": {
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "profileId": {
+                                  "type": "string"
+                                },
+                                "profileName": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "phase": {
+                                  "type": "string"
+                                },
+                                "startedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "finishedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "abortRequestedAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "elapsedSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "rebootCount": {
+                                  "type": "integer"
+                                },
+                                "cleanup": {
+                                  "type": "string"
+                                },
+                                "cleanupReason": {
+                                  "type": "string"
+                                },
+                                "cleanupAction": {
+                                  "type": "string"
+                                },
+                                "recovery": {
+                                  "anyOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "type": "object",
+                                      "required": [
+                                        "status",
+                                        "verifiedAt"
+                                      ],
+                                      "properties": {
+                                        "status": {
+                                          "type": "string",
+                                          "enum": [
+                                            "verified"
+                                          ]
+                                        },
+                                        "verifiedAt": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "detail": {
+                                  "type": "string"
+                                },
+                                "steps": {
+                                  "type": "array",
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "index",
+                                      "type",
+                                      "id",
+                                      "name",
+                                      "status",
+                                      "durationSeconds",
+                                      "timeoutSeconds",
+                                      "networkWaitSeconds",
+                                      "rebootRecommended"
+                                    ],
+                                    "properties": {
+                                      "index": {
+                                        "type": "number"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "type": "string"
+                                      },
+                                      "durationSeconds": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "timeoutSeconds": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "networkWaitSeconds": {
+                                        "type": "number"
+                                      },
+                                      "rebootRecommended": {
+                                        "type": "boolean"
+                                      }
+                                    }
+                                  }
+                                },
+                                "failure": {
+                                  "anyOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "type": "object",
+                                      "required": [
+                                        "category",
+                                        "stepId",
+                                        "stepType"
+                                      ],
+                                      "properties": {
+                                        "category": {
+                                          "type": "string"
+                                        },
+                                        "stepId": {
+                                          "type": "string"
+                                        },
+                                        "stepType": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "active": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "runId",
+                                "abortAvailable",
+                                "phase"
+                              ],
+                              "properties": {
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "abortAvailable": {
+                                  "type": "boolean"
+                                },
+                                "phase": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -8334,36 +9702,42 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
+                "properties": {
+                  "scope": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "full"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "host"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "run"
+                        ]
                       }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    }
-                  ]
+                    ]
+                  },
+                  "runId": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "trigger": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9._-]+$",
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -8872,6 +10246,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -8885,34 +10260,29 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "uploadToken",
+                        "fileName",
+                        "sizeBytes",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "uploadToken": {
                           "type": "string"
                         },
-                        {
-                          "type": "number"
+                        "fileName": {
+                          "type": "string"
                         },
-                        {
-                          "type": "boolean"
+                        "sizeBytes": {
+                          "minimum": 0,
+                          "type": "integer"
                         },
-                        {
-                          "type": "null"
-                        },
-                        {
-                          "maxItems": 4096,
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
+                        "sha256": {
+                          "type": "string"
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -10865,36 +12235,32 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    }
-                  ]
+                "required": [
+                  "interfaceAlias",
+                  "ipAddress",
+                  "prefixLength"
+                ],
+                "properties": {
+                  "interfaceAlias": {
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "ipAddress": {
+                    "format": "ipv4",
+                    "type": "string"
+                  },
+                  "prefixLength": {
+                    "minimum": 8,
+                    "maximum": 30,
+                    "type": "integer"
+                  },
+                  "gateway": {
+                    "format": "ipv4",
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -11380,36 +12746,29 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    }
-                  ]
+                "required": [
+                  "wanInterfaceAlias",
+                  "pxeInterfaceAlias"
+                ],
+                "properties": {
+                  "wanInterfaceAlias": {
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "pxeInterfaceAlias": {
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "internalSubnet": {
+                    "minLength": 9,
+                    "maxLength": 18,
+                    "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\/(?:[89]|[12][0-9]|30)$",
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -13892,36 +15251,137 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "description": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "softwareIds": {
+                    "maxItems": 256,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
                       "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    },
-                    {
+                    }
+                  },
+                  "installSequence": {
+                    "maxItems": 512,
+                    "type": "array",
+                    "items": {
+                      "additionalProperties": false,
                       "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
+                      "required": [
+                        "type",
+                        "id"
+                      ],
+                      "properties": {
+                        "type": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "software"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "script"
+                              ]
+                            }
+                          ]
+                        },
+                        "id": {
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                          "type": "string"
+                        },
+                        "timeoutSeconds": {
+                          "minimum": 1,
+                          "maximum": 86400,
+                          "type": "integer"
+                        }
                       }
                     }
-                  ]
+                  },
+                  "execution": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "defaultTimeoutSeconds"
+                    ],
+                    "properties": {
+                      "defaultTimeoutSeconds": {
+                        "minimum": 1,
+                        "maximum": 86400,
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "osImageId": {
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                    "type": "string"
+                  },
+                  "displayLanguage": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "locale": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "inputLanguage": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -14407,36 +15867,143 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
+                "required": [
+                  "profileId"
+                ],
+                "properties": {
+                  "profileId": {
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                    "type": "string"
+                  },
+                  "name": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "description": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "softwareIds": {
+                    "maxItems": 256,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
                       "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    },
-                    {
+                    }
+                  },
+                  "installSequence": {
+                    "maxItems": 512,
+                    "type": "array",
+                    "items": {
+                      "additionalProperties": false,
                       "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
+                      "required": [
+                        "type",
+                        "id"
+                      ],
+                      "properties": {
+                        "type": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "software"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "script"
+                              ]
+                            }
+                          ]
+                        },
+                        "id": {
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                          "type": "string"
+                        },
+                        "timeoutSeconds": {
+                          "minimum": 1,
+                          "maximum": 86400,
+                          "type": "integer"
+                        }
                       }
                     }
-                  ]
+                  },
+                  "execution": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "defaultTimeoutSeconds"
+                    ],
+                    "properties": {
+                      "defaultTimeoutSeconds": {
+                        "minimum": 1,
+                        "maximum": 86400,
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "osImageId": {
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+                    "type": "string"
+                  },
+                  "displayLanguage": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "locale": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "inputLanguage": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -15418,36 +16985,29 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    }
-                  ]
+                "required": [
+                  "vmName",
+                  "checkpointName",
+                  "targetUser"
+                ],
+                "properties": {
+                  "vmName": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "checkpointName": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "targetUser": {
+                    "minLength": 1,
+                    "maxLength": 256,
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -16451,6 +18011,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "type": "object",
                   "required": [
                     "ok",
@@ -16464,34 +18025,213 @@
                       ]
                     },
                     "result": {
-                      "anyOf": [
-                        {
-                          "maxLength": 32768,
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "runId",
+                        "profileId",
+                        "profileName",
+                        "status",
+                        "phase",
+                        "startedAt",
+                        "finishedAt",
+                        "abortRequestedAt",
+                        "elapsedSeconds",
+                        "rebootCount",
+                        "cleanup",
+                        "cleanupReason",
+                        "cleanupAction",
+                        "recovery",
+                        "detail",
+                        "steps",
+                        "failure"
+                      ],
+                      "properties": {
+                        "runId": {
                           "type": "string"
                         },
-                        {
-                          "type": "number"
+                        "profileId": {
+                          "type": "string"
                         },
-                        {
-                          "type": "boolean"
+                        "profileName": {
+                          "type": "string"
                         },
-                        {
-                          "type": "null"
+                        "status": {
+                          "type": "string"
                         },
-                        {
-                          "maxItems": 4096,
+                        "phase": {
+                          "type": "string"
+                        },
+                        "startedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "finishedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "abortRequestedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "elapsedSeconds": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "rebootCount": {
+                          "type": "integer"
+                        },
+                        "cleanup": {
+                          "type": "string"
+                        },
+                        "cleanupReason": {
+                          "type": "string"
+                        },
+                        "cleanupAction": {
+                          "type": "string"
+                        },
+                        "recovery": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "status",
+                                "verifiedAt"
+                              ],
+                              "properties": {
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "verified"
+                                  ]
+                                },
+                                "verifiedAt": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "detail": {
+                          "type": "string"
+                        },
+                        "steps": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/def-0"
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "index",
+                              "type",
+                              "id",
+                              "name",
+                              "status",
+                              "durationSeconds",
+                              "timeoutSeconds",
+                              "networkWaitSeconds",
+                              "rebootRecommended"
+                            ],
+                            "properties": {
+                              "index": {
+                                "type": "number"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "durationSeconds": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "timeoutSeconds": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "networkWaitSeconds": {
+                                "type": "number"
+                              },
+                              "rebootRecommended": {
+                                "type": "boolean"
+                              }
+                            }
                           }
                         },
-                        {
-                          "type": "object",
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/def-0"
-                          }
+                        "failure": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "category",
+                                "stepId",
+                                "stepType"
+                              ],
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "stepId": {
+                                  "type": "string"
+                                },
+                                "stepType": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
-                      ]
+                      }
                     }
                   }
                 }
@@ -18927,36 +20667,151 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
+                "required": [
+                  "uploadToken",
+                  "softwareId",
+                  "name",
+                  "scriptMode",
+                  "installerType",
+                  "network"
+                ],
+                "properties": {
+                  "uploadToken": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                    "type": "string"
+                  },
+                  "softwareId": {
+                    "minLength": 1,
+                    "maxLength": 16,
+                    "pattern": "^[a-z0-9][a-z0-9-]*$",
+                    "type": "string"
+                  },
+                  "name": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "scriptMode": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "template"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "raw"
+                        ]
                       }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
+                    ]
+                  },
+                  "installerType": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "exe"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "msi"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "msix"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "zip"
+                        ]
                       }
+                    ]
+                  },
+                  "silentArgs": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "successExitCodes": {
+                    "maxItems": 32,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minimum": -2147483648,
+                      "maximum": 2147483647,
+                      "type": "integer"
                     }
-                  ]
+                  },
+                  "verifyPath": {
+                    "maxLength": 32768,
+                    "type": "string"
+                  },
+                  "rawScript": {
+                    "minLength": 1,
+                    "maxLength": 262144,
+                    "type": "string"
+                  },
+                  "dependsOn": {
+                    "maxItems": 64,
+                    "uniqueItems": true,
+                    "type": "array",
+                    "items": {
+                      "minLength": 1,
+                      "maxLength": 16,
+                      "pattern": "^[a-z0-9][a-z0-9-]*$",
+                      "type": "string"
+                    }
+                  },
+                  "network": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "requirement"
+                        ],
+                        "properties": {
+                          "requirement": {
+                            "type": "string",
+                            "enum": [
+                              "offline"
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "requirement",
+                          "probeHost"
+                        ],
+                        "properties": {
+                          "requirement": {
+                            "type": "string",
+                            "enum": [
+                              "client-internet"
+                            ]
+                          },
+                          "probeHost": {
+                            "minLength": 1,
+                            "maxLength": 253,
+                            "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -20434,36 +22289,29 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "type": "object",
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "maxLength": 32768,
-                      "type": "string"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    },
-                    {
-                      "type": "null"
-                    },
-                    {
-                      "maxItems": 4096,
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": {
-                        "$ref": "#/components/schemas/def-0"
-                      }
-                    }
-                  ]
+                "required": [
+                  "uploadToken",
+                  "scriptId",
+                  "name"
+                ],
+                "properties": {
+                  "uploadToken": {
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                    "type": "string"
+                  },
+                  "scriptId": {
+                    "minLength": 1,
+                    "maxLength": 16,
+                    "pattern": "^[a-z0-9][a-z0-9-]*$",
+                    "type": "string"
+                  },
+                  "name": {
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "type": "string"
+                  }
                 }
               }
             }

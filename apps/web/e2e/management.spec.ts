@@ -23,3 +23,60 @@ test('login, keyboard focus, operation mutation and refresh recovery', async ({ 
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(accessibility.violations).toEqual([]);
 });
+
+test('typed product controls cover network, profiles, OS catalog and staged payloads', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Setup code').fill(setupCode);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await page.getByRole('button', { name: 'Refresh monitor' }).click();
+  const monitor = page.getByRole('region', { name: 'Deploy / Monitor' });
+  await expect(monitor.getByText('run-1', { exact: true })).toBeVisible();
+  await expect(monitor.getByText(/PASS Runtime/u)).toBeVisible();
+
+  const runtime = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Runtime and services' }) });
+  await runtime.getByRole('button', { name: 'Start selected' }).click();
+  await expect(page.getByRole('status')).toContainText('Start http accepted');
+
+  const endpoint = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Endpoint and network' }) });
+  await endpoint.getByRole('button', { name: 'Inspect gateway' }).click();
+  await expect(endpoint.getByText(/dual-nic-nat · ready/u)).toBeVisible();
+  await endpoint.getByRole('button', { name: 'Load live interfaces' }).click();
+  await expect(endpoint.getByLabel('Deployment interface')).toContainText('Ethernet');
+  await endpoint.getByRole('button', { name: 'Sync selected endpoint' }).click();
+  await expect(page.getByRole('status')).toContainText('Endpoint update accepted');
+  await endpoint.getByRole('button', { name: 'Prepare NAT' }).click();
+  await expect(page.getByRole('status')).toContainText('Prepare NAT gateway accepted');
+
+  const profiles = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Deployment profiles' }) });
+  await profiles.getByRole('button', { name: 'Load catalog' }).click();
+  await expect(profiles.getByLabel('Name')).toHaveValue('Windows 11');
+  await profiles.getByLabel('Description').fill('Updated from Playwright');
+  await profiles.getByRole('button', { name: 'Update' }).click();
+  await expect(page.getByRole('status')).toContainText('Update profile accepted');
+
+  const osImages = page.locator('article').filter({ has: page.getByRole('heading', { name: 'OS image catalog' }) });
+  await osImages.getByRole('button', { name: 'Load cache' }).click();
+  await expect(osImages.getByLabel('Cached image')).toContainText('Windows 11 Pro');
+  await osImages.getByRole('button', { name: 'Query catalog' }).click();
+  await expect(osImages.locator('pre')).toContainText('windows-11');
+
+  const payloads = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Software and custom scripts' }) });
+  await payloads.getByLabel('Installer', { exact: true }).setInputFiles({ name: 'demo.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('MZ') });
+  await payloads.getByLabel('Software ID', { exact: true }).fill('demo-app');
+  await payloads.getByLabel('Display name').first().fill('Demo application');
+  await payloads.getByRole('button', { name: 'Create software' }).click();
+  await expect(page.getByRole('status')).toContainText('Create software package accepted');
+
+  await payloads.getByLabel('PowerShell script').setInputFiles({ name: 'demo.ps1', mimeType: 'text/plain', buffer: Buffer.from("Write-Output 'ok'") });
+  await payloads.getByLabel('Script ID', { exact: true }).fill('demo-script');
+  await payloads.getByLabel('Display name').last().fill('Demo script');
+  await payloads.getByRole('button', { name: 'Create script' }).click();
+  await expect(page.getByRole('status')).toContainText('Create custom script accepted');
+  await payloads.getByLabel('Inspect software ID').fill('demo-app');
+  await payloads.getByRole('button', { name: 'Read install script' }).click();
+  await expect(payloads.locator('pre')).toContainText("Write-Output 'software'");
+  await payloads.getByLabel('Inspect script ID').fill('demo-script');
+  await payloads.getByRole('button', { name: 'Read custom script' }).click();
+  await expect(payloads.locator('pre')).toContainText("Write-Output 'script'");
+});

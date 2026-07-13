@@ -33,14 +33,24 @@ type Runner = (label: string, action: () => Promise<unknown>) => Promise<void>;
 function SoftwareTest({ busy, run }: { busy: string | null; run: Runner }): React.JSX.Element {
   const [profileId, setProfileId] = useState('');
   const [runId, setRunId] = useState('');
+  const [vmName, setVmName] = useState('winception-software-test-01');
+  const [checkpointName, setCheckpointName] = useState('Winception-SoftwareTest-Clean');
+  const [targetUser, setTargetUser] = useState('');
+  const [status, setStatus] = useState('');
   return (
     <article className="action-card">
       <h3>Software Test VM</h3>
       <p>Requires stopped HTTP, TFTP, DHCP and an empty active fleet.</p>
+      <label>VM name<input value={vmName} onChange={(event) => setVmName(event.target.value)} /></label>
+      <label>Clean checkpoint<input value={checkpointName} onChange={(event) => setCheckpointName(event.target.value)} /></label>
+      <label>Target Windows user<input value={targetUser} onChange={(event) => setTargetUser(event.target.value)} /></label>
+      <button className="secondary" disabled={Boolean(busy) || !vmName || !checkpointName || !targetUser} onClick={() => { void run('Configure software test', () => api.configureSoftwareTest({ vmName, checkpointName, targetUser })); }}>Save VM configuration</button>
       <label>Profile ID<input value={profileId} onChange={(event) => setProfileId(event.target.value)} /></label>
       <button disabled={Boolean(busy) || !profileId.trim()} onClick={() => { void run('Software test', () => api.startSoftwareTest(profileId.trim())); }}>Start test</button>
       <label>Active run ID<input value={runId} onChange={(event) => setRunId(event.target.value)} /></label>
       <button className="secondary" disabled={Boolean(busy) || !runId.trim()} onClick={() => { void run('Abort software test', () => api.abortSoftwareTest(runId.trim())); }}>Stop test</button>
+      <button className="secondary" disabled={Boolean(busy)} onClick={() => { void run('Load software test status', async () => { setStatus(JSON.stringify(await api.softwareTestStatus(), null, 2)); }); }}>Load status</button>
+      {status && <pre className="data-preview">{status}</pre>}
     </article>
   );
 }

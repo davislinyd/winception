@@ -1,0 +1,22 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated dependencies, caches, test output and package artifacts"
+paths = [
+  '''(^|/)\.git/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)coverage/''',
+  '''(^|/)dist/''',
+  '''(^|/)\.v2-cache/''',
+  '''(^|/)\.npm-cache/''',
+  '''(^|/)\.v2-stage/''',
+  '''(^|/)\.tmp-v2[^/]*/''',
+  '''(^|/)installer/output/''',
+  '''(^|/)installer/wix/obj/''',
+  '''(^|/)test-results/''',
+]
+
+[[allowlists]]
+description = "Synthetic credentials used only to verify diagnostics redaction"
+paths = ['''tools/osdcloud-console/test/diagnostics\.test\.js$''']

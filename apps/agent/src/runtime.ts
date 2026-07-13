@@ -15,6 +15,7 @@ import { ValidationError } from '../../../packages/domain/src/errors.js';
 import type { OperationRepository } from '../../../packages/domain/src/ports.js';
 import { AgentCommandRegistry } from '../../../packages/infrastructure/src/ipc.js';
 import type { UploadStore } from '../../../packages/infrastructure/src/uploadStore.js';
+import type { DeploymentSecretStore } from '../../../packages/infrastructure/src/deploymentSecrets.js';
 import type { LegacyController } from './legacyController.js';
 import { registerLegacyParityCommands } from './legacyParity.js';
 
@@ -22,8 +23,11 @@ export interface AgentRuntimeOptions {
   controller: LegacyController;
   operationRepository: OperationRepository;
   uploadStore?: UploadStore;
+  deploymentSecrets?: DeploymentSecretStore;
   appRoot?: string;
   stateRoot?: string;
+  onProductStateChanged?: () => void | Promise<void>;
+  onEvidenceChanged?: () => void | Promise<void>;
 }
 
 export interface AgentRuntime {
@@ -56,19 +60,22 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     const { profileId } = payload as SoftwareTestStartPayload;
     const started = coordinator.start({
       label: 'Testing deployment profile software',
-      resources: ['deployment-ingress', 'profile-payload', 'software-test-vm'],
+      resources: ['config', 'deployment-ingress', 'profile-payload', 'software-test-vm'],
       precondition: () => assertSoftwareTestIsolation(options.controller.getState()),
     }, async ({ id }) => {
-      const result = await options.controller.startSoftwareTest(profileId);
-      const runId = typeof result.runId === 'string' ? result.runId : null;
-      if (runId) softwareTestOperations.set(runId, id);
-      try {
-        await options.controller.softwareTestPromise;
-        return result;
-      }
-      finally {
-        if (runId) softwareTestOperations.delete(runId);
-      }
+      const execute = async (): Promise<Record<string, unknown>> => {
+        const result = await options.controller.runExternallyCoordinated(() => options.controller.startSoftwareTest(profileId));
+        const runId = typeof result.runId === 'string' ? result.runId : null;
+        if (runId) softwareTestOperations.set(runId, id);
+        try {
+          await options.controller.softwareTestPromise;
+          return result;
+        }
+        finally {
+          if (runId) softwareTestOperations.delete(runId);
+        }
+      };
+      return options.deploymentSecrets ? options.deploymentSecrets.withMaterialized(execute) : execute();
     });
     void started.promise.catch(() => undefined);
     return { operationId: started.operationId };
@@ -87,7 +94,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     const started = coordinator.start({
       label: 'Updating torrent settings',
       resources: ['config', 'deployment-ingress'],
-    }, () => options.controller.updateTorrentSettings(seedMinutes));
+    }, async () => {
+      const result = await options.controller.runExternallyCoordinated(() => options.controller.updateTorrentSettings(seedMinutes));
+      await options.onProductStateChanged?.();
+      return result;
+    });
     void started.promise.catch(() => undefined);
     return { operationId: started.operationId };
   });
@@ -95,7 +106,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   registry.register('torrent.client.release', (payload) => {
     const input = payload as TorrentClientPayload;
     const started = coordinator.start({ label: 'Releasing torrent client', resources: ['runtime-control'] }, () => {
-      return options.controller.releaseTorrentClients(input);
+      return options.controller.runExternallyCoordinated(() => options.controller.releaseTorrentClients(input));
     });
     void started.promise.catch(() => undefined);
     return { operationId: started.operationId };
@@ -104,7 +115,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   registry.register('torrent.client.extend', (payload) => {
     const input = payload as TorrentClientPayload;
     const started = coordinator.start({ label: 'Extending torrent client', resources: ['runtime-control'] }, () => {
-      return options.controller.extendTorrentClient(input);
+      return options.controller.runExternallyCoordinated(() => options.controller.extendTorrentClient(input));
     });
     void started.promise.catch(() => undefined);
     return { operationId: started.operationId };
@@ -113,8 +124,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   registry.register('os-image.download.start', (payload) => {
     const { imageId } = payload as OsImagePayload;
     const started = coordinator.start({ label: 'Downloading OS image', resources: ['os-cache'] }, async () => {
-      const result = options.controller.startOsDownload(imageId);
+      const result = options.controller.runExternallyCoordinated(() => options.controller.startOsDownload(imageId));
       await result.promise;
+      await options.onProductStateChanged?.();
       return withoutPromise(result);
     });
     void started.promise.catch(() => undefined);
@@ -124,8 +136,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   registry.register('os-image.reexport.start', (payload) => {
     const { imageId } = payload as OsImagePayload;
     const started = coordinator.start({ label: 'Re-exporting OS image', resources: ['os-cache', 'profile-payload'] }, async () => {
-      const result = options.controller.startReexportOsImage(imageId);
+      const result = options.controller.runExternallyCoordinated(() => options.controller.startReexportOsImage(imageId));
       await result.promise;
+      await options.onProductStateChanged?.();
       return withoutPromise(result);
     });
     void started.promise.catch(() => undefined);
@@ -139,6 +152,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     appRoot: options.appRoot ?? process.cwd(),
     stateRoot: options.stateRoot ?? process.cwd(),
     ...(options.uploadStore ? { uploadStore: options.uploadStore } : {}),
+    ...(options.deploymentSecrets ? { deploymentSecrets: options.deploymentSecrets } : {}),
+    ...(options.onProductStateChanged ? { onProductStateChanged: options.onProductStateChanged } : {}),
+    ...(options.onEvidenceChanged ? { onEvidenceChanged: options.onEvidenceChanged } : {}),
   });
 
   return { registry, coordinator, events };

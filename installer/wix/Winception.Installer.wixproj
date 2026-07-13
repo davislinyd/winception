@@ -3,5 +3,7 @@
     <OutputName>Winception-v2</OutputName>
     <OutputPath>..\output\</OutputPath>
     <InstallerPlatform>x64</InstallerPlatform>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">2.0.0</ProductVersion>
+    <DefineConstants>StageRoot=$(StageRoot);ProductVersion=$(ProductVersion)</DefineConstants>
   </PropertyGroup>
 </Project>

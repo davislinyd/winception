@@ -1,10 +1,6 @@
 name: Winception v2 Windows
 
 on:
-  push:
-    branches: [codex/v2-rewrite]
-  pull_request:
-    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -69,7 +65,7 @@ jobs:
           node-version: 24.15.0
           cache: npm
       - run: npm ci
-      - name: Build unsigned internal-test MSI
+      - name: Build self-signed internal-test MSI
         shell: pwsh
         run: ./tools/v2/Build-WinceptionV2Package.ps1 -BuildMsi
       - name: Fresh install, health probe, repair and uninstall

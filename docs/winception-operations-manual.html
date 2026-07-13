@@ -362,13 +362,17 @@
         <section id="host-install">
           <p class="section-kicker">02 · Host install</p>
           <h2>部署主機安裝</h2>
-          <pre><code>msiexec /i Winception-v2-signed.msi</code></pre>
-          <p>正式 v2 只接受組織簽章 MSI。MSI 內含固定 Node 24 runtime，安裝低權限 <code>Winception.Web</code> 與高權限 <code>Winception.Agent</code>，並在 <code>C:\ProgramData\Winception\State</code> 建立 ACL/DPAPI 保護的狀態；它不會自動啟動 PXE deployment ingress。v1 的 clone/setup 流程僅適用於 <code>release/v1</code>。</p>
+          <pre><code>Import-Certificate .\Winception-Local-CodeSigning.cer Cert:\LocalMachine\Root
+Import-Certificate .\Winception-Local-CodeSigning.cer Cert:\LocalMachine\TrustedPublisher
+msiexec /i Winception-v2.msi
+&amp; "$env:ProgramFiles\Winception\app\tools\v2\Get-WinceptionSetupCode.ps1"</code></pre>
+          <p>目前內部測試版先使用自簽 Authenticode certificate；只可在核准的測試主機明確匯入隨 MSI 交付的 CER，未來改用公開／組織憑證。MSI 內含固定 Node 24.15.0 runtime，安裝低權限 <code>Winception.Web</code> 與高權限 <code>Winception.Agent</code>，並在 <code>C:\ProgramData\Winception\State</code> 建立 ACL/DPAPI 保護的狀態；它不會自動啟動 PXE deployment ingress。Setup code 只能從 elevated PowerShell 顯示，不要寫入 log 或 ticket。v1 的 clone/setup 流程僅適用於 <code>release/v1</code>。</p>
           <div class="table-wrap"><table><thead><tr><th>階段</th><th>做什麼</th><th>不做什麼</th></tr></thead><tbody>
-            <tr><td>Package validation</td><td>驗證 Authenticode、package hash 與 MSI。</td><td>簽章無效時不安裝。</td></tr>
+            <tr><td>Package validation</td><td>驗證自簽／公開 Authenticode、package hash、SBOM 與 MSI。</td><td>簽章或 manifest 無效時不安裝。</td></tr>
             <tr><td>Install services</td><td>安裝 Web/Agent、State ACL、DPAPI tokens 與 migration schema。</td><td>不建立或啟動 deployment runtime。</td></tr>
             <tr><td>Web launch</td><td>預設啟動 <code>http://127.0.0.1:8080</code>。</td><td>不啟動 DHCP/TFTP/HTTP；LAN 未設定有效 HTTPS 時 fail closed。</td></tr>
           </tbody></table></div>
+          <div class="callout"><strong>LAN HTTPS 明確啟用</strong>預設只使用 <code>http://127.0.0.1:8080</code>。需要 LAN 時，在 elevated PowerShell 執行 <code>Set-WinceptionManagementEndpoint.ps1 -ManagementHost winception.example.internal</code>。未指定 thumbprint 時會建立自簽 TLS certificate；把 <code>C:\ProgramData\Winception\State\management-tls.cer</code> 匯入核准管理工作站的信任存放區。設定、PFX、CER、服務狀態或 pinned health probe 失敗時會自動還原。</div>
         </section>
 
         <section id="architecture">
@@ -406,7 +410,7 @@
           <h2>部署前準備</h2>
           <ol>
             <li>確認 deployment project root。</li>
-            <li>儲存 deployment secrets。</li>
+            <li>儲存 deployment secrets；SQLite 只保存 DPAPI ciphertext，明文只在受鎖定動作期間暫時 materialize，完成即 scrub。</li>
             <li>執行 Prepare runtime。</li>
             <li>選擇 service interface 與 endpoint。</li>
             <li>在 OS Image Cache 匯出 deployable WIM。</li>
@@ -578,13 +582,17 @@ Last completed run : &lt;run-id&gt;</code></pre>
         <section id="en-host-install">
           <p class="section-kicker">02 · Host install</p>
           <h2>Deployment Host Installation</h2>
-          <pre><code>msiexec /i Winception-v2-signed.msi</code></pre>
-          <p>Production v2 accepts only an organization-signed MSI. The MSI bundles a fixed Node 24 runtime, installs low-privilege <code>Winception.Web</code> and privileged <code>Winception.Agent</code>, and creates ACL/DPAPI-protected state under <code>C:\ProgramData\Winception\State</code>. It does not start PXE deployment ingress. The clone/setup workflow remains v1-only on <code>release/v1</code>.</p>
+          <pre><code>Import-Certificate .\Winception-Local-CodeSigning.cer Cert:\LocalMachine\Root
+Import-Certificate .\Winception-Local-CodeSigning.cer Cert:\LocalMachine\TrustedPublisher
+msiexec /i Winception-v2.msi
+&amp; "$env:ProgramFiles\Winception\app\tools\v2\Get-WinceptionSetupCode.ps1"</code></pre>
+          <p>The current internal-test build uses self-signed Authenticode. Import the delivered CER explicitly only on approved test hosts; a public/organization certificate replaces it later. The MSI bundles Node 24.15.0, installs low-privilege <code>Winception.Web</code> and privileged <code>Winception.Agent</code>, and creates ACL/DPAPI-protected state under <code>C:\ProgramData\Winception\State</code>. It does not start PXE deployment ingress. Display the setup code only from elevated PowerShell and never paste it into a log or ticket. The clone/setup workflow remains v1-only on <code>release/v1</code>.</p>
           <div class="table-wrap"><table><thead><tr><th>Stage</th><th>Does</th><th>Does not do</th></tr></thead><tbody>
-            <tr><td>Package validation</td><td>Validates Authenticode, package hashes, and MSI.</td><td>Does not install an invalid signature.</td></tr>
+            <tr><td>Package validation</td><td>Validates self-signed/public Authenticode, package hashes, SBOM, and MSI.</td><td>Does not install an invalid signature or manifest.</td></tr>
             <tr><td>Install services</td><td>Installs Web/Agent, State ACLs, DPAPI tokens, and migration schema.</td><td>Does not create or start deployment runtime.</td></tr>
             <tr><td>Web launch</td><td>Starts <code>http://127.0.0.1:8080</code> by default.</td><td>Does not start DHCP/TFTP/HTTP; LAN fails closed without valid HTTPS.</td></tr>
           </tbody></table></div>
+          <div class="callout"><strong>Explicit LAN HTTPS opt-in</strong>The default is <code>http://127.0.0.1:8080</code>. For LAN management, run <code>Set-WinceptionManagementEndpoint.ps1 -ManagementHost winception.example.internal</code> from elevated PowerShell. Without a thumbprint it creates self-signed TLS; import <code>C:\ProgramData\Winception\State\management-tls.cer</code> into approved management workstations. Settings, PFX, CER, service state, and the pinned health probe roll back together on failure.</div>
         </section>
 
         <section id="en-architecture">
@@ -622,7 +630,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
           <h2>Pre-Deployment Preparation</h2>
           <ol>
             <li>Confirm the deployment project root.</li>
-            <li>Save deployment secrets.</li>
+            <li>Save deployment secrets. SQLite stores only DPAPI ciphertext; plaintext is materialized only for the locked action and scrubbed afterward.</li>
             <li>Run Prepare runtime.</li>
             <li>Select the service interface and endpoint.</li>
             <li>Export a deployable WIM in OS Image Cache.</li>

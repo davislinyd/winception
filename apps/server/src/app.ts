@@ -6,17 +6,19 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifySwagger from '@fastify/swagger';
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
+import { Type } from '@sinclair/typebox';
 import {
   ApiErrorSchema,
   AuthSessionRequestSchema,
   AuthStatusSchema,
   HealthSchema,
-  ResultSchema,
+  OperationRecordSchema,
   SuccessSchema,
   SystemStateSchema,
   UploadStagedSchema,
   WINCEPTION_V2_VERSION,
   CONTRACT_VERSION,
+  type OperationRecord,
   type SystemState,
 } from '../../../packages/contracts/src/index.js';
 import { AgentUnavailableError, OperationConflictError, ValidationError } from '../../../packages/domain/src/errors.js';
@@ -95,9 +97,9 @@ export async function createWebApp(options: WebAppOptions): Promise<FastifyInsta
     return options.agent.request<SystemState>('system.state', {});
   });
 
-  app.get('/api/v2/operations', { schema: { response: { 200: ResultSchema } } }, async (request) => {
+  app.get('/api/v2/operations', { schema: { response: { 200: Type.Object({ ok: Type.Literal(true), result: Type.Array(OperationRecordSchema) }) } } }, async (request) => {
     auth.assertRequest(request);
-    return { ok: true, result: await options.agent.request('operations.list', {}) } as const;
+    return { ok: true, result: await options.agent.request<OperationRecord[]>('operations.list', {}) } as const;
   });
 
   app.get('/api/v2/events', (request, reply) => {

@@ -10,9 +10,10 @@
 | Errors and ports | `packages/domain/src/*` |
 | Resource locks | `packages/application/src/operationCoordinator.ts` |
 | SQLite/migrations/recovery | `packages/infrastructure/src/database.ts` |
+| SQLite product/evidence state | `productState.ts`, `evidence.ts` |
 | Atomic files, uploads, retention | `atomicFile.ts`, `uploadStore.ts`, `retention.ts` |
-| DPAPI/service settings | `dpapi.ts`, `serviceSettings.ts` |
-| Named-pipe allow-list IPC | `ipc.ts` |
+| DPAPI/service/deployment secrets | `dpapi.ts`, `serviceSettings.ts`, `deploymentSecrets.ts` |
+| Named-pipe allow-list IPC/DACL | `ipc.ts`, `pipeAcl.ts`, `Set-WinceptionNamedPipeAcl.ps1` |
 | v1 dry-run/backup importer | `v1Importer.ts`; CLI `apps/agent/src/migrateV1.ts` |
 | Privileged Agent composition | `apps/agent/src/runtime.ts`, `legacyParity.ts`, `main.ts` |
 | Low-privilege HTTP/auth/SSE | `apps/server/src/app.ts`, `auth.ts`, `agentRoutes.ts`, `events.ts` |
@@ -22,17 +23,17 @@
 ## Security invariants
 
 - Web sends only a declared `AgentCommandName` with a schema-validated payload under 1 MiB. No arbitrary method, command line, PowerShell or caller-provided filesystem path.
-- The Agent named pipe is under `ProtectedPrefix\Administrators`, authenticated with an installer token and ACL protected. Unexpected privileged errors are redacted.
+- The Agent named pipe is under `ProtectedPrefix\Administrators`, authenticated with an installer token, and fail-closed unless its protected DACL reads back as only SYSTEM, Administrators and the `Winception.Web` service SID. Unexpected privileged errors are redacted.
 - Browser sessions are HttpOnly/SameSite=Strict. Cookie mutations require same-origin plus `X-Winception-Requested-With`; direct API tokens use constant-time comparison.
 - Uploads enter an opaque-token staging root, are streamed with size limits and SHA-256, then revalidated by Agent before consumption.
-- Secrets are DPAPI LocalMachine ciphertext with State ACLs. API, logs, migration reports and diagnostics never contain plaintext.
-- Management binds loopback HTTP by default. Non-loopback requires a non-expired certificate-store export with private key, Server Authentication EKU and matching DNS name.
+- Secrets are DPAPI LocalMachine ciphertext with State ACLs. Deployment secrets are materialized into the privileged legacy projection only for a coordinated action and scrubbed afterward. API, logs, migration reports and diagnostics never contain plaintext.
+- Management binds loopback HTTP by default. `Set-WinceptionManagementEndpoint.ps1` transactionally enables non-loopback HTTPS, rolls back settings/PFX/CER and service state on failure, and accepts either the current self-signed baseline or a supplied public certificate thumbprint.
 
-Release blockers: enforce and verify an explicit pipe DACL for the installed Web service SID; replace legacy Controller calls whose inner global operation lock still over-serializes otherwise independent coordinator resources; make SQLite the live source of truth; wire retention/evidence indexing to production roots.
+The v1 Controller remains behind a compatibility adapter for proven OSDCloud operations. `AsyncLocalStorage` marks calls already owned by the v2 coordinator, so the v1 inner lock does not falsely serialize independent resources. New v2 code must not import Controller internals outside the Agent composition/adapter layer.
 
 ## Operation rules
 
-Resources have one canonical order: `config`, `deployment-ingress`, `runtime`, `os-cache`, `profile-payload`, `software-test-vm`, `evidence`, `runtime-control`. Acquire atomically; never wait while holding a partial set. Persist start and terminal state. On Agent restart, orphaned `running` records become `failed / AGENT_RESTARTED`. Mutations return operation IDs; REST snapshots recover SSE disconnects.
+Resources have one canonical order: `config`, `deployment-ingress`, `runtime`, `os-cache`, `profile-payload`, `software-test-vm`, `evidence`, `runtime-control`. Acquire atomically; never wait while holding a partial set. Software Test rechecks stopped ingress and empty Fleet while holding the same lock. Persist start and terminal state. On Agent restart, orphaned `running` records become `failed / AGENT_RESTARTED`. Mutations return operation IDs; REST snapshots recover SSE disconnects.
 
 ## Verification
 

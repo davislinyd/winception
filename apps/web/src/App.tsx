@@ -4,6 +4,7 @@ import { ActionPanel } from './features/actions/ActionPanel.js';
 import { Operations } from './features/operations/Operations.js';
 import { Overview } from './features/overview/Overview.js';
 import { ProductControls } from './features/product/ProductControls.js';
+import { MonitorPanel } from './features/monitor/MonitorPanel.js';
 import { api, ApiRequestError } from './shared/api.js';
 
 export function App(): React.JSX.Element {
@@ -57,6 +58,7 @@ export function App(): React.JSX.Element {
         {error && <ErrorBanner error={error} onClose={() => setError(null)} />}
         {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss notification" onClick={() => setNotice(null)}>×</button></div>}
         {state ? <Overview state={state} /> : <p className="empty-state">State is temporarily unavailable.</p>}
+        <MonitorPanel onCompleted={(message) => setNotice(message)} onError={(caught) => setError(normalizeError(caught))} />
         <ProductControls onCompleted={(message) => { setNotice(message); void refresh(); }} onError={(caught) => setError(normalizeError(caught))} />
         <ActionPanel onCompleted={(message) => { setNotice(message); void refresh(); }} onError={(caught) => setError(normalizeError(caught))} />
         <Operations operations={operations} />
