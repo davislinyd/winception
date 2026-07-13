@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v0.6.7 — 2026-07-13
+
+- Software Test VM now keeps `Stop test` reachable from the global Console dock as well as Deployment Profiles. During its active run, Profile, OS Image, and Endpoint are inspection-only; all mutation and deployment controls remain locked.
+- Software Test VM now offers `Stop test` for the current in-memory test run. It writes a controlled cancellation request, stops the SYSTEM installer task when reachable, forces off the dedicated VM, restores its clean checkpoint, and records safe `aborted / succeeded` status without changing live Apps, profiles, services, or PXE.
+- A Software Test VM run that remains at `payload-ready` for over one minute is now treated as an unstarted runner after successful powered-off VM/checkpoint re-verification, rather than permanently blocking profile tests.
+- Software Test VM cleanup failures now identify a safe checkpoint/VM/restore cause and recovery action, retain the raw runner diagnostic only in local HostTools State, and remain locked until the rebuilt or restored checkpoint is successfully re-registered. Deployment Profiles adds `Copy test report`, which copies only the safe test summary.
+- Web Console operation failures now use a shared English error dialog instead of browser alerts. API errors retain the compatible `error` text and add safe `errorCode` / `errorAction` fields; unexpected backend failures no longer expose raw PowerShell output. Software Test VM registration now reports actionable VM, Generation 2, powered-off, and checkpoint validation results in-place.
+- Legacy Deployment Profiles that were created before international settings existed now inherit only missing language, locale, input-language, and time-zone values from the current active profile when both use the same OS image. The values are persisted before publishing; profiles without that safe source remain blocked instead of guessing a time zone.
+
 ## v0.6.6 — 2026-07-12
 
 - Software Catalog now distinguishes `Guided installer` from `Custom PowerShell` while preserving the existing persisted modes. Guided installer explains and records installer success codes; Custom PowerShell is syntax-checked with the Windows PowerShell 5.1 parser before it can write a package.

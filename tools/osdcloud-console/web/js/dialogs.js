@@ -1,6 +1,7 @@
 import { switchToView } from './actions.js';
 import { api, mutate } from './api.js';
 import { $, $$, elements } from './dom.js';
+import { operationErrorDetails, showOperationError, showOperationNotice } from './errorDialog.js';
 import { bytes, osImageLabel, text } from './format.js';
 import { render } from './render.js';
 import { state } from './state.js';
@@ -394,7 +395,7 @@ export function showAddProfileDialog(profile) {
   });
 }
 
-export function showSoftwareTestDialog(configuration = {}) {
+export function showSoftwareTestDialog(configuration = {}, saveConfiguration = null) {
   return new Promise((resolve) => {
     elements.softwareTestForm.reset();
     elements.softwareTestVmName.value = configuration.vmName ?? 'winception-software-test-01';
@@ -418,16 +419,34 @@ export function showSoftwareTestDialog(configuration = {}) {
       event?.preventDefault();
       done(null);
     };
-    const submit = (event) => {
+    const submit = async (event) => {
       event.preventDefault();
       if (!elements.softwareTestForm.reportValidity()) {
         return;
       }
-      done({
+      const input = {
         vmName: elements.softwareTestVmName.value.trim(),
         checkpointName: elements.softwareTestCheckpointName.value.trim(),
         targetUser: elements.softwareTestTargetUser.value.trim(),
-      });
+      };
+      if (!saveConfiguration) {
+        done(input);
+        return;
+      }
+      const submitButton = elements.softwareTestForm.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      try {
+        await saveConfiguration(input);
+        done(input);
+      } catch (error) {
+        const details = operationErrorDetails(error);
+        elements.softwareTestError.textContent = details.action
+          ? `${details.message} ${details.action}`
+          : details.message;
+        elements.softwareTestError.focus();
+      } finally {
+        submitButton.disabled = false;
+      }
     };
     elements.softwareTestForm.addEventListener('submit', submit);
     elements.softwareTestCancel.addEventListener('click', cancel);
@@ -1449,9 +1468,12 @@ export async function handleScriptAdd(input) {
     state.current = createPayload.state;
     state.selectedRunId = createPayload.state?.selectedRunId ?? state.selectedRunId;
     render();
-    window.alert(`Added ${createPayload.result.script.name} (${createPayload.result.script.id}) to the custom scripts catalog. Select it in a deployment profile before publishing.`);
+    showOperationNotice(
+      `Added ${createPayload.result.script.name} (${createPayload.result.script.id}) to the custom scripts catalog.`,
+      'Select it in a deployment profile before publishing.',
+    );
   } catch (error) {
-    window.alert(error.message);
+    showOperationError(error);
   } finally {
     state.busy = false;
     setControlsDisabled(false);
@@ -1461,7 +1483,10 @@ export async function handleScriptAdd(input) {
 export async function handleScriptDelete(script) {
   const usedByProfiles = script.usedByProfiles?.map((profile) => profile.name) ?? [];
   if (usedByProfiles.length) {
-    window.alert(`Remove ${script.name || script.id} from profiles first: ${usedByProfiles.join(', ')}`);
+    showOperationError({
+      message: `Remove ${script.name || script.id} from profiles first.`,
+      action: `Used by: ${usedByProfiles.join(', ')}`,
+    });
     return;
   }
   const ok = await confirmAction({
@@ -1496,7 +1521,7 @@ export async function showScriptContentViewer(script) {
   }
 }
 
-export function confirmAction({ title, message, details = [], confirmLabel = 'Continue', danger = false, severity = null }) {
+export function confirmAction({ title, message, details = [], confirmLabel = 'Continue', danger = false, severity = null, allowDuringSoftwareTest = false }) {
   return new Promise((resolve) => {
     elements.confirmTitle.textContent = title;
     elements.confirmMessage.textContent = message;
@@ -1504,6 +1529,12 @@ export function confirmAction({ title, message, details = [], confirmLabel = 'Co
     const resolvedSeverity = severity ?? (danger ? 'danger' : 'neutral');
     elements.confirmSubmit.classList.toggle('danger', resolvedSeverity === 'danger');
     elements.confirmSubmit.classList.toggle('warning', resolvedSeverity === 'warning');
+    elements.confirmSubmit.dataset.operationAllowed = allowDuringSoftwareTest ? 'abort' : '';
+    elements.confirmSubmit.dataset.operationReady = String(allowDuringSoftwareTest);
+    if (allowDuringSoftwareTest) {
+      elements.confirmSubmit.disabled = false;
+      delete elements.confirmSubmit.dataset.busyDisabled;
+    }
     elements.confirmDetails.replaceChildren();
     for (const detail of details) {
       const item = document.createElement('li');
@@ -1512,6 +1543,8 @@ export function confirmAction({ title, message, details = [], confirmLabel = 'Co
     }
     const close = () => {
       elements.confirmDialog.removeEventListener('close', onClose);
+      delete elements.confirmSubmit.dataset.operationAllowed;
+      delete elements.confirmSubmit.dataset.operationReady;
       resolve(elements.confirmDialog.returnValue === 'ok');
     };
     const onClose = () => close();

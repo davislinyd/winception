@@ -364,6 +364,21 @@ body { overflow: hidden; background: var(--paper); }
   background: transparent; border-color: rgba(255, 255, 255, 0.18); color: var(--term-text);
 }
 .console-dock-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.28); color: #fff; }
+.console-dock-stop {
+  flex-shrink: 0;
+  min-height: 26px;
+  padding: 3px 9px;
+  font-size: 11px;
+}
+.operation-readonly-notice {
+  margin: 0 16px;
+  padding: 8px 10px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 4px;
+  background: var(--surface-container-low);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+}
 .console-dock-chevron {
   font-size: 18px;
   color: var(--term-muted);

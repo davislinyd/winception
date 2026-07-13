@@ -78,9 +78,9 @@
 
         <!-- Deploy = dashboard: config + action, status tiles, inline services -->
         <div class="deploy-summary">
-          <button class="deploy-seg" data-action="profiles" aria-controls="deployment-profiles-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">Profile</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="deploy-seg-value"></div></button>
-          <button class="deploy-seg" data-action="os-images" aria-controls="os-images-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">OS Image</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="deploy-seg-value"></div></button>
-          <button class="deploy-seg" data-action="interfaces" aria-controls="endpoint-settings-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">Endpoint</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="deploy-seg-value mono"></div></button>
+          <button class="deploy-seg" data-action="profiles" data-operation-allowed="inspect" aria-controls="deployment-profiles-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">Profile</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="deploy-seg-value"></div></button>
+          <button class="deploy-seg" data-action="os-images" data-operation-allowed="inspect" aria-controls="os-images-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">OS Image</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="deploy-seg-value"></div></button>
+          <button class="deploy-seg" data-action="interfaces" data-operation-allowed="inspect" aria-controls="endpoint-settings-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">Endpoint</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="deploy-seg-value mono"></div></button>
         </div>
         <div id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden></div>
 
@@ -226,6 +226,7 @@
         <span id="console-op-badge" class="status-pill neutral" aria-live="polite">Idle</span>
         <span id="console-op-error" class="console-dock-error" hidden></span>
         <span class="console-dock-spacer"></span>
+        <button id="console-software-test-abort" class="danger console-dock-stop" data-action="software-test-abort" data-operation-allowed="abort" type="button" hidden disabled>Stop test</button>
         <button id="console-dock-copy" class="ctx-icon-btn console-dock-btn" type="button" aria-label="Copy log" title="Copy log"><span class="material-symbols-outlined text-[16px]">content_copy</span></button>
         <span class="material-symbols-outlined console-dock-chevron">expand_less</span>
       </div>
@@ -243,6 +244,7 @@
         </button>
         <button value="cancel" type="submit">Close</button>
       </div>
+      <p class="operation-readonly-notice" data-operation-readonly hidden>Software Test is in progress. Settings are read-only.</p>
       <div class="drawer-body">
         <section class="drawer-section">
           <div class="drawer-section-header">
@@ -330,6 +332,7 @@
         </button>
         <button value="cancel" type="submit">Close</button>
       </div>
+      <p class="operation-readonly-notice" data-operation-readonly hidden>Software Test is in progress. Settings are read-only.</p>
       <div class="drawer-body">
         <section class="drawer-section">
           <div class="drawer-section-header">
@@ -363,12 +366,14 @@
               <div id="software-test-summary" class="drawer-subtitle">一次登記專用乾淨 VM，之後不用 PXE 就能測試 software。</div>
             </div>
             <div class="drawer-actions">
-              <button id="software-test-toggle" data-action="software-test-toggle" aria-controls="software-test-content" aria-expanded="false" type="button">展開</button>
+              <button id="software-test-toggle" data-action="software-test-toggle" data-operation-allowed="inspect" aria-controls="software-test-content" aria-expanded="false" type="button">展開</button>
             </div>
           </div>
           <div id="software-test-content" hidden>
             <div class="drawer-actions mt-3">
               <button data-action="software-test-settings" data-icon="settings" type="button">測試 VM 設定</button>
+              <button id="software-test-copy" data-action="software-test-copy" data-operation-allowed="inspect" data-icon="content_copy" type="button" disabled>Copy test report</button>
+              <button id="software-test-abort" class="danger" data-action="software-test-abort" data-operation-allowed="abort" type="button" hidden disabled>Stop test</button>
             </div>
             <dl id="software-test-details" class="stitch-details"></dl>
           </div>
@@ -445,7 +450,7 @@
         <label>乾淨快照 <input id="software-test-checkpoint-name" type="text" value="Winception-SoftwareTest-Clean" required maxlength="127"></label>
         <label>目標使用者 <input id="software-test-target-user" type="text" autocomplete="username" required maxlength="63"></label>
       </div>
-      <p id="software-test-error" class="form-error" role="alert"></p>
+      <p id="software-test-error" class="form-error" role="alert" tabindex="-1"></p>
       <div class="dialog-actions">
         <button id="software-test-cancel-secondary" type="button">取消</button>
         <button type="submit" class="warning">登記並驗證</button>
@@ -468,6 +473,7 @@
           <button value="cancel" type="submit">Close</button>
         </div>
       </div>
+      <p class="operation-readonly-notice" data-operation-readonly hidden>Software Test is in progress. Settings are read-only.</p>
       <div class="drawer-body">
         <section class="drawer-section">
           <div class="drawer-section-header">
@@ -1064,6 +1070,22 @@
       <div class="dialog-actions">
         <button id="confirm-cancel" value="cancel" type="submit">Cancel</button>
         <button id="confirm-submit" value="ok" type="submit">Continue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="operation-error-dialog">
+    <form method="dialog" class="dialog-card operation-error-card">
+      <div class="dialog-header">
+        <h3 id="operation-error-title">Operation failed</h3>
+        <button id="operation-error-close" type="submit">Close</button>
+      </div>
+      <div class="confirm-body">
+        <p id="operation-error-message" role="alert"></p>
+        <p id="operation-error-action" class="operation-error-action"></p>
+      </div>
+      <div class="dialog-actions">
+        <button type="submit" class="warning">Close</button>
       </div>
     </form>
   </dialog>

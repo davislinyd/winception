@@ -23,6 +23,11 @@ export const selectedProfileFileName = 'selected-profile.json';
 export function inputError(message, statusCode = 400) {
   const error = new Error(message);
   error.statusCode = statusCode;
+  error.publicError = {
+    message,
+    code: 'invalid_input',
+    action: 'Correct the input and try again.',
+  };
   return error;
 }
 

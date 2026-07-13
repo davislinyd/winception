@@ -62,5 +62,7 @@ export function render() {
   renderDashboardTiles(appState);
   renderFleetCards(appState);
   hydrateActionIcons();
-  setControlsDisabled(state.busy || appState.operation?.running === true);
+  setControlsDisabled(state.busy || appState.operation?.running === true, {
+    preserveSoftwareTestControls: appState.softwareTest?.active?.runId != null,
+  });
 }

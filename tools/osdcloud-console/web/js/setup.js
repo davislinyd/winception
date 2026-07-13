@@ -3,6 +3,7 @@ import { api, mutate, refresh } from './api.js';
 import { isScrolledToBottom } from './deploy.js';
 import { closeDialog, confirmAction, openDialog } from './dialogs.js';
 import { $, elements } from './dom.js';
+import { showOperationError } from './errorDialog.js';
 import { text } from './format.js';
 import { render } from './render.js';
 import { DEFAULT_WINDOWS_USERNAME, RESERVED_WINDOWS_USERNAMES, state } from './state.js';
@@ -248,7 +249,7 @@ export function createInitializationSecretField(id, name, labelText, type = 'pas
       return;
     }
     event.preventDefault();
-    saveInitializationSecrets().catch((error) => window.alert(error.message));
+    saveInitializationSecrets().catch(showOperationError);
   });
   label.append(input);
   return label;

@@ -1,13 +1,14 @@
 import { api, loadInterfaces, loadOsDownloadCatalog, mutate, refresh } from './api.js';
-import { currentInterfaceChoice, fillImportMetadataDefaults, importMetadataFromInputs, showValidationEvidence } from './deploy.js';
+import { currentInterfaceChoice, fillImportMetadataDefaults, importMetadataFromInputs, showValidationEvidence, softwareTestReport } from './deploy.js';
 import { closeDialog, confirmAction, confirmEndpointSync, handleScriptAdd, openDialog, showAddProfileDialog, showAddScriptDialog, showAddSoftwareDialog, showPicker, showSoftwareAddedDialog, showSoftwareDialog, showSoftwareTestDialog } from './dialogs.js';
 import { $, elements } from './dom.js';
+import { showOperationError } from './errorDialog.js';
 import { visibleFleetRuns } from './fleet.js';
 import { osImageLabel } from './format.js';
 import { render, renderFleetExpandedState } from './render.js';
 import { confirmPrepareRuntime } from './setup.js';
 import { state } from './state.js';
-import { setControlsDisabled, setSetupRailCollapsed } from './ui.js';
+import { copyTextWithFeedback, setControlsDisabled, setSetupRailCollapsed } from './ui.js';
 
 export function setFleetExpanded(expanded) {
   if (state.fleetExpanded === expanded) {
@@ -101,7 +102,7 @@ export async function handleOsImageReexport(image) {
       state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
       render();
     } catch (error) {
-      window.alert(error.message);
+      showOperationError(error);
     } finally {
       state.osDownloadStarting = false;
       render();
@@ -132,7 +133,7 @@ export async function handleOsImageDownload(image) {
       state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
       render();
     } catch (error) {
-      window.alert(error.message);
+      showOperationError(error);
     } finally {
       state.osDownloadStarting = false;
       render();
@@ -143,7 +144,7 @@ export async function handleOsImageDownload(image) {
 export async function handleOsImageUploadInspect() {
   const file = elements.osUploadFile.files?.[0] ?? null;
   if (!file) {
-    window.alert('Choose a local ISO/ESD/WIM file first.');
+    showOperationError({ message: 'Choose a local ISO/ESD/WIM file first.' });
     return;
   }
   if (state.busy) {
@@ -162,7 +163,7 @@ export async function handleOsImageUploadInspect() {
     fillImportMetadataDefaults(payload.result?.indexes?.[0]?.suggested ?? {});
     render();
   } catch (error) {
-    window.alert(error.message);
+    showOperationError(error);
   } finally {
     state.busy = false;
     setControlsDisabled(false);
@@ -172,7 +173,7 @@ export async function handleOsImageUploadInspect() {
 export async function handleOsImageImport(row) {
   const uploadId = state.osImportInspection?.uploadId;
   if (!uploadId) {
-    window.alert('Upload and inspect a local ISO/ESD/WIM file first.');
+    showOperationError({ message: 'Upload and inspect a local ISO/ESD/WIM file first.' });
     return;
   }
   const metadata = importMetadataFromInputs(row.suggested ?? {});
@@ -261,7 +262,7 @@ export async function handleSoftwareAdd(input) {
     render();
     addedSoftware = createPayload.result.software;
   } catch (error) {
-    window.alert(error.message);
+    showOperationError(error);
   } finally {
     state.busy = false;
     setControlsDisabled(false);
@@ -285,7 +286,10 @@ export async function handleSoftwareAdd(input) {
 export async function handleSoftwareDelete(software) {
   const usedByProfiles = software.usedByProfiles?.map((profile) => profile.name) ?? [];
   if (usedByProfiles.length) {
-    window.alert(`Remove ${software.name || software.id} from profiles first: ${usedByProfiles.join(', ')}`);
+    showOperationError({
+      message: `Remove ${software.name || software.id} from profiles first.`,
+      action: `Used by: ${usedByProfiles.join(', ')}`,
+    });
     return;
   }
   const ok = await confirmAction({
@@ -307,7 +311,7 @@ export async function handleSoftwareDelete(software) {
 export async function handleStatusRunDelete(runId) {
   const run = state.current?.fleet?.runs?.find((item) => item.runId === runId);
   if (!run) {
-    window.alert('Deployment run was not found in the current Client Fleet list.');
+    showOperationError({ message: 'Deployment run was not found in the current Client Fleet list.' });
     return;
   }
   const ok = await confirmAction({
@@ -404,7 +408,10 @@ function runIdDetails(runIds) {
 function reportBulkFailures(payload, verb) {
   const failed = (payload?.result?.results ?? []).filter((item) => !item.ok);
   if (failed.length) {
-    window.alert(`${failed.length} run(s) could not be ${verb}:\n${failed.map((item) => `${item.runId}: ${item.error}`).join('\n')}`);
+    showOperationError({
+      message: `${failed.length} run(s) could not be ${verb}.`,
+      action: failed.map((item) => `${item.runId}: ${item.error}`).join(' '),
+    });
   }
 }
 
@@ -519,7 +526,7 @@ async function handleDiagnosticsRun(source) {
 function handleDiagnosticsDownload(source) {
   const bundleName = source?.dataset?.bundleName ?? state.current?.diagnostics?.bundleName;
   if (!bundleName) {
-    window.alert('No diagnostics ZIP is available yet.');
+    showOperationError({ message: 'No diagnostics ZIP is available yet.' });
     return;
   }
   window.open(`/api/diagnostics/download?name=${encodeURIComponent(bundleName)}`, '_blank', 'noopener');
@@ -590,7 +597,7 @@ export async function handleAction(action, source = null) {
     }
     const choice = state.pendingInterface ?? currentInterfaceChoice();
     if (!choice) {
-      window.alert('Select a service interface before syncing the endpoint.');
+      showOperationError({ message: 'Select a service interface before syncing the endpoint.' });
       openDialog(elements.endpointSettingsDialog);
       return;
     }
@@ -621,15 +628,44 @@ export async function handleAction(action, source = null) {
     elements.softwareTestToggle.textContent = expanded ? '收合' : '展開';
     elements.softwareTestToggle.setAttribute('aria-expanded', String(expanded));
   } else if (action === 'software-test-settings') {
-    const input = await showSoftwareTestDialog(state.current?.softwareTest?.configuration ?? {});
-    if (input) {
-      await mutate('/api/software-test/config', input);
+    await showSoftwareTestDialog(state.current?.softwareTest?.configuration ?? {}, async (input) => {
+      await mutate('/api/software-test/config', input, { alertOnError: false, rethrow: true });
+    });
+  } else if (action === 'software-test-copy') {
+    const report = softwareTestReport(state.current);
+    if (report) {
+      await copyTextWithFeedback(source, report);
+    }
+  } else if (action === 'software-test-abort') {
+    const active = state.current?.softwareTest?.active;
+    const latest = state.current?.softwareTest?.latest;
+    if (!active?.runId) {
+      showOperationError({ message: 'The selected software test is no longer active.', action: 'Refresh the page and start a new software test if needed.' });
+      return;
+    }
+    if (active.abortAvailable !== true) {
+      showOperationError({ message: 'The selected software test is already stopping.', action: 'Wait for checkpoint restore to complete.' });
+      return;
+    }
+    const ok = await confirmAction({
+      title: 'Stop software test?',
+      message: 'The current installer step will be interrupted. The dedicated test VM will be powered off and restored to its clean checkpoint.',
+      details: [
+        'Profile: ' + (latest.profileName || latest.profileId || '-'),
+        'Test VM: ' + (state.current?.softwareTest?.configuration?.vmName || '-'),
+      ],
+      confirmLabel: 'Stop test',
+      danger: true,
+      allowDuringSoftwareTest: true,
+    });
+    if (ok) {
+      await mutate('/api/software-test/abort', { runId: active.runId });
     }
   } else if (action === 'profile-test') {
     const profileId = source?.dataset?.profileId;
     const profile = state.current?.profile?.profiles?.find((item) => item.id === profileId);
     if (!profile) {
-      window.alert('找不到 Deployment profile。');
+      showOperationError({ message: 'Deployment profile was not found.' });
       return;
     }
     const ok = await confirmAction({
@@ -653,7 +689,7 @@ export async function handleAction(action, source = null) {
       ?? payload.profile.activeProfile
       ?? null;
     if (!profileToEdit) {
-      window.alert('Deployment profile not found.');
+      showOperationError({ message: 'Deployment profile was not found.' });
       return;
     }
     const profileUpdate = await showSoftwareDialog(payload.profile, profileToEdit);
@@ -695,7 +731,7 @@ export async function handleAction(action, source = null) {
     const activeProfileId = payload.profile.activeProfile?.id;
     const candidates = payload.profile.profiles.filter((profile) => profile.id !== activeProfileId);
     if (!candidates.length) {
-      window.alert('No inactive deployment profiles can be deleted.');
+      showOperationError({ message: 'No inactive deployment profiles can be deleted.' });
       return;
     }
     await showPicker('Delete deployment profile', candidates.map((profile) => ({
@@ -703,7 +739,7 @@ export async function handleAction(action, source = null) {
       detail: profile.softwareIds.length ? profile.softwareIds.join(', ') : 'no client software',
       value: profile,
     })), (profile) => {
-      handleProfileDelete(profile).catch((error) => window.alert(error.message));
+      handleProfileDelete(profile).catch(showOperationError);
     }, 'Delete');
   } else if (action === 'software-add') {
     const input = await showAddSoftwareDialog();

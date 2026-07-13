@@ -4,9 +4,27 @@ import { state } from './state.js';
 
 let consoleDockAttentionTimer = null;
 
-export function setControlsDisabled(disabled) {
+export function setControlsDisabled(disabled, options = {}) {
+  const softwareTestActive = Boolean(state.current?.softwareTest?.active?.runId);
+  const preserveSoftwareTestControls = options.preserveSoftwareTestControls === true
+    && softwareTestActive
+    && state.busy !== true;
+  $$('[data-operation-readonly]').forEach((notice) => {
+    notice.hidden = !preserveSoftwareTestControls;
+  });
   $$('button[data-action], dialog button, dialog input, dialog select, dialog textarea').forEach((control) => {
     if (control instanceof HTMLButtonElement && control.value === 'cancel') {
+      return;
+    }
+    const operationAllowance = control.dataset.operationAllowed;
+    const canRemainEnabled = preserveSoftwareTestControls
+      && (operationAllowance === 'inspect'
+        || (operationAllowance === 'abort' && control.dataset.operationReady === 'true'));
+    if (canRemainEnabled) {
+      if (control.dataset.busyDisabled === 'true') {
+        control.disabled = false;
+        delete control.dataset.busyDisabled;
+      }
       return;
     }
     if (disabled) {
@@ -213,7 +231,11 @@ export async function copyConsoleLog(button) {
   if (!logText) {
     return;
   }
-  await copyText(logText);
+  await copyTextWithFeedback(button, logText);
+}
+
+export async function copyTextWithFeedback(button, value) {
+  await copyText(value);
   const icon = button.querySelector('.local-icon, .material-symbols-outlined');
   if (icon) {
     icon.replaceWith(makeIcon('check', 'local-action-icon'));
@@ -226,8 +248,8 @@ export async function copyConsoleLog(button) {
     }
     const currentIcon = button.querySelector('.local-icon');
     currentIcon?.replaceWith(makeIcon('content_copy', 'local-action-icon'));
-    button.title = 'Copy log';
-    button.setAttribute('aria-label', 'Copy log');
+    button.title = button.dataset.copyLabel || 'Copy log';
+    button.setAttribute('aria-label', button.dataset.copyLabel || 'Copy log');
   }, 1200);
 }
 
@@ -295,6 +317,17 @@ export function renderConsoleDock(appState) {
     const showError = Boolean(operation?.error) && !running;
     elements.consoleOpError.hidden = !showError;
     elements.consoleOpError.textContent = showError ? operation.error : '';
+  }
+  const activeTest = appState.softwareTest?.active ?? null;
+  if (elements.consoleSoftwareTestAbort) {
+    const abortAvailable = activeTest?.abortAvailable === true;
+    elements.consoleSoftwareTestAbort.hidden = !activeTest;
+    elements.consoleSoftwareTestAbort.disabled = !abortAvailable || state.busy;
+    elements.consoleSoftwareTestAbort.dataset.operationReady = String(abortAvailable && state.busy !== true);
+    elements.consoleSoftwareTestAbort.textContent = abortAvailable ? 'Stop test' : 'Stopping…';
+    elements.consoleSoftwareTestAbort.title = abortAvailable
+      ? 'Interrupt the current software test and restore the clean checkpoint.'
+      : 'Stopping the test and restoring the clean checkpoint.';
   }
   // Auto-expand once per operation so output is visible without leaving the view;
   // a manual collapse during the run is respected until the next operation starts.

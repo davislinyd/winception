@@ -7,10 +7,36 @@ export const RESERVED_WINDOWS_USERNAMES = new Set([
   'administrator', 'guest', 'defaultaccount', 'wdagutilityaccount', 'system',
 ]);
 
-export function errorWithStatus(message, statusCode = 500) {
+export function errorWithStatus(message, statusCode = 500, options = {}) {
   const error = new Error(message);
   error.statusCode = statusCode;
+  error.publicError = {
+    message: options.message ?? message,
+    code: options.code ?? 'request_failed',
+    action: options.action ?? '',
+  };
   return error;
+}
+
+export function publicApiError(error) {
+  const fallback = {
+    statusCode: error?.statusCode ?? (error instanceof SyntaxError ? 400 : 500),
+    error: error instanceof SyntaxError
+      ? 'The request could not be read. Correct the input and try again.'
+      : 'Operation could not be completed. Check System Log and try again.',
+    errorCode: error instanceof SyntaxError ? 'invalid_request' : 'unexpected_error',
+    errorAction: error instanceof SyntaxError ? 'Correct the request and try again.' : 'Check System Log and try again.',
+  };
+  const published = error?.publicError;
+  if (!published) {
+    return fallback;
+  }
+  return {
+    statusCode: error.statusCode ?? fallback.statusCode,
+    error: String(published.message ?? fallback.error),
+    errorCode: String(published.code ?? 'request_failed'),
+    errorAction: String(published.action ?? ''),
+  };
 }
 
 export function isBenignObjectSecurityTypeDataLine(line) {

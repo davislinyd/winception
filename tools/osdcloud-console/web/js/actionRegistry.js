@@ -23,6 +23,7 @@ import {
   showSoftwareScriptViewer,
 } from './dialogs.js';
 import { elements } from './dom.js';
+import { showOperationError } from './errorDialog.js';
 import { render } from './render.js';
 import { handleInitializationAction } from './setup.js';
 import { state } from './state.js';
@@ -60,7 +61,7 @@ export function handleDocumentClick(event) {
 
   const bulkButton = target.closest('[data-bulk-action]');
   if (bulkButton) {
-    handleFleetBulkAction(bulkButton.dataset.bulkAction).catch((error) => window.alert(error.message));
+    handleFleetBulkAction(bulkButton.dataset.bulkAction).catch(showOperationError);
     return;
   }
 
@@ -86,7 +87,7 @@ export function handleDocumentClick(event) {
   const initButton = target.closest('[data-init-action]');
   if (initButton) {
     event.preventDefault();
-    handleInitializationAction(initButton.dataset.initAction, initButton).catch((error) => window.alert(error.message));
+    handleInitializationAction(initButton.dataset.initAction, initButton).catch(showOperationError);
     return;
   }
 
@@ -99,7 +100,7 @@ export function handleDocumentClick(event) {
     state.pendingInterface = item;
     render();
     if (interfaceButton.dataset.interfaceAction === 'sync') {
-      confirmEndpointSync(item).catch((error) => window.alert(error.message));
+      confirmEndpointSync(item).catch(showOperationError);
     }
     return;
   }
@@ -111,13 +112,13 @@ export function handleDocumentClick(event) {
       return;
     }
     if (profileButton.dataset.profileAction === 'select') {
-      handleProfileSelect(profile).catch((error) => window.alert(error.message));
+      handleProfileSelect(profile).catch(showOperationError);
     } else if (profileButton.dataset.profileAction === 'delete') {
-      handleProfileDelete(profile).catch((error) => window.alert(error.message));
+      handleProfileDelete(profile).catch(showOperationError);
     } else if (profileButton.dataset.profileAction === 'edit') {
-      handleAction('profile-edit', profileButton).catch((error) => window.alert(error.message));
+      handleAction('profile-edit', profileButton).catch(showOperationError);
     } else if (profileButton.dataset.profileAction === 'test') {
-      handleAction('profile-test', profileButton).catch((error) => window.alert(error.message));
+      handleAction('profile-test', profileButton).catch(showOperationError);
     }
     return;
   }
@@ -131,9 +132,9 @@ export function handleDocumentClick(event) {
     if (softwareButton.dataset.softwareAction === 'view') {
       showSoftwareDetails(software);
     } else if (softwareButton.dataset.softwareAction === 'delete') {
-      handleSoftwareDelete(software).catch((error) => window.alert(error.message));
+      handleSoftwareDelete(software).catch(showOperationError);
     } else if (softwareButton.dataset.softwareAction === 'script-view') {
-      showSoftwareScriptViewer(software).catch((error) => window.alert(error.message));
+      showSoftwareScriptViewer(software).catch(showOperationError);
     }
     return;
   }
@@ -145,9 +146,9 @@ export function handleDocumentClick(event) {
       return;
     }
     if (scriptButton.dataset.scriptAction === 'view') {
-      showScriptContentViewer(script).catch((error) => window.alert(error.message));
+      showScriptContentViewer(script).catch(showOperationError);
     } else if (scriptButton.dataset.scriptAction === 'delete') {
-      handleScriptDelete(script).catch((error) => window.alert(error.message));
+      handleScriptDelete(script).catch(showOperationError);
     }
     return;
   }
@@ -156,9 +157,9 @@ export function handleDocumentClick(event) {
   if (osImageButton) {
     const image = state.current?.osImage?.images?.find((item) => item.id === osImageButton.dataset.osImageId);
     if (image && osImageButton.dataset.osImageAction === 'delete') {
-      handleOsImageDelete(image).catch((error) => window.alert(error.message));
+      handleOsImageDelete(image).catch(showOperationError);
     } else if (image && osImageButton.dataset.osImageAction === 'reexport') {
-      handleOsImageReexport(image).catch((error) => window.alert(error.message));
+      handleOsImageReexport(image).catch(showOperationError);
     }
     return;
   }
@@ -167,7 +168,7 @@ export function handleDocumentClick(event) {
   if (osDownloadButton) {
     const image = state.osDownloadCatalog.find((item) => item.id === osDownloadButton.dataset.osDownloadId);
     if (image && osDownloadButton.dataset.osDownloadAction === 'download') {
-      handleOsImageDownload(image).catch((error) => window.alert(error.message));
+      handleOsImageDownload(image).catch(showOperationError);
     }
     return;
   }
@@ -176,13 +177,13 @@ export function handleDocumentClick(event) {
   if (osImportButton) {
     const row = state.osImportInspection?.indexes?.find((item) => String(item.imageIndex) === osImportButton.dataset.osImportIndex);
     if (row && osImportButton.dataset.osImportAction === 'import') {
-      handleOsImageImport(row).catch((error) => window.alert(error.message));
+      handleOsImageImport(row).catch(showOperationError);
     }
     return;
   }
 
   const actionButton = target.closest('[data-action]');
   if (actionButton) {
-    handleAction(actionButton.dataset.action, actionButton).catch((error) => window.alert(error.message));
+    handleAction(actionButton.dataset.action, actionButton).catch(showOperationError);
   }
 }

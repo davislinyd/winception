@@ -1,5 +1,6 @@
 import { catalogFilterQuery, clearRefineFilters, osCatalogFiltersReady, selectedOsCatalogFilters } from './deploy.js';
 import { $ } from './dom.js';
+import { showOperationError } from './errorDialog.js';
 import { render } from './render.js';
 import { state } from './state.js';
 import { setControlsDisabled } from './ui.js';
@@ -43,7 +44,10 @@ export async function api(path, options = {}) {
       state.auth.hostMode = payload.hostMode ?? 'non-loopback';
       state.auth.error = payload.error || 'Winception Web Console token required.';
     }
-    throw new Error(payload.error || `HTTP ${response.status}`);
+    const error = new Error(payload.error || `HTTP ${response.status}`);
+    error.code = payload.errorCode || '';
+    error.action = payload.errorAction || '';
+    throw error;
   }
   return payload;
 }
@@ -52,7 +56,10 @@ export async function loadAuthStatus() {
   const response = await fetch('/api/auth/status');
   const payload = await response.json();
   if (!response.ok || payload.ok === false) {
-    throw new Error(payload.error || `HTTP ${response.status}`);
+    const error = new Error(payload.error || `HTTP ${response.status}`);
+    error.code = payload.errorCode || '';
+    error.action = payload.errorAction || '';
+    throw error;
   }
   state.auth = {
     checked: true,
@@ -166,6 +173,7 @@ export async function mutate(path, body = null, options = {}) {
     return;
   }
   const alertOnError = options.alertOnError !== false;
+  const rethrow = options.rethrow === true;
   state.busy = true;
   setControlsDisabled(true);
   try {
@@ -179,9 +187,12 @@ export async function mutate(path, body = null, options = {}) {
     return payload;
   } catch (error) {
     if (alertOnError) {
-      window.alert(error.message);
-    } else {
+      showOperationError(error);
+    } else if (!rethrow) {
       await refresh();
+    }
+    if (rethrow) {
+      throw error;
     }
     return null;
   } finally {

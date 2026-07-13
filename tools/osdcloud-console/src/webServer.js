@@ -5,6 +5,7 @@ import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { webServerConfig } from './config.js';
 import { ServiceController } from './controller/index.js';
+import { publicApiError } from './controller/helpers.js';
 import { ensureWebConsoleToken, tokenMatches, webAuthState } from './webAuth.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,17 @@ function resolveStaticPath(root, requestPath) {
     return null;
   }
   return resolved;
+}
+
+function sendApiError(res, error, fallbackStatusCode = null) {
+  const payload = publicApiError(error);
+  if (fallbackStatusCode !== null && !error?.statusCode) {
+    payload.statusCode = fallbackStatusCode;
+  }
+  if (error?.profiles) {
+    payload.profiles = error.profiles;
+  }
+  sendJson(res, payload.statusCode, { ok: false, ...payload });
 }
 
 function resolveManualPath(root, requestPath) {
@@ -136,6 +148,7 @@ const apiRouteTable = [
   { method: 'POST', path: '/api/profile' },
   { method: 'POST', path: '/api/software-test/config' },
   { method: 'POST', path: '/api/software-test/run' },
+  { method: 'POST', path: '/api/software-test/abort' },
   { method: 'POST', path: '/api/os-image-delete' },
   { method: 'POST', path: '/api/os-download' },
   { method: 'POST', path: '/api/offline-iso/create' },
@@ -210,12 +223,7 @@ export class WebManagementServer {
     }
     this.server = http.createServer((req, res) => {
       this.handleRequest(req, res).catch((error) => {
-        const statusCode = error.statusCode ?? (error instanceof SyntaxError ? 400 : 500);
-        const payload = { ok: false, error: error.message };
-        if (error.profiles) {
-          payload.profiles = error.profiles;
-        }
-        sendJson(res, statusCode, payload);
+        sendApiError(res, error);
       });
     });
     this.eventLoopDelay.enable();
@@ -317,7 +325,12 @@ export class WebManagementServer {
       if (!this.ensureAuthorized(req, res)) {
         return;
       }
-      sendJson(res, 404, { ok: false, error: `Unknown API path: ${pathname}` });
+      sendJson(res, 404, {
+        ok: false,
+        error: 'The requested API endpoint was not found.',
+        errorCode: 'unknown_api_path',
+        errorAction: 'Refresh the page and try again.',
+      });
       return;
     }
     if (routeMeta.auth !== false && !this.ensureAuthorized(req, res)) {
@@ -373,7 +386,12 @@ export class WebManagementServer {
       const bundleName = requestUrl.searchParams.get('name');
       const filePath = this.controller.diagnosticsDownloadPath(bundleName);
       if (!filePath) {
-        sendJson(res, 404, { ok: false, error: 'Diagnostic bundle not found.' });
+        sendJson(res, 404, {
+          ok: false,
+          error: 'Diagnostic bundle was not found.',
+          errorCode: 'diagnostic_bundle_not_found',
+          errorAction: 'Generate diagnostics again, then retry the download.',
+        });
         return;
       }
       await this.sendFile(req, res, filePath);
@@ -429,7 +447,7 @@ export class WebManagementServer {
         const result = this.controller.extendTorrentClient(body);
         sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       } catch (error) {
-        sendJson(res, 400, { ok: false, error: error.message });
+        sendApiError(res, error, 400);
       }
       return;
     }
@@ -509,6 +527,12 @@ export class WebManagementServer {
     if (pathname === '/api/software-test/run') {
       const body = await readBody(json16KiB);
       const result = await this.controller.startSoftwareTest(body.profileId ?? body.id);
+      sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/software-test/abort') {
+      const body = await readBody(json16KiB);
+      const result = await this.controller.abortSoftwareTest(body.runId);
       sendJson(res, 202, { ok: true, result, state: this.controller.getState() });
       return;
     }
@@ -683,7 +707,12 @@ export class WebManagementServer {
       return;
     }
 
-    sendJson(res, 404, { ok: false, error: `Unknown API path: ${pathname}` });
+    sendJson(res, 404, {
+      ok: false,
+      error: 'The requested API endpoint was not found.',
+      errorCode: 'unknown_api_path',
+      errorAction: 'Refresh the page and try again.',
+    });
   }
 
   async handleStatic(req, res, requestUrl) {

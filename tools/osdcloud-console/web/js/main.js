@@ -4,6 +4,7 @@ import { api, loadAuthStatus, refresh, saveAuthToken, storedAuthToken } from './
 import { clearRefineFilters, openValidationEvidenceFromTarget } from './deploy.js';
 import { bindEmbeddedConfigHeaderToggles, closeDialog, closeEmbeddedConfig, enableBackdropCloseForDialogs, isInsideStandaloneDialog, suppressBackdropCloseClickThrough } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
+import { showOperationError } from './errorDialog.js';
 import { renderFleetCards } from './fleet.js';
 import { render } from './render.js';
 import { state } from './state.js';
@@ -215,7 +216,7 @@ $$('button[data-action]').forEach((button) => {
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    handleAction(button.dataset.action, button).catch((error) => window.alert(error.message));
+    handleAction(button.dataset.action, button).catch(showOperationError);
   });
 });
 
@@ -285,13 +286,13 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   event.preventDefault();
-  handleAction(serviceCard.dataset.action).catch((error) => window.alert(error.message));
+  handleAction(serviceCard.dataset.action).catch(showOperationError);
 });
 
 document.addEventListener('click', suppressBackdropCloseClickThrough, true);
 
 elements.refreshButton.addEventListener('click', () => {
-  refresh().catch((error) => window.alert(error.message));
+  refresh().catch(showOperationError);
 });
 
 elements.validationEvidenceDialog?.addEventListener('close', () => {
@@ -371,7 +372,7 @@ if (elements.consoleDockHead) {
 }
 elements.consoleDockCopy?.addEventListener('click', (event) => {
   event.stopPropagation();
-  copyConsoleLog(elements.consoleDockCopy).catch((error) => window.alert(error.message));
+  copyConsoleLog(elements.consoleDockCopy).catch(showOperationError);
 });
 
 // Header workspace switcher (Deploy / Monitor). Guided setup stays inside the
@@ -439,7 +440,7 @@ async function boot() {
 boot().catch((error) => {
   state.refreshError = error.message;
   renderAuthGate();
-  window.alert(error.message);
+  showOperationError(error);
 });
 setInterval(() => {
   if (!state.auth.required || storedAuthToken()) {

@@ -88,9 +88,23 @@ export function formatLocalLogLine(message, date = new Date()) {
 }
 
 const rfc5424Pattern = /^<(\d+)>1 (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)(?: (.*))?$/u;
+const powerShellTracePattern = /\uFFFD|(?:^|\s)(?:at\s+)?[A-Za-z]:\\[^\r\n]*?\.ps1(?::\d+)?|(?:^|\s)(?:CategoryInfo|FullyQualifiedErrorId)\s*:|(?:^|\s)\+\s+(?:throw|CategoryInfo|FullyQualifiedErrorId)\b|CommandInvocation\(/iu;
+const webFailurePrefixPattern = /^(.*?\bfailed:\s*.+?)(?=\s+(?:\uFFFD|(?:at\s+)?[A-Za-z]:\\|CategoryInfo\s*:|FullyQualifiedErrorId\s*:|\+\s+(?:throw|CategoryInfo|FullyQualifiedErrorId)\b|CommandInvocation\())/iu;
+
+function redactPowerShellTrace(line) {
+  const value = String(line ?? '');
+  const prefix = webFailurePrefixPattern.exec(value)?.[1]?.trim();
+  if (prefix) {
+    return prefix;
+  }
+  if (powerShellTracePattern.test(value) || /^[\s~]{6,}$/u.test(value)) {
+    return 'Operation could not be completed. Check System Log and try again.';
+  }
+  return value;
+}
 
 export function formatDisplayLogLine(line) {
-  const str = String(line ?? '');
+  const str = redactPowerShellTrace(line);
   const rfcMatch = rfc5424Pattern.exec(str);
   if (rfcMatch) {
     const pri = Number(rfcMatch[1]);

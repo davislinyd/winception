@@ -8,9 +8,11 @@ import {
   normalizeSoftwareTestConfiguration,
   prepareSoftwareTestRun,
   readSoftwareTestStatus,
+  requestSoftwareTestAbort,
   runPreparedSoftwareTest,
   saveSoftwareTestConfiguration,
   softwareTestConfigPath,
+  softwareTestRunPaths,
   writeSoftwareTestStatus,
 } from '../src/softwareTest.js';
 
@@ -46,7 +48,7 @@ test('software test configuration validates a dedicated VM and does not persist 
     });
     assert.throws(
       () => normalizeSoftwareTestConfiguration({ vmName: '../other', checkpointName: 'clean', targetUser: 'operator' }),
-      /Invalid software test VM name/,
+      /Enter a valid software test VM name/,
     );
     await assert.rejects(
       () => saveSoftwareTestConfiguration(config, {
@@ -57,7 +59,7 @@ test('software test configuration validates a dedicated VM and does not persist 
         runnerPath: runner,
         runPowerShell: async () => ({ stdout: 'checkpoint missing' }),
       }),
-      /validation did not return/i,
+      /could not be verified/i,
     );
     assert.equal(fs.existsSync(softwareTestConfigPath(config)), false);
 
@@ -82,6 +84,61 @@ test('software test configuration validates a dedicated VM and does not persist 
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('software test registration exposes structured safe validation errors without persisting configuration', async () => {
+  const root = makeRoot();
+  try {
+    const config = makeConfig(root);
+    const runner = path.join(root, 'Invoke-SoftwareTestVm.ps1');
+    fs.writeFileSync(runner, '# test runner\n', 'utf8');
+    const settings = {
+      vmName: 'winception-software-test-01',
+      checkpointName: 'Winception-SoftwareTest-Clean',
+      targetUser: 'operator',
+    };
+    const expected = {
+      vm_not_found: 'software_test_vm_not_found',
+      vm_wrong_generation: 'software_test_vm_wrong_generation',
+      vm_not_off: 'software_test_vm_not_off',
+      checkpoint_not_found: 'software_test_checkpoint_not_found',
+    };
+
+    for (const [reason, code] of Object.entries(expected)) {
+      const raw = new Error('C:\\private\\Invoke-SoftwareTestVm.ps1:44 raw PowerShell output');
+      raw.stdout = runnerOutput({ valid: false, reason });
+      await assert.rejects(
+        () => saveSoftwareTestConfiguration(config, settings, {
+          runnerPath: runner,
+          runPowerShell: async () => { throw raw; },
+        }),
+        (error) => {
+          assert.equal(error.publicError?.code, code);
+          assert.doesNotMatch(error.publicError?.message ?? '', /private|PowerShell/u);
+          assert.ok(error.publicError?.action);
+          if (reason === 'vm_not_off') {
+            assert.match(error.publicError.action, /Saved and Paused states are not supported/u);
+          }
+          return true;
+        },
+      );
+    }
+    assert.equal(fs.existsSync(softwareTestConfigPath(config)), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('software test runner emits structured validation reasons', () => {
+  const runner = fs.readFileSync(path.resolve('tools', 'Invoke-SoftwareTestVm.ps1'), 'utf8');
+  assert.match(runner, /function Test-SoftwareTestVmRegistration/u);
+  assert.match(runner, /reason = 'vm_not_found'/u);
+  assert.match(runner, /reason = 'vm_wrong_generation'/u);
+  assert.match(runner, /reason = 'vm_not_off'/u);
+  assert.match(runner, /reason = 'checkpoint_not_found'/u);
+  assert.match(runner, /function Get-CleanupFailure/u);
+  assert.match(runner, /runner-diagnostic\.log/u);
+  assert.match(runner, /Write-Result \$validation/u);
 });
 
 test('software test materialization stays in State and runner status is safe for the Web API', async () => {
@@ -152,11 +209,97 @@ test('software test materialization stays in State and runner status is safe for
       () => prepareSoftwareTestRun(config, '../invalid', { materializePayload: async () => null }),
       /Invalid deployment profile id/i,
     );
-    writeSoftwareTestStatus(config, prepared.runId, { ...completed, cleanup: 'failed' });
+    const cleanupFailed = writeSoftwareTestStatus(config, prepared.runId, {
+      ...completed,
+      cleanup: 'failed',
+      cleanupReason: 'checkpoint_not_found',
+      cleanupAction: 'C:\\private\\raw-action',
+    });
+    assert.equal(cleanupFailed.cleanupReason, 'checkpoint_not_found');
+    assert.match(cleanupFailed.cleanupAction, /Rebuild or select the clean checkpoint/u);
+    assert.doesNotMatch(cleanupFailed.cleanupAction, /private|raw-action/u);
     await assert.rejects(
       () => prepareSoftwareTestRun(config, 'profile-02', { materializePayload: async () => null }),
-      /Previous software test cleanup failed/i,
+      /Previous software test cleanup requires recovery/i,
     );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('successful re-registration marks a failed cleanup recovered and unlocks a new test', async () => {
+  const root = makeRoot();
+  try {
+    const config = makeConfig(root);
+    const runner = path.join(root, 'Invoke-SoftwareTestVm.ps1');
+    fs.writeFileSync(runner, '# test runner\n', 'utf8');
+    writeSoftwareTestStatus(config, 'failed-run', {
+      runId: 'failed-run',
+      profileId: 'profile-01',
+      profileName: 'Test profile',
+      status: 'failed',
+      phase: 'cleanup-failed',
+      cleanup: 'failed',
+      cleanupReason: 'checkpoint_not_found',
+    });
+    await saveSoftwareTestConfiguration(config, {
+      vmName: 'winception-software-test-01',
+      checkpointName: 'Winception-SoftwareTest-Clean',
+      targetUser: 'operator',
+    }, {
+      runnerPath: runner,
+      runPowerShell: async () => ({ stdout: runnerOutput({ valid: true }) }),
+    });
+    const recovered = readSoftwareTestStatus(config).latest;
+    assert.equal(recovered.cleanup, 'failed');
+    assert.equal(recovered.recovery?.status, 'verified');
+    await assert.doesNotReject(() => prepareSoftwareTestRun(config, 'profile-02', {
+      materializePayload: async (_config, profileId, testRoot) => ({
+        profile: { id: profileId, name: 'Recovered profile' },
+        appsRoot: testRoot,
+      }),
+    }));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('successful re-registration recovers a stale payload-ready run that never started the runner', async () => {
+  const root = makeRoot();
+  try {
+    const config = makeConfig(root);
+    const runner = path.join(root, 'Invoke-SoftwareTestVm.ps1');
+    fs.writeFileSync(runner, '# test runner\n', 'utf8');
+    const now = Date.parse('2026-07-13T06:00:00.000Z');
+    writeSoftwareTestStatus(config, 'stale-run', {
+      runId: 'stale-run',
+      profileId: 'profile-01',
+      profileName: 'Test profile',
+      status: 'running',
+      phase: 'payload-ready',
+      startedAt: '2026-07-13T05:58:00.000Z',
+      cleanup: 'pending',
+    });
+    await saveSoftwareTestConfiguration(config, {
+      vmName: 'winception-software-test-01',
+      checkpointName: 'Winception-SoftwareTest-Clean',
+      targetUser: 'operator',
+    }, {
+      now,
+      runnerPath: runner,
+      runPowerShell: async () => ({ stdout: runnerOutput({ valid: true }) }),
+    });
+    const recovered = readSoftwareTestStatus(config).latest;
+    assert.equal(recovered.status, 'failed');
+    assert.equal(recovered.phase, 'runner-not-started');
+    assert.equal(recovered.cleanup, 'not-required');
+    assert.equal(recovered.recovery?.status, 'verified');
+    await assert.doesNotReject(() => prepareSoftwareTestRun(config, 'profile-02', {
+      materializePayload: async (_config, profileId, testRoot) => ({
+        profile: { id: profileId, name: 'Recovered profile' },
+        appsRoot: testRoot,
+      }),
+    }));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -199,4 +342,55 @@ test('software test keeps a safe runner result even when PowerShell returns a no
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('software test abort request is limited to the latest active run and exposes only safe status', () => {
+  const root = makeRoot();
+  try {
+    const config = makeConfig(root);
+    writeSoftwareTestStatus(config, 'test-run-001', {
+      runId: 'test-run-001',
+      profileId: 'profile-01',
+      profileName: 'Test profile',
+      status: 'running',
+      phase: 'running-installer',
+      startedAt: '2026-07-13T00:00:00.000Z',
+      cleanup: 'pending',
+      detail: 'Running the published software sequence as SYSTEM.',
+    });
+
+    const requested = requestSoftwareTestAbort(config, 'test-run-001', { now: Date.parse('2026-07-13T00:01:00.000Z') });
+    assert.equal(requested.status, 'running');
+    assert.equal(requested.phase, 'cancellation-requested');
+    assert.equal(requested.abortRequestedAt, '2026-07-13T00:01:00.000Z');
+    assert.equal(fs.existsSync(softwareTestRunPaths(config, 'test-run-001').abortRequestPath), true);
+    assert.match(requested.detail, /Stopping the test and restoring the clean checkpoint/u);
+
+    assert.throws(
+      () => requestSoftwareTestAbort(config, 'test-run-001'),
+      (error) => error.publicError?.code === 'software_test_abort_in_progress',
+    );
+    assert.throws(
+      () => requestSoftwareTestAbort(config, 'other-run'),
+      (error) => error.publicError?.code === 'software_test_not_running',
+    );
+    const safe = readSoftwareTestStatus(config).latest;
+    assert.equal(safe.abortRequestedAt, '2026-07-13T00:01:00.000Z');
+    assert.doesNotMatch(JSON.stringify(safe), /abort-request\.json|command|secret/u);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('software test runner checks cancellation requests and preserves checkpoint cleanup', () => {
+  const runner = fs.readFileSync(path.resolve('tools', 'Invoke-SoftwareTestVm.ps1'), 'utf8');
+  assert.match(runner, /abort-request\.json/u);
+  assert.match(runner, /function Test-AbortRequested/u);
+  assert.match(runner, /function Stop-RemoteInstallerTask/u);
+  assert.match(runner, /Phase 'stopping-installer'/u);
+  assert.match(runner, /Phase 'restoring-checkpoint'/u);
+  assert.match(runner, /Status 'aborted'/u);
+  assert.match(runner, /Split-Path -Parent \$RunRoot\) 'latest\.json'/u);
+  assert.match(runner, /Stop-SoftwareTestVmForCleanup/u);
+  assert.match(runner, /Restore-VMSnapshot -VMName \$VmName -Name \$CheckpointName/u);
 });

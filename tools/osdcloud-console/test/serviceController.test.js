@@ -514,6 +514,73 @@ test('delete status run clears selected run and returns updated fleet', async ()
   }
 });
 
+test('selecting a legacy profile backfills missing international settings before publishing', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-legacy-profile-'));
+  try {
+    const activeProfile = {
+      id: 'all-in-one',
+      name: 'All in One',
+      osImageId: 'SMOKE-WIN11-PRO',
+      displayLanguage: 'en-US',
+      locale: 'en-US',
+      inputLanguage: 'en-US',
+      timeZone: 'Taipei Standard Time',
+    };
+    const legacyProfile = {
+      id: 'minimal',
+      name: 'Minimal',
+      osImageId: 'SMOKE-WIN11-PRO',
+      displayLanguage: null,
+      locale: null,
+      inputLanguage: null,
+      timeZone: null,
+      softwareIds: [],
+    };
+    const updates = [];
+    const { controller, config } = makeController(root, {
+      dependencies: {
+        resolveDeploymentProfileState: () => ({
+          activeProfile,
+          profiles: [legacyProfile, activeProfile],
+          selectedSoftware: [],
+          catalog: { software: [] },
+        }),
+        updateDeploymentProfile(_config, profileId, input) {
+          updates.push({ profileId, input });
+          Object.assign(legacyProfile, input);
+          return { profile: legacyProfile, filePath: path.join(root, `${profileId}.json`) };
+        },
+        publishDeploymentProfile(_config, profileId) {
+          assert.equal(profileId, 'minimal');
+          return {
+            profile: legacyProfile,
+            selectedSoftware: [],
+            softwarePayloads: [],
+            appsRoot: path.join(root, 'Apps'),
+            osImage: null,
+          };
+        },
+      },
+    });
+
+    const result = await controller.changeDeploymentProfile('minimal');
+
+    assert.deepEqual(updates, [{
+      profileId: 'minimal',
+      input: {
+        displayLanguage: 'en-US',
+        locale: 'en-US',
+        inputLanguage: 'en-US',
+        timeZone: 'Taipei Standard Time',
+      },
+    }]);
+    assert.equal(result.profile.id, 'minimal');
+    assert.equal(config.deploymentProfiles.activeProfile, 'minimal');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('deployment profile management actions create, update active software, and delete inactive profiles', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-profiles-'));
   try {

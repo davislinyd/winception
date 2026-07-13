@@ -80,3 +80,15 @@ test('formats rfc5424 display log lines properly', () => {
   assert.equal(formatDisplayLogLine(rfcErrorLine), `${localTime} [TFTP] ERROR: Error message`);
 });
 
+test('redacts PowerShell trace details from display logs', () => {
+  const line = '2026-07-13 01:05:51 +08:00 [WEB-OP] ERROR: [WEB] Registering software test VM failed: Software test VM "winception-software-test-01" must be powered off before registration. \uFFFD\uFFFD\uFFFD C:\\OSDCloud\\HostTools\\App\\tools\\Invoke-SoftwareTestVm.ps1:44 \uFFFD\uFFFD\uFFFD CategoryInfo : OperationStopped';
+  assert.equal(
+    formatDisplayLogLine(line),
+    '2026-07-13 01:05:51 +08:00 [WEB-OP] ERROR: [WEB] Registering software test VM failed: Software test VM "winception-software-test-01" must be powered off before registration.',
+  );
+  assert.equal(
+    formatDisplayLogLine('CategoryInfo : OperationStopped: (private:String) [], RuntimeException'),
+    'Operation could not be completed. Check System Log and try again.',
+  );
+});
+

@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.6', () => {
+test('release metadata is aligned to v0.6.7', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.6');
-  assert.equal(packageLock.version, '0.6.6');
-  assert.equal(packageLock.packages[''].version, '0.6.6');
-  assert.match(changelog, /## v0\.6\.6 — 2026-07-12/);
-  assert.match(manual, /Operations Manual · v0\.6\.6/);
-  assert.match(manual, /Product documentation for Web v0\.6\.6/);
+  assert.equal(packageJson.version, '0.6.7');
+  assert.equal(packageLock.version, '0.6.7');
+  assert.equal(packageLock.packages[''].version, '0.6.7');
+  assert.match(changelog, /## v0\.6\.7 — 2026-07-13/);
+  assert.match(manual, /Operations Manual · v0\.6\.7/);
+  assert.match(manual, /Product documentation for Web v0\.6\.7/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -157,9 +157,9 @@ test('web UI exposes dashboard view topology', () => {
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
   assert.match(html, /class="deploy-summary"/);
   assert.match(html, /class="deploy-summary"[\s\S]*data-action="profiles"[\s\S]*data-action="os-images"[\s\S]*data-action="interfaces"/);
-  assert.match(html, /data-action="profiles" aria-controls="deployment-profiles-dialog" aria-expanded="false"/);
-  assert.match(html, /data-action="os-images" aria-controls="os-images-dialog" aria-expanded="false"/);
-  assert.match(html, /data-action="interfaces" aria-controls="endpoint-settings-dialog" aria-expanded="false"/);
+  assert.match(html, /data-action="profiles" data-operation-allowed="inspect" aria-controls="deployment-profiles-dialog" aria-expanded="false"/);
+  assert.match(html, /data-action="os-images" data-operation-allowed="inspect" aria-controls="os-images-dialog" aria-expanded="false"/);
+  assert.match(html, /data-action="interfaces" data-operation-allowed="inspect" aria-controls="endpoint-settings-dialog" aria-expanded="false"/);
   assert.match(html, /id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden/);
   assert.doesNotMatch(html, /id="summary-action"/);
   assert.doesNotMatch(html, /id="summary-status"/);
@@ -287,6 +287,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="software-add-success-dialog"/);
   assert.match(html, /前往 Deployment profile/);
   assert.match(html, /id="software-test-dialog"/);
+  assert.match(html, /id="software-test-error"[^>]*tabindex="-1"/);
   assert.match(html, /id="software-test-vm-name"[^>]*required/);
   assert.match(html, /id="software-test-checkpoint-name"[^>]*required/);
   assert.match(html, /id="software-test-target-user"[^>]*required/);
@@ -294,6 +295,10 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="software-test-toggle"[^>]*aria-controls="software-test-content"[^>]*aria-expanded="false"/);
   assert.match(html, /id="software-test-content" hidden/);
   assert.match(html, /data-action="software-test-settings"/);
+  assert.match(html, /id="software-test-copy"[^>]*data-action="software-test-copy"/);
+  assert.match(html, /id="software-test-abort"[^>]*class="danger"[^>]*data-action="software-test-abort"[^>]*hidden/);
+  assert.match(html, /id="console-software-test-abort"[^>]*class="danger console-dock-stop"[^>]*data-action="software-test-abort"[^>]*data-operation-allowed="abort"[^>]*hidden/);
+  assert.match(html, /data-operation-readonly hidden>Software Test is in progress\. Settings are read-only\./);
   assert.match(script, /function updateAddSoftwareMode\(\)/);
   assert.match(script, /function collectAddSoftwareInput\(\)/);
   assert.match(script, /function updateAddSoftwareStep\(step\)/);
@@ -322,13 +327,36 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /file: selectedSoftwareInstallerFile/);
   assert.match(script, /function openAddSoftwareFilePicker\(\)/);
   assert.match(script, /function insertAddSoftwareRawTemplate\(\)/);
-  assert.match(script, /function showSoftwareTestDialog\(configuration = \{\}\)/);
+  assert.match(html, /id="operation-error-dialog"/);
+  assert.match(html, /id="operation-error-title">Operation failed/);
+  assert.match(html, /id="operation-error-action"/);
+  assert.match(script, /function showOperationError\(error\)/);
+  assert.match(script, /function showSoftwareTestDialog\(configuration = \{\}, saveConfiguration = null\)/);
+  assert.match(script, /alertOnError: false, rethrow: true/);
+  assert.doesNotMatch(script, /window\.alert\(/);
   assert.match(script, /profileButton\.dataset\.profileAction === 'test'/);
   assert.match(script, /handleAction\('profile-test', profileButton\)/);
   assert.match(script, /\/api\/software-test\/config/);
   assert.match(script, /\/api\/software-test\/run/);
+  assert.match(script, /\/api\/software-test\/abort/);
+  assert.match(script, /action === 'software-test-abort'/);
+  assert.match(script, /Stop software test\?/);
+  assert.match(script, /allowDuringSoftwareTest: true/);
+  assert.match(script, /allowDuringSoftwareTest = false/);
   assert.match(script, /不會 publish live Apps/);
   assert.match(script, /action === 'software-test-toggle'/);
+  assert.match(script, /action === 'software-test-copy'/);
+  assert.match(script, /softwareTestReport\(state\.current\)/);
+  assert.match(script, /cleanupRecoveryRequired/);
+  assert.match(script, /stalePayloadReady/);
+  assert.match(script, /cancellation-requested/);
+  assert.match(script, /const activeTest = test\.active \?\? null/);
+  assert.match(script, /softwareTestAbort\.hidden = !testInProgress/);
+  assert.match(script, /softwareTestAbort\.dataset\.operationReady = String\(abortAvailable/);
+  assert.match(script, /function setControlsDisabled\(disabled, options = \{\}\)/);
+  assert.match(script, /preserveSoftwareTestControls/);
+  assert.match(script, /data-operation-readonly/);
+  assert.match(script, /consoleSoftwareTestAbort/);
   assert.match(script, /softwareTestContent\.hidden = !expanded/);
   assert.match(html, /id="os-images-dialog"/);
   assert.match(html, /class="drawer-dialog os-images-dialog"/);
@@ -682,6 +710,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.fleet-bulkbar \{/);
   assert.match(styles, /\.fc-check \{/);
   assert.match(script, /elements\.confirmSubmit\.classList\.toggle\('warning', resolvedSeverity === 'warning'\)/);
+  assert.match(script, /if \(allowDuringSoftwareTest\) \{\s+elements\.confirmSubmit\.disabled = false;\s+delete elements\.confirmSubmit\.dataset\.busyDisabled;/);
   assert.match(script, /severity: 'warning'/);
   assert.match(script, /const softwareKey = \(id\) => `software:\$\{id\}`/);
   assert.match(script, /Selected install sequence/);

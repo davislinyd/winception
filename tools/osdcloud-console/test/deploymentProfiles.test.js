@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, loadDeploymentProfiles, resolveDeploymentProfileState, sortInstallSequenceBySoftwareDependencies, updateDeploymentProfile, updateDeploymentProfileSoftware } from '../src/profiles/profiles.js';
+import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, inheritMissingInternationalSettings, loadDeploymentProfiles, resolveDeploymentProfileState, sortInstallSequenceBySoftwareDependencies, updateDeploymentProfile, updateDeploymentProfileSoftware } from '../src/profiles/profiles.js';
 import { materializeSoftwareTestPayload, publishDeploymentProfile } from '../src/profiles/publish.js';
 import { createCustomScript, deleteCustomScript, loadCustomScriptCatalog, readCustomScriptContent, uploadCustomScript } from '../src/profiles/scripts.js';
 import { deploymentProfileOptions, generateDeploymentProfileId } from '../src/profiles/shared.js';
@@ -118,6 +118,34 @@ test('loads active deployment profile with selected software order', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('legacy profile inherits missing international settings only from the current profile on the same OS image', () => {
+  const activeProfile = {
+    id: 'active',
+    osImageId: 'WIN11-EN',
+    displayLanguage: 'en-US',
+    locale: 'en-US',
+    inputLanguage: 'en-US',
+    timeZone: 'Taipei Standard Time',
+  };
+  const legacyProfile = {
+    id: 'minimal',
+    osImageId: 'WIN11-EN',
+    displayLanguage: null,
+    locale: null,
+    inputLanguage: null,
+    timeZone: null,
+  };
+
+  assert.deepEqual(inheritMissingInternationalSettings(legacyProfile, activeProfile), {
+    displayLanguage: 'en-US',
+    locale: 'en-US',
+    inputLanguage: 'en-US',
+    timeZone: 'Taipei Standard Time',
+  });
+  assert.equal(inheritMissingInternationalSettings({ ...legacyProfile, osImageId: 'WIN11-ZH' }, activeProfile), null);
+  assert.equal(inheritMissingInternationalSettings(legacyProfile, { ...activeProfile, timeZone: null }), null);
 });
 
 test('software dependencies require prerequisites, reject cycles, and sort only software slots', () => {
@@ -663,6 +691,39 @@ test('creates and updates independent profile international settings', () => {
     assert.equal(raw.locale, 'ja-JP');
     assert.equal(raw.inputLanguage, 'ko-KR');
     assert.equal(raw.timeZone, 'Tokyo Standard Time');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('creates a profile with the active profile international settings when fields are omitted', () => {
+  const root = makeRoot();
+  try {
+    writeBaseFiles(root, {
+      defaultProfile: {
+        id: 'default',
+        name: 'Default',
+        software: ['one'],
+        installSequence: installSequenceFromSoftware(['one']),
+        osImage: 'TEST-OS',
+        displayLanguage: 'en-US',
+        locale: 'en-US',
+        inputLanguage: 'en-US',
+        timeZone: 'Taipei Standard Time',
+      },
+    });
+
+    const created = createDeploymentProfile(configFor(root), { name: 'Inherited settings' }, { randomInt: () => 26 });
+    const raw = JSON.parse(fs.readFileSync(created.filePath, 'utf8'));
+
+    assert.equal(created.profile.displayLanguage, 'en-US');
+    assert.equal(created.profile.locale, 'en-US');
+    assert.equal(created.profile.inputLanguage, 'en-US');
+    assert.equal(created.profile.timeZone, 'Taipei Standard Time');
+    assert.equal(raw.displayLanguage, 'en-US');
+    assert.equal(raw.locale, 'en-US');
+    assert.equal(raw.inputLanguage, 'en-US');
+    assert.equal(raw.timeZone, 'Taipei Standard Time');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

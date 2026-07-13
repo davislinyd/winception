@@ -1,6 +1,7 @@
 import { api, mutate, refresh } from './api.js';
 import { confirmAction, openDialog } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
+import { showOperationError } from './errorDialog.js';
 import { makeDiagnosticsButton, renderDiagnosticsSummary } from './deploy/diagnostics.js';
 import { bytes, dhcpRange, elapsed, endpointLabel, localCompactDateTime, localDateTime, localTime, offlineIsoStatusText, osDownloadButtonText, osDownloadStatusText, osFamilyLabels, osImageLabel, percent, text } from './format.js';
 import { state } from './state.js';
@@ -1011,7 +1012,7 @@ export function showValidationEvidence(runId) {
   state.selectedRunId = runId;
   state.validationEvidenceOpen = true;
   openDialog(elements.validationEvidenceDialog);
-  refresh({ includeEvidence: true }).catch((error) => window.alert(error.message));
+  refresh({ includeEvidence: true }).catch(showOperationError);
 }
 
 export function openValidationEvidenceFromTarget(target) {
@@ -1432,6 +1433,26 @@ export function renderSoftwareTest(appState) {
   const test = appState.softwareTest ?? {};
   const configuration = test.configuration ?? {};
   const latest = test.latest ?? null;
+  const activeTest = test.active ?? null;
+  const testInProgress = activeTest != null;
+  const abortAvailable = activeTest?.abortAvailable === true;
+  const activePhase = activeTest?.phase ?? latest?.phase;
+  const cancellationInProgress = testInProgress && (!abortAvailable || ['cancellation-requested', 'stopping-installer', 'restoring-checkpoint'].includes(activePhase));
+  const stalePayloadReady = latest?.status === 'running'
+    && latest?.phase === 'payload-ready'
+    && Number.isFinite(Date.parse(latest?.startedAt ?? ''))
+    && Date.now() - Date.parse(latest.startedAt) >= 60 * 1000;
+  const needsRecovery = (latest?.cleanup === 'failed' && latest?.recovery?.status !== 'verified') || stalePayloadReady;
+  const recoveryAction = stalePayloadReady
+    ? 'The software test runner did not start. Confirm the dedicated VM is powered off, then use Test VM Settings and Register and verify.'
+    : (latest?.cleanupAction || 'Restore the dedicated clean checkpoint, power off the VM, then use Test VM Settings and Register and verify.');
+  const cleanupIssue = latest?.cleanupReason === 'checkpoint_not_found'
+    ? 'Clean checkpoint was not found.'
+    : (latest?.cleanupReason === 'vm_not_off'
+      ? 'VM was not fully powered off.'
+      : (latest?.cleanupReason === 'restore_failed'
+        ? 'Checkpoint could not be restored.'
+        : (latest?.cleanup === 'failed' ? 'Checkpoint cleanup could not be completed.' : '-')));
   const stepSummary = latest?.steps?.length
     ? latest.steps.map((step) => {
       const duration = Number.isFinite(Number(step.durationSeconds)) ? '，' + Math.round(Number(step.durationSeconds)) + ' 秒' : '';
@@ -1441,10 +1462,30 @@ export function renderSoftwareTest(appState) {
     : '-';
   const networkWaitSeconds = (latest?.steps ?? []).reduce((total, step) => total + (Number(step.networkWaitSeconds) || 0), 0);
   elements.softwareTestSummary.textContent = configuration.ready
-    ? (latest?.status === 'running'
-      ? '正在測試 ' + (latest.profileName || latest.profileId) + '：' + (latest.phase || '執行中')
-      : '已登記 ' + configuration.vmName + '；選擇 profile 後可測試 software，不會 publish live Apps。')
+    ? (needsRecovery
+      ? (stalePayloadReady ? 'Software test did not start. ' : 'Cleanup failed. ') + recoveryAction
+      : (testInProgress
+        ? (cancellationInProgress
+          ? (activePhase === 'restoring-checkpoint' ? 'Stopping test and restoring checkpoint…' : 'Cancellation requested. Stopping the test…')
+          : '正在測試 ' + (latest?.profileName || latest?.profileId || '-') + '：' + (activePhase || '執行中'))
+        : (latest?.status === 'aborted'
+          ? 'Software test was stopped and the clean checkpoint was restored.'
+          : '已登記 ' + configuration.vmName + '；選擇 profile 後可測試 software，不會 publish live Apps。')))
     : (configuration.detail || '請先登記專用測試 VM 與乾淨快照。');
+  if (elements.softwareTestCopy) {
+    elements.softwareTestCopy.disabled = !latest;
+    elements.softwareTestCopy.dataset.copyLabel = 'Copy test report';
+    elements.softwareTestCopy.title = latest ? 'Copy safe test summary' : 'No software test report is available.';
+  }
+  if (elements.softwareTestAbort) {
+    elements.softwareTestAbort.hidden = !testInProgress;
+    elements.softwareTestAbort.disabled = !abortAvailable || state.busy;
+    elements.softwareTestAbort.dataset.operationReady = String(abortAvailable && state.busy !== true);
+    elements.softwareTestAbort.textContent = abortAvailable ? 'Stop test' : 'Stopping…';
+    elements.softwareTestAbort.title = abortAvailable
+      ? 'Interrupt the current software test and restore the clean checkpoint.'
+      : 'Stopping the test and restoring the clean checkpoint.';
+  }
   setDefinitionList(elements.softwareTestDetails, [
     ['VM', configuration.vmName || '-'],
     ['快照', configuration.checkpointName || '-'],
@@ -1453,8 +1494,55 @@ export function renderSoftwareTest(appState) {
     ['總耗時', latest?.elapsedSeconds == null ? '-' : Math.round(Number(latest.elapsedSeconds)) + ' 秒'],
     ['網路等待', networkWaitSeconds ? Math.round(networkWaitSeconds) + ' 秒' : '-'],
     ['重開機次數', latest?.rebootCount ?? 0],
+    ...(latest?.abortRequestedAt ? [['Cancellation', latest.status === 'aborted' ? 'Completed' : 'Requested']] : []),
     ['清理', latest?.cleanup ?? '-'],
+    ...(latest?.cleanup === 'failed' ? [['Cleanup issue', cleanupIssue], ['Recovery', latest?.recovery?.status === 'verified' ? 'Verified. You can start a new test.' : recoveryAction]] : []),
+    ...(stalePayloadReady ? [['Recovery', recoveryAction]] : []),
   ]);
+}
+
+export function softwareTestReport(appState) {
+  const test = appState?.softwareTest ?? {};
+  const configuration = test.configuration ?? {};
+  const latest = test.latest;
+  if (!latest) {
+    return '';
+  }
+  const lines = [
+    'Winception Software Test Report',
+    'Run ID: ' + (latest.runId || '-'),
+    'Profile: ' + (latest.profileName || latest.profileId || '-'),
+    'VM: ' + (configuration.vmName || '-'),
+    'Checkpoint: ' + (configuration.checkpointName || '-'),
+    'Status: ' + (latest.status || '-'),
+    'Phase: ' + (latest.phase || '-'),
+    'Elapsed: ' + (latest.elapsedSeconds == null ? '-' : Math.round(Number(latest.elapsedSeconds)) + ' seconds'),
+    'Network wait: ' + Math.round((latest.steps ?? []).reduce((total, step) => total + (Number(step.networkWaitSeconds) || 0), 0)) + ' seconds',
+    'Reboots: ' + (latest.rebootCount ?? 0),
+    'Cleanup: ' + (latest.cleanup || '-'),
+  ];
+  if (latest.abortRequestedAt) {
+    lines.push('Cancellation: ' + (latest.status === 'aborted' ? 'completed' : 'requested'));
+  }
+  if (latest.cleanup === 'failed') {
+    lines.push('Cleanup reason: ' + (latest.cleanupReason || 'cleanup_failed'));
+    lines.push('Recovery: ' + (latest.cleanupAction || 'Restore the dedicated clean checkpoint, power off the VM, then use Test VM Settings and Register and verify.'));
+  } else if (latest.status === 'running' && latest.phase === 'payload-ready') {
+    lines.push('Recovery: If this state remains for more than one minute, confirm the dedicated VM is powered off, then use Test VM Settings and Register and verify.');
+  }
+  lines.push('Detail: ' + (latest.detail || '-'));
+  lines.push('Steps:');
+  if ((latest.steps ?? []).length === 0) {
+    lines.push('- None');
+  } else {
+    for (const step of latest.steps) {
+      const duration = Number.isFinite(Number(step.durationSeconds)) ? ` (${Math.round(Number(step.durationSeconds))} seconds)` : '';
+      const networkWait = Number(step.networkWaitSeconds ?? 0) > 0 ? `; network wait ${Math.round(Number(step.networkWaitSeconds))} seconds` : '';
+      lines.push(`- ${step.name || step.id || 'Step'}: ${step.status || '-'}${duration}${networkWait}`);
+    }
+  }
+  lines.push('Raw diagnostics are retained locally and are not included in this report.');
+  return lines.join('\n');
 }
 
 export function renderProfiles(appState) {
@@ -1506,8 +1594,13 @@ export function renderProfiles(appState) {
     const testButton = document.createElement('button');
     const softwareTest = appState.softwareTest?.configuration;
     const activeDeployment = (appState.fleet?.runs ?? []).some((run) => run.status === 'running');
-    const testInProgress = appState.softwareTest?.latest?.status === 'running';
-    const testBlocked = !softwareTest?.ready || Boolean(appState.operation?.running) || activeDeployment || testInProgress;
+    const stalePayloadReady = appState.softwareTest?.latest?.status === 'running'
+      && appState.softwareTest?.latest?.phase === 'payload-ready'
+      && Number.isFinite(Date.parse(appState.softwareTest?.latest?.startedAt ?? ''))
+      && Date.now() - Date.parse(appState.softwareTest.latest.startedAt) >= 60 * 1000;
+    const testInProgress = appState.softwareTest?.latest?.status === 'running' && !stalePayloadReady;
+    const cleanupRecoveryRequired = appState.softwareTest?.latest?.cleanup === 'failed' && appState.softwareTest?.latest?.recovery?.status !== 'verified';
+    const testBlocked = !softwareTest?.ready || Boolean(appState.operation?.running) || activeDeployment || testInProgress || cleanupRecoveryRequired || stalePayloadReady;
     testButton.type = 'button';
     testButton.textContent = '測試 software';
     testButton.className = 'warning';
@@ -1518,7 +1611,7 @@ export function renderProfiles(appState) {
     testButton.title = testBlocked
       ? (activeDeployment
         ? '請先等待目前 deployment 完成。'
-        : (testInProgress ? '目前已有 software test 執行中。' : (softwareTest?.detail || '請先登記專用 Software Test VM。')))
+        : (stalePayloadReady ? 'The software test runner did not start. Confirm the dedicated VM is powered off, then use Test VM Settings and Register and verify.' : (testInProgress ? '目前已有 software test 執行中。' : (cleanupRecoveryRequired ? (appState.softwareTest?.latest?.cleanupAction || 'Restore the dedicated clean checkpoint, power off the VM, then use Test VM Settings and Register and verify.') : (softwareTest?.detail || '請先登記專用 Software Test VM。')))))
       : '還原乾淨 VM、執行此 profile 的 software，最後再次還原快照。';
     if (active) {
       actionGroup.append(edit, testButton);

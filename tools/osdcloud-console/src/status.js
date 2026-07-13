@@ -7,6 +7,11 @@ import { formatLocalClock, formatLocalTimestamp, parseTimestamp } from './timeFo
 function statusError(message, statusCode) {
   const error = new Error(message);
   error.statusCode = statusCode;
+  error.publicError = {
+    message,
+    code: 'status_request_failed',
+    action: 'Refresh the page and try again.',
+  };
   return error;
 }
 

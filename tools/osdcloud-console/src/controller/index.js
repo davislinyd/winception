@@ -9,7 +9,7 @@ import { formatOsImageLabel, publishSelectedOsImage, resolveOsImageState } from 
 import { downloadOsImageFromCatalog, listOsDownloadCatalog, reexportOsImageFromSource } from '../osimages/download.js';
 import { deleteCachedOsImage } from '../osimages/maintenance.js';
 import { importUploadedOsImage, uploadOsImageFile } from '../osimages/transfer.js';
-import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, resolveDeploymentProfileState, updateDeploymentProfile } from '../profiles/profiles.js';
+import { createDeploymentProfile, deleteDeploymentProfile, evaluateDeploymentProfilePayload, inheritMissingInternationalSettings, resolveDeploymentProfileState, updateDeploymentProfile } from '../profiles/profiles.js';
 import { publishDeploymentProfile } from '../profiles/publish.js';
 import { createCustomScript, deleteCustomScript, readCustomScriptContent, uploadCustomScript } from '../profiles/scripts.js';
 import { createSoftwarePackage, deleteSoftwarePackage, formatSoftwareList, openSoftwareInstallScript, readSoftwareInstallScript, uploadSoftwareInstaller } from '../profiles/software.js';
@@ -26,10 +26,10 @@ import { gatewayOptions, inspectNetworkGateway, networkTopology, prepareNetworkG
 import { isElevatedSync } from '../windows/powershell.js';
 import { prepareRuntimeArtifacts, removeStatusFiles, runPreflight } from '../windows/preflight.js';
 import { EventEmitter } from 'node:events';
-import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, osImageDeployableStatus, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
+import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, osImageDeployableStatus, publicApiError, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
 import { buildInitializationState, osImageSummary, osImageUsageFromProfiles, profileSummary, retailOnlyCatalogFilters, runtimeReadinessFailureMessage } from './state.js';
 import { readLatestDiagnostics, resolveDiagnosticsBundlePath, runDiagnostics } from '../diagnostics/index.js';
-import { prepareSoftwareTestRun, readSoftwareTestStatus, runPreparedSoftwareTest, saveSoftwareTestConfiguration } from '../softwareTest.js';
+import { prepareSoftwareTestRun, readSoftwareTestStatus, requestSoftwareTestAbort, runPreparedSoftwareTest, saveSoftwareTestConfiguration } from '../softwareTest.js';
 
 export class ServiceController extends EventEmitter {
   constructor(options = {}) {
@@ -67,6 +67,7 @@ export class ServiceController extends EventEmitter {
       readCustomScriptContent,
       readSoftwareInstallScript,
       readSoftwareTestStatus,
+      requestSoftwareTestAbort,
       readFleetStatus,
       readRecentScreenshotMetadata,
       readRunLatestScreenshot,
@@ -122,6 +123,8 @@ export class ServiceController extends EventEmitter {
     this.osImportStatus = null;
     this.offlineIsoStatus = null;
     this.softwareTestPromise = null;
+    this.softwareTestRunId = null;
+    this.softwareTestAbortRequested = false;
     this.operation = null;
     this.networkGatewayState = networkTopology(this.config) === 'shared-lan'
       ? { topology: 'shared-lan', ready: true, detail: 'Client Internet is provided by the existing LAN/router.' }
@@ -263,14 +266,15 @@ export class ServiceController extends EventEmitter {
       if (options.mutating !== false) {
         this.invalidateRuntimeReadiness();
       }
+      const safeError = publicApiError(error).error;
       this.operation = {
         ...this.operation,
         running: false,
         finishedAt: new Date().toISOString(),
         status: 'failed',
-        error: error.message,
+        error: safeError,
       };
-      this.addLog(`[WEB] ${label} failed: ${error.message}`);
+      this.addLog(`[WEB] ${label} failed: ${safeError}`);
       this.emit('operation', this.operation);
       throw error;
     }
@@ -481,6 +485,7 @@ export class ServiceController extends EventEmitter {
       softwareTest: safeRead(() => this.getSoftwareTestStatus(), {
         configuration: { configured: false, ready: false, detail: 'Software test status is unavailable.' },
         latest: null,
+        active: null,
       }).value,
       preflight: this.preflightResults,
       endpointUpdateStatus: this.endpointUpdateStatus,
@@ -734,9 +739,16 @@ export class ServiceController extends EventEmitter {
   }
 
   extendTorrentClient(payload) {
-    const result = this.torrentCoordinator.extend(payload);
-    this.addLog(`[TORRENT] extended ${result.runId} by ${Number(payload.additionalMinutes)} minutes`);
-    return result;
+    try {
+      const result = this.torrentCoordinator.extend(payload);
+      this.addLog(`[TORRENT] extended ${result.runId} by ${Number(payload.additionalMinutes)} minutes`);
+      return result;
+    } catch (error) {
+      throw errorWithStatus(error.message, 400, {
+        code: 'torrent_extension_unavailable',
+        action: 'Select an active waiting client and try again.',
+      });
+    }
   }
 
   // Best-effort (re)generation of the active OS image .torrent + sidecar manifest.
@@ -896,6 +908,13 @@ export class ServiceController extends EventEmitter {
   async changeDeploymentProfile(profileId) {
     return this.runOperation('Publishing deployment profile', async () => {
       try {
+        const profileState = this.dependencies.resolveDeploymentProfileState(this.config);
+        const selectedProfile = profileState.profiles.find((profile) => profile.id === profileId);
+        const inheritedInternational = inheritMissingInternationalSettings(selectedProfile, profileState.activeProfile);
+        if (inheritedInternational) {
+          this.dependencies.updateDeploymentProfile(this.config, selectedProfile.id, inheritedInternational);
+          this.addLog(`Inherited missing international settings for legacy deployment profile ${selectedProfile.name}.`);
+        }
         await this.stopAllServices();
         this.preflightResults = [];
         const result = await this.dependencies.publishDeploymentProfile(this.config, profileId, {
@@ -933,7 +952,18 @@ export class ServiceController extends EventEmitter {
   }
 
   getSoftwareTestStatus() {
-    return this.dependencies.readSoftwareTestStatus(this.config);
+    const status = this.dependencies.readSoftwareTestStatus(this.config) ?? {};
+    const activeRunId = this.softwareTestRunId;
+    const active = this.softwareTestPromise && activeRunId
+      ? {
+          runId: activeRunId,
+          abortAvailable: !this.softwareTestAbortRequested,
+          phase: this.softwareTestAbortRequested
+            ? 'cancellation-requested'
+            : (status.latest?.runId === activeRunId ? (status.latest.phase ?? 'starting') : 'starting'),
+        }
+      : null;
+    return { ...status, active };
   }
 
   async configureSoftwareTest(input) {
@@ -959,17 +989,52 @@ export class ServiceController extends EventEmitter {
     const promise = this.runOperation('Testing deployment profile software', async () =>
       this.dependencies.runPreparedSoftwareTest(this.config, prepared), { mutating: false });
     this.softwareTestPromise = promise;
+    this.softwareTestRunId = prepared.runId;
+    this.softwareTestAbortRequested = false;
     void promise.then(
       () => this.addLog('Software test ' + prepared.runId + ' completed.'),
       () => this.addLog('Software test ' + prepared.runId + ' did not complete.'),
     ).finally(() => {
       this.softwareTestPromise = null;
+      this.softwareTestRunId = null;
+      this.softwareTestAbortRequested = false;
     });
     return {
       runId: prepared.runId,
       profile: { id: prepared.profile.id, name: prepared.profile.name },
       status: prepared.status,
     };
+  }
+
+  async abortSoftwareTest(runId) {
+    const id = String(runId ?? '').trim();
+    if (!this.softwareTestPromise || !this.softwareTestRunId) {
+      throw errorWithStatus('The selected software test is no longer active.', 409, {
+        code: 'software_test_not_running',
+        action: 'Refresh the page and start a new software test if needed.',
+      });
+    }
+    if (id !== this.softwareTestRunId) {
+      throw errorWithStatus('The selected software test is no longer active.', 409, {
+        code: 'software_test_run_mismatch',
+        action: 'Refresh the page before stopping a software test.',
+      });
+    }
+    if (this.softwareTestAbortRequested) {
+      throw errorWithStatus('The selected software test is already stopping.', 409, {
+        code: 'software_test_cancellation_requested',
+        action: 'Wait for checkpoint restore to complete.',
+      });
+    }
+    this.softwareTestAbortRequested = true;
+    try {
+      const result = await this.dependencies.requestSoftwareTestAbort(this.config, id);
+      this.addLog('Software test ' + id + ' cancellation requested.');
+      return result;
+    } catch (error) {
+      this.softwareTestAbortRequested = false;
+      throw error;
+    }
   }
 
   async downloadOsImage(catalogId) {

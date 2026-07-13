@@ -161,6 +161,17 @@ export function assertUniqueProfileName(profiles, name, options = {}) {
   }
 }
 
+export function inheritMissingInternationalSettings(profile, activeProfile) {
+  if (!profile || !activeProfile || profile.id === activeProfile.id || !profile.osImageId || profile.osImageId !== activeProfile.osImageId) {
+    return null;
+  }
+  const keys = ['displayLanguage', 'locale', 'inputLanguage', 'timeZone'];
+  if (!keys.some((key) => !profile[key]) || keys.some((key) => !activeProfile[key])) {
+    return null;
+  }
+  return Object.fromEntries(keys.map((key) => [key, profile[key] ?? activeProfile[key]]));
+}
+
 export function loadDeploymentProfiles(config = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const catalog = options.catalog ?? loadSoftwareCatalog(config, options);
@@ -380,10 +391,26 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
   const explicitExecution = Object.prototype.hasOwnProperty.call(input, 'execution')
     ? normalizeExecutionSettings(input.execution, `deployment profile ${id} execution`)
     : (state.activeProfile.hasExplicitExecution ? { ...state.activeProfile.execution } : null);
-  const displayLanguage = normalizeLocaleTag(input.displayLanguage, `deployment profile ${id} displayLanguage`, { optional: true });
-  const locale = normalizeLocaleTag(input.locale, `deployment profile ${id} locale`, { optional: true });
-  const inputLanguage = normalizeLocaleTag(input.inputLanguage, `deployment profile ${id} inputLanguage`, { optional: true });
-  const timeZone = normalizeWindowsTimeZoneId(input.timeZone, `deployment profile ${id} timeZone`, { optional: true });
+  const displayLanguage = normalizeLocaleTag(
+    Object.prototype.hasOwnProperty.call(input, 'displayLanguage') ? input.displayLanguage : state.activeProfile.displayLanguage,
+    `deployment profile ${id} displayLanguage`,
+    { optional: true },
+  );
+  const locale = normalizeLocaleTag(
+    Object.prototype.hasOwnProperty.call(input, 'locale') ? input.locale : state.activeProfile.locale,
+    `deployment profile ${id} locale`,
+    { optional: true },
+  );
+  const inputLanguage = normalizeLocaleTag(
+    Object.prototype.hasOwnProperty.call(input, 'inputLanguage') ? input.inputLanguage : state.activeProfile.inputLanguage,
+    `deployment profile ${id} inputLanguage`,
+    { optional: true },
+  );
+  const timeZone = normalizeWindowsTimeZoneId(
+    Object.prototype.hasOwnProperty.call(input, 'timeZone') ? input.timeZone : state.activeProfile.timeZone,
+    `deployment profile ${id} timeZone`,
+    { optional: true },
+  );
 
   const raw = {
     id,

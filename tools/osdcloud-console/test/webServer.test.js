@@ -1345,6 +1345,7 @@ test('software test routes register a dedicated VM and start an isolated profile
     let payload = await response.json();
     assert.equal(payload.result.configuration.vmName, 'winception-software-test-01');
     assert.equal(payload.result.latest, null);
+    assert.equal(payload.result.active, null);
 
     response = await fetch(`${base}/api/software-test/config`, {
       method: 'POST',
@@ -1376,6 +1377,149 @@ test('software test routes register a dedicated VM and start an isolated profile
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(runnerCalled, true);
     assert.equal(publishCalled, false);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('software test abort route accepts only the current in-memory run', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-software-test-abort-'));
+  let releaseRunner;
+  let abortRunId = null;
+  const server = await makeServer(root, {
+    dependencies: {
+      readFleetStatus: () => ({ total: 0, counts: { running: 0 }, runs: [] }),
+      prepareSoftwareTestRun: async (_config, profileId) => ({
+        runId: 'software-test-active-001',
+        profile: { id: profileId, name: 'Default' },
+        status: { runId: 'software-test-active-001', status: 'running', phase: 'payload-ready', cleanup: 'pending' },
+      }),
+      runPreparedSoftwareTest: async () => new Promise((resolve) => { releaseRunner = resolve; }),
+      requestSoftwareTestAbort: async (_config, runId) => {
+        abortRunId = runId;
+        return {
+          runId,
+          status: 'running',
+          phase: 'cancellation-requested',
+          cleanup: 'pending',
+          detail: 'Cancellation requested. Stopping the test and restoring the clean checkpoint.',
+        };
+      },
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const start = await fetch(`${base}/api/software-test/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profileId: 'default' }),
+    });
+    assert.equal(start.status, 202);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    let status = await fetch(`${base}/api/software-test/status`);
+    let statusPayload = await status.json();
+    assert.deepEqual(statusPayload.result.active, {
+      runId: 'software-test-active-001',
+      abortAvailable: true,
+      phase: 'starting',
+    });
+
+    let mutation = await fetch(`${base}/api/profiles/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Must remain locked' }),
+    });
+    assert.equal(mutation.status, 409);
+    let mutationPayload = await mutation.json();
+    assert.match(mutationPayload.error, /Operation already running: Testing deployment profile software/);
+
+    let response = await fetch(`${base}/api/software-test/abort`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runId: 'software-test-active-001' }),
+    });
+    assert.equal(response.status, 202);
+    let payload = await response.json();
+    assert.equal(payload.result.phase, 'cancellation-requested');
+    assert.equal(abortRunId, 'software-test-active-001');
+
+    status = await fetch(`${base}/api/software-test/status`);
+    statusPayload = await status.json();
+    assert.deepEqual(statusPayload.result.active, {
+      runId: 'software-test-active-001',
+      abortAvailable: false,
+      phase: 'cancellation-requested',
+    });
+
+    response = await fetch(`${base}/api/software-test/abort`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runId: 'software-test-active-001' }),
+    });
+    assert.equal(response.status, 409);
+    payload = await response.json();
+    assert.equal(payload.errorCode, 'software_test_cancellation_requested');
+
+    response = await fetch(`${base}/api/software-test/abort`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runId: 'different-run' }),
+    });
+    assert.equal(response.status, 409);
+    payload = await response.json();
+    assert.equal(payload.errorCode, 'software_test_run_mismatch');
+
+    releaseRunner({ status: 'aborted', cleanup: 'succeeded' });
+    await new Promise((resolve) => setImmediate(resolve));
+    status = await fetch(`${base}/api/software-test/status`);
+    statusPayload = await status.json();
+    assert.equal(statusPayload.result.active, null);
+    response = await fetch(`${base}/api/software-test/abort`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runId: 'software-test-active-001' }),
+    });
+    assert.equal(response.status, 409);
+    payload = await response.json();
+    assert.equal(payload.errorCode, 'software_test_not_running');
+  } finally {
+    releaseRunner?.({ status: 'aborted', cleanup: 'succeeded' });
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('API errors expose only public messages and never raw PowerShell output', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-safe-error-'));
+  const server = await makeServer(root, {
+    dependencies: {
+      saveSoftwareTestConfiguration: async () => {
+        throw new Error('C:\\private\\Invoke-SoftwareTestVm.ps1:44 raw stderr command line');
+      },
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const response = await fetch(`${base}/api/software-test/config`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        vmName: 'winception-software-test-01',
+        checkpointName: 'Winception-SoftwareTest-Clean',
+        targetUser: 'operator',
+      }),
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 500);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.errorCode, 'unexpected_error');
+    assert.equal(payload.error, 'Operation could not be completed. Check System Log and try again.');
+    assert.equal(payload.errorAction, 'Check System Log and try again.');
+    assert.doesNotMatch(JSON.stringify(payload), /private|PowerShell|command line/u);
+    assert.doesNotMatch(server.controller.getState().operation.error, /private|PowerShell|command line/u);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });
