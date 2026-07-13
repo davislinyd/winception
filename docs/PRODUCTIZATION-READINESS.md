@@ -28,4 +28,4 @@ Local 2026-07-14 evidence: v1 405/405 and v2 41/41 with no skips; global coverag
 | LAN management not live-tested | Loopback default plus certificate-store HTTPS opt-in and invalid-certificate fail-closed tests |
 | Upstream redistribution review incomplete | Confirm OSDCloud/ADK/WinPE, aria2 and every bundled client payload against the release SBOM; the Winception product license is already `AGPL-3.0-only` |
 
-Do not create the v2 prerelease or publish Pages until the internal prerelease deployment gate is closed for the exact release build. Do not merge v2 to `master` or label it production-ready until every final-production row is closed in `TEST-RESULT.md`.
+The v2 prerelease may be published only as an internal test download for fresh-VM acceptance. Do not publish Pages until the internal prerelease deployment gate is closed for the exact release build. Do not merge v2 to `master` or label it production-ready until every final-production row is closed in `TEST-RESULT.md`.
