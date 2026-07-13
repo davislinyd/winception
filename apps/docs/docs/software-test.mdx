@@ -1,0 +1,25 @@
+---
+id: software-test
+title: Software Test
+description: 在 ingress stopped 與 Fleet empty 的隔離條件下驗證軟體部署。
+---
+
+# Software Test
+
+## VM 前置條件
+
+- Nested Hyper-V VM 是 Off。
+- 至少固定 4 GB RAM，Generation 2。
+- 已建立可辨識的 clean checkpoint。
+- DHCP、TFTP、HTTP 全部 stopped；Fleet active runs 為 0。
+
+Software Test 開始時，Agent 必須在同一個 operation transaction／lock 內再次確認 ingress stopped 與 Fleet empty。UI 先前的狀態不是充分證據。
+
+## 執行與復原
+
+1. 選擇 Software Test VM、profile 與 checkpoint。
+2. 啟動測試並追蹤 operation ID、correlation ID 與 VM evidence。
+3. 成功或失敗後停止 VM並還原 clean checkpoint。
+4. 確認 cleanup operation 完成、locks 釋放、ingress 仍 stopped。
+
+不得把 Software Test VM 的成功當成實體 laptop 或多 client PXE 證據。

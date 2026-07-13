@@ -1,0 +1,29 @@
+---
+id: troubleshooting-evidence
+title: Diagnostics、Evidence 與故障排除
+description: 以 correlation ID、installer log 與分層 evidence 定位問題。
+---
+
+# Diagnostics、Evidence 與故障排除
+
+## 安裝失敗
+
+保留 `C:\ProgramData\Winception\InstallerLogs` 與 bootstrap JSON report。重新核對 release manifest、MSI/CER SHA-256、certificate thumbprint、有效期、Code Signing EKU 與 Authenticode signer。不要刪除 State 或信任憑證來「重試」。
+
+## Web 無法開啟
+
+```powershell
+Get-CimInstance Win32_Service -Filter "Name='Winception.Agent' OR Name='Winception.Web'" |
+  Select-Object Name, State, StartName, ExitCode
+Invoke-RestMethod http://127.0.0.1:8080/api/v2/health
+```
+
+使用 error response 的 correlation ID 對應本機 service log。API、report 與 issue 不得包含 setup code、token、password、PFX password 或 deployment secret。
+
+## Evidence 分層
+
+- Source：commit、test matrix、coverage、OpenAPI、SBOM。
+- MSI：exact file SHA-256、signer、manifest。
+- Installed VM：services、ACL、pipe、SQLite、health、lifecycle。
+- PXE client：boot mode、run ID、status JSONL、`windows-desktop-ready`。
+- Software Test：VM/checkpoint、locks、result、restore evidence。

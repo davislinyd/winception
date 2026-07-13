@@ -5,7 +5,7 @@ import { CONTRACT_VERSION, WINCEPTION_V2_VERSION } from '../../../packages/contr
 import { createWebApp } from '../src/app.js';
 import type { AgentClientPort } from '../src/ports.js';
 import { UploadStore } from '../../../packages/infrastructure/src/uploadStore.js';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -119,6 +119,32 @@ test('unexpected Agent errors are redacted behind a correlation ID', async () =>
   finally {
     await app.close();
   }
+});
+
+test('offline manual is public, route-safe and uses generated CSP hashes', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'winception-manual-'));
+  mkdirSync(join(root, 'manual', 'en', 'docs', 'install'), { recursive: true });
+  writeFileSync(join(root, 'index.html'), '<h1>web</h1>');
+  writeFileSync(join(root, 'manual', 'index.html'), '<h1>manual</h1>');
+  writeFileSync(join(root, 'manual', '404.html'), '<h1>not found</h1>');
+  writeFileSync(join(root, 'manual', 'en', 'docs', 'install', 'index.html'), '<h1>install</h1>');
+  writeFileSync(join(root, 'manual', 'csp-hashes.json'), JSON.stringify({ schemaVersion: 1, hashes: ['sha256-YWJj'] }));
+  const app = await createWebApp({ agent: new FakeAgent(), managementToken, secureCookie: false, staticRoot: root });
+  try {
+    const redirect = await app.inject({ method: 'GET', url: '/manual' });
+    assert.equal(redirect.statusCode, 302);
+    assert.equal(redirect.headers.location, '/manual/');
+    const home = await app.inject({ method: 'GET', url: '/manual/' });
+    assert.equal(home.statusCode, 200);
+    assert.match(home.body, /manual/u);
+    assert.match(String(home.headers['content-security-policy']), /script-src 'self' 'sha256-YWJj'/u);
+    const nested = await app.inject({ method: 'GET', url: '/manual/en/docs/install/' });
+    assert.equal(nested.statusCode, 200);
+    assert.match(nested.body, /install/u);
+    const traversal = await app.inject({ method: 'GET', url: '/manual/%2e%2e/service-settings.json' });
+    assert.doesNotMatch(traversal.body, /managementTokenProtected|service-settings/u);
+  }
+  finally { await app.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 function state(): SystemState {

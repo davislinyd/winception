@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory)][string]$PipePath,
-  [string]$WebServiceName = 'Winception.Web'
+  [string]$WebServiceName = 'Winception.Web',
+  [switch]$VerifyOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,11 +42,14 @@ $descriptor.GetBinaryForm($binary, 0)
 $readControl = [uint32]0x00020000
 $writeDac = [uint32]0x00040000
 $openExisting = [uint32]3
-$handle = [WinceptionPipeSecurity.NativeMethods]::CreateFile($PipePath, ($readControl -bor $writeDac), 3, [IntPtr]::Zero, $openExisting, 0, [IntPtr]::Zero)
+$access = if ($VerifyOnly) { $readControl } else { $readControl -bor $writeDac }
+$handle = [WinceptionPipeSecurity.NativeMethods]::CreateFile($PipePath, $access, 3, [IntPtr]::Zero, $openExisting, 0, [IntPtr]::Zero)
 if ($handle -eq [IntPtr](-1)) { throw "Unable to open the Agent pipe for ACL configuration. Win32=$([Runtime.InteropServices.Marshal]::GetLastWin32Error())" }
 try {
-  if (-not [WinceptionPipeSecurity.NativeMethods]::SetKernelObjectSecurity($handle, 4, $binary)) {
-    throw "Unable to apply the Agent pipe DACL. Win32=$([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
+  if (-not $VerifyOnly) {
+    if (-not [WinceptionPipeSecurity.NativeMethods]::SetKernelObjectSecurity($handle, 4, $binary)) {
+      throw "Unable to apply the Agent pipe DACL. Win32=$([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
+    }
   }
   [uint32]$required = 0
   [void][WinceptionPipeSecurity.NativeMethods]::GetKernelObjectSecurity($handle, 4, $null, 0, [ref]$required)

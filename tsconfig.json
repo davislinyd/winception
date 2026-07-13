@@ -10,6 +10,6 @@
     "apps/**/*.ts",
     "apps/**/*.tsx",
     "packages/**/*.ts",
-    "scripts/v2/**/*.ts"
+    "Scripts/v2/**/*.ts"
   ]
 }

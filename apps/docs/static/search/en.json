@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "locale": "en",
+  "entries": [
+    {
+      "id": "api-migration",
+      "title": "API, Events and v1 Migration",
+      "description": "/api/v2 contracts, SSE recovery and a recoverable v1 importer.",
+      "headings": [
+        "/api/v2",
+        "v1 importer"
+      ],
+      "body": "API, Events and v1 Migration /api/v2 Requests, responses, params and query strings use complete JSON Schema. Errors contain error.code , message , optional correctiveAction and correlationId ; raw PowerShell and secrets are never returned. Mutations return an operation ID. Fleet, operation and state updates use versioned SSE. After a disconnect, load a REST snapshot before resuming the event stream. OpenAPI is available only to an authenticated management session. v1 importer The importer supports dry-run, backup, rerun and an explicit migration report. It imports config, profiles, software/custom-script metadata and re-encrypted secrets, but excludes running operations, DHCP leases, service PIDs and locks. Any failure preserves v1 State and prevents a partial cutover. Existing evidence is archived read-only and deployment runtime is rebuilt for v2.",
+      "url": "/en/docs/api-migration"
+    },
+    {
+      "id": "architecture-security",
+      "title": "Architecture and Security Boundaries",
+      "description": "Low-privilege Web, privileged Agent, operation locks, ACL, DPAPI and SQLite.",
+      "headings": [
+        "Privilege isolation",
+        "OperationCoordinator",
+        "Data"
+      ],
+      "body": "Architecture and Security Boundaries Privilege isolation Web handles authentication, React assets, the read model and schema-valid API calls. It does not accept arbitrary command lines, PowerShell or filesystem paths. The Agent executes versioned allow-listed commands only. A named-pipe DACL and service SID constrain callers. OperationCoordinator A mutation declares resources such as config , deployment-ingress , runtime , os-cache , profile-payload , software-test-vm and evidence , then acquires locks in a fixed order. A conflict returns 409 OPERATION CONFLICT . Read-only state, log and evidence queries do not take mutation locks. Data SQLite stores settings, profiles, operations, migrations and the evidence index. WIM, ISO, log and JSONL files stay on the filesystem with hash, size, path and retention metadata. Secrets use LocalMachine DPAPI and ACLs and are decrypted only for the shortest payload-publication window.",
+      "url": "/en/docs/architecture-security"
+    },
+    {
+      "id": "first-login",
+      "title": "First Sign-in",
+      "description": "Obtain the setup code safely and verify the loopback Web console.",
+      "headings": [
+        "Start with read-only checks"
+      ],
+      "body": "First Sign-in Use -ShowSetupCode during installation or run the installed helper in an elevated console: Open http://127.0.0.1:8080/ and enter the setup code. The authenticated session uses an HttpOnly cookie. Never paste the setup code into an issue, log or acceptance report. Start with read-only checks 1. Confirm Agent connected , deployment ingress stopped and Fleet 0 in Overview. 2. Open Documentation; offline docs are available at /manual/ without authentication. 3. Load a REST snapshot; the UI returns to a snapshot when SSE reconnects. 4. Before a mutation, confirm the endpoint, both NICs, subnets and DHCP arrangement. LAN management requires explicit HTTPS enablement. Keep the first VM acceptance on loopback so the setup code never crosses non-loopback HTTP.",
+      "url": "/en/docs/first-login"
+    },
+    {
+      "id": "getting-started",
+      "title": "Getting Started",
+      "description": "The shortest safe path to install Winception 2.0 on a fresh Windows 11 VM.",
+      "headings": [
+        "Acceptance scope",
+        "Required files",
+        "Definition of done"
+      ],
+      "body": "Getting Started Winception 2.0 is a single-host, on-premises product. Management binds to 127.0.0.1:8080 by default; PXE DHCP, TFTP and HTTP form a separate data plane. Acceptance scope 1. A fresh Windows 11 Pro or Enterprise x64 Generation 2 VM with nested virtualization and two NICs. 2. Fresh install → repair → uninstall with State preservation → reinstall. 3. One Generation 2 Secure Boot client with at least 4 GB fixed RAM through windows-desktop-ready . 4. One Software Test with ingress stopped and Fleet empty, followed by checkpoint restore. A single-client run is not evidence for two four-client rounds or a physical laptop. Until this scope passes, the build remains an internal prerelease. Required files - Winception-v2.msi - Winception-Local-CodeSigning.cer - Install-Winception.ps1 - release-manifest.json and SHA256SUMS - Elevated PowerShell and at least 2 GB free on the system drive - An Internet-capable management NIC and an isolated PXE NIC with no other DHCP responder Complete VM topology /docs/vm-topology before using the interactive installer /docs/install . The installer does not change NICs or start DHCP. Definition of done Source tests, an MSI hash or Web health alone do not complete VM acceptance. Evidence must identify the exact Git commit, MSI SHA-256, installed VM, PXE client and Software Test run.",
+      "url": "/en/docs/getting-started"
+    },
+    {
+      "id": "install",
+      "title": "Fresh Install",
+      "description": "Install Winception after validating the manifest, hashes, signer and self-signed certificate.",
+      "headings": [
+        "Safe behavior",
+        "Fresh-install verification"
+      ],
+      "body": "Fresh Install Safe behavior Check is the read-only default. Install accepts either a local MSI plus CER or a GitHub prerelease tag, never both. Every msiexec operation uses /norestart and preserves a verbose log. A self-signed CER is imported into LocalMachine\\Root and LocalMachine\\TrustedPublisher only after the operator verifies its subject, thumbprint, Code Signing EKU, validity and manifest, then explicitly supplies -TrustSelfSignedCertificate . The setup code is printed only to the current console. It is never written to the MSI log, JSON report or diagnostics. Fresh-install verification - Winception.Agent : Running as LocalSystem. - Winception.Web : Running as LocalService with an unrestricted service SID. - C:\\ProgramData\\Winception\\State\\winception-v2.db exists with the expected ACL. - The protected named pipe is available. - http://127.0.0.1:8080/api/v2/health succeeds.",
+      "url": "/en/docs/install"
+    },
+    {
+      "id": "lifecycle",
+      "title": "Repair, Upgrade and Uninstall",
+      "description": "Verify repair, State preservation, reinstall and transactional upgrade behavior.",
+      "headings": [
+        "Acceptance lifecycle",
+        "Upgrade principle"
+      ],
+      "body": "Repair, Upgrade and Uninstall Acceptance lifecycle Create a clearly non-release test profile and record its ID, then run: Uninstall must preserve C:\\ProgramData\\Winception\\State . After reinstall, confirm SQLite and the test profile still exist. Reports must never contain a setup code, token or secret. Upgrade principle A release upgrade follows stage → validate → stop → atomic swap → migrate → health probe → commit. Failure restores the prior binary and database backup. Never replace a binary under an existing prerelease tag; use the next prerelease version.",
+      "url": "/en/docs/lifecycle"
+    },
+    {
+      "id": "release-license",
+      "title": "Release Status, Support and License",
+      "description": "Internal-prerelease gates, AGPL-3.0-only, security and support policy.",
+      "headings": [
+        "Release assets",
+        "License",
+        "Support and security"
+      ],
+      "body": "Release Status, Support and License Until elevated fresh-VM lifecycle, single-client PXE and Software Test acceptance are complete, v2 remains an internal prerelease and is not production-ready. Release assets A prerelease contains the MSI, CER, Install-Winception.ps1 , release manifest, SHA256SUMS , CycloneDX SBOM, LICENSE and release notes. Self-signed code-signing and TLS certificates are for internal testing and will later be replaced with organization or publicly trusted certificates. License Winception is released under AGPL-3.0-only . When users interact with a modified version over a network, the corresponding source must be offered. Third-party components retain their own licenses; see packaged THIRD-PARTY-NOTICES.md and the SBOM. Support and security Supported hosts are Windows 11 Pro and Enterprise x64. Report vulnerabilities privately as described in repository SECURITY.md ; general support scope is in SUPPORT.md . Public release still requires upstream redistribution review, an organization/public code-signing certificate, and multi-client plus physical-laptop acceptance.",
+      "url": "/en/docs/release-license"
+    },
+    {
+      "id": "runtime-pxe",
+      "title": "Runtime, Image, Profile and Isolated PXE",
+      "description": "The safe sequence from Prepare runtime to windows-desktop-ready.",
+      "headings": [
+        "Required sequence",
+        "Boundary"
+      ],
+      "body": "Runtime, Image, Profile and Isolated PXE Required sequence 1. Read the project root, interface, IP, DHCP range, router, HTTP base, boot mode, OS image and profile from live Web or API state. 2. Select the PXE NIC and endpoint; confirm management and PXE subnets do not overlap. 3. Prepare runtime, select or import an OS image, and publish a deployment profile. 4. Run preflight. Warnings may remain and must be recorded; blocking failures must be zero. 5. Start DHCP, TFTP and HTTP only after confirming no other DHCP responder exists on the isolated network. 6. Boot a Generation 2 Secure Boot client over UEFI IPv4 PXE and track it through windows-desktop-ready . 7. Preserve run evidence and stop ingress. Boundary Offline ISO is an additive snapshot and does not replace PXE acceptance. A Git clone is not deployment runtime; never patch the Web-selected runtime root manually.",
+      "url": "/en/docs/runtime-pxe"
+    },
+    {
+      "id": "software-test",
+      "title": "Software Test",
+      "description": "Validate software deployment while ingress is stopped and Fleet is empty.",
+      "headings": [
+        "VM prerequisites",
+        "Run and recovery"
+      ],
+      "body": "Software Test VM prerequisites - The nested Hyper-V VM is Off. - It is Generation 2 with at least 4 GB fixed RAM. - A named clean checkpoint exists. - DHCP, TFTP and HTTP are stopped; Fleet active runs equals zero. At Software Test start, the Agent must re-check ingress stopped and Fleet empty inside the same operation transaction and lock. Prior UI state is not sufficient evidence. Run and recovery 1. Select the Software Test VM, profile and checkpoint. 2. Start the test and track its operation ID, correlation ID and VM evidence. 3. Stop the VM and restore the clean checkpoint after success or failure. 4. Confirm cleanup completed, locks were released and ingress remains stopped. A Software Test success is not physical-laptop or multi-client PXE evidence.",
+      "url": "/en/docs/software-test"
+    },
+    {
+      "id": "troubleshooting-evidence",
+      "title": "Diagnostics, Evidence and Troubleshooting",
+      "description": "Diagnose failures with correlation IDs, installer logs and layered evidence.",
+      "headings": [
+        "Installation failure",
+        "Web does not open",
+        "Evidence layers"
+      ],
+      "body": "Diagnostics, Evidence and Troubleshooting Installation failure Preserve C:\\ProgramData\\Winception\\InstallerLogs and the bootstrap JSON report. Re-check release manifest, MSI/CER SHA-256, certificate thumbprint, validity, Code Signing EKU and Authenticode signer. Do not delete State or trust certificates merely to retry. Web does not open Use the error response correlation ID to locate the local service log. APIs, reports and issues must never contain the setup code, token, password, PFX password or deployment secret. Evidence layers - Source: commit, test matrix, coverage, OpenAPI and SBOM. - MSI: exact SHA-256, signer and manifest. - Installed VM: services, ACL, pipe, SQLite, health and lifecycle. - PXE client: boot mode, run ID, status JSONL and windows-desktop-ready . - Software Test: VM/checkpoint, locks, result and restore evidence.",
+      "url": "/en/docs/troubleshooting-evidence"
+    },
+    {
+      "id": "vm-topology",
+      "title": "VM and Network Topology",
+      "description": "Safe dual-NIC, nested virtualization and isolated PXE configuration.",
+      "headings": [
+        "Outer deployment-host VM",
+        "Nested client",
+        "DHCP gate"
+      ],
+      "body": "VM and Network Topology Outer deployment-host VM - Windows 11 Pro or Enterprise x64, Generation 2. - Nested virtualization enabled. - Management NIC on NAT or an Internet-capable network. - PXE NIC on an isolated or private switch with no other DHCP responder. - Management and PXE subnets must not overlap. Use elevated PowerShell on the outer Hyper-V host to confirm the VM name, generation, NICs and switches. If permissions are unavailable, stop and obtain the real names; do not guess. Nested client Use a Generation 2 client with at least 4 GB fixed RAM and the Microsoft Windows Secure Boot template. It must be Off before testing. A Software Test VM also requires a clean checkpoint. DHCP gate Before starting Winception DHCP, confirm that the isolated switch has no other responder during the test window. Installation and Prepare runtime never start DHCP automatically.",
+      "url": "/en/docs/vm-topology"
+    }
+  ]
+}

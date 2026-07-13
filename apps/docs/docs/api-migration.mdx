@@ -1,0 +1,19 @@
+---
+id: api-migration
+title: API、事件與 v1 migration
+description: /api/v2 contracts、SSE recovery 與可回復的 v1 importer。
+---
+
+# API、事件與 v1 migration
+
+## `/api/v2`
+
+Request、response、params 與 query 使用完整 JSON Schema。錯誤固定包含 `error.code`、`message`、可選 `correctiveAction` 與 `correlationId`；不回傳 raw PowerShell 或 secret。
+
+Mutation 回傳 operation ID。Fleet、operation 與狀態更新使用版本化 SSE；斷線後先取得 REST snapshot，再恢復事件串流。OpenAPI 僅供已驗證的 management session 使用。
+
+## v1 importer
+
+Importer 支援 dry-run、backup、重跑與 migration report。它匯入 config、profiles、software/custom-script metadata 與重新加密的 secrets，但不匯入 running operation、DHCP lease、service PID 或 lock。
+
+任一步驟失敗時保留 v1 State，不允許部分切換。既有 evidence 只讀封存，deployment runtime 由 v2 重建。

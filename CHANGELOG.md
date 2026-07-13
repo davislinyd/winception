@@ -17,6 +17,9 @@
 - Licensed Winception under `AGPL-3.0-only`, embedded the complete license in source/MSI/SBOM, and exposed license, no-warranty and source-code notices before and after Web authentication.
 - Fixed v1 operation-lock gaps for OS download/re-export and torrent settings, required Software Test deployment ingress to be stopped, bounded log tail reads, and corrected documentation to treat warnings as non-blocking.
 - Reduced always-on agent documentation, standardized `.ai/status.json` to four local handoff fields, established one official manual, and separated historical evidence from per-version release readiness.
+- Added the safe `Install-Winception.ps1` bootstrap with read-only checks, release-manifest/hash/signer validation, explicit self-signed trust, `/norestart` lifecycle actions, redacted JSON reports and installed service/ACL/pipe/SQLite/health verification.
+- Added bilingual Docusaurus 3.10.2 documentation with a schema-validated localStorage installation planner, JSON import/export, local search, controllable canonical flow animations, reduced-motion/accessibility coverage, GitHub Pages output and an unauthenticated offline `/manual/` protected by generated CSP hashes.
+- Added a manual Pages workflow that accepts only an exact commit SHA and builds documentation without running remote product CI; prerelease and Pages publication remain gated on elevated fresh-VM, single-client PXE and Software Test acceptance.
 
 ## v0.6.7 — 2026-07-13
 

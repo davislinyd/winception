@@ -1,0 +1,25 @@
+---
+id: software-test
+title: Software Test
+description: Validate software deployment while ingress is stopped and Fleet is empty.
+---
+
+# Software Test
+
+## VM prerequisites
+
+- The nested Hyper-V VM is Off.
+- It is Generation 2 with at least 4 GB fixed RAM.
+- A named clean checkpoint exists.
+- DHCP, TFTP and HTTP are stopped; Fleet active runs equals zero.
+
+At Software Test start, the Agent must re-check ingress stopped and Fleet empty inside the same operation transaction and lock. Prior UI state is not sufficient evidence.
+
+## Run and recovery
+
+1. Select the Software Test VM, profile and checkpoint.
+2. Start the test and track its operation ID, correlation ID and VM evidence.
+3. Stop the VM and restore the clean checkpoint after success or failure.
+4. Confirm cleanup completed, locks were released and ingress remains stopped.
+
+A Software Test success is not physical-laptop or multi-client PXE evidence.

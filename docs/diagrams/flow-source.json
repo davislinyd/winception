@@ -1,5 +1,17 @@
 {
   "schemaVersion": 1,
+  "animations": {
+    "zh-TW": [
+      { "id": "installation", "title": "安全安裝", "steps": ["檢查 Windows、管理員、磁碟與 port 8080", "驗證 manifest、SHA-256、CER EKU／有效期與 MSI signer", "明確同意後才信任自簽憑證", "msiexec /norestart 安裝並啟動兩個 services", "驗證 ACL、named pipe、SQLite、health 與登入"] },
+      { "id": "pxe", "title": "隔離 PXE", "steps": ["雙 NIC subnet 不重疊；PXE switch 無其他 DHCP", "設定 Web-selected endpoint 並 Prepare runtime", "選擇 image、publish profile、執行 preflight", "blocking failure 為零後才啟動 ingress", "Gen 2 Secure Boot client 到 windows-desktop-ready", "停止 DHCP、TFTP、HTTP 並保存 evidence"] },
+      { "id": "operation-lock", "title": "Operation lock", "steps": ["mutation 宣告 resources", "OperationCoordinator 依固定順序取得 locks", "衝突回傳 409 OPERATION_CONFLICT", "Agent 執行 allow-list command", "完成、失敗或中止皆釋放 locks", "snapshot／SSE 恢復 UI 狀態"] }
+    ],
+    "en": [
+      { "id": "installation", "title": "Secure installation", "steps": ["Check Windows, elevation, disk and port 8080", "Verify manifest, SHA-256, certificate EKU and validity, and MSI signer", "Trust a self-signed certificate only after explicit consent", "Install with msiexec /norestart and start both services", "Verify ACL, named pipe, SQLite, health and sign-in"] },
+      { "id": "pxe", "title": "Isolated PXE", "steps": ["Keep dual-NIC subnets distinct and remove other DHCP responders", "Set the Web-selected endpoint and Prepare runtime", "Select an image, publish a profile and run preflight", "Start ingress only when blocking failures are zero", "Reach windows-desktop-ready on a Gen 2 Secure Boot client", "Stop DHCP, TFTP and HTTP and preserve evidence"] },
+      { "id": "operation-lock", "title": "Operation lock", "steps": ["A mutation declares its resources", "OperationCoordinator acquires locks in fixed order", "A conflict returns 409 OPERATION_CONFLICT", "The Agent executes an allow-listed command", "Completion, failure and abort release every lock", "REST snapshot and SSE restore UI state"] }
+    ]
+  },
   "operator": {
     "zh-TW": {
       "title": "Winception 操作流程 · Setup → Deploy / Monitor → desktop-ready",

@@ -1,0 +1,41 @@
+---
+id: install
+title: Fresh Install
+description: Install Winception after validating the manifest, hashes, signer and self-signed certificate.
+---
+
+import { InstallationWizard } from '@site/src/components/InstallationWizard';
+
+# Fresh Install
+
+<InstallationWizard />
+
+## Safe behavior
+
+`Check` is the read-only default. `Install` accepts either a local MSI plus CER or a GitHub prerelease tag, never both. Every `msiexec` operation uses `/norestart` and preserves a verbose log.
+
+A self-signed CER is imported into `LocalMachine\Root` and `LocalMachine\TrustedPublisher` only after the operator verifies its subject, thumbprint, Code Signing EKU, validity and manifest, then explicitly supplies `-TrustSelfSignedCertificate`.
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\Install-Winception.ps1 -Action Check `
+  -MsiPath .\Winception-v2.msi `
+  -CertificatePath .\Winception-Local-CodeSigning.cer `
+  -ReportPath .\winception-check.json
+
+.\Install-Winception.ps1 -Action Install `
+  -MsiPath .\Winception-v2.msi `
+  -CertificatePath .\Winception-Local-CodeSigning.cer `
+  -TrustSelfSignedCertificate -ShowSetupCode -OpenBrowser `
+  -ReportPath .\winception-install.json
+```
+
+The setup code is printed only to the current console. It is never written to the MSI log, JSON report or diagnostics.
+
+## Fresh-install verification
+
+- `Winception.Agent`: Running as LocalSystem.
+- `Winception.Web`: Running as LocalService with an unrestricted service SID.
+- `C:\ProgramData\Winception\State\winception-v2.db` exists with the expected ACL.
+- The protected named pipe is available.
+- `http://127.0.0.1:8080/api/v2/health` succeeds.

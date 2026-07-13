@@ -95,11 +95,13 @@ function Login({ onSuccess, onError, error }: { onSuccess: () => void; onError: 
 }
 
 function ProductLegalNotice(): React.JSX.Element {
+  const releaseTag = `v${WINCEPTION_V2_VERSION}`;
   return (
     <footer className="legal-footer">
       <span>Copyright © 2026 Winception contributors · No warranty</span>
+      <a href="/manual/">Documentation</a>
       <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noreferrer">AGPL-3.0-only</a>
-      <a href="https://github.com/davislinyd/winception/tree/codex/v2-rewrite" target="_blank" rel="noreferrer">Source code</a>
+      <a href={`https://github.com/davislinyd/winception/tree/${releaseTag}`} target="_blank" rel="noreferrer">Release source</a>
     </footer>
   );
 }

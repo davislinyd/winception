@@ -1,0 +1,24 @@
+---
+id: first-login
+title: 第一次登入
+description: 取得一次性操作所需的 setup code 並驗證 loopback Web。
+---
+
+# 第一次登入
+
+安裝時使用 `-ShowSetupCode`，或在 elevated console 直接執行已安裝的 helper：
+
+```powershell
+& "$env:ProgramFiles\Winception\app\tools\v2\Get-WinceptionSetupCode.ps1"
+```
+
+開啟 `http://127.0.0.1:8080/`，輸入 setup code。登入成功後 session 使用 HttpOnly cookie；不要把 setup code 貼入 issue、log 或驗收報告。
+
+## 先做唯讀驗證
+
+1. 檢查 Overview 的 Agent `connected`、deployment ingress `stopped`、Fleet `0`。
+2. 開啟 Documentation；離線文件位於 `/manual/`，不需登入。
+3. 取得 REST snapshot；SSE 斷線時 UI 會以 snapshot 恢復。
+4. mutation 前先確認 endpoint、兩張 NIC、subnet 與 DHCP 安排。
+
+LAN management 必須另外明確啟用 HTTPS。第一輪 VM 驗收維持 loopback，不將 setup code 透過非 loopback HTTP 傳送。

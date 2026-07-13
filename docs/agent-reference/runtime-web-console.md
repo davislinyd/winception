@@ -15,6 +15,7 @@ Read this only for runtime, endpoint, service, preflight, image/profile publish,
 - Preflight results are pass, non-blocking warning (`ok: true`, `warn: true`), or blocking failure (`ok: false`). Only blocking failures disable Start services.
 - Confirm LAN DHCP safety before DHCP starts. Do not silently modify NICs.
 - v2 mutations use `OperationCoordinator`; overlapping resources return `409 OPERATION_CONFLICT`. Reads, logs and evidence snapshots do not take mutation locks.
+- The same bilingual Docusaurus build is served read-only and without authentication at `/manual/`; generated inline-script CSP hashes are allowed per build, while global `unsafe-inline` remains forbidden.
 - Web changes reload only the browser; server/Agent changes require service restart before validation. Source success is not installed-runtime evidence.
 
 ## Deployment lifecycle

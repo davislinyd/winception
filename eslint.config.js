@@ -1,15 +1,15 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
-const tsFiles = ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'scripts/v2/**/*.ts'];
+const tsFiles = ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'Scripts/v2/**/*.ts'];
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', 'tools/**', 'docs/**', 'osdcloud-assets/**'],
+    ignores: ['dist/**', 'node_modules/**', 'apps/docs/.docusaurus/**', 'tools/**', 'docs/**', 'osdcloud-assets/**'],
   },
   js.configs.recommended,
   {
-    files: ['scripts/v2/**/*.mjs'],
+    files: ['Scripts/v2/**/*.mjs'],
     languageOptions: {
       globals: { console: 'readonly', process: 'readonly', Buffer: 'readonly' },
     },

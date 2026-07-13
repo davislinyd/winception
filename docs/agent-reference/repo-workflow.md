@@ -9,6 +9,7 @@ Read this file when a task touches documentation updates, Git file selection, ge
 - `docs\agent-reference\...` contains conditional task references that agents should read only when relevant.
 - `README.md` is the concise bilingual product technician guide.
 - `CHANGELOG.md` is the concise history of tracked product/documentation changes when the workflow calls for it.
+- `apps/docs/docs` and the English mirror under `apps/docs/i18n/en` are the only v2 manual sources. `docs/winception-operations-manual.html` is retained as v1 history, not maintained in parallel.
 
 When behavior changes, update the relevant docs in the same workflow:
 
@@ -80,3 +81,7 @@ downloads/
 ```
 
 Generated runtime outputs and local development data must remain excluded from version control.
+
+Generated documentation source assets under `apps/docs/static/data` and `apps/docs/static/search` are tracked and must match `npm run docs:assets:check`; edit their canonical MDX or `docs/diagrams/flow-source.json`, then regenerate. Built `dist/docs-pages` and `dist/v2/web/manual` outputs remain ignored.
+
+The GitHub Pages workflow is manual-only and must live on the default branch. It accepts a full 40-character v2 commit SHA, checks out exactly that commit, runs only documentation parity/link/build checks, and publishes `dist/docs-pages`. Do not run the remote product workflow as part of documentation publication. Do not publish Pages or a v2 prerelease before exact-MSI VM acceptance is recorded.

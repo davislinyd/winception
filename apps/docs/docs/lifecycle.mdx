@@ -1,0 +1,23 @@
+---
+id: lifecycle
+title: Repair、Upgrade 與 Uninstall
+description: 驗證修復、State 保留、重新安裝與交易式升級。
+---
+
+# Repair、Upgrade 與 Uninstall
+
+## 驗收 lifecycle
+
+先建立一筆明確標示非發布用的測試 profile，記錄其 ID。依序執行：
+
+```powershell
+.\Install-Winception.ps1 -Action Repair -MsiPath .\Winception-v2.msi -CertificatePath .\Winception-Local-CodeSigning.cer -ReportPath .\repair.json
+.\Install-Winception.ps1 -Action Uninstall -MsiPath .\Winception-v2.msi -CertificatePath .\Winception-Local-CodeSigning.cer -ReportPath .\uninstall.json
+.\Install-Winception.ps1 -Action Install -MsiPath .\Winception-v2.msi -CertificatePath .\Winception-Local-CodeSigning.cer -TrustSelfSignedCertificate -ReportPath .\reinstall.json
+```
+
+Uninstall 必須保留 `C:\ProgramData\Winception\State`。Reinstall 後確認 SQLite 與測試 profile 仍存在；setup code、token 或 secret 不得出現在 report。
+
+## Upgrade 原則
+
+正式升級採 stage → validate → stop → atomic swap → migrate → health probe → commit。失敗時還原上一版 binary 與 DB backup。既有 prerelease tag 的 binary 不可被替換；修正後使用下一個 prerelease 版本。

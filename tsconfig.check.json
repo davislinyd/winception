@@ -9,6 +9,6 @@
     "apps/agent/**/*.ts",
     "apps/server/**/*.ts",
     "packages/**/*.ts",
-    "scripts/v2/**/*.ts"
+    "Scripts/v2/**/*.ts"
   ]
 }

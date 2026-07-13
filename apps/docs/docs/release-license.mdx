@@ -1,0 +1,21 @@
+---
+id: release-license
+title: 發布狀態、支援與授權
+description: Internal prerelease 門檻、AGPL-3.0-only、security 與支援政策。
+---
+
+# 發布狀態、支援與授權
+
+目前 v2 在完成 elevated fresh-VM lifecycle、單 client PXE 與 Software Test 前，只能視為 internal prerelease，不宣稱 production-ready。
+
+## 發布資產
+
+Prerelease 固定包含 MSI、CER、`Install-Winception.ps1`、release manifest、`SHA256SUMS`、CycloneDX SBOM、LICENSE 與 release notes。自簽 code-signing/TLS 憑證只供內部測試；未來以組織或公開信任憑證取代。
+
+## 授權
+
+Winception 以 **AGPL-3.0-only** 發布。透過網路與修改版互動時，必須向使用者提供對應 source。第三方元件依各自授權，詳見套件內 `THIRD-PARTY-NOTICES.md` 與 SBOM。
+
+## 支援與安全
+
+支援 Windows 11 Pro／Enterprise x64。安全問題依 repository `SECURITY.md` 私下通報；一般支援範圍依 `SUPPORT.md`。正式公開前仍需上游 redistribution review、公開／組織 code-signing certificate，以及多 client 與實體 laptop acceptance。

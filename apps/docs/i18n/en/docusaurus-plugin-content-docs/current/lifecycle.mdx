@@ -1,0 +1,23 @@
+---
+id: lifecycle
+title: Repair, Upgrade and Uninstall
+description: Verify repair, State preservation, reinstall and transactional upgrade behavior.
+---
+
+# Repair, Upgrade and Uninstall
+
+## Acceptance lifecycle
+
+Create a clearly non-release test profile and record its ID, then run:
+
+```powershell
+.\Install-Winception.ps1 -Action Repair -MsiPath .\Winception-v2.msi -CertificatePath .\Winception-Local-CodeSigning.cer -ReportPath .\repair.json
+.\Install-Winception.ps1 -Action Uninstall -MsiPath .\Winception-v2.msi -CertificatePath .\Winception-Local-CodeSigning.cer -ReportPath .\uninstall.json
+.\Install-Winception.ps1 -Action Install -MsiPath .\Winception-v2.msi -CertificatePath .\Winception-Local-CodeSigning.cer -TrustSelfSignedCertificate -ReportPath .\reinstall.json
+```
+
+Uninstall must preserve `C:\ProgramData\Winception\State`. After reinstall, confirm SQLite and the test profile still exist. Reports must never contain a setup code, token or secret.
+
+## Upgrade principle
+
+A release upgrade follows stage → validate → stop → atomic swap → migrate → health probe → commit. Failure restores the prior binary and database backup. Never replace a binary under an existing prerelease tag; use the next prerelease version.

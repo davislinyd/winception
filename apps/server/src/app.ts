@@ -1,5 +1,5 @@
-import { createReadStream, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createReadStream, existsSync, readFileSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
 import type { ServerOptions } from 'node:https';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -46,9 +46,14 @@ export async function createWebApp(options: WebAppOptions): Promise<FastifyInsta
   const auth = new ManagementAuth(options.managementToken, options.secureCookie);
   const events = new ServerEventHub();
   const transport = options.secureCookie ? 'https' : 'loopback-http';
+  const staticRoot = resolve(options.staticRoot ?? 'dist/v2/web');
+  const manualRoot = resolve(staticRoot, 'manual');
+  const manualCspHashes = readManualCspHashes(manualRoot);
 
-  app.addHook('onRequest', async (_request, reply) => {
-    reply.header('Content-Security-Policy', "default-src 'self'; connect-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+  app.addHook('onRequest', async (request, reply) => {
+    if (/^\/manual\/(?:\.{2}|%2e)/iu.test(request.raw.url ?? '')) return reply.code(404).send();
+    const scriptHashes = request.url === '/manual' || request.url.startsWith('/manual/') ? ` ${manualCspHashes.map((hash) => `'${hash}'`).join(' ')}` : '';
+    reply.header('Content-Security-Policy', `default-src 'self'; connect-src 'self'; font-src 'self' data:; img-src 'self' data:; script-src 'self'${scriptHashes}; style-src 'self'; worker-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     reply.header('X-Content-Type-Options', 'nosniff');
@@ -126,9 +131,20 @@ export async function createWebApp(options: WebAppOptions): Promise<FastifyInsta
     void reply.code(normalized.statusCode).send(normalized.body);
   });
 
-  const staticRoot = resolve(options.staticRoot ?? 'dist/v2/web');
   if (existsSync(staticRoot)) {
-    await app.register(fastifyStatic, { root: staticRoot, wildcard: false });
+    await app.register(fastifyStatic, { root: staticRoot, wildcard: false, index: false });
+    app.get('/manual', (_request, reply) => reply.redirect('/manual/'));
+    app.get('/manual/', (_request, reply) => reply.header('Cache-Control', 'no-cache').sendFile('manual/index.html'));
+    app.get('/manual/*', (request, reply) => {
+      const relative = String((request.params as { '*': string })['*'] ?? '').replace(/^\/+|\/+$/gu, '');
+      if (!relative || relative.split('/').some((segment) => segment === '..') || relative.includes('\\') || relative.includes('\0')) return reply.code(404).send();
+      const candidates = [`${relative}/index.html`, `${relative}.html`];
+      const found = candidates.find((candidate) => {
+        const path = resolve(manualRoot, candidate);
+        return path.startsWith(`${manualRoot}${sep}`) && existsSync(path);
+      });
+      return reply.header('Cache-Control', 'no-cache').sendFile(found ? `manual/${found}` : 'manual/404.html');
+    });
     app.get('/*', (_request, reply) => reply.sendFile('index.html'));
   }
 
@@ -159,6 +175,16 @@ export async function createWebApp(options: WebAppOptions): Promise<FastifyInsta
   poll.unref();
   app.addHook('onClose', () => { clearInterval(heartbeat); clearInterval(poll); });
   return app;
+}
+
+function readManualCspHashes(manualRoot: string): string[] {
+  const path = resolve(manualRoot, 'csp-hashes.json');
+  if (!existsSync(path)) return [];
+  try {
+    const value = JSON.parse(readFileSync(path, 'utf8')) as { schemaVersion?: unknown; hashes?: unknown };
+    if (value.schemaVersion !== 1 || !Array.isArray(value.hashes)) return [];
+    return value.hashes.filter((hash): hash is string => typeof hash === 'string' && /^sha256-[A-Za-z0-9+/]+=*$/u.test(hash));
+  } catch { return []; }
 }
 
 function registerFileRoutes(app: FastifyInstance, auth: ManagementAuth, uploads: UploadStore): void {

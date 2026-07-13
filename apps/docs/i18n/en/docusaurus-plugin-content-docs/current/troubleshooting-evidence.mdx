@@ -1,0 +1,29 @@
+---
+id: troubleshooting-evidence
+title: Diagnostics, Evidence and Troubleshooting
+description: Diagnose failures with correlation IDs, installer logs and layered evidence.
+---
+
+# Diagnostics, Evidence and Troubleshooting
+
+## Installation failure
+
+Preserve `C:\ProgramData\Winception\InstallerLogs` and the bootstrap JSON report. Re-check release manifest, MSI/CER SHA-256, certificate thumbprint, validity, Code Signing EKU and Authenticode signer. Do not delete State or trust certificates merely to retry.
+
+## Web does not open
+
+```powershell
+Get-CimInstance Win32_Service -Filter "Name='Winception.Agent' OR Name='Winception.Web'" |
+  Select-Object Name, State, StartName, ExitCode
+Invoke-RestMethod http://127.0.0.1:8080/api/v2/health
+```
+
+Use the error response correlation ID to locate the local service log. APIs, reports and issues must never contain the setup code, token, password, PFX password or deployment secret.
+
+## Evidence layers
+
+- Source: commit, test matrix, coverage, OpenAPI and SBOM.
+- MSI: exact SHA-256, signer and manifest.
+- Installed VM: services, ACL, pipe, SQLite, health and lifecycle.
+- PXE client: boot mode, run ID, status JSONL and `windows-desktop-ready`.
+- Software Test: VM/checkpoint, locks, result and restore evidence.

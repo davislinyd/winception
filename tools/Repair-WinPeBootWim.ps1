@@ -126,7 +126,7 @@ try {
     $psExe = Join-Path $mountDir 'Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
     if (Test-Path -LiteralPath $psExe -PathType Leaf) {
         $psSize = (Get-Item -LiteralPath $psExe).Length
-        Write-Ok "powershell.exe found in WIM ($([math]::Round($psSize/1KB)) KB)"
+        Write-Ok "powershell.exe found in WIM ($([math]::Round($psSize / 1KB)) KB)"
         $verified = $true
     }
     else {

@@ -3,6 +3,8 @@ param(
   [string]$StageRoot = '',
   [ValidateSet('24.15.0')][string]$NodeVersion = '24.15.0',
   [ValidatePattern('^\d+\.\d+\.\d+$')][string]$MsiVersion = '2.0.0',
+  [ValidatePattern('^v2\.\d+\.\d+-(alpha|beta|rc)\.\d+$')][string]$ReleaseTag = 'v2.0.0-alpha.1',
+  [ValidateSet('internal-prerelease', 'prerelease', 'stable')][string]$Channel = 'internal-prerelease',
   [string]$CodeSigningThumbprint = '',
   [string]$TimestampServer = 'http://timestamp.digicert.com',
   [switch]$BuildMsi
@@ -93,7 +95,7 @@ try {
   $sbomText = $sbom | ConvertTo-Json -Depth 100
   [IO.File]::WriteAllText((Join-Path $stage 'app\winception-v2-sbom.cdx.json'), $sbomText, [Text.UTF8Encoding]::new($false))
   Invoke-PackageSigning $stage
-  & node.exe scripts/v2/create-package-manifest.mjs $stage
+  & node.exe Scripts/v2/create-package-manifest.mjs $stage
   if ($LASTEXITCODE -ne 0) { throw 'Package manifest generation failed.' }
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File installer/wix/Generate-WixFiles.ps1 -StageRoot $stage
   if ($LASTEXITCODE -ne 0) { throw 'WiX payload generation failed.' }
@@ -109,6 +111,11 @@ try {
       $certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$CodeSigningThumbprint" -ErrorAction Stop
       Export-Certificate -Cert $certificate -FilePath 'installer/output/Winception-Local-CodeSigning.cer' -Force | Out-Null
     }
+    Copy-Item -LiteralPath (Join-Path $stage 'app\tools\install\Install-Winception.ps1') -Destination 'installer/output/Install-Winception.ps1' -Force
+    Copy-Item -LiteralPath (Join-Path $stage 'app\winception-v2-sbom.cdx.json') -Destination 'installer/output/winception-v2-sbom.cdx.json' -Force
+    Copy-Item -LiteralPath 'LICENSE' -Destination 'installer/output/LICENSE' -Force
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/v2/New-WinceptionReleaseManifest.ps1 -ReleaseTag $ReleaseTag -Channel $Channel
+    if ($LASTEXITCODE -ne 0) { throw 'Release manifest generation failed.' }
   }
 }
 finally { Pop-Location }

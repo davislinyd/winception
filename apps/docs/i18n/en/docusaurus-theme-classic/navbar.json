@@ -1,0 +1,22 @@
+{
+  "title": {
+    "message": "Winception 2.0",
+    "description": "The title in the navbar"
+  },
+  "logo.alt": {
+    "message": "Winception",
+    "description": "The alt text of navbar logo"
+  },
+  "item.label.技術文件": {
+    "message": "Technical docs",
+    "description": "Navbar item with label 技術文件"
+  },
+  "item.label.互動安裝": {
+    "message": "Interactive install",
+    "description": "Navbar item with label 互動安裝"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  }
+}

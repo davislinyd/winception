@@ -1,0 +1,29 @@
+---
+id: architecture-security
+title: Architecture and Security Boundaries
+description: Low-privilege Web, privileged Agent, operation locks, ACL, DPAPI and SQLite.
+---
+
+# Architecture and Security Boundaries
+
+```mermaid
+flowchart LR
+  Browser["Browser · REST/SSE"] --> Web["Winception.Web · LocalService"]
+  Web --> Pipe["ACL named pipe · versioned commands"]
+  Pipe --> Agent["Winception.Agent · LocalSystem"]
+  Agent --> DB["SQLite + DPAPI State"]
+  Agent --> Adapter["Allow-list Windows adapters"]
+  Adapter --> Runtime["Web-selected deployment runtime"]
+```
+
+## Privilege isolation
+
+Web handles authentication, React assets, the read model and schema-valid API calls. It does not accept arbitrary command lines, PowerShell or filesystem paths. The Agent executes versioned allow-listed commands only. A named-pipe DACL and service SID constrain callers.
+
+## OperationCoordinator
+
+A mutation declares resources such as `config`, `deployment-ingress`, `runtime`, `os-cache`, `profile-payload`, `software-test-vm` and `evidence`, then acquires locks in a fixed order. A conflict returns `409 OPERATION_CONFLICT`. Read-only state, log and evidence queries do not take mutation locks.
+
+## Data
+
+SQLite stores settings, profiles, operations, migrations and the evidence index. WIM, ISO, log and JSONL files stay on the filesystem with hash, size, path and retention metadata. Secrets use LocalMachine DPAPI and ACLs and are decrypted only for the shortest payload-publication window.

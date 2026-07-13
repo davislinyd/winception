@@ -8,6 +8,7 @@ const manualPath = path.resolve('docs', 'winception-operations-manual.html');
 const changelogPath = path.resolve('CHANGELOG.md');
 const packagePath = path.resolve('package.json');
 const packageLockPath = path.resolve('package-lock.json');
+const v1VersionPath = path.resolve('tools/osdcloud-console/v1-version.json');
 
 // The web UI source is split into per-page ES modules under web/js and per-region
 // stylesheets under web/css. These helpers reconstruct the full source text so the
@@ -61,15 +62,17 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.7', () => {
+test('v1 metadata stays frozen while the root package tracks v2', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
+  const v1Version = JSON.parse(fs.readFileSync(v1VersionPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.7');
-  assert.equal(packageLock.version, '0.6.7');
-  assert.equal(packageLock.packages[''].version, '0.6.7');
+  assert.equal(packageJson.version, '2.0.0-alpha.1');
+  assert.equal(packageLock.version, '2.0.0-alpha.1');
+  assert.equal(packageLock.packages[''].version, '2.0.0-alpha.1');
+  assert.equal(v1Version.version, '0.6.7');
   assert.match(changelog, /## v0\.6\.7 — 2026-07-13/);
   assert.match(manual, /Operations Manual · v0\.6\.7/);
   assert.match(manual, /Product documentation for Web v0\.6\.7/);

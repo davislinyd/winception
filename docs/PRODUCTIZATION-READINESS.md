@@ -12,19 +12,20 @@
 - Self-signed Authenticode/TLS baseline with exported trust certificates; public/organization certificate thumbprints can replace it later without code changes.
 - `AGPL-3.0-only` product license, complete license text in source/MSI/SBOM, and unauthenticated Web links to the license and corresponding source repository.
 - Local gates for fixed aria2 integration, coverage, PowerShell parse, dependency audit, pinned Gitleaks history/working-tree scan, embedded SBOM, browser E2E and MSI/package smoke. Remote CI is intentionally not required in the current phase.
-- Single official manual, generated flowchart policy, per-version evidence matrix, Security/Support/third-party policies and reduced agent-context budget.
+- Canonical bilingual Docusaurus MDX, generated flow/search/CSP assets, interactive install-plan schema, offline `/manual/`, manual exact-SHA Pages workflow, per-version evidence matrix, Security/Support/third-party policies and reduced agent-context budget. The legacy HTML manual is v1 history only.
 
-Local 2026-07-13 evidence: v1 405/405 and v2 40/40 with no skips; global coverage 93.48%/85.44%, critical coverage 99.28%/92.23%; Playwright 2/2; Gitleaks 0 findings. The final self-signed MSI built with 0 warnings/errors, matched 6,650 manifest files after extraction, contained 66 valid signed payloads, the complete product license and a `winception` / `2.0.0-alpha.1` / `AGPL-3.0-only` SBOM; its extracted Agent/Web passed health, authentication, profile read, SQLite and Node 24.15.0 smoke.
+Local 2026-07-14 evidence: v1 405/405 and v2 41/41 with no skips; global coverage 93.88%/84.77%, critical coverage 99.28%/92.23%; Web Playwright 3/3, Docs Playwright 2/2 and Gitleaks 0 findings across 373 commits plus the working tree. The self-signed candidate MSI SHA-256 is `E2EFCEE6EE3E9B1191C27E5DDA814EE7B714B59F7D316BA7432FECCE527D0E27`; its signed bootstrap SHA-256 is `0D19F91B3DADA25DC1698A36D42F84D269FC74D10B1374BC6C382828B0FD2A69`. Administrative extraction matched 6,842/6,842 manifest files and 68/68 applicable signatures. The package contains the complete license, SBOM, offline manual and generated CSP hashes; extracted Agent/Web passed Agent ready, health, authentication, profile read, `/manual/` and SQLite smoke. Bootstrap `Check` passed 20/20 and emitted no secret-named report fields.
 
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |
 |---|---|
-| Current shell is not elevated | On an approved Windows 11 test host, prove actual per-machine fresh install, LocalService-to-Agent pipe access, rejection of unapproved identities, repair, failed-health rollback and uninstall-preserves-data |
+| Current shell is not elevated | On the prepared Windows 11 dual-NIC nested-virtualization VM, prove fresh install, Agent LocalSystem, Web LocalService, ACL/service SID/pipe/SQLite, loopback health/login/profile read, repair, uninstall-preserves-State and reinstall persistence |
 | Current certificate baseline is self-signed | Acceptable for approved internal test hosts after explicit CER trust; replace with the future public/organization code-signing and TLS certificates for formal distribution |
 | v2 live runtime not deployment-accepted | Prove installed Agent/Web health, ACL, DPAPI, named pipe and v1 migration against the exact MSI |
-| Feature parity not deployment-accepted | One client, two consecutive four-VM rounds, physical laptop, Software Test, torrent, Offline ISO, diagnostics/evidence export |
+| Internal prerelease deployment gate open | On the exact MSI, prove one Generation 2 Secure Boot client to `windows-desktop-ready`, then ingress stopped + Fleet empty and one Software Test with checkpoint restore |
+| Final production feature parity open | Two consecutive four-VM rounds, physical laptop, torrent, Offline ISO and diagnostics/evidence export remain later production evidence and are not replaced by this prerelease VM run |
 | LAN management not live-tested | Loopback default plus certificate-store HTTPS opt-in and invalid-certificate fail-closed tests |
 | Upstream redistribution review incomplete | Confirm OSDCloud/ADK/WinPE, aria2 and every bundled client payload against the release SBOM; the Winception product license is already `AGPL-3.0-only` |
 
-Do not merge v2 to `master` or label it production-ready until every row is closed in `TEST-RESULT.md` for the exact release build.
+Do not create the v2 prerelease or publish Pages until the internal prerelease deployment gate is closed for the exact release build. Do not merge v2 to `master` or label it production-ready until every final-production row is closed in `TEST-RESULT.md`.

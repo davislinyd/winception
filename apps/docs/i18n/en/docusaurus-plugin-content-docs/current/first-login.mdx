@@ -1,0 +1,24 @@
+---
+id: first-login
+title: First Sign-in
+description: Obtain the setup code safely and verify the loopback Web console.
+---
+
+# First Sign-in
+
+Use `-ShowSetupCode` during installation or run the installed helper in an elevated console:
+
+```powershell
+& "$env:ProgramFiles\Winception\app\tools\v2\Get-WinceptionSetupCode.ps1"
+```
+
+Open `http://127.0.0.1:8080/` and enter the setup code. The authenticated session uses an HttpOnly cookie. Never paste the setup code into an issue, log or acceptance report.
+
+## Start with read-only checks
+
+1. Confirm Agent `connected`, deployment ingress `stopped` and Fleet `0` in Overview.
+2. Open Documentation; offline docs are available at `/manual/` without authentication.
+3. Load a REST snapshot; the UI returns to a snapshot when SSE reconnects.
+4. Before a mutation, confirm the endpoint, both NICs, subnets and DHCP arrangement.
+
+LAN management requires explicit HTTPS enablement. Keep the first VM acceptance on loopback so the setup code never crosses non-loopback HTTP.

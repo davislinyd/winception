@@ -1,0 +1,33 @@
+---
+id: getting-started
+title: Getting Started
+description: The shortest safe path to install Winception 2.0 on a fresh Windows 11 VM.
+---
+
+# Getting Started
+
+Winception 2.0 is a single-host, on-premises product. Management binds to `127.0.0.1:8080` by default; PXE DHCP, TFTP and HTTP form a separate data plane.
+
+## Acceptance scope
+
+1. A fresh Windows 11 Pro or Enterprise x64 Generation 2 VM with nested virtualization and two NICs.
+2. Fresh install → repair → uninstall with State preservation → reinstall.
+3. One Generation 2 Secure Boot client with at least 4 GB fixed RAM through `windows-desktop-ready`.
+4. One Software Test with ingress stopped and Fleet empty, followed by checkpoint restore.
+
+A single-client run is not evidence for two four-client rounds or a physical laptop. Until this scope passes, the build remains an internal prerelease.
+
+## Required files
+
+- `Winception-v2.msi`
+- `Winception-Local-CodeSigning.cer`
+- `Install-Winception.ps1`
+- `release-manifest.json` and `SHA256SUMS`
+- Elevated PowerShell and at least 2 GB free on the system drive
+- An Internet-capable management NIC and an isolated PXE NIC with no other DHCP responder
+
+Complete [VM topology](/docs/vm-topology) before using the [interactive installer](/docs/install). The installer does not change NICs or start DHCP.
+
+## Definition of done
+
+Source tests, an MSI hash or Web health alone do not complete VM acceptance. Evidence must identify the exact Git commit, MSI SHA-256, installed VM, PXE client and Software Test run.

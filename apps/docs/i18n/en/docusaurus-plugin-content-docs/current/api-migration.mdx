@@ -1,0 +1,19 @@
+---
+id: api-migration
+title: API, Events and v1 Migration
+description: /api/v2 contracts, SSE recovery and a recoverable v1 importer.
+---
+
+# API, Events and v1 Migration
+
+## `/api/v2`
+
+Requests, responses, params and query strings use complete JSON Schema. Errors contain `error.code`, `message`, optional `correctiveAction` and `correlationId`; raw PowerShell and secrets are never returned.
+
+Mutations return an operation ID. Fleet, operation and state updates use versioned SSE. After a disconnect, load a REST snapshot before resuming the event stream. OpenAPI is available only to an authenticated management session.
+
+## v1 importer
+
+The importer supports dry-run, backup, rerun and an explicit migration report. It imports config, profiles, software/custom-script metadata and re-encrypted secrets, but excludes running operations, DHCP leases, service PIDs and locks.
+
+Any failure preserves v1 State and prevents a partial cutover. Existing evidence is archived read-only and deployment runtime is rebuilt for v2.

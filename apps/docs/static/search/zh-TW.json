@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "locale": "zh-TW",
+  "entries": [
+    {
+      "id": "api-migration",
+      "title": "API、事件與 v1 migration",
+      "description": "/api/v2 contracts、SSE recovery 與可回復的 v1 importer。",
+      "headings": [
+        "/api/v2",
+        "v1 importer"
+      ],
+      "body": "API、事件與 v1 migration /api/v2 Request、response、params 與 query 使用完整 JSON Schema。錯誤固定包含 error.code 、 message 、可選 correctiveAction 與 correlationId ；不回傳 raw PowerShell 或 secret。 Mutation 回傳 operation ID。Fleet、operation 與狀態更新使用版本化 SSE；斷線後先取得 REST snapshot，再恢復事件串流。OpenAPI 僅供已驗證的 management session 使用。 v1 importer Importer 支援 dry-run、backup、重跑與 migration report。它匯入 config、profiles、software/custom-script metadata 與重新加密的 secrets，但不匯入 running operation、DHCP lease、service PID 或 lock。 任一步驟失敗時保留 v1 State，不允許部分切換。既有 evidence 只讀封存，deployment runtime 由 v2 重建。",
+      "url": "/docs/api-migration"
+    },
+    {
+      "id": "architecture-security",
+      "title": "架構與安全邊界",
+      "description": "低權限 Web、高權限 Agent、operation locks、ACL、DPAPI 與 SQLite。",
+      "headings": [
+        "權限隔離",
+        "OperationCoordinator",
+        "資料"
+      ],
+      "body": "架構與安全邊界 權限隔離 Web 只處理 authentication、React assets、read model 與 schema-valid API，不接受任意 command line、PowerShell 或 filesystem path。Agent 只執行版本化 allow-list command。named pipe DACL 與 service SID 限制通訊者。 OperationCoordinator Mutation 先宣告 config 、 deployment-ingress 、 runtime 、 os-cache 、 profile-payload 、 software-test-vm 、 evidence 等 resources，以固定順序取得 locks。衝突回傳 409 OPERATION CONFLICT 。Read-only state、logs 與 evidence 查詢不取得 mutation lock。 資料 SQLite 保存設定、profiles、operations、migration 與 evidence index；WIM、ISO、log、JSONL 留在 filesystem並保存 hash、size、path、retention metadata。Secrets 使用 LocalMachine DPAPI 與 ACL，只有在發布 payload 的最短時間解密。",
+      "url": "/docs/architecture-security"
+    },
+    {
+      "id": "first-login",
+      "title": "第一次登入",
+      "description": "取得一次性操作所需的 setup code 並驗證 loopback Web。",
+      "headings": [
+        "先做唯讀驗證"
+      ],
+      "body": "第一次登入 安裝時使用 -ShowSetupCode ，或在 elevated console 直接執行已安裝的 helper： 開啟 http://127.0.0.1:8080/ ，輸入 setup code。登入成功後 session 使用 HttpOnly cookie；不要把 setup code 貼入 issue、log 或驗收報告。 先做唯讀驗證 1. 檢查 Overview 的 Agent connected 、deployment ingress stopped 、Fleet 0 。 2. 開啟 Documentation；離線文件位於 /manual/ ，不需登入。 3. 取得 REST snapshot；SSE 斷線時 UI 會以 snapshot 恢復。 4. mutation 前先確認 endpoint、兩張 NIC、subnet 與 DHCP 安排。 LAN management 必須另外明確啟用 HTTPS。第一輪 VM 驗收維持 loopback，不將 setup code 透過非 loopback HTTP 傳送。",
+      "url": "/docs/first-login"
+    },
+    {
+      "id": "getting-started",
+      "title": "開始使用",
+      "description": "在全新 Windows 11 VM 安全安裝 Winception 2.0 的最短路徑。",
+      "headings": [
+        "本輪驗收範圍",
+        "需要準備",
+        "完成定義"
+      ],
+      "body": "開始使用 Winception 2.0 是單機內部部署產品。管理面預設只綁定 127.0.0.1:8080 ；PXE 的 DHCP、TFTP、HTTP 是獨立資料面。 本輪驗收範圍 1. 全新 Windows 11 Pro／Enterprise x64 VM，Generation 2、Nested Virtualization、雙 NIC。 2. fresh install → repair → uninstall（State 保留）→ reinstall。 3. 一台至少 4 GB RAM 的 Generation 2 Secure Boot client 到 windows-desktop-ready 。 4. ingress stopped、Fleet empty 後完成一次 Software Test 並還原 checkpoint。 本輪不把單 client 當成兩輪各四台 VM 或實體 laptop 的證據。完成前版本只能標示為 internal prerelease。 需要準備 - Winception-v2.msi - Winception-Local-CodeSigning.cer - Install-Winception.ps1 - release-manifest.json 與 SHA256SUMS - elevated PowerShell；至少 2 GB 系統碟空間 - 可上網的管理 NIC，以及沒有其他 DHCP responder 的隔離 PXE NIC 先完成 VM topology /docs/vm-topology ，再使用 互動安裝工具 /docs/install 。安裝工具不修改 NIC，也不啟動 DHCP。 完成定義 Source tests、MSI hash 或 Web health 單獨通過都不等於 VM 驗收完成。接受證據必須標示 exact Git commit、MSI SHA-256、installed VM、PXE client 與 Software Test run。",
+      "url": "/docs/getting-started"
+    },
+    {
+      "id": "install",
+      "title": "Fresh install",
+      "description": "驗證 manifest、hash、Signer 與自簽憑證後安裝 Winception。",
+      "headings": [
+        "安全行為",
+        "Fresh install 驗證"
+      ],
+      "body": "Fresh install 安全行為 Check 是預設且不修改系統。 Install 接受「本機 MSI＋CER」或「GitHub prerelease tag」，兩者互斥。所有 msiexec 動作使用 /norestart 並保存 verbose log。 自簽 CER 只有在使用者先核對 subject、thumbprint、Code Signing EKU、有效期與 manifest，再明確加入 -TrustSelfSignedCertificate 時，才匯入 LocalMachine\\Root 與 LocalMachine\\TrustedPublisher 。 Setup code 只顯示在目前 console，不寫入 MSI log、JSON report 或 diagnostics。 Fresh install 驗證 - Winception.Agent ：Running、LocalSystem。 - Winception.Web ：Running、LocalService、service SID unrestricted。 - C:\\ProgramData\\Winception\\State\\winception-v2.db 存在且 ACL 正確。 - protected named pipe 可用。 - http://127.0.0.1:8080/api/v2/health 回傳正常。",
+      "url": "/docs/install"
+    },
+    {
+      "id": "lifecycle",
+      "title": "Repair、Upgrade 與 Uninstall",
+      "description": "驗證修復、State 保留、重新安裝與交易式升級。",
+      "headings": [
+        "驗收 lifecycle",
+        "Upgrade 原則"
+      ],
+      "body": "Repair、Upgrade 與 Uninstall 驗收 lifecycle 先建立一筆明確標示非發布用的測試 profile，記錄其 ID。依序執行： Uninstall 必須保留 C:\\ProgramData\\Winception\\State 。Reinstall 後確認 SQLite 與測試 profile 仍存在；setup code、token 或 secret 不得出現在 report。 Upgrade 原則 正式升級採 stage → validate → stop → atomic swap → migrate → health probe → commit。失敗時還原上一版 binary 與 DB backup。既有 prerelease tag 的 binary 不可被替換；修正後使用下一個 prerelease 版本。",
+      "url": "/docs/lifecycle"
+    },
+    {
+      "id": "release-license",
+      "title": "發布狀態、支援與授權",
+      "description": "Internal prerelease 門檻、AGPL-3.0-only、security 與支援政策。",
+      "headings": [
+        "發布資產",
+        "授權",
+        "支援與安全"
+      ],
+      "body": "發布狀態、支援與授權 目前 v2 在完成 elevated fresh-VM lifecycle、單 client PXE 與 Software Test 前，只能視為 internal prerelease，不宣稱 production-ready。 發布資產 Prerelease 固定包含 MSI、CER、 Install-Winception.ps1 、release manifest、 SHA256SUMS 、CycloneDX SBOM、LICENSE 與 release notes。自簽 code-signing/TLS 憑證只供內部測試；未來以組織或公開信任憑證取代。 授權 Winception 以 AGPL-3.0-only 發布。透過網路與修改版互動時，必須向使用者提供對應 source。第三方元件依各自授權，詳見套件內 THIRD-PARTY-NOTICES.md 與 SBOM。 支援與安全 支援 Windows 11 Pro／Enterprise x64。安全問題依 repository SECURITY.md 私下通報；一般支援範圍依 SUPPORT.md 。正式公開前仍需上游 redistribution review、公開／組織 code-signing certificate，以及多 client 與實體 laptop acceptance。",
+      "url": "/docs/release-license"
+    },
+    {
+      "id": "runtime-pxe",
+      "title": "Runtime、Image、Profile 與隔離 PXE",
+      "description": "從 Prepare runtime 到 windows-desktop-ready 的安全操作順序。",
+      "headings": [
+        "固定順序",
+        "邊界"
+      ],
+      "body": "Runtime、Image、Profile 與隔離 PXE 固定順序 1. 從 live Web／API 讀取 project root、interface、IP、DHCP range、router、HTTP base、boot mode、OS image 與 profile。 2. 選擇 PXE NIC 與 endpoint；確認 management 與 PXE subnet 不重疊。 3. Prepare runtime，選擇或匯入 OS image，publish deployment profile。 4. Run preflight。warning 可保留並記錄；blocking failure 必須為零。 5. 確認 isolated network 沒有其他 DHCP responder後，才啟動 DHCP／TFTP／HTTP。 6. Gen 2 Secure Boot client 從 UEFI IPv4 PXE 啟動，追蹤到 windows-desktop-ready 。 7. 保存 run/evidence，停止 ingress。 邊界 Offline ISO 是 additive snapshot，不取代 PXE acceptance。Git clone 不是 deployment runtime；不要手動修改 Web-selected runtime root。",
+      "url": "/docs/runtime-pxe"
+    },
+    {
+      "id": "software-test",
+      "title": "Software Test",
+      "description": "在 ingress stopped 與 Fleet empty 的隔離條件下驗證軟體部署。",
+      "headings": [
+        "VM 前置條件",
+        "執行與復原"
+      ],
+      "body": "Software Test VM 前置條件 - Nested Hyper-V VM 是 Off。 - 至少固定 4 GB RAM，Generation 2。 - 已建立可辨識的 clean checkpoint。 - DHCP、TFTP、HTTP 全部 stopped；Fleet active runs 為 0。 Software Test 開始時，Agent 必須在同一個 operation transaction／lock 內再次確認 ingress stopped 與 Fleet empty。UI 先前的狀態不是充分證據。 執行與復原 1. 選擇 Software Test VM、profile 與 checkpoint。 2. 啟動測試並追蹤 operation ID、correlation ID 與 VM evidence。 3. 成功或失敗後停止 VM並還原 clean checkpoint。 4. 確認 cleanup operation 完成、locks 釋放、ingress 仍 stopped。 不得把 Software Test VM 的成功當成實體 laptop 或多 client PXE 證據。",
+      "url": "/docs/software-test"
+    },
+    {
+      "id": "troubleshooting-evidence",
+      "title": "Diagnostics、Evidence 與故障排除",
+      "description": "以 correlation ID、installer log 與分層 evidence 定位問題。",
+      "headings": [
+        "安裝失敗",
+        "Web 無法開啟",
+        "Evidence 分層"
+      ],
+      "body": "Diagnostics、Evidence 與故障排除 安裝失敗 保留 C:\\ProgramData\\Winception\\InstallerLogs 與 bootstrap JSON report。重新核對 release manifest、MSI/CER SHA-256、certificate thumbprint、有效期、Code Signing EKU 與 Authenticode signer。不要刪除 State 或信任憑證來「重試」。 Web 無法開啟 使用 error response 的 correlation ID 對應本機 service log。API、report 與 issue 不得包含 setup code、token、password、PFX password 或 deployment secret。 Evidence 分層 - Source：commit、test matrix、coverage、OpenAPI、SBOM。 - MSI：exact file SHA-256、signer、manifest。 - Installed VM：services、ACL、pipe、SQLite、health、lifecycle。 - PXE client：boot mode、run ID、status JSONL、 windows-desktop-ready 。 - Software Test：VM/checkpoint、locks、result、restore evidence。",
+      "url": "/docs/troubleshooting-evidence"
+    },
+    {
+      "id": "vm-topology",
+      "title": "VM 與網路拓撲",
+      "description": "雙 NIC、Nested Virtualization 與隔離 PXE 的安全設定。",
+      "headings": [
+        "外層部署主機 VM",
+        "Nested client",
+        "DHCP 門檻"
+      ],
+      "body": "VM 與網路拓撲 外層部署主機 VM - Windows 11 Pro／Enterprise x64，Generation 2。 - 啟用 Nested Virtualization。 - 管理 NIC 連到 NAT 或可上網網路。 - PXE NIC 連到 isolated／private switch；不得有其他 DHCP responder。 - 管理與 PXE subnet 不可重疊。 在外層 Hyper-V 主機用 elevated PowerShell確認 VM 名稱、generation、NIC 與 switch。若沒有權限，停止並取得正確名稱；不要猜測。 Nested client Client 使用 Generation 2、至少固定 4 GB RAM、Microsoft Windows Secure Boot template，啟動前必須是 Off。Software Test VM 另需 clean checkpoint。 DHCP 門檻 啟動 Winception DHCP 前，必須在測試窗口確認 isolated switch 沒有其他 responder。安裝與 Prepare runtime 不會自動啟動 DHCP。",
+      "url": "/docs/vm-topology"
+    }
+  ]
+}

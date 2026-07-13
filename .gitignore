@@ -18,10 +18,14 @@ node_modules/
 dist/
 .v2-stage/
 installer/wix/GeneratedFiles.wxs
+installer/wix/obj/
 installer/output/
 test-results/
+.tmp-v2-e2e-uploads/
 playwright-report/
 coverage/
+dist/docs-pages/
+apps/docs/.docusaurus/
 .osdcloud-console/
 .claude/*
 !.claude/launch.json

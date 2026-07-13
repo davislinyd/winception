@@ -1,0 +1,30 @@
+{
+  "link.title.Product": {
+    "message": "Product",
+    "description": "The title of the footer links column with title=Product in the footer"
+  },
+  "link.title.Project": {
+    "message": "Project",
+    "description": "The title of the footer links column with title=Project in the footer"
+  },
+  "link.item.label.Getting Started": {
+    "message": "Getting Started",
+    "description": "The label of footer link with label=Getting Started linking to /docs/getting-started"
+  },
+  "link.item.label.Release readiness": {
+    "message": "Release readiness",
+    "description": "The label of footer link with label=Release readiness linking to /docs/release-license"
+  },
+  "link.item.label.Source code": {
+    "message": "Source code",
+    "description": "The label of footer link with label=Source code linking to https://github.com/davislinyd/winception"
+  },
+  "link.item.label.AGPL-3.0-only": {
+    "message": "AGPL-3.0-only",
+    "description": "The label of footer link with label=AGPL-3.0-only linking to https://www.gnu.org/licenses/agpl-3.0.html"
+  },
+  "copyright": {
+    "message": "Copyright © 2026 Winception contributors. No warranty.",
+    "description": "The footer copyright"
+  }
+}

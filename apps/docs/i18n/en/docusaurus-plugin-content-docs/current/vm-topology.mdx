@@ -1,0 +1,41 @@
+---
+id: vm-topology
+title: VM and Network Topology
+description: Safe dual-NIC, nested virtualization and isolated PXE configuration.
+---
+
+# VM and Network Topology
+
+## Outer deployment-host VM
+
+- Windows 11 Pro or Enterprise x64, Generation 2.
+- Nested virtualization enabled.
+- Management NIC on NAT or an Internet-capable network.
+- PXE NIC on an isolated or private switch with no other DHCP responder.
+- Management and PXE subnets must not overlap.
+
+Use elevated PowerShell on the outer Hyper-V host to confirm the VM name, generation, NICs and switches. If permissions are unavailable, stop and obtain the real names; do not guess.
+
+```powershell
+Get-VM -Name '<deployment-host-vm>' | Select-Object Name, Generation, State
+Get-VMProcessor -VMName '<deployment-host-vm>' | Select-Object ExposeVirtualizationExtensions
+Get-VMNetworkAdapter -VMName '<deployment-host-vm>' | Select-Object Name, SwitchName, MacAddress
+Get-VMSwitch | Select-Object Name, SwitchType
+```
+
+## Nested client
+
+Use a Generation 2 client with at least 4 GB fixed RAM and the Microsoft Windows Secure Boot template. It must be Off before testing. A Software Test VM also requires a clean checkpoint.
+
+```mermaid
+flowchart LR
+  Internet["NAT / Internet"] --> Mgmt["Management NIC"]
+  Mgmt --> Host["Winception host VM"]
+  Host --> Pxe["PXE NIC · isolated subnet"]
+  Pxe --> Client["Gen 2 Secure Boot client"]
+  Pxe --> TestVm["Software Test VM · Off + checkpoint"]
+```
+
+## DHCP gate
+
+Before starting Winception DHCP, confirm that the isolated switch has no other responder during the test window. Installation and Prepare runtime never start DHCP automatically.
