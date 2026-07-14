@@ -4,7 +4,7 @@
 
 ## 繁體中文
 
-> Winception 2.0 目前提供 [v2.0.0-alpha.4 內部測試版下載](https://github.com/davislinyd/winception/releases/tag/v2.0.0-alpha.4)；alpha.1 至 alpha.3 已由此版本取代。全新 VM 的安裝、repair、保留 State 的 uninstall 與 reinstall 已驗收；PXE 與 Software Test 尚未完成，因此不可視為 production-ready。[互動安裝與技術文件來源](https://github.com/davislinyd/winception/tree/v2.0.0-alpha.4/apps/docs) 已包含於該版本，Pages 仍待 deployment 驗收後發布。
+> Winception 2.0 目前提供 [v2.0.0-alpha.5 內部測試版下載](https://github.com/davislinyd/winception/releases/tag/v2.0.0-alpha.5)，並已完成 MSI、單台 Secure Boot PXE client 與隔離 Software Test VM 驗收；仍不可視為 production-ready。請使用[互動安裝與雙語技術文件](https://davislinyd.github.io/winception/)，其原始碼固定於 [alpha.5 tag](https://github.com/davislinyd/winception/tree/v2.0.0-alpha.5/apps/docs)。
 
 ### 01. 產品概要
 
@@ -354,7 +354,7 @@ Last completed run : <run-id>
 
 ## English
 
-> [Winception v2.0.0-alpha.4](https://github.com/davislinyd/winception/releases/tag/v2.0.0-alpha.4) is available as an internal test download and supersedes alpha.1 through alpha.3. Fresh install, repair, State-preserving uninstall and reinstall passed on the prepared VM; PXE and Software Test acceptance remain open, so it is not production-ready. The tagged [interactive installation and technical documentation source](https://github.com/davislinyd/winception/tree/v2.0.0-alpha.4/apps/docs) is available; Pages remains gated on deployment acceptance.
+> [Winception v2.0.0-alpha.5](https://github.com/davislinyd/winception/releases/tag/v2.0.0-alpha.5) is available as an internal test download. MSI, one Secure Boot PXE client, and the isolated Software Test VM have passed acceptance; it is still not production-ready. Use the [interactive bilingual installation and technical documentation](https://davislinyd.github.io/winception/), with source fixed at the [alpha.5 tag](https://github.com/davislinyd/winception/tree/v2.0.0-alpha.5/apps/docs).
 
 ### 01. Product Overview
 
