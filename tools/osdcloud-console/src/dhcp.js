@@ -277,7 +277,6 @@ export function newDhcpReply(request, messageType, assignedIp, effectiveBootFile
   addOption(options, 3, ipv4ToBytes(config.router));
   addOption(options, 6, dnsOptionBytes(config.dnsServers ?? []));
   addOption(options, 28, ipv4ToBytes(broadcastAddress(config.listenIp, config.subnetMask)));
-  addOption(options, 60, [...Buffer.from('PXEClient', 'ascii')]);
   addOption(options, 66, [...Buffer.from(config.listenIp, 'ascii')]);
   addOption(options, 67, [...Buffer.from(effectiveBootFile, 'ascii')]);
   options.push(255);

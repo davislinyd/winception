@@ -128,7 +128,7 @@ test('refreshes DHCP lease pool after endpoint lease range changes', () => {
   assert.equal(responder.leasePool.getLease('AA-BB-CC-DD-EE-FF', null), '192.168.100.115');
 });
 
-test('identifies a combined DHCP and PXE server in server-mode offers', () => {
+test('server-mode offers provide direct TFTP boot options without advertising BINL', () => {
   const request = packetWithOptions([
     [53, [1]],
     [60, [...Buffer.from('PXEClient:Arch:00007:UNDI:003000', 'ascii')]],
@@ -140,7 +140,7 @@ test('identifies a combined DHCP and PXE server in server-mode offers', () => {
     dnsServers: [],
   });
 
-  assert.equal(Buffer.from(getDhcpOptionValue(reply, 60)).toString('ascii'), 'PXEClient');
+  assert.equal(getDhcpOptionValue(reply, 60), null);
   assert.equal(Buffer.from(getDhcpOptionValue(reply, 67)).toString('ascii'), 'bootmgfw.efi');
   assert.equal(getDhcpOptionValue(reply, 43), null);
 });
