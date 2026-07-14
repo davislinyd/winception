@@ -34,6 +34,7 @@ export class ProductStateStore {
     if (this.#database.getSetting<boolean>('product.initialized') !== true) {
       this.#bootstrapFromBundle();
     }
+    this.#reconcileBundledSoftwareDefaults();
     this.materialize();
   }
 
@@ -91,6 +92,25 @@ export class ProductStateStore {
     });
     seedPayloadDirectory(join(this.appRoot, 'Softwares'), join(this.legacyRoot, 'Softwares'));
     seedPayloadDirectory(join(this.appRoot, 'Scripts'), join(this.legacyRoot, 'Scripts'));
+  }
+
+  #reconcileBundledSoftwareDefaults(): void {
+    const bundled = readCatalog(join(this.appRoot, 'config', 'software-catalog.json'), 'software');
+    const current = new Map(this.#database.listDocuments<JsonObject>('software_packages').map((item) => [item.id, item.document]));
+    const defaultFields = ['downloadUrl', 'installerFileName', 'installerBytes', 'installerSha256'] as const;
+    for (const item of bundled) {
+      const document = current.get(item.id);
+      if (!document) continue;
+      const merged = { ...document };
+      let changed = false;
+      for (const field of defaultFields) {
+        if ((merged[field] === undefined || merged[field] === null) && item.document[field] !== undefined && item.document[field] !== null) {
+          merged[field] = item.document[field];
+          changed = true;
+        }
+      }
+      if (changed) this.#database.saveDocument('software_packages', item.id, merged);
+    }
   }
 }
 

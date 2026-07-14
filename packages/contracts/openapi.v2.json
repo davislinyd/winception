@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Winception Management API",
-    "version": "2.0.0-alpha.4"
+    "version": "2.0.0-alpha.5"
   },
   "components": {
     "schemas": {}
@@ -47,7 +47,7 @@
                     "version": {
                       "type": "string",
                       "enum": [
-                        "2.0.0-alpha.4"
+                        "2.0.0-alpha.5"
                       ]
                     },
                     "contractVersion": {
@@ -325,7 +325,7 @@
                         "version": {
                           "type": "string",
                           "enum": [
-                            "2.0.0-alpha.4"
+                            "2.0.0-alpha.5"
                           ]
                         },
                         "contractVersion": {
@@ -3518,6 +3518,21 @@
                                 "sourceSha256": {
                                   "type": "string"
                                 },
+                                "filePath": {
+                                  "type": "string"
+                                },
+                                "cached": {
+                                  "type": "boolean"
+                                },
+                                "exists": {
+                                  "type": "boolean"
+                                },
+                                "bytes": {
+                                  "type": "integer"
+                                },
+                                "sizeMatches": {
+                                  "type": "boolean"
+                                },
                                 "usedByProfiles": {
                                   "type": "array",
                                   "items": {
@@ -3714,6 +3729,21 @@
                               },
                               "sourceSha256": {
                                 "type": "string"
+                              },
+                              "filePath": {
+                                "type": "string"
+                              },
+                              "cached": {
+                                "type": "boolean"
+                              },
+                              "exists": {
+                                "type": "boolean"
+                              },
+                              "bytes": {
+                                "type": "integer"
+                              },
+                              "sizeMatches": {
+                                "type": "boolean"
                               },
                               "usedByProfiles": {
                                 "type": "array",
@@ -4421,6 +4451,21 @@
                           },
                           "sourceSha256": {
                             "type": "string"
+                          },
+                          "filePath": {
+                            "type": "string"
+                          },
+                          "cached": {
+                            "type": "boolean"
+                          },
+                          "exists": {
+                            "type": "boolean"
+                          },
+                          "bytes": {
+                            "type": "integer"
+                          },
+                          "sizeMatches": {
+                            "type": "boolean"
                           },
                           "usedByProfiles": {
                             "type": "array",

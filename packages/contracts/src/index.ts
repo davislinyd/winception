@@ -1,6 +1,6 @@
 import { Type, type Static, type TSchema } from '@sinclair/typebox';
 
-export const WINCEPTION_V2_VERSION = '2.0.0-alpha.4' as const;
+export const WINCEPTION_V2_VERSION = '2.0.0-alpha.5' as const;
 export const CONTRACT_VERSION = 1 as const;
 
 export const JsonValueSchema = Type.Recursive((This) => Type.Union([
@@ -261,6 +261,8 @@ export const OsImageSchema = Type.Object({
   size: Type.Union([Type.Integer(), Type.Null()]), sha256: Type.String(), sha1: Type.String(), url: Type.String(), sourceType: Type.String(),
   sourceFileName: Type.String(), sourceContainerType: Type.String(), sourceImageIndex: Type.Union([Type.Integer(), Type.Null()]),
   sourceSize: Type.Union([Type.Integer(), Type.Null()]), sourceSha256: Type.String(),
+  filePath: Type.Optional(Type.String()), cached: Type.Optional(Type.Boolean()), exists: Type.Optional(Type.Boolean()),
+  bytes: Type.Optional(Type.Integer()), sizeMatches: Type.Optional(Type.Boolean()),
   usedByProfiles: Type.Optional(Type.Array(ProfileReferenceSchema)),
 }, { additionalProperties: false });
 export type OsImage = Static<typeof OsImageSchema>;

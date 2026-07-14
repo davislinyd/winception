@@ -29,7 +29,11 @@ function Assert-Package([string]$Root) {
     if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) { throw "Package hash failed: $($entry.path)" }
   }
   if (-not $AllowUnsigned) {
-    foreach ($executable in Get-ChildItem -LiteralPath $Root -Recurse -File | Where-Object { @('.exe', '.dll', '.ps1') -contains $_.Extension.ToLowerInvariant() }) {
+    $bundledModuleRoot = Join-Path $Root 'app\powershell-modules'
+    foreach ($executable in Get-ChildItem -LiteralPath $Root -Recurse -File | Where-Object {
+      @('.exe', '.dll', '.ps1') -contains $_.Extension.ToLowerInvariant() -and
+      -not $_.FullName.StartsWith($bundledModuleRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+    }) {
       if ((Get-AuthenticodeSignature -LiteralPath $executable.FullName).Status -ne 'Valid') { throw "Unsigned package file: $($executable.Name)" }
     }
   }

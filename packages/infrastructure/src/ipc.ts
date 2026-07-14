@@ -1,5 +1,6 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { createServer, createConnection, type Server, type Socket } from 'node:net';
+import { createServer, createConnection, isIP, type Server, type Socket } from 'node:net';
+import { FormatRegistry } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import {
   AGENT_COMMAND_PAYLOAD_SCHEMAS,
@@ -15,6 +16,8 @@ import { AgentUnavailableError, ValidationError } from '../../domain/src/errors.
 
 export const DEFAULT_AGENT_PIPE = String.raw`\\.\pipe\ProtectedPrefix\Administrators\Winception.Agent.v2`;
 const MAX_MESSAGE_BYTES = 1024 * 1024;
+
+FormatRegistry.Set('ipv4', (value) => isIP(value) === 4);
 
 export type AgentCommandHandler = (payload: unknown) => unknown;
 

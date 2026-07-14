@@ -45,6 +45,14 @@ test('named-pipe agent executes only registered, schema-valid commands', async (
   }
 });
 
+test('Agent command validation accepts valid IPv4 endpoint payloads and rejects invalid addresses', async () => {
+  const registry = new AgentCommandRegistry();
+  registry.register('endpoint.update', (payload) => payload);
+  const valid = { interfaceAlias: 'Ethernet 2', ipAddress: '192.168.77.2', prefixLength: 24, gateway: '192.168.77.1' };
+  assert.deepEqual(await registry.execute('endpoint.update', valid), valid);
+  assert.throws(() => registry.execute('endpoint.update', { ...valid, ipAddress: '999.168.77.2' }), /payload is invalid/u);
+});
+
 test('Agent IPC rejects weak tokens and redacts unexpected privileged failures', async () => {
   assert.throws(() => new AgentPipeClient({ authToken: 'short' }), /at least 32/u);
   assert.throws(() => createAgentPipeServer({ authToken: 'short', registry: new AgentCommandRegistry() }), /at least 32/u);

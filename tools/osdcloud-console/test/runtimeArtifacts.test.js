@@ -844,9 +844,34 @@ test('secure boot publish imports Security module by child PSHOME path before Au
 test('runtime restore requires both OSD modules before WinPE preparation', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
 
-  assert.match(script, /foreach \(\$moduleName in @\('OSD', 'OSDCloud'\)\)/);
-  assert.match(script, /Get-Module -ListAvailable -Name \$moduleName/);
-  assert.match(script, /Install-Module \$moduleName -Scope AllUsers -Force -AllowClobber/);
+  assert.match(script, /OSD = '26\.4\.23\.1'/);
+  assert.match(script, /OSDCloud = '26\.4\.17\.1'/);
+  assert.match(script, /Get-RequiredPowerShellModule -Name \$moduleName/);
+  assert.match(script, /Repair the Winception installation/);
+});
+
+test('installed runtime preparation uses packaged Node and does not require npm on the target', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
+  const adapter = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows', 'preflight.js'), 'utf8');
+  const packager = fs.readFileSync(path.join(process.cwd(), 'tools', 'v2', 'Build-WinceptionV2Package.ps1'), 'utf8');
+
+  assert.match(script, /function Resolve-NodeExecutable/);
+  assert.match(script, /node\\node\.exe/);
+  assert.doesNotMatch(script, /Get-Command -Name npm/);
+  assert.match(adapter, /'-NodePath'[\s\S]*'node', 'node\.exe'/);
+  assert.match(adapter, /'-PowerShellModulesRoot'[\s\S]*'powershell-modules'/);
+  assert.match(packager, /Name = 'OSD'; Version = '26\.4\.23\.1'; Sha256 = '[A-F0-9]{64}'/);
+  assert.match(packager, /Name = 'OSDCloud'; Version = '26\.4\.17\.1'; Sha256 = '[A-F0-9]{64}'/);
+  assert.match(packager, /\$MsiVersion = '2\.0\.15'/);
+  assert.match(packager, /powershellgallery\.com\/api\/v2\/package/);
+  assert.match(packager, /pkg:nuget/);
+
+  const signer = fs.readFileSync(path.join(process.cwd(), 'tools', 'v2', 'Sign-WinceptionPackage.ps1'), 'utf8');
+  assert.match(signer, /app\\powershell-modules/);
+  assert.match(signer, /StartsWith\(\$bundledModuleRoot/);
+  const upgrader = fs.readFileSync(path.join(process.cwd(), 'tools', 'v2', 'Invoke-WinceptionUpgrade.ps1'), 'utf8');
+  assert.match(upgrader, /app\\powershell-modules/);
+  assert.match(upgrader, /StartsWith\(\$bundledModuleRoot/);
 });
 
 test('restore bootstrap creates missing OSDCloud template before workspace build', () => {
@@ -868,6 +893,25 @@ test('endpoint sync restores missing live endpoint templates from repo mirror', 
   assert.match(script, /osdcloud-assets\\OSDCloud/);
   assert.match(script, /State\\config\\osdcloud-console\.json/);
   assert.match(script, /State\\config\\osdcloud-secrets\.json/);
+});
+
+test('endpoint sync scopes PXE data-plane firewall rules to the selected interface and subnet', () => {
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  assert.match(script, /Set-PxeFirewallEndpoint/);
+  assert.match(script, /Winception PXE/);
+  assert.match(script, /DHCP Inbound/);
+  assert.match(script, /TFTP Inbound/);
+  assert.match(script, /HTTP Inbound/);
+  assert.match(script, /Torrent Tracker Inbound/);
+  assert.match(script, /Torrent Peer TCP Inbound/);
+  assert.match(script, /Torrent Peer UDP Inbound/);
+  assert.match(script, /DHCP Inbound[^\r\n]+LocalAddress = 'Any'; RemoteAddress = 'Any'/);
+  assert.match(script, /TFTP Inbound[^\r\n]+RemoteAddress = \$RemoteSubnet/);
+  assert.match(script, /-LocalAddress \$definition\.LocalAddress/);
+  assert.match(script, /-RemoteAddress \$RemoteAddress/);
+  assert.match(script, /-InterfaceAlias \$InterfaceAlias/);
+  assert.match(script, /-Group 'Winception'/);
+  assert.doesNotMatch(script, /Set-NetFirewallProfile/);
 });
 
 test('endpoint sync restores missing source boot.wim from published HTTP copy', () => {

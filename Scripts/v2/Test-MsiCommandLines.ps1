@@ -13,6 +13,12 @@ if ($source -notmatch 'Id="ProvisionServiceSettings"[^\r\n]+-AppRoot &quot;\[APP
 if ($source -match '-AppRoot &quot;\[APPFOLDER\]&quot;') {
   throw 'ProvisionServiceSettings contains a quoted APPFOLDER value whose trailing separator can escape the closing quote.'
 }
+if ($source -notmatch 'Id="RemoveFirewallRules"[^\r\n]+Remove-WinceptionFirewallRules\.ps1') {
+  throw 'The MSI must execute the product-owned firewall cleanup script during uninstall.'
+}
+if ($source -notmatch 'Action="RemoveFirewallRules" Before="RemoveFiles" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE"') {
+  throw 'The MSI must remove product-owned firewall rules only during full uninstall, not during a major upgrade.'
+}
 
 $serviceSettingsPath = Join-Path $repo 'tools\v2\Initialize-WinceptionServices.ps1'
 $serviceSettingsSource = Get-Content -LiteralPath $serviceSettingsPath -Raw

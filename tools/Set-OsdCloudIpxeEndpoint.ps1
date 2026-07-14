@@ -7,9 +7,11 @@ param(
     [string] $DefaultGateway,
     [string] $SmbShareName = 'OSDCloudiPXE',
     [string] $SmbFirewallRuleName = 'PXE-Lab SMB Inbound',
+    [string] $PxeFirewallRulePrefix = 'Winception PXE',
     [string] $ImageNamePattern,
     [string] $SmbRemoteSubnet,
     [switch] $SkipSmbFirewall,
+    [switch] $SkipPxeFirewall,
     [switch] $CommitWinPe,
     [switch] $ForceCommitWinPe,
     [switch] $SyncAssets,
@@ -648,14 +650,21 @@ function Get-DeploymentSecretSource {
         Select-Object -First 1
 }
 
-function Set-SmbFirewallEndpoint {
+function Set-InboundFirewallEndpoint {
     param(
         [Parameter(Mandatory)]
         [string] $RuleName,
         [Parameter(Mandatory)]
+        [ValidateSet('TCP', 'UDP')]
+        [string] $Protocol,
+        [Parameter(Mandatory)]
+        [int] $LocalPort,
+        [Parameter(Mandatory)]
         [string] $LocalAddress,
         [Parameter(Mandatory)]
-        [string] $RemoteSubnet
+        [string] $RemoteAddress,
+        [Parameter(Mandatory)]
+        [string] $InterfaceAlias
     )
 
     try {
@@ -670,14 +679,49 @@ function Set-SmbFirewallEndpoint {
 
     New-NetFirewallRule `
         -DisplayName $RuleName `
+        -Group 'Winception' `
         -Direction Inbound `
         -Action Allow `
-        -Protocol TCP `
-        -LocalPort 445 `
+        -Protocol $Protocol `
+        -LocalPort $LocalPort `
         -LocalAddress $LocalAddress `
-        -RemoteAddress $RemoteSubnet `
+        -RemoteAddress $RemoteAddress `
+        -InterfaceAlias $InterfaceAlias `
         -Profile Any | Out-Null
     return 'created'
+}
+
+function Set-PxeFirewallEndpoint {
+    param(
+        [Parameter(Mandatory)][string] $RulePrefix,
+        [Parameter(Mandatory)][string] $LocalAddress,
+        [Parameter(Mandatory)][string] $RemoteSubnet,
+        [Parameter(Mandatory)][string] $InterfaceAlias,
+        [Parameter(Mandatory)][int] $DhcpPort,
+        [Parameter(Mandatory)][int] $TftpPort,
+        [Parameter(Mandatory)][int] $HttpPort,
+        [Parameter(Mandatory)][int] $TrackerPort,
+        [Parameter(Mandatory)][int] $PeerPort
+    )
+
+    $definitions = @(
+        @{ Suffix = 'DHCP Inbound'; Protocol = 'UDP'; Port = $DhcpPort; LocalAddress = 'Any'; RemoteAddress = 'Any' },
+        @{ Suffix = 'TFTP Inbound'; Protocol = 'UDP'; Port = $TftpPort; LocalAddress = $LocalAddress; RemoteAddress = $RemoteSubnet },
+        @{ Suffix = 'HTTP Inbound'; Protocol = 'TCP'; Port = $HttpPort; LocalAddress = $LocalAddress; RemoteAddress = $RemoteSubnet },
+        @{ Suffix = 'Torrent Tracker Inbound'; Protocol = 'TCP'; Port = $TrackerPort; LocalAddress = $LocalAddress; RemoteAddress = $RemoteSubnet },
+        @{ Suffix = 'Torrent Peer TCP Inbound'; Protocol = 'TCP'; Port = $PeerPort; LocalAddress = $LocalAddress; RemoteAddress = $RemoteSubnet },
+        @{ Suffix = 'Torrent Peer UDP Inbound'; Protocol = 'UDP'; Port = $PeerPort; LocalAddress = $LocalAddress; RemoteAddress = $RemoteSubnet }
+    )
+    foreach ($definition in $definitions) {
+        Set-InboundFirewallEndpoint `
+            -RuleName "$RulePrefix $($definition.Suffix)" `
+            -Protocol $definition.Protocol `
+            -LocalPort $definition.Port `
+            -LocalAddress $definition.LocalAddress `
+            -RemoteAddress $definition.RemoteAddress `
+            -InterfaceAlias $InterfaceAlias | Out-Null
+    }
+    return $definitions.Count
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -778,8 +822,23 @@ Write-Host "Updated live PXE endpoint files under $ipxeLab"
 
 $smbFirewallStatus = 'skipped'
 if (-not $SkipSmbFirewall) {
-    $smbFirewallStatus = Set-SmbFirewallEndpoint -RuleName $SmbFirewallRuleName -LocalAddress $ServerIp -RemoteSubnet $remoteSubnet
+    $smbFirewallStatus = Set-InboundFirewallEndpoint -RuleName $SmbFirewallRuleName -Protocol TCP -LocalPort 445 -LocalAddress $ServerIp -RemoteAddress $remoteSubnet -InterfaceAlias $InterfaceAlias
     Write-Host "Updated SMB firewall rule '$SmbFirewallRuleName': local=$ServerIp remote=$remoteSubnet"
+}
+
+$pxeFirewallRuleCount = 0
+if (-not $SkipPxeFirewall) {
+    $pxeFirewallRuleCount = Set-PxeFirewallEndpoint `
+        -RulePrefix $PxeFirewallRulePrefix `
+        -LocalAddress $ServerIp `
+        -RemoteSubnet $remoteSubnet `
+        -InterfaceAlias $InterfaceAlias `
+        -DhcpPort $(if ($config.dhcp.listenPort) { [int] $config.dhcp.listenPort } else { 67 }) `
+        -TftpPort $(if ($config.tftp.port) { [int] $config.tftp.port } else { 69 }) `
+        -HttpPort $(if ($config.http.port) { [int] $config.http.port } else { 80 }) `
+        -TrackerPort $(if ($config.torrent.trackerPort) { [int] $config.torrent.trackerPort } else { 6969 }) `
+        -PeerPort $(if ($config.torrent.seederListenPort) { [int] $config.torrent.seederListenPort } else { 6881 })
+    Write-Host "Updated $pxeFirewallRuleCount PXE data-plane firewall rules: local=$ServerIp remote=$remoteSubnet interface=$InterfaceAlias"
 }
 
 if ($CommitWinPe) {
@@ -957,6 +1016,8 @@ else {
     SmbShare = $share
     SmbFirewallRule = $SmbFirewallRuleName
     SmbFirewallStatus = $smbFirewallStatus
+    PxeFirewallRulePrefix = $PxeFirewallRulePrefix
+    PxeFirewallRuleCount = $pxeFirewallRuleCount
     CommitWinPe = [bool] $CommitWinPe
     SyncAssets = [bool] $SyncAssets
 } | ConvertTo-Json -Compress

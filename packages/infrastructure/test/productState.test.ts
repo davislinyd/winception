@@ -109,6 +109,43 @@ test('SQLite product state tolerates optional bundle catalogs and validates JSON
   }
 });
 
+test('SQLite product state fills missing bundled software metadata without replacing user values', () => {
+  const root = mkdtempSync(join(process.cwd(), '.tmp-product-state-'));
+  const appRoot = join(root, 'app');
+  const stateRoot = join(root, 'state');
+  try {
+    seedBundle(appRoot);
+    json(join(appRoot, 'config', 'software-catalog.json'), {
+      software: [{
+        id: 'tool', name: 'Bundled Tool', source: 'tool', installerFileName: 'tool.msi', installerBytes: 42,
+        installerSha256: 'bundled-sha256', downloadUrl: 'https://example.test/tool.msi',
+      }],
+    });
+    const database = new WinceptionDatabase(join(stateRoot, 'winception.db'));
+    database.setSetting('product.initialized', true);
+    database.setSetting('product.config', { paths: {} });
+    database.saveDocument('software_packages', 'tool', {
+      id: 'tool', name: 'User Tool', source: 'tool', installerFileName: null, installerBytes: null,
+      installerSha256: 'user-sha256', downloadUrl: null,
+    });
+
+    const store = new ProductStateStore({ database, appRoot, stateRoot });
+    store.initialize();
+    const tool = database.listDocuments<Record<string, unknown>>('software_packages')[0]?.document;
+    assert.equal(tool?.name, 'User Tool');
+    assert.equal(tool?.installerFileName, 'tool.msi');
+    assert.equal(tool?.installerBytes, 42);
+    assert.equal(tool?.installerSha256, 'user-sha256');
+    assert.equal(tool?.downloadUrl, 'https://example.test/tool.msi');
+
+    store.initialize();
+    assert.equal(database.listDocuments('software_packages').length, 1);
+    database.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function seedBundle(appRoot: string): void {
   const configRoot = join(appRoot, 'config');
   mkdirSync(join(configRoot, 'deployment-profiles'), { recursive: true });

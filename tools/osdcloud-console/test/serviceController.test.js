@@ -426,6 +426,23 @@ test('preflight warnings do not block deployment readiness or the Start services
     assert.equal(preflightStep.done, true);
     assert.equal(preflightStep.ran, true);
     assert.match(preflightStep.detail, /warning/i);
+    await controller.startAll();
+    assert.equal(controller.servicesState().dhcp.running, true);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('startAll requires a completed preflight without blocking failures', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-pf-gate-'));
+  try {
+    const { controller, services } = makeController(root);
+    await assert.rejects(controller.startAll(), /Run preflight/);
+    assert.equal(services.dhcp.running, false);
+
+    controller.preflightResults = [{ name: 'WinPE boot.wim synchronization', ok: false, detail: 'Run Endpoint Sync.' }];
+    await assert.rejects(controller.startAll(), /1 blocking preflight check/);
+    assert.equal(services.dhcp.running, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -638,6 +655,7 @@ test('deployment profile management actions create, update active software, and 
     assert.deepEqual(createdInput, { name: 'Field', description: 'Field laptops' });
     assert.equal(created.profile.id, 'AAAAAAA0');
 
+    controller.preflightResults = [{ name: 'Smoke', ok: true, detail: 'test' }];
     await controller.startAll();
     const updated = await controller.updateActiveDeploymentProfile({
       name: 'Renamed',
@@ -725,6 +743,7 @@ test('editing an inactive deployment profile only rewrites JSON and leaves servi
       },
     });
 
+    controller.preflightResults = [{ name: 'Smoke', ok: true, detail: 'test' }];
     await controller.startAll();
     assert.equal(services.http.running, true);
     assert.equal(services.tftp.running, true);
@@ -797,6 +816,7 @@ test('software package actions upload and add catalog entry without publishing',
       },
     });
 
+    controller.preflightResults = [{ name: 'Smoke', ok: true, detail: 'test' }];
     await controller.startAll();
     const uploaded = await controller.uploadSoftwareInstaller({
       fileName: 'tool.msi',
@@ -849,6 +869,7 @@ test('software package delete runs through controller without publishing', async
       },
     });
 
+    controller.preflightResults = [{ name: 'Smoke', ok: true, detail: 'test' }];
     await controller.startAll();
     const deleted = await controller.removeSoftwarePackage('SW-TOOL001');
 
@@ -922,6 +943,7 @@ test('OS image download runs through host catalog without an explicit publish ac
       },
     });
 
+    controller.preflightResults = [{ name: 'Smoke', ok: true, detail: 'test' }];
     await controller.startAll();
     assert.equal(typeof controller.changeOsImage, 'undefined');
 
@@ -1156,6 +1178,7 @@ test('endpoint changes stop services, save config, sync repo-sourced endpoint fi
         },
       },
     });
+    controller.preflightResults = [{ name: 'Smoke', ok: true, detail: 'test' }];
     await controller.startAll();
     const result = await controller.changeEndpoint({
       interfaceAlias: 'Lab',
@@ -1493,6 +1516,7 @@ test('torrent tracker is part of servicesState and start/stop all', async () => 
     assert.equal(state.torrent.trackerPort, 6969);
     assert.equal(state.torrent.serverIp, '10.10.10.1');
 
+    controller.preflightResults = [{ name: 'Smoke', ok: true, detail: 'test' }];
     await controller.startAll();
     assert.equal(controller.servicesState().torrent.running, true);
     assert.equal(services.torrent.starts, 1);
@@ -1523,6 +1547,7 @@ test('torrent tracker is not started by startAll when disabled', async () => {
       torrent: new FakeService(config.torrent),
     };
     const controller = new ServiceController({ config, services, dependencies: {} });
+    controller.preflightResults = [{ name: 'Smoke', ok: true, detail: 'test' }];
     await controller.startAll();
     assert.equal(services.torrent.starts, 0);
     assert.equal(controller.servicesState().torrent.enabled, false);

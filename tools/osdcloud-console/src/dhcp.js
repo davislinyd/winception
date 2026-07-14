@@ -277,11 +277,9 @@ export function newDhcpReply(request, messageType, assignedIp, effectiveBootFile
   addOption(options, 3, ipv4ToBytes(config.router));
   addOption(options, 6, dnsOptionBytes(config.dnsServers ?? []));
   addOption(options, 28, ipv4ToBytes(broadcastAddress(config.listenIp, config.subnetMask)));
+  addOption(options, 60, [...Buffer.from('PXEClient', 'ascii')]);
   addOption(options, 66, [...Buffer.from(config.listenIp, 'ascii')]);
   addOption(options, 67, [...Buffer.from(effectiveBootFile, 'ascii')]);
-  if (!ipxeClient) {
-    addOption(options, 43, pxeVendorOption(config.listenIp));
-  }
   options.push(255);
   return Buffer.concat([reply, Buffer.from(options)]);
 }
@@ -291,6 +289,7 @@ export class DhcpResponder extends EventEmitter {
     super();
     this.config = config;
     this.socket = null;
+    this.sendSocket = null;
     this.leasePool = null;
     this.leasePoolKey = null;
     this.refreshLeasePool();
@@ -335,7 +334,9 @@ export class DhcpResponder extends EventEmitter {
 
     await new Promise((resolve, reject) => {
       this.socket.once('error', reject);
-      this.socket.bind(this.config.listenPort ?? 67, this.config.listenIp, () => {
+      // Windows delivers the initial DHCP broadcast only to an INADDR_ANY socket.
+      // Endpoint sync limits UDP 67 to the selected PXE interface in Windows Firewall.
+      this.socket.bind(this.config.listenPort ?? 67, '0.0.0.0', () => {
         this.socket.off('error', reject);
         this.socket.setBroadcast(true);
         if ((this.config.dhcpMode ?? 'server') === 'proxy') {
@@ -346,6 +347,34 @@ export class DhcpResponder extends EventEmitter {
         resolve();
       });
     });
+
+    this.sendSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    this.sendSocket.on('error', (error) => {
+      this.log(`ERROR ${error.message}`);
+      this.emit('error', error);
+    });
+    try {
+      await new Promise((resolve, reject) => {
+        this.sendSocket.once('error', reject);
+        this.sendSocket.bind(this.config.listenPort ?? 67, this.config.listenIp, () => {
+          this.sendSocket.off('error', reject);
+          this.sendSocket.setBroadcast(true);
+          resolve();
+        });
+      });
+    } catch (error) {
+      const socket = this.socket;
+      const sendSocket = this.sendSocket;
+      this.socket = null;
+      this.sendSocket = null;
+      await new Promise((resolve) => socket.close(resolve));
+      try {
+        sendSocket.close();
+      } catch {
+        // A bind failure can leave the socket unopened.
+      }
+      throw error;
+    }
   }
 
   async stop() {
@@ -353,8 +382,13 @@ export class DhcpResponder extends EventEmitter {
       return;
     }
     const socket = this.socket;
+    const sendSocket = this.sendSocket;
     this.socket = null;
-    await new Promise((resolve) => socket.close(resolve));
+    this.sendSocket = null;
+    await Promise.all([
+      new Promise((resolve) => socket.close(resolve)),
+      sendSocket ? new Promise((resolve) => sendSocket.close(resolve)) : Promise.resolve(),
+    ]);
     this.log('DHCP responder stopped');
   }
 
@@ -377,7 +411,11 @@ export class DhcpResponder extends EventEmitter {
       try {
         const replyType = messageType === 1 ? 2 : 5;
         const reply = newProxyDhcpReply(packet, replyType, this.config);
-        this.socket.send(reply, this.config.replyPort ?? 68, '255.255.255.255');
+        (this.sendSocket ?? this.socket).send(
+          reply,
+          this.config.replyPort ?? 68,
+          '255.255.255.255',
+        );
         const bootFile = effectiveBootFile(this.config, isIpxeClient(packet));
         this.log(`${messageType === 1 ? 'PROXY-OFFER' : 'PROXY-ACK'} to ${mac} boot=${bootFile}`);
       } catch (error) {
@@ -394,14 +432,11 @@ export class DhcpResponder extends EventEmitter {
       const assignedIp = this.leasePool.getLease(mac, requestedIp);
       const replyType = messageType === 1 ? 2 : 5;
       const reply = newDhcpReply(packet, replyType, assignedIp, bootFile, ipxeClient, this.config);
-      const targets = [
-        broadcastAddress(this.config.listenIp, this.config.subnetMask),
+      (this.sendSocket ?? this.socket).send(
+        reply,
+        this.config.replyPort ?? 68,
         '255.255.255.255',
-      ];
-
-      for (const target of targets) {
-        this.socket.send(reply, this.config.replyPort ?? 68, target);
-      }
+      );
 
       this.log(`${messageType === 1 ? 'OFFER' : 'ACK'} ${assignedIp} to ${mac} requested=${requestedIp} boot=${bootFile}`);
     } catch (error) {

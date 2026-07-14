@@ -16,7 +16,11 @@ $codeSigning = @($certificate.EnhancedKeyUsageList | Where-Object { [string]$_.O
 if (-not $codeSigning) { throw 'The certificate does not allow Code Signing.' }
 
 $signableExtensions = @('.exe', '.dll', '.ps1', '.msi')
-foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object { $signableExtensions -contains $_.Extension.ToLowerInvariant() }) {
+$bundledModuleRoot = Join-Path $root 'app\powershell-modules'
+foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
+  $signableExtensions -contains $_.Extension.ToLowerInvariant() -and
+  -not $_.FullName.StartsWith($bundledModuleRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+}) {
   $existing = Get-AuthenticodeSignature -LiteralPath $file.FullName
   if ($existing.Status -eq 'Valid') { continue }
   if ($file.Extension -ieq '.ps1') {

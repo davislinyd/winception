@@ -713,6 +713,16 @@ export class ServiceController extends EventEmitter {
 
   async startAll() {
     return this.runOperation('Starting all services', async () => {
+      if (!Array.isArray(this.preflightResults) || this.preflightResults.length === 0) {
+        throw errorWithStatus('Run preflight before starting deployment services.', 409);
+      }
+      const blockingFailures = this.preflightResults.filter((check) => check?.ok !== true);
+      if (blockingFailures.length > 0) {
+        throw errorWithStatus(
+          `Resolve ${blockingFailures.length} blocking preflight check(s) before starting deployment services.`,
+          409,
+        );
+      }
       try {
         await this.services.http.start();
         await this.services.tftp.start();

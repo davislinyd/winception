@@ -79,7 +79,8 @@ const image: OsImage = {
   architecture: 'x64', language: 'en-us', locale: 'en-US', timeZone: 'UTC', edition: 'Pro', editionId: 'Professional',
   activation: 'Retail', imageIndex: 1, fileName: 'install.wim', osFamily: 'win11', size: 1024, sha256: 'a'.repeat(64),
   sha1: '', url: '', sourceType: 'official', sourceFileName: 'install.esd', sourceContainerType: 'esd',
-  sourceImageIndex: 1, sourceSize: 2048, sourceSha256: 'b'.repeat(64), usedByProfiles: [{ id: profile.id, name: profile.name }],
+  sourceImageIndex: 1, sourceSize: 2048, sourceSha256: 'b'.repeat(64), filePath: 'cache\\install.wim',
+  cached: true, exists: true, bytes: 1024, sizeMatches: true, usedByProfiles: [{ id: profile.id, name: profile.name }],
 };
 
 async function stop(): Promise<void> { await app.close(); }

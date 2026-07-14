@@ -8,7 +8,9 @@ param(
     [switch] $SkipOsImageDownload,
     [switch] $SkipWinPeBuild,
     [switch] $SkipPrerequisiteCheck,
-    [switch] $NoAdkAutoInstall
+    [switch] $NoAdkAutoInstall,
+    [string] $NodePath,
+    [string] $PowerShellModulesRoot
 )
 
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
@@ -38,6 +40,44 @@ if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
 $AdkVersion = '10.1.26100.2454'
 $AdkSetupUrl = 'https://go.microsoft.com/fwlink/?linkid=2289980'
 $WinPeSetupUrl = 'https://go.microsoft.com/fwlink/?linkid=2289981'
+$RequiredPowerShellModules = [ordered]@{
+    OSD = '26.4.23.1'
+    OSDCloud = '26.4.17.1'
+}
+
+if ([string]::IsNullOrWhiteSpace($PowerShellModulesRoot)) {
+    $PowerShellModulesRoot = Join-Path $RepoRoot 'powershell-modules'
+}
+if (Test-Path -LiteralPath $PowerShellModulesRoot -PathType Container) {
+    $env:PSModulePath = $PowerShellModulesRoot + [System.IO.Path]::PathSeparator + $env:PSModulePath
+}
+
+function Resolve-NodeExecutable {
+    $candidates = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($NodePath)) {
+        $candidates.Add($NodePath)
+    }
+    $candidates.Add((Join-Path (Split-Path -Parent $RepoRoot) 'node\node.exe'))
+    $pathCommand = Get-Command -Name node.exe -ErrorAction SilentlyContinue
+    if ($pathCommand) {
+        $candidates.Add([string] $pathCommand.Source)
+    }
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return (Get-FullPath $candidate)
+        }
+    }
+    $null
+}
+
+function Get-RequiredPowerShellModule {
+    param([Parameter(Mandatory)][string] $Name)
+
+    $requiredVersion = [version] $RequiredPowerShellModules[$Name]
+    Get-Module -ListAvailable -Name $Name |
+        Where-Object { $_.Version -eq $requiredVersion } |
+        Select-Object -First 1
+}
 
 function Resolve-BaseConfigPath {
     param([Parameter(Mandatory)][string] $Path)
@@ -620,15 +660,13 @@ function Assert-Prerequisites {
     param([switch] $InstallAdkIfMissing)
 
     $missing = New-Object System.Collections.Generic.List[string]
-    if (-not (Get-Command -Name node -ErrorAction SilentlyContinue)) {
-        $missing.Add('Install Node.js LTS and make node.exe available in PATH.')
+    $script:NodeExecutable = Resolve-NodeExecutable
+    if ([string]::IsNullOrWhiteSpace($script:NodeExecutable)) {
+        $missing.Add('The Winception Node.js runtime is missing or invalid. Repair the Winception installation.')
     }
-    if (-not (Get-Command -Name npm -ErrorAction SilentlyContinue)) {
-        $missing.Add('Install npm with Node.js LTS and make npm available in PATH.')
-    }
-    foreach ($moduleName in @('OSD', 'OSDCloud')) {
-        if (-not (Get-Module -ListAvailable -Name $moduleName)) {
-            $missing.Add("Install the $moduleName PowerShell module by rerunning Setup-DeploymentServer.cmd, or run: Install-Module $moduleName -Scope AllUsers -Force -AllowClobber")
+    foreach ($moduleName in $RequiredPowerShellModules.Keys) {
+        if (-not (Get-RequiredPowerShellModule -Name $moduleName)) {
+            $missing.Add("The bundled $moduleName PowerShell module $($RequiredPowerShellModules[$moduleName]) is missing. Repair the Winception installation.")
         }
     }
 
@@ -794,7 +832,7 @@ HKLM,"SYSTEM\ControlSet001\Control\Session Manager\Environment",LOCALAPPDATA,0x0
 }
 
 function Ensure-OsdCloudTemplate {
-    Import-Module OSD -Force
+    Import-Module OSD -RequiredVersion $RequiredPowerShellModules.OSD -Force
     Set-OsdCloudTemplateGalleryFallback
 
     $templatePath = Get-CurrentOsdCloudTemplatePath
@@ -1033,7 +1071,13 @@ function Restore-OsImageArtifact {
         Write-Host "[dry-run] download/import and export OS image $($Artifact.osImageId) through Web OS Image Cache helpers"
         return
     }
-    Invoke-ExternalCommand -FilePath 'node' -ArgumentList @(
+    if ([string]::IsNullOrWhiteSpace($script:NodeExecutable)) {
+        $script:NodeExecutable = Resolve-NodeExecutable
+    }
+    if ([string]::IsNullOrWhiteSpace($script:NodeExecutable)) {
+        throw 'The Winception Node.js runtime is missing or invalid. Repair the Winception installation.'
+    }
+    Invoke-ExternalCommand -FilePath $script:NodeExecutable -ArgumentList @(
         'tools/osdcloud-console/src/osImageDownloadCli.js',
         '--config',
         $ConfigPath,

@@ -7,10 +7,12 @@ import {
   LeasePool,
   broadcastAddress,
   effectiveBootFile,
+  getDhcpOptionValue,
   getDhcpMessageType,
   getRequestedIp,
   isIpxeClient,
   ipv4ToUInt32,
+  newDhcpReply,
   normalizeMacAddress,
   uint32ToIPv4,
 } from '../src/dhcp.js';
@@ -124,4 +126,93 @@ test('refreshes DHCP lease pool after endpoint lease range changes', () => {
 
   assert.equal(responder.leasePool.getLease('AA-BB-CC-00-00-01', null), '192.168.100.200');
   assert.equal(responder.leasePool.getLease('AA-BB-CC-DD-EE-FF', null), '192.168.100.115');
+});
+
+test('identifies a combined DHCP and PXE server in server-mode offers', () => {
+  const request = packetWithOptions([
+    [53, [1]],
+    [60, [...Buffer.from('PXEClient:Arch:00007:UNDI:003000', 'ascii')]],
+  ]);
+  const reply = newDhcpReply(request, 2, '192.168.100.200', 'bootmgfw.efi', false, {
+    listenIp: '192.168.100.1',
+    subnetMask: '255.255.255.0',
+    router: '192.168.100.1',
+    dnsServers: [],
+  });
+
+  assert.equal(Buffer.from(getDhcpOptionValue(reply, 60)).toString('ascii'), 'PXEClient');
+  assert.equal(Buffer.from(getDhcpOptionValue(reply, 67)).toString('ascii'), 'bootmgfw.efi');
+  assert.equal(getDhcpOptionValue(reply, 43), null);
+});
+
+test('sends one limited-broadcast reply through the PXE-bound send socket', () => {
+  const request = packetWithOptions([
+    [53, [1]],
+    [60, [...Buffer.from('PXEClient:Arch:00007:UNDI:003000', 'ascii')]],
+  ]);
+  const responder = new DhcpResponder({
+    listenIp: '192.168.100.1',
+    leaseStartIp: '192.168.100.200',
+    leaseEndIp: '192.168.100.250',
+    subnetMask: '255.255.255.0',
+    router: '192.168.100.1',
+    dnsServers: [],
+    bootFile: 'bootmgfw.efi',
+    logPath: null,
+  });
+  const sends = [];
+  responder.socket = { send: () => assert.fail('receive socket must not send replies') };
+  responder.sendSocket = { send: (...args) => sends.push(args) };
+
+  responder.handlePacket(request);
+
+  assert.equal(sends.length, 1);
+  assert.equal(sends[0][1], 68);
+  assert.equal(sends[0][2], '255.255.255.255');
+});
+
+test('sends proxy replies through the PXE-bound send socket', () => {
+  const request = packetWithOptions([
+    [53, [1]],
+    [60, [...Buffer.from('PXEClient:Arch:00007:UNDI:003000', 'ascii')]],
+  ]);
+  const responder = new DhcpResponder({
+    dhcpMode: 'proxy',
+    listenIp: '192.168.100.1',
+    subnetMask: '255.255.255.0',
+    bootFile: 'bootmgfw.efi',
+    logPath: null,
+  });
+  const sends = [];
+  responder.socket = { send: () => assert.fail('receive socket must not send replies') };
+  responder.sendSocket = { send: (...args) => sends.push(args) };
+
+  responder.handlePacket(request);
+
+  assert.equal(sends.length, 1);
+  assert.equal(sends[0][1], 68);
+  assert.equal(sends[0][2], '255.255.255.255');
+});
+
+test('binds to INADDR_ANY so Windows can deliver initial DHCP broadcasts', async () => {
+  const responder = new DhcpResponder({
+    listenIp: '127.0.0.1',
+    listenPort: 0,
+    leaseStartIp: '127.0.0.200',
+    leaseEndIp: '127.0.0.250',
+    subnetMask: '255.0.0.0',
+    router: '127.0.0.1',
+    dnsServers: [],
+    bootFile: 'bootmgfw.efi',
+    ipxeBootUrl: 'http://192.168.100.1/osdcloud/boot.ipxe',
+    logPath: null,
+  });
+
+  try {
+    await responder.start();
+    assert.equal(responder.socket.address().address, '0.0.0.0');
+    assert.equal(responder.sendSocket.address().address, '127.0.0.1');
+  } finally {
+    await responder.stop();
+  }
 });

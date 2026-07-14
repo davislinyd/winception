@@ -8,6 +8,7 @@ import { EvidenceManager } from '../../../packages/infrastructure/src/evidence.j
 import { applyNamedPipeAcl } from '../../../packages/infrastructure/src/pipeAcl.js';
 import { UploadStore } from '../../../packages/infrastructure/src/uploadStore.js';
 import { loadServiceSettings } from '../../../packages/infrastructure/src/serviceSettings.js';
+import { addPackagedPowerShellModulePath } from '../../../packages/infrastructure/src/powerShellModules.js';
 import { loadLegacyController } from './legacyController.js';
 import { createAgentRuntime } from './runtime.js';
 
@@ -16,6 +17,7 @@ async function main(): Promise<void> {
   const authToken = process.env.WINCEPTION_AGENT_TOKEN ?? installed?.agentToken ?? '';
   if (authToken.length < 32) throw new Error('WINCEPTION_AGENT_TOKEN must be provisioned by the installer.');
   const appRoot = resolve(process.env.WINCEPTION_APP_ROOT ?? installed?.appRoot ?? process.cwd());
+  addPackagedPowerShellModulePath(appRoot);
   const stateRoot = resolve(process.env.WINCEPTION_V2_STATE_ROOT ?? installed?.stateRoot ?? 'C:\\ProgramData\\Winception\\State');
   const database = new WinceptionDatabase(join(stateRoot, 'winception-v2.db'));
   database.recoverInterruptedOperations();

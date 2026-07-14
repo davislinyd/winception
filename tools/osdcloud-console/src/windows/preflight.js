@@ -16,6 +16,7 @@ export async function prepareRuntimeArtifacts(config, options = {}) {
   const repoRoot = resolveRepoRoot(config);
   const scriptPath = path.join(repoRoot, 'tools', 'Restore-DeploymentArtifacts.ps1');
   const baseConfigPath = resolveBaseConfigPath(config, repoRoot);
+  const productRoot = path.resolve(repoRoot, '..');
   const args = [
     '-NoProfile',
     '-ExecutionPolicy',
@@ -28,6 +29,10 @@ export async function prepareRuntimeArtifacts(config, options = {}) {
     config.runtimeArtifacts?.liveRoot ?? 'C:\\OSDCloud',
     '-ConfigPath',
     baseConfigPath,
+    '-NodePath',
+    path.join(productRoot, 'node', 'node.exe'),
+    '-PowerShellModulesRoot',
+    path.join(repoRoot, 'powershell-modules'),
   ];
   if (options.includeOptional === true) {
     args.push('-IncludeOptional');
