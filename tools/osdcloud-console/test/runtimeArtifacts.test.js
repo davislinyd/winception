@@ -862,7 +862,7 @@ test('installed runtime preparation uses packaged Node and does not require npm 
   assert.match(adapter, /'-PowerShellModulesRoot'[\s\S]*'powershell-modules'/);
   assert.match(packager, /Name = 'OSD'; Version = '26\.4\.23\.1'; Sha256 = '[A-F0-9]{64}'/);
   assert.match(packager, /Name = 'OSDCloud'; Version = '26\.4\.17\.1'; Sha256 = '[A-F0-9]{64}'/);
-  assert.match(packager, /\$MsiVersion = '2\.0\.17'/);
+  assert.match(packager, /\$MsiVersion = '2\.0\.18'/);
   assert.match(packager, /powershellgallery\.com\/api\/v2\/package/);
   assert.match(packager, /pkg:nuget/);
 
@@ -1086,7 +1086,10 @@ test('software test VM runner uses the same installer with PowerShell Direct and
   assert.match(runner, /New-PSSession -VMName \$VmName -Credential \$Credential/);
   assert.match(runner, /Copy-Item -ToSession \$session -Path \(Join-Path \$PayloadRoot 'Apps'\)/);
   assert.match(runner, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
+  assert.match(runner, /Software test installer task did not start within 30 seconds/);
+  assert.match(runner, /Write-RunnerDiagnostic -Stage 'run'/);
   assert.match(runner, /Install-Apps\.ps1/);
+  assert.equal((runner.match(/steps = @\(\$steps\)/gu) ?? []).length, 2);
   assert.match(runner, /reboot_pending/);
   assert.match(runner, /Stop-VM -Name \$VmName -TurnOff/);
   assert.match(runner, /cleanup = 'failed'/);

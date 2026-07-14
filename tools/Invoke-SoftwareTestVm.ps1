@@ -156,7 +156,7 @@ function Get-SafeProgress {
         phase = [string](Get-FirstValue -Value $Progress -Names @('phase') -Default '')
         elapsedSeconds = if ($null -ne $Progress.elapsedSeconds) { [double]$Progress.elapsedSeconds } else { $null }
         rebootCount = if ($null -ne $Progress.rebootCount) { [int]$Progress.rebootCount } else { 0 }
-        steps = $steps
+        steps = @($steps)
         failure = if ($Progress.failure) {
             [ordered]@{
                 category = [string](Get-FirstValue -Value $Progress.failure -Names @('category') -Default '')
@@ -204,7 +204,7 @@ function Write-SafeStatus {
         cleanupReason = $CleanupReason
         cleanupAction = $CleanupAction
         detail = $Detail
-        steps = $steps
+        steps = @($steps)
         failure = $failure
     }
     Write-Utf8Json -Path (Join-Path $RunRoot 'status.json') -Value $record
@@ -373,7 +373,18 @@ exit $LASTEXITCODE
         $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
         $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 8) -MultipleInstances IgnoreNew -StartWhenAvailable
         Register-ScheduledTask -TaskName $Name -Action $action -Principal $principal -Settings $settings -Force | Out-Null
+        $requestedAt = Get-Date
         Start-ScheduledTask -TaskName $Name
+        $startDeadline = $requestedAt.AddSeconds(30)
+        do {
+            $task = Get-ScheduledTask -TaskName $Name -ErrorAction Stop
+            $taskInfo = Get-ScheduledTaskInfo -TaskName $Name -ErrorAction Stop
+            if ($task.State -eq 'Running' -or $taskInfo.LastRunTime -ge $requestedAt.AddSeconds(-2)) {
+                return
+            }
+            Start-Sleep -Milliseconds 250
+        } while ((Get-Date) -lt $startDeadline)
+        throw 'Software test installer task did not start within 30 seconds.'
     } -ArgumentList $RemoteRoot, $TaskName, $ConfiguredTargetUser
 }
 
@@ -538,6 +549,7 @@ catch {
         $result = Write-SafeStatus -Status 'aborted' -Phase 'cancelled' -Cleanup 'pending' -Detail 'Software test was stopped by the operator.' -Progress $progress -StartedAt $startedAt -FinishedAt ((Get-Date).ToString('o'))
     }
     else {
+        Write-RunnerDiagnostic -Stage 'run' -ErrorRecord $_
         $result = Write-SafeStatus -Status 'failed' -Phase 'failed' -Cleanup 'pending' -Detail 'Software test runner failed before completion.' -Progress $progress -StartedAt $startedAt -FinishedAt ((Get-Date).ToString('o'))
     }
 }
