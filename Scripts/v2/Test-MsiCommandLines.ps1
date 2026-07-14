@@ -37,5 +37,14 @@ if ($upgradeStepSource -notmatch "PSObject\.Properties\['tls'\]") {
 if ($upgradeStepSource -match '\$settings\.tls') {
   throw 'The MSI health probe must not directly access an optional TLS property.'
 }
+if ($upgradeStepSource -notmatch 'handler\.UseProxy = false;') {
+  throw 'The pinned local HTTPS health probe must bypass system proxy configuration.'
+}
+
+$managementEndpointPath = Join-Path $repo 'tools\v2\Set-WinceptionManagementEndpoint.ps1'
+$managementEndpointSource = Get-Content -LiteralPath $managementEndpointPath -Raw
+if (@([regex]::Matches($managementEndpointSource, 'powershell\.exe[^\r\n]+2>&1 \| Out-Null')).Count -lt 2) {
+  throw 'Management endpoint child PowerShell errors must be reduced to exit codes so rollback catch/finally always executes.'
+}
 
 'MSI custom-action command lines passed.'

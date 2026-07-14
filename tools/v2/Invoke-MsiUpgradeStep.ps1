@@ -51,6 +51,7 @@ using System.Security.Cryptography.X509Certificates;
 public static class WinceptionPinnedHttpsClient {
   public static string Get(string url, string expectedThumbprint, int timeoutSeconds) {
     using (var handler = new HttpClientHandler()) {
+      handler.UseProxy = false;
       handler.ServerCertificateCustomValidationCallback = (request, certificate, chain, errors) =>
         certificate != null && String.Equals(certificate.Thumbprint.Replace(" ", ""), expectedThumbprint, StringComparison.OrdinalIgnoreCase);
       using (var client = new HttpClient(handler)) {

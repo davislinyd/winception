@@ -74,12 +74,12 @@ try {
   $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $initializer,
     '-AppRoot', $resolvedApp, '-StateRoot', $resolvedState, '-ManagementHost', $ManagementHost, '-ManagementPort', $ManagementPort)
   if (-not [string]::IsNullOrWhiteSpace($CertificateThumbprint)) { $arguments += @('-CertificateThumbprint', $CertificateThumbprint) }
-  & powershell.exe @arguments | Out-Null
+  & powershell.exe @arguments 2>&1 | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Management endpoint provisioning failed.' }
   Start-WinceptionService 'Winception.Agent'
   Start-Sleep -Seconds 1
   Start-WinceptionService 'Winception.Web'
-  & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $probe -Mode Probe -StateRoot $resolvedState
+  & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $probe -Mode Probe -StateRoot $resolvedState 2>&1 | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'The configured management endpoint failed its pinned health probe.' }
   if (-not $webWasRunning) { Stop-Service -Name 'Winception.Web' -Force }
   if (-not $agentWasRunning) { Stop-Service -Name 'Winception.Agent' -Force }
