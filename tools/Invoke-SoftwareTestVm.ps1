@@ -336,15 +336,21 @@ function Read-RemoteProgress {
 
     Invoke-Command -Session $Session -ScriptBlock {
         param($Path)
-        if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-            return $null
+        for ($attempt = 0; $attempt -lt 3; $attempt++) {
+            if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+                return $null
+            }
+            try {
+                return Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            }
+            catch {
+                if ($attempt -eq 2) {
+                    return $null
+                }
+                Start-Sleep -Milliseconds 100
+            }
         }
-        try {
-            Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -ErrorAction Stop
-        }
-        catch {
-            return $null
-        }
+        return $null
     } -ArgumentList $ProgressPath
 }
 

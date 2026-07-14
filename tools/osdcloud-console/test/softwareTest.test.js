@@ -394,3 +394,10 @@ test('software test runner checks cancellation requests and preserves checkpoint
   assert.match(runner, /Stop-SoftwareTestVmForCleanup/u);
   assert.match(runner, /Restore-VMSnapshot -VMName \$VmName -Name \$CheckpointName/u);
 });
+
+test('software test runner tolerates transient progress-file sharing violations', () => {
+  const runner = fs.readFileSync(path.resolve('tools', 'Invoke-SoftwareTestVm.ps1'), 'utf8');
+  assert.match(runner, /for \(\$attempt = 0; \$attempt -lt 3; \$attempt\+\+\)/u);
+  assert.match(runner, /Get-Content -LiteralPath \$Path -Raw -ErrorAction Stop/u);
+  assert.match(runner, /Start-Sleep -Milliseconds 100/u);
+});

@@ -2,7 +2,7 @@
 param(
   [string]$StageRoot = '',
   [ValidateSet('24.15.0')][string]$NodeVersion = '24.15.0',
-  [ValidatePattern('^\d+\.\d+\.\d+$')][string]$MsiVersion = '2.0.19',
+  [ValidatePattern('^\d+\.\d+\.\d+$')][string]$MsiVersion = '2.0.20',
   [ValidatePattern('^v2\.\d+\.\d+-(alpha|beta|rc)\.\d+$')][string]$ReleaseTag = 'v2.0.0-alpha.5',
   [ValidateSet('internal-prerelease', 'prerelease', 'stable')][string]$Channel = 'internal-prerelease',
   [string]$CodeSigningThumbprint = '',
