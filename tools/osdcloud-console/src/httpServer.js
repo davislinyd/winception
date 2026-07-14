@@ -171,10 +171,11 @@ function nextAvailablePath(directory, baseName, extension) {
 }
 
 export class MediaHttpServer extends EventEmitter {
-  constructor(config, torrentCoordinator = null) {
+  constructor(config, torrentCoordinator = null, secretProvider = null) {
     super();
     this.config = config;
     this.torrentCoordinator = torrentCoordinator;
+    this.secretProvider = secretProvider;
     this.server = null;
   }
 
@@ -506,7 +507,14 @@ export class MediaHttpServer extends EventEmitter {
       return;
     }
 
-    const secrets = loadSecrets(this.config);
+    let secrets;
+    try {
+      secrets = this.secretProvider ? await this.secretProvider() : loadSecrets(this.config);
+    } catch {
+      this.log(`${remote} GET ${requestUrl.pathname} 503 deployment secrets unavailable`);
+      sendJson(res, 503, { ok: false, error: 'Deployment secrets are unavailable.' });
+      return;
+    }
     const serverIp = this.config.host || '127.0.0.1';
     const share = this.config.smb?.share || '';
     const shareName = share.split('\\').filter(Boolean).at(-1) || 'OSDCloudiPXE';

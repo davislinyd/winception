@@ -34,7 +34,10 @@ async function main(): Promise<void> {
   const controller = await loadLegacyController({
     appRoot,
     configPath: productState.configPath,
-    dependencies: { getDeploymentSecretsStatus: () => deploymentSecrets.status() },
+    dependencies: {
+      getDeploymentSecretsStatus: () => deploymentSecrets.status(),
+      readDeploymentSecrets: () => deploymentSecrets.read(),
+    },
   });
   const evidence = new EvidenceManager({
     database,

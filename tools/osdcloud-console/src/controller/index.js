@@ -109,7 +109,11 @@ export class ServiceController extends EventEmitter {
     this.services = options.services ?? {
       dhcp: new DhcpResponder(this.config.dhcp),
       tftp: new TftpResponder(this.config.tftp),
-      http: new MediaHttpServer(mediaHttpServerConfig(this.config), this.torrentCoordinator),
+      http: new MediaHttpServer(
+        mediaHttpServerConfig(this.config),
+        this.torrentCoordinator,
+        this.dependencies.readDeploymentSecrets,
+      ),
       torrent: new TorrentTracker(torrentConfig, this.torrentCoordinator),
       torrentSeeder: new TorrentSeeder(torrentConfig, this.torrentCoordinator),
     };

@@ -441,6 +441,53 @@ test('serves boot configuration with secrets', async () => {
   }
 });
 
+test('serves DPAPI-backed boot secrets without a materialized secrets file', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-bootconfig-provider-'));
+  const server = new MediaHttpServer({
+    root,
+    host: '127.0.0.1',
+    port: 0,
+    logPath: path.join(root, 'http.log'),
+    statusRoot: path.join(root, 'status'),
+    paths: { stateRoot: root },
+    smb: { share: '\\\\127.0.0.1\\OSDCloudiPXE' },
+  }, null, async () => ({
+    windowsUsername: 'dpapi-user', windowsPassword: 'dpapi-pass', pxeinstallPassword: 'dpapi-pxe',
+  }));
+
+  try {
+    await server.start();
+    const response = await fetch(`http://127.0.0.1:${server.address.port}/osdcloud/boot-config`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.windowsUsername, 'dpapi-user');
+    assert.equal(body.windowsPassword, 'dpapi-pass');
+    assert.equal(body.smbPassword, 'dpapi-pxe');
+    assert.equal(fs.existsSync(path.join(root, 'config', 'osdcloud-secrets.json')), false);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('boot-config fails closed without exposing secret-provider errors', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-bootconfig-provider-fail-'));
+  const server = new MediaHttpServer({
+    root, host: '127.0.0.1', port: 0, logPath: path.join(root, 'http.log'),
+    statusRoot: path.join(root, 'status'), paths: { stateRoot: root },
+  }, null, async () => { throw new Error('sensitive provider detail'); });
+  try {
+    await server.start();
+    const response = await fetch(`http://127.0.0.1:${server.address.port}/osdcloud/boot-config`);
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { ok: false, error: 'Deployment secrets are unavailable.' });
+    assert.doesNotMatch(fs.readFileSync(path.join(root, 'http.log'), 'utf8'), /sensitive provider detail/u);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('writes RFC 5424 syslog and duplicates screenshots under logs directory', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-logs-test-'));
   const statusRoot = path.join(root, 'status');

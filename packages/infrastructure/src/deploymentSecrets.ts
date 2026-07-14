@@ -65,6 +65,8 @@ export class DeploymentSecretStore {
     }
   }
 
+  async read(): Promise<DeploymentSecretValues> { return this.#unprotectAll(); }
+
   clearMaterialized(): void { scrubFile(this.materializedPath); }
 
   async #unprotectAll(): Promise<DeploymentSecretValues> {

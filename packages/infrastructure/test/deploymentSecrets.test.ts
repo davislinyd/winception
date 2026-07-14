@@ -21,6 +21,10 @@ test('deployment secrets persist only as protected SQLite values and materialize
     assert.equal(store.status().ready, true);
     assert.match(database.getProtectedSecret('windowsPassword') ?? '', /^protected:windowsPassword:/u);
     assert.equal(existsSync(path), false);
+    assert.deepEqual(await store.read(), {
+      windowsUsername: 'operator', windowsPassword: 'one', pxeinstallPassword: 'two',
+    });
+    assert.equal(existsSync(path), false);
     await store.withMaterialized(async () => {
       const value = JSON.parse(readFileSync(path, 'utf8')) as Record<string, string>;
       assert.equal(value.windowsUsername, 'operator');
