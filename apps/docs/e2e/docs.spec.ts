@@ -15,7 +15,7 @@ test('wizard persists, validates, imports and exports a secret-free plan', async
   expect((await download).suggestedFilename()).toBe('winception-install-plan.json');
   await page.locator('input[type=file]').setInputFiles({
     name: 'plan.json', mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify({ schemaVersion: 1, vmRole: 'deployment-host', source: 'release', releaseTag: 'v2.0.0-alpha.6', managementNic: 'WAN', pxeNic: 'PXE', managementSubnet: '192.168.50.0/24', pxeSubnet: '10.77.0.0/24', bootMode: 'secureboot', stepStatus: { 'host-checked': true, 'signature-verified': false, installed: false, 'runtime-prepared': false, 'acceptance-recorded': false } })),
+    buffer: Buffer.from(JSON.stringify({ schemaVersion: 1, vmRole: 'deployment-host', source: 'release', releaseTag: 'v2.0.0-alpha.7', managementNic: 'WAN', pxeNic: 'PXE', managementSubnet: '192.168.50.0/24', pxeSubnet: '10.77.0.0/24', bootMode: 'secureboot', stepStatus: { 'host-checked': true, 'signature-verified': false, installed: false, 'runtime-prepared': false, 'acceptance-recorded': false } })),
   });
   await expect(page.getByLabel('管理 NIC alias')).toHaveValue('WAN');
   await expect(page.getByRole('status')).toContainText('schema');
