@@ -20,13 +20,14 @@ Alpha.2 local evidence: global coverage 93.88%/84.77% and critical coverage 99.2
 
 Alpha.3 local evidence: v1 405/405 including the three real aria2 integrations and v2 41/41 with no skips; global coverage 93.88%/84.77% and critical coverage 99.28%/92.23%; Web Playwright 3/3, Docs Playwright 2/2 and production audit 0 vulnerabilities. The bootstrap regression initializes a missing TrustedPublisher registry store key idempotently, accepts only the expected untrusted self-signed chain and blocks `HashMismatch`. MSI SHA-256 is `50D14CE030760CBA269E74BF74E3BA2C81A058766C2EB319D570063E994F6DEB`; bootstrap SHA-256 is `DCEFDED110B9D1339CBE1CD2D65354F2BDB0855506F31EEFA5A12A386F09AD09`. Extraction matched 6,842/6,842 manifest files and 68/68 applicable signatures. Bootstrap `Check` passed 20/20, and a deliberate missing-asset probe produced a stage-qualified failure report. Alpha 1 and alpha 2 remain immutable but are superseded for installation acceptance.
 
+Alpha.4 installed-VM evidence: exact candidate `b1b9974ff799961cb31a187395993d21afbeb9c9`; MSI SHA-256 `9A288103053F2ED56F912473906B08B0E3E0E570DADB4912CBECA552E9ACB509`; bootstrap SHA-256 `103C9D5774C06635CE42C40D4D7DA573A92203BAF28C16D68894EECD98D9234B`. Extraction matched 6,842/6,842 manifest files and 68/68 applicable signatures. On fresh Windows 11 Pro VM `OSD Server`, Check passed 20/20; install, repair and reinstall each passed 34/34; Agent LocalSystem, Web LocalService, State ACL, service SID, pipe DACL, SQLite, health/login/profile/manual and profile persistence passed. Uninstall removed binaries/services while preserving State and SQLite. Alpha 1 through alpha 3 remain immutable and are superseded for installation acceptance.
+
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |
 |---|---|
-| Current shell is not elevated | On the prepared Windows 11 dual-NIC nested-virtualization VM, prove fresh install, Agent LocalSystem, Web LocalService, ACL/service SID/pipe/SQLite, loopback health/login/profile read, repair, uninstall-preserves-State and reinstall persistence |
 | Current certificate baseline is self-signed | Acceptable for approved internal test hosts after explicit CER trust; replace with the future public/organization code-signing and TLS certificates for formal distribution |
-| v2 live runtime not deployment-accepted | Prove installed Agent/Web health, ACL, DPAPI, named pipe and v1 migration against the exact MSI |
+| v2 live runtime not deployment-accepted | Installed Agent/Web health, ACL, DPAPI and named pipe are proven; installed v1 migration remains open against the exact MSI |
 | Internal prerelease deployment gate open | On the exact MSI, prove one Generation 2 Secure Boot client to `windows-desktop-ready`, then ingress stopped + Fleet empty and one Software Test with checkpoint restore |
 | Final production feature parity open | Two consecutive four-VM rounds, physical laptop, torrent, Offline ISO and diagnostics/evidence export remain later production evidence and are not replaced by this prerelease VM run |
 | LAN management not live-tested | Loopback default plus certificate-store HTTPS opt-in and invalid-certificate fail-closed tests |
