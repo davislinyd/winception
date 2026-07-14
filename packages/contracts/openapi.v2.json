@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Winception Management API",
-    "version": "2.0.0-alpha.7"
+    "version": "2.0.0-alpha.8"
   },
   "components": {
     "schemas": {}
@@ -47,7 +47,7 @@
                     "version": {
                       "type": "string",
                       "enum": [
-                        "2.0.0-alpha.7"
+                        "2.0.0-alpha.8"
                       ]
                     },
                     "contractVersion": {
@@ -325,7 +325,7 @@
                         "version": {
                           "type": "string",
                           "enum": [
-                            "2.0.0-alpha.7"
+                            "2.0.0-alpha.8"
                           ]
                         },
                         "contractVersion": {

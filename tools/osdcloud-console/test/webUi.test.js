@@ -69,9 +69,9 @@ test('v1 metadata stays frozen while the root package tracks v2', () => {
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '2.0.0-alpha.7');
-  assert.equal(packageLock.version, '2.0.0-alpha.7');
-  assert.equal(packageLock.packages[''].version, '2.0.0-alpha.7');
+  assert.equal(packageJson.version, '2.0.0-alpha.8');
+  assert.equal(packageLock.version, '2.0.0-alpha.8');
+  assert.equal(packageLock.packages[''].version, '2.0.0-alpha.8');
   assert.equal(v1Version.version, '0.6.7');
   assert.match(changelog, /## v0\.6\.7 — 2026-07-13/);
   assert.match(manual, /Operations Manual · v0\.6\.7/);

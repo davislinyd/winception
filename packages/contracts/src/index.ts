@@ -1,6 +1,6 @@
 import { Type, type Static, type TSchema } from '@sinclair/typebox';
 
-export const WINCEPTION_V2_VERSION = '2.0.0-alpha.7' as const;
+export const WINCEPTION_V2_VERSION = '2.0.0-alpha.8' as const;
 export const CONTRACT_VERSION = 1 as const;
 
 export const JsonValueSchema = Type.Recursive((This) => Type.Union([
