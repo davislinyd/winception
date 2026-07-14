@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { writeDiagnosticsBundle } from '../src/diagnostics/bundle.js';
+import { collectDiagnosticsContext } from '../src/diagnostics/collectors.js';
 import { redactJson, redactText } from '../src/diagnostics/redact.js';
 import { buildDiagnosticsChecks, summarizeDiagnostics } from '../src/diagnostics/rules.js';
 import { runCategoryForStage } from '../src/diagnostics/shared.js';
@@ -143,6 +144,57 @@ test('diagnostics bundle writes stable summary, checks, and artifact folders', a
     assert.equal(summary.overallStatus, 'fail');
     assert.equal(summary.artifacts[0].included, true);
     assert.match(logText, /token=REDACTED/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('installed diagnostics do not require a host npm command', () => {
+  const context = {
+    host: {
+      nodeVersion: 'v24.15.0',
+      npmVersion: { ok: false, error: 'npm not found' },
+      moduleProbe: { powershellVersion: '5.1.26100.1', modules: {}, imports: {}, catalog: {} },
+      workspace: {}, web: {}, preflight: [],
+    },
+  };
+  const checks = buildDiagnosticsChecks(context);
+  assert.equal(checks.find((item) => item.id === 'bootstrap-prereq').status, 'pass');
+});
+
+test('manual full diagnostics select the newest fleet run by default', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-diagnostics-run-'));
+  try {
+    const context = await collectDiagnosticsContext({
+      paths: { stateRoot: root, osdCloudRoot: root, logsDir: path.join(root, 'logs') },
+      http: { statusRoot: path.join(root, 'status') },
+    }, {
+      scope: 'full',
+      elevated: true,
+      npmVersion: { ok: false, error: 'npm not found' },
+      moduleProbe: { powershellVersion: '5.1.26100.1', modules: {}, imports: {}, catalog: {} },
+      appState: { fleet: { runs: [
+        { runId: 'latest-completed', status: 'completed', latestStage: 'windows-desktop-ready' },
+        { runId: 'older-stale', status: 'stale', latestStage: 'apply-image' },
+      ] } },
+    });
+    assert.equal(context.run.run.runId, 'latest-completed');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('compressed diagnostics bundle creates a readable zip', { skip: process.platform !== 'win32' }, async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-diagnostics-zip-'));
+  try {
+    const result = await writeDiagnosticsBundle({ paths: { stateRoot: root } }, {
+      generatedAt: '2026-07-14T00:00:00.000Z',
+      trigger: 'compressed',
+      summary: { generatedAt: '2026-07-14T00:00:00.000Z', trigger: 'compressed', scope: 'host', overallStatus: 'pass' },
+      checks: [], artifacts: [],
+    });
+    assert.equal(fs.existsSync(result.bundlePath), true);
+    assert.ok(fs.statSync(result.bundlePath).size > 0);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

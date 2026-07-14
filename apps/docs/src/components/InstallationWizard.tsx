@@ -22,7 +22,7 @@ const emptyPlan: InstallPlan = {
   schemaVersion: 1,
   vmRole: 'deployment-host',
   source: 'local',
-  releaseTag: 'v2.0.0-alpha.5',
+  releaseTag: 'v2.0.0-alpha.6',
   managementNic: 'Ethernet',
   pxeNic: 'Ethernet 2',
   managementSubnet: '192.168.100.0/24',

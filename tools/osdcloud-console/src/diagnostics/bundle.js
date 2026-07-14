@@ -17,7 +17,9 @@ $ErrorActionPreference = 'Stop'
 if (Test-Path -LiteralPath '${escapedZip}') {
   Remove-Item -LiteralPath '${escapedZip}' -Force
 }
-Compress-Archive -LiteralPath '${escapedSource}\\*' -DestinationPath '${escapedZip}' -CompressionLevel Optimal -Force
+$items = @(Get-ChildItem -LiteralPath '${escapedSource}' -Force)
+if ($items.Count -eq 0) { throw 'Diagnostics bundle source is empty.' }
+Compress-Archive -LiteralPath $items.FullName -DestinationPath '${escapedZip}' -CompressionLevel Optimal -Force
 `;
   await runPowerShell(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
 }

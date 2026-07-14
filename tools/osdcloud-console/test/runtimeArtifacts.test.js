@@ -862,7 +862,7 @@ test('installed runtime preparation uses packaged Node and does not require npm 
   assert.match(adapter, /'-PowerShellModulesRoot'[\s\S]*'powershell-modules'/);
   assert.match(packager, /Name = 'OSD'; Version = '26\.4\.23\.1'; Sha256 = '[A-F0-9]{64}'/);
   assert.match(packager, /Name = 'OSDCloud'; Version = '26\.4\.17\.1'; Sha256 = '[A-F0-9]{64}'/);
-  assert.match(packager, /\$MsiVersion = '2\.0\.20'/);
+  assert.match(packager, /\$MsiVersion = '2\.0\.21'/);
   assert.match(packager, /powershellgallery\.com\/api\/v2\/package/);
   assert.match(packager, /pkg:nuget/);
 

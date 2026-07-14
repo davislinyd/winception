@@ -30,19 +30,20 @@ export function buildDiagnosticsChecks(context) {
   const moduleProbe = host.moduleProbe ?? {};
   const checks = [];
   const npmOk = host.npmVersion?.ok === true;
+  const powershellOk = Boolean(moduleProbe.powershellVersion);
   checks.push(check(
     'bootstrap-prereq',
     'bootstrap-prereq',
     'host-init',
-    host.nodeVersion && npmOk ? 'pass' : 'fail',
+    host.nodeVersion && powershellOk ? 'pass' : 'fail',
     'Host prerequisites',
-    `Node ${host.nodeVersion ?? 'missing'}; npm ${npmOk ? host.npmVersion.value : host.npmVersion?.error ?? 'missing'}; PowerShell ${moduleProbe.powershellVersion ?? 'unknown'}.`,
+    `Node ${host.nodeVersion ?? 'missing'}; npm ${npmOk ? host.npmVersion.value : 'not required for the installed runtime'}; PowerShell ${moduleProbe.powershellVersion ?? 'unknown'}.`,
     [
       `AppRoot: ${host.workspace?.appRoot ?? '-'}`,
       `StateRoot: ${host.workspace?.stateRoot ?? '-'}`,
       `RuntimeRoot: ${host.workspace?.runtimeRoot ?? '-'}`,
     ],
-    'Rerun Setup-DeploymentServer.cmd from an elevated PowerShell session and repair missing host prerequisites before continuing.',
+    'Repair the installed Winception package if its bundled Node runtime or Windows PowerShell is unavailable.',
   ));
 
   const moduleAvailable = (name) => Array.isArray(moduleProbe.modules?.[name]) && moduleProbe.modules[name].length > 0;

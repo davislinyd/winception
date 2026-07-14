@@ -29,6 +29,7 @@ function readCommandVersion(command, args) {
 async function probePowerShellModules() {
   const script = `
 $ErrorActionPreference = 'Stop'
+$WarningPreference = 'SilentlyContinue'
 function ModuleRows($name) {
   @(Get-Module -ListAvailable -Name $name | Select-Object Name,Version,Path | ForEach-Object {
     [pscustomobject]@{
@@ -122,7 +123,7 @@ function selectRun(appState = {}, requestedRunId = null) {
   if (requestedRunId) {
     return runs.find((run) => run.runId === requestedRunId) ?? null;
   }
-  return runs.find((run) => run.status === 'failed' || run.status === 'stale') ?? null;
+  return runs[0] ?? null;
 }
 
 function screenshotMetadataForRun(statusRoot, runId, maxLines = 5) {
@@ -138,7 +139,8 @@ export async function collectDiagnosticsContext(config = {}, options = {}) {
   const elevated = Object.hasOwn(options, 'elevated')
     ? options.elevated
     : await isElevated().catch(() => false);
-  const moduleProbe = await probePowerShellModules();
+  const moduleProbe = options.moduleProbe ?? await probePowerShellModules();
+  const npmVersion = options.npmVersion ?? readCommandVersion('npm', ['--version']);
   const runtime = appState.runtime ?? null;
   const endpoint = localEndpointOverlayStatus(config);
   const profilePayload = options.profilePayload ?? { ok: false, detail: 'Deployment profile payload has not been evaluated.' };
@@ -163,7 +165,7 @@ export async function collectDiagnosticsContext(config = {}, options = {}) {
         web,
         elevated,
         nodeVersion: process.version,
-        npmVersion: readCommandVersion('npm', ['--version']),
+        npmVersion,
         powershellVersion: moduleProbe.powershellVersion,
       }),
       redacted: true,
@@ -293,7 +295,7 @@ export async function collectDiagnosticsContext(config = {}, options = {}) {
       web,
       elevated,
       nodeVersion: process.version,
-      npmVersion: readCommandVersion('npm', ['--version']),
+      npmVersion,
       moduleProbe,
       runtime,
       endpoint,
@@ -311,7 +313,7 @@ export async function collectDiagnosticsContext(config = {}, options = {}) {
         label: 'Run diagnostics not applicable',
         relativePath: 'artifacts/run/not-applicable.json',
         kind: 'json',
-        content: { scope: options.scope ?? 'full', detail: 'No failed or stale deployment run was available for diagnostics.' },
+        content: { scope: options.scope ?? 'full', detail: 'No deployment run was available for diagnostics.' },
         redacted: false,
       }]),
     ],
