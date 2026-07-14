@@ -22,15 +22,17 @@ Alpha.3 local evidence: v1 405/405 including the three real aria2 integrations a
 
 Alpha.4 installed-VM evidence: exact candidate `b1b9974ff799961cb31a187395993d21afbeb9c9`; MSI SHA-256 `9A288103053F2ED56F912473906B08B0E3E0E570DADB4912CBECA552E9ACB509`; bootstrap SHA-256 `103C9D5774C06635CE42C40D4D7DA573A92203BAF28C16D68894EECD98D9234B`. Extraction matched 6,842/6,842 manifest files and 68/68 applicable signatures. On fresh Windows 11 Pro VM `OSD Server`, Check passed 20/20; install, repair and reinstall each passed 34/34; Agent LocalSystem, Web LocalService, State ACL, service SID, pipe DACL, SQLite, health/login/profile/manual and profile persistence passed. Uninstall removed binaries/services while preserving State and SQLite. Alpha 1 through alpha 3 remain immutable and are superseded for installation acceptance.
 
+Alpha.5 installed-deployment evidence: exact package source `3faf4f00db6bc29af6218c93fbb99cbb988e410a`; MSI `ProductVersion 2.0.20`, SHA-256 `5E33A499EC5299A7120F4D993A16D8CFABD348979B5BC158947711CEC1FF4119`; bootstrap SHA-256 `53E59F24DD52A090B241256F705217BF490DD1D45028C50A6802564B1ECC4383`. Local gates passed v1 415/415 and v2 45/45 with 0 skips, global coverage 93.84%/84.99%, critical coverage 99.29%/92.47%, Web E2E 3/3, Docs E2E 2/2, audit 0 and Gitleaks 0 across 392 commits. On `OSD Server`, upgrade passed 34 checks, endpoint sync rebuilt WinPE and preflight passed 29/29. Exact-MSI Secure Boot PXE run `20260715-024911-0885-8703-1155-6903-2654-8648-29` reached `windows-desktop-ready` with 0 warnings and no torrent fallback. Isolated Software Test run `20260714183434861-8a5176d1` completed all four steps, cleanup/checkpoint restore succeeded and the nested VM returned Off. Deployment ingress is stopped and active Fleet is 0.
+
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |
 |---|---|
 | Current certificate baseline is self-signed | Acceptable for approved internal test hosts after explicit CER trust; replace with the future public/organization code-signing and TLS certificates for formal distribution |
-| v2 live runtime not deployment-accepted | Installed Agent/Web health, ACL, DPAPI and named pipe are proven; installed v1 migration remains open against the exact MSI |
-| Internal prerelease deployment gate open | On the exact MSI, prove one Generation 2 Secure Boot client to `windows-desktop-ready`, then ingress stopped + Fleet empty and one Software Test with checkpoint restore |
+| Installed v1 migration acceptance open | Source migration tests pass, but a retained v1 State snapshot still needs dry-run, backup, import, rebuild and rollback verification on the exact MSI |
+| Internal prerelease deployment gate | Closed on alpha.5: exact MSI, one Generation 2 Secure Boot client, ingress stopped + Fleet empty, and one Software Test with checkpoint restore passed |
 | Final production feature parity open | Two consecutive four-VM rounds, physical laptop, torrent, Offline ISO and diagnostics/evidence export remain later production evidence and are not replaced by this prerelease VM run |
 | LAN management not live-tested | Loopback default plus certificate-store HTTPS opt-in and invalid-certificate fail-closed tests |
 | Upstream redistribution review incomplete | Confirm OSDCloud/ADK/WinPE, aria2 and every bundled client payload against the release SBOM; the Winception product license is already `AGPL-3.0-only` |
 
-The v2 prerelease may be published only as an internal test download for fresh-VM acceptance. Do not publish Pages until the internal prerelease deployment gate is closed for the exact release build. Do not merge v2 to `master` or label it production-ready until every final-production row is closed in `TEST-RESULT.md`.
+The v2 prerelease and Pages may now be published for internal testing. Keep the self-signed certificate warning and do not merge v2 to `master` or label it production-ready until every final-production row is closed in `TEST-RESULT.md`.
