@@ -14,4 +14,10 @@ if ($source -match '-AppRoot &quot;\[APPFOLDER\]&quot;') {
   throw 'ProvisionServiceSettings contains a quoted APPFOLDER value whose trailing separator can escape the closing quote.'
 }
 
+$serviceSettingsPath = Join-Path $repo 'tools\v2\Initialize-WinceptionServices.ps1'
+$serviceSettingsSource = Get-Content -LiteralPath $serviceSettingsPath -Raw
+if ($serviceSettingsSource -notmatch "Contains\('tls'\)") {
+  throw 'Loopback service provisioning must guard optional TLS settings under StrictMode.'
+}
+
 'MSI custom-action command lines passed.'

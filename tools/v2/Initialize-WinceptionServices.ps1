@@ -94,7 +94,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Failed to apply State directory ACLs.' }
 & icacls.exe $legacyRoot /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Failed to isolate privileged product state from the Web service.' }
 $webReadableFiles = @($settingsPath)
-if ($settings.tls) { $webReadableFiles += [string]$settings.tls.pfxPath }
+if ($settings.Contains('tls')) { $webReadableFiles += [string]$settings['tls'].pfxPath }
 foreach ($webReadableFile in $webReadableFiles) {
   & icacls.exe $webReadableFile /inheritance:r /grant:r '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' '*S-1-5-19:(R)' | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "Failed to apply Web read ACL: $webReadableFile" }

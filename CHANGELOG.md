@@ -4,7 +4,7 @@
 
 ### v2 productization rewrite
 
-- Fixed the fresh-install WiX custom-action path for `ProvisionServiceSettings`: the directory-valued `APPFOLDER` property now uses a dot path segment so its trailing separator cannot escape the quoted `-AppRoot` argument. Added a packaging regression gate. The immutable replacement test release is `v2.0.0-alpha.4`.
+- Fixed the fresh-install WiX custom-action path for `ProvisionServiceSettings`: the directory-valued `APPFOLDER` property now uses a dot path segment so its trailing separator cannot escape the quoted `-AppRoot` argument. Loopback provisioning now also guards optional TLS settings before reading them under PowerShell `StrictMode`. Added packaging regression gates. The immutable replacement test release is `v2.0.0-alpha.4`.
 - Fixed fresh-Windows self-signed trust when the machine-level `TrustedPublisher` registry store key does not yet exist. Trust is now resumable after a partial Root import, both exact-thumbprint stores are verified, and failure reports identify the stage. The immutable replacement test release is `v2.0.0-alpha.3`.
 - Fixed clean-host bootstrap validation for the expected self-signed signer: exact-hash payloads with only an untrusted root may proceed to explicit trust, while signer mismatch, invalid chains and `HashMismatch` remain blocking. The immutable replacement test release is `v2.0.0-alpha.2`.
 
