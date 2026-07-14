@@ -4,6 +4,7 @@
 
 ### v2 productization rewrite
 
+- Fixed fresh-Windows self-signed trust when the machine-level `TrustedPublisher` registry store key does not yet exist. Trust is now resumable after a partial Root import, both exact-thumbprint stores are verified, and failure reports identify the stage. The immutable replacement test release is `v2.0.0-alpha.3`.
 - Fixed clean-host bootstrap validation for the expected self-signed signer: exact-hash payloads with only an untrusted root may proceed to explicit trust, while signer mismatch, invalid chains and `HashMismatch` remain blocking. The immutable replacement test release is `v2.0.0-alpha.2`.
 
 - Preserved the clean v1 source at annotated tag `v0.6.7` and branch `release/v1`; v2 development is isolated on `codex/v2-rewrite` without including the existing `tools/Restart-HyperVms.ps1` worktree change.

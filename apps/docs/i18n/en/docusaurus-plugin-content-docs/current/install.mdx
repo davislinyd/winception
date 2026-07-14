@@ -16,6 +16,8 @@ import { InstallationWizard } from '@site/src/components/InstallationWizard';
 
 A self-signed CER is imported into `LocalMachine\Root` and `LocalMachine\TrustedPublisher` only after the operator verifies its subject, thumbprint, Code Signing EKU, validity and manifest, then explicitly supplies `-TrustSelfSignedCertificate`.
 
+If a fresh Windows host has not created the machine-level `TrustedPublisher` registry store key yet, the installer initializes that key before importing and verifies the exact thumbprint in both stores. The same `Install` command can be safely rerun after a partial Root-only import.
+
 Before a fresh VM trusts the CER, `Check` still verifies manifest SHA-256, signer thumbprint, Code Signing EKU, validity and the certificate chain. Only the expected self-signed root being untrusted may continue; `HashMismatch`, signer mismatch or any other chain error remains blocking.
 
 ```powershell

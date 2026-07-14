@@ -8,6 +8,7 @@ Import-Module (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Module
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $installer = Join-Path $repo 'tools\install\Install-Winception.ps1'
 $temporaryRoot = Join-Path $repo "test-results\bootstrap-signature-$([Guid]::NewGuid().ToString('N'))"
+$registryTestRoot = "HKCU:\Software\WinceptionBootstrapTest-$([Guid]::NewGuid().ToString('N'))"
 $certificate = $null
 
 try {
@@ -26,8 +27,14 @@ try {
   if ([string]$tampered.Status -ne 'HashMismatch') { throw "Expected HashMismatch after tampering; received $($tampered.Status)." }
   if (Test-PayloadSignatureIntegrity $tampered $certificate $true) { throw 'A tampered signed payload was accepted.' }
 
-  [pscustomobject]@{ cleanStatus = [string]$signed.Status; cleanAccepted = $true; tamperedStatus = [string]$tampered.Status; tamperedAccepted = $false } | ConvertTo-Json
+  Initialize-CertificateStoreKey -StoreName 'TrustedPublisher' -RegistryRoot $registryTestRoot
+  $registryStore = Join-Path $registryTestRoot 'TrustedPublisher'
+  if (-not (Test-Path -LiteralPath $registryStore)) { throw 'A missing TrustedPublisher store key was not initialized.' }
+  Initialize-CertificateStoreKey -StoreName 'TrustedPublisher' -RegistryRoot $registryTestRoot
+
+  [pscustomobject]@{ cleanStatus = [string]$signed.Status; cleanAccepted = $true; tamperedStatus = [string]$tampered.Status; tamperedAccepted = $false; missingStoreKeyInitialized = $true; repeatedInitializationSucceeded = $true } | ConvertTo-Json
 }
 finally {
   if ($null -ne $certificate) { Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($certificate.Thumbprint)" -Force -ErrorAction SilentlyContinue }
+  Remove-Item -LiteralPath $registryTestRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

@@ -29,8 +29,10 @@ $script:report = [ordered]@{
   services = @()
   health = $null
   logPath = $null
+  failedStage = $null
   diagnostics = @()
 }
+$script:currentStage = 'initialization'
 
 function Add-Check([string]$Name, [bool]$Passed, [string]$Detail) {
   $entry = [ordered]@{ name = $Name; passed = $Passed; detail = if ($Passed) { 'Passed.' } else { $Detail } }
@@ -125,6 +127,13 @@ function Assert-PayloadSigner([string]$Path, $Certificate, [string]$Role, [bool]
   Add-Check "$Role-signature-integrity" (Test-PayloadSignatureIntegrity $signature $Certificate $AllowUntrustedSelfSigned) "The $Role signature failed integrity validation: $($signature.StatusMessage)"
 }
 
+function Initialize-CertificateStoreKey([string]$StoreName, [string]$RegistryRoot = 'HKLM:\SOFTWARE\Microsoft\SystemCertificates') {
+  if ($StoreName -notin @('Root', 'TrustedPublisher')) { throw "Unsupported certificate store: $StoreName" }
+  $storePath = Join-Path $RegistryRoot $StoreName
+  if (-not (Test-Path -LiteralPath $storePath)) { New-Item -Path $storePath -Force -ErrorAction Stop | Out-Null }
+  if (-not (Test-Path -LiteralPath $storePath)) { throw "Certificate store registry key could not be initialized: $StoreName" }
+}
+
 function Import-ExplicitTrust([string]$Path, $Certificate, $Manifest) {
   if (-not $Manifest.certificate.selfSigned) { return }
   $publisherTrusted = Get-Item -LiteralPath "Cert:\LocalMachine\TrustedPublisher\$($Certificate.Thumbprint)" -ErrorAction SilentlyContinue
@@ -133,7 +142,12 @@ function Import-ExplicitTrust([string]$Path, $Certificate, $Manifest) {
   if (-not $TrustSelfSignedCertificate) { throw 'The release uses a self-signed test certificate. Re-run with -TrustSelfSignedCertificate only after verifying its thumbprint.' }
   if (-not $PSCmdlet.ShouldProcess($Certificate.Subject, 'Trust self-signed code-signing certificate in LocalMachine Root and TrustedPublisher')) { return }
   if (-not $rootTrusted) { Import-Certificate -FilePath $Path -CertStoreLocation Cert:\LocalMachine\Root | Out-Null }
-  if (-not $publisherTrusted) { Import-Certificate -FilePath $Path -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null }
+  if (-not $publisherTrusted) {
+    Initialize-CertificateStoreKey 'TrustedPublisher'
+    Import-Certificate -FilePath $Path -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+  }
+  Add-Check 'certificate-root-trusted' (Test-Path -LiteralPath "Cert:\LocalMachine\Root\$($Certificate.Thumbprint)") 'The release certificate was not added to LocalMachine Root.'
+  Add-Check 'certificate-publisher-trusted' (Test-Path -LiteralPath "Cert:\LocalMachine\TrustedPublisher\$($Certificate.Thumbprint)") 'The release certificate was not added to LocalMachine TrustedPublisher.'
 }
 
 function Resolve-ReleaseAssets {
@@ -234,8 +248,10 @@ function Show-SetupCodeToConsole {
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 try {
+  $script:currentStage = 'host-requirements'
   $mutation = $Action -in @('Install', 'Repair', 'Uninstall')
   Assert-HostRequirements $mutation
+  $script:currentStage = 'release-assets'
   $assets = Resolve-ReleaseAssets
   if ($Action -in @('Install', 'Repair', 'Uninstall') -and $null -eq $assets) { throw '-MsiPath or -ReleaseTag is required for this action.' }
   if ($null -ne $assets) {
@@ -251,20 +267,35 @@ try {
     Assert-PayloadSigner $assets.Msi $certificate 'msi' $allowUntrustedSelfSigned
     Assert-PayloadSigner $PSCommandPath $certificate 'bootstrap' $allowUntrustedSelfSigned
   }
-  if ($Action -eq 'Install') { Import-ExplicitTrust $assets.Certificate $certificate $assets.Manifest; Invoke-Msi 'Install' $assets.Msi; Test-WinceptionInstallation }
-  elseif ($Action -eq 'Repair') { Invoke-Msi 'Repair' $assets.Msi; Test-WinceptionInstallation }
+  if ($Action -eq 'Install') {
+    $script:currentStage = 'certificate-trust'
+    Import-ExplicitTrust $assets.Certificate $certificate $assets.Manifest
+    $script:currentStage = 'msi-install'
+    Invoke-Msi 'Install' $assets.Msi
+    $script:currentStage = 'installed-verification'
+    Test-WinceptionInstallation
+  }
+  elseif ($Action -eq 'Repair') {
+    $script:currentStage = 'msi-repair'
+    Invoke-Msi 'Repair' $assets.Msi
+    $script:currentStage = 'installed-verification'
+    Test-WinceptionInstallation
+  }
   elseif ($Action -eq 'Uninstall') {
+    $script:currentStage = 'msi-uninstall'
     Invoke-Msi 'Uninstall' $assets.Msi
     Add-Check 'state-preserved' (Test-Path -LiteralPath (Join-Path $env:ProgramData 'Winception\State') -PathType Container) 'Uninstall removed product State unexpectedly.'
   }
-  elseif ($Action -eq 'Verify') { Test-WinceptionInstallation }
+  elseif ($Action -eq 'Verify') { $script:currentStage = 'installed-verification'; Test-WinceptionInstallation }
+  $script:currentStage = 'post-install-actions'
   if ($ShowSetupCode -and $Action -ne 'Uninstall') { Show-SetupCodeToConsole }
   if ($OpenBrowser -and $Action -ne 'Uninstall') { Start-Process 'http://127.0.0.1:8080/' }
   $script:report.succeeded = $true
 }
 catch {
-  $script:report.diagnostics += [ordered]@{ message = $_.Exception.Message; category = [string]$_.CategoryInfo.Category }
-  Write-Error $_
+  $script:report.failedStage = $script:currentStage
+  $script:report.diagnostics += [ordered]@{ stage = $script:currentStage; message = $_.Exception.Message; category = [string]$_.CategoryInfo.Category; fullyQualifiedErrorId = [string]$_.FullyQualifiedErrorId }
+  Write-Error -ErrorRecord $_ -ErrorAction Continue
 }
 finally {
   $script:report.completedAt = [DateTime]::UtcNow.ToString('o')
