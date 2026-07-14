@@ -30,6 +30,34 @@ $agent = Get-Service -Name 'Winception.Agent' -ErrorAction Stop
 $web = Get-Service -Name 'Winception.Web' -ErrorAction Stop
 $agentWasRunning = $agent.Status -eq 'Running'
 $webWasRunning = $web.Status -eq 'Running'
+
+function Start-WinceptionService([string]$Name) {
+  $lastError = $null
+  foreach ($attempt in 1..5) {
+    try {
+      Start-Service -Name $Name -ErrorAction Stop
+      (Get-Service -Name $Name -ErrorAction Stop).WaitForStatus(
+        [ServiceProcess.ServiceControllerStatus]::Running,
+        [TimeSpan]::FromSeconds(10)
+      )
+      return
+    }
+    catch {
+      $lastError = $_
+      Start-Sleep -Seconds 1
+    }
+  }
+  throw "Unable to restore $Name to Running. $($lastError.Exception.Message)"
+}
+
+function Restore-ServiceState {
+  if ($agentWasRunning) {
+    Start-WinceptionService 'Winception.Agent'
+    Start-Sleep -Seconds 1
+  }
+  if ($webWasRunning) { Start-WinceptionService 'Winception.Web' }
+}
+
 $managedFiles = @('service-settings.json', 'management-tls.pfx', 'management-tls.cer')
 $backupRoot = Join-Path $resolvedState ".management-endpoint-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $backupRoot | Out-Null
@@ -48,8 +76,9 @@ try {
   if (-not [string]::IsNullOrWhiteSpace($CertificateThumbprint)) { $arguments += @('-CertificateThumbprint', $CertificateThumbprint) }
   & powershell.exe @arguments | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Management endpoint provisioning failed.' }
-  Start-Service -Name 'Winception.Agent'
-  Start-Service -Name 'Winception.Web'
+  Start-WinceptionService 'Winception.Agent'
+  Start-Sleep -Seconds 1
+  Start-WinceptionService 'Winception.Web'
   & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $probe -Mode Probe -StateRoot $resolvedState
   if ($LASTEXITCODE -ne 0) { throw 'The configured management endpoint failed its pinned health probe.' }
   if (-not $webWasRunning) { Stop-Service -Name 'Winception.Web' -Force }
@@ -61,6 +90,7 @@ try {
   }
 }
 catch {
+  $operationError = $_
   Stop-Service -Name 'Winception.Web' -Force -ErrorAction SilentlyContinue
   Stop-Service -Name 'Winception.Agent' -Force -ErrorAction SilentlyContinue
   foreach ($name in $managedFiles) {
@@ -68,9 +98,9 @@ catch {
     if ($existingFiles[$name]) { Copy-Item -LiteralPath (Join-Path $backupRoot $name) -Destination $destination -Force }
     else { Remove-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue }
   }
-  if ($agentWasRunning) { Start-Service -Name 'Winception.Agent' -ErrorAction SilentlyContinue }
-  if ($webWasRunning) { Start-Service -Name 'Winception.Web' -ErrorAction SilentlyContinue }
-  throw
+  try { Restore-ServiceState }
+  catch { throw "$($operationError.Exception.Message) Rollback service restoration failed: $($_.Exception.Message)" }
+  throw $operationError
 }
 finally {
   Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue

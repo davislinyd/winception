@@ -83,6 +83,10 @@ if (-not $loopback) {
     selfSigned = $selfSigned
   }
 }
+else {
+  Remove-Item -LiteralPath (Join-Path $resolvedState 'management-tls.pfx') -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath (Join-Path $resolvedState 'management-tls.cer') -Force -ErrorAction SilentlyContinue
+}
 
 $settingsPath = Join-Path $resolvedState 'service-settings.json'
 $temporaryPath = "$settingsPath.$([Guid]::NewGuid().ToString('N')).tmp"
