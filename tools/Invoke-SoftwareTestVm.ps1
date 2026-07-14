@@ -203,6 +203,7 @@ function Write-SafeStatus {
         cleanup = $Cleanup
         cleanupReason = $CleanupReason
         cleanupAction = $CleanupAction
+        recovery = $null
         detail = $Detail
         steps = @($steps)
         failure = $failure
