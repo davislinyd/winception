@@ -42,7 +42,7 @@
       <ServiceControl Id="WebServiceControl" Name="Winception.Web" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
     </Component>
 
-    <CustomAction Id="ProvisionServiceSettings" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Initialize-WinceptionServices.ps1&quot; -AppRoot &quot;[APPFOLDER]&quot;" />
+    <CustomAction Id="ProvisionServiceSettings" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Initialize-WinceptionServices.ps1&quot; -AppRoot &quot;[APPFOLDER].&quot;" />
     <CustomAction Id="ConfigureWebServiceSid" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="sc.exe sidtype &quot;Winception.Web&quot; unrestricted" />
     <CustomAction Id="RollbackDatabase" Directory="System64Folder" Execute="rollback" Impersonate="no" Return="ignore" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Restore" />
     <CustomAction Id="BackupDatabase" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Backup" />
