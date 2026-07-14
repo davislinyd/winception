@@ -13,6 +13,9 @@ if ($source -notmatch 'Id="ProvisionServiceSettings"[^\r\n]+-AppRoot &quot;\[APP
 if ($source -match '-AppRoot &quot;\[APPFOLDER\]&quot;') {
   throw 'ProvisionServiceSettings contains a quoted APPFOLDER value whose trailing separator can escape the closing quote.'
 }
+if ($source -notmatch 'Action="ProvisionServiceSettings" After="BackupDatabase" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED"') {
+  throw 'ProvisionServiceSettings must run only for a fresh install and preserve service settings during major upgrades.'
+}
 if ($source -notmatch 'Id="RemoveFirewallRules"[^\r\n]+Remove-WinceptionFirewallRules\.ps1') {
   throw 'The MSI must execute the product-owned firewall cleanup script during uninstall.'
 }
