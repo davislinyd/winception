@@ -20,4 +20,13 @@ if ($serviceSettingsSource -notmatch "Contains\('tls'\)") {
   throw 'Loopback service provisioning must guard optional TLS settings under StrictMode.'
 }
 
+$upgradeStepPath = Join-Path $repo 'tools\v2\Invoke-MsiUpgradeStep.ps1'
+$upgradeStepSource = Get-Content -LiteralPath $upgradeStepPath -Raw
+if ($upgradeStepSource -notmatch "PSObject\.Properties\['tls'\]") {
+  throw 'The MSI health probe must guard optional TLS settings under StrictMode.'
+}
+if ($upgradeStepSource -match '\$settings\.tls') {
+  throw 'The MSI health probe must not directly access an optional TLS property.'
+}
+
 'MSI custom-action command lines passed.'

@@ -33,13 +33,15 @@ switch ($Mode) {
     $settingsPath = Join-Path $state 'service-settings.json'
     if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) { throw 'Service settings are missing after installation.' }
     $settings = Get-Content -LiteralPath $settingsPath -Raw -Encoding utf8 | ConvertFrom-Json
-    $scheme = if ($settings.tls) { 'https' } else { 'http' }
+    $tlsProperty = $settings.PSObject.Properties['tls']
+    $tlsSettings = if ($null -ne $tlsProperty) { $tlsProperty.Value } else { $null }
+    $scheme = if ($tlsSettings) { 'https' } else { 'http' }
     $healthUrl = '{0}://{1}:{2}/api/v2/health' -f $scheme, $settings.managementHost, $settings.managementPort
     $lastProbeError = $null
     foreach ($attempt in 1..$ProbeAttempts) {
       try {
-        if ($settings.tls -and $settings.tls.thumbprint) {
-          $expectedThumbprint = ([string]$settings.tls.thumbprint).Replace(' ', '').ToUpperInvariant()
+        if ($tlsSettings -and $tlsSettings.thumbprint) {
+          $expectedThumbprint = ([string]$tlsSettings.thumbprint).Replace(' ', '').ToUpperInvariant()
           Add-Type -AssemblyName System.Net.Http
           if (-not ('WinceptionPinnedHttpsClient' -as [type])) {
             Add-Type -TypeDefinition @'
