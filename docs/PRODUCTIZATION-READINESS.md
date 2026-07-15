@@ -32,12 +32,14 @@ Alpha.10 rollback evidence: exact package source `31efcac070cada447abc076f051bfe
 
 Alpha.10 migration evidence: the exact packaged dry-run read 14 settings, 4 profiles, 3 software entries, 1 script, 3 DPAPI secrets and retained evidence without creating backup or payload output; no secret value appeared in reports. Installed migration exposed a second acceptance defect: Web health became ready while Agent was still rebuilding WinPE and had no named pipe, so MSI committed too early and bootstrap later failed its Agent check. DISM eventually failed saving a broken reparse point; Agent stopped, `runtime.rebuildRequired` stayed true, action-lifetime plaintext was scrubbed and the v1 source remained. Alpha.11 makes Agent service/pipe readiness part of MSI acceptance, fails fast when Agent stops and permits a 15-minute progressing rebuild.
 
+Alpha.11 migration evidence: exact package source `a517d2e2afa4bfc28ee1193c6c3845afd7415739`; MSI `ProductVersion 2.0.26`, SHA-256 `A369CE6FF6E3D2DE752BC0EA78B853E6B63561F2EDF44A0AE445D501F3A427D2`. The packaged dry-run imported the representative 14/4/3/1 metadata set and recognized all 3 synthetic secrets without side effects or disclosure. A no-network missing-aria2 run stopped Agent and proved MSI 1603 rollback, v1 preservation and plaintext cleanup. Adding the catalog-exact aria2 payload allowed the same source to resume: install and repair each passed 34/34; SQLite counts matched, the runtime rebuild marker cleared, DPAPI ciphertext never equalled plaintext, backups excluded the source secrets, Agent/Web/pipe/DACL/profile/health/manual passed, and the packaged rerun returned `already-imported`. Installed v1 migration acceptance is closed locally.
+
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |
 |---|---|
 | Current certificate baseline is self-signed | Acceptable for approved internal test hosts after explicit CER trust; replace with the future public/organization code-signing and TLS certificates for formal distribution |
-| Installed v1 migration acceptance open | Source migration tests pass, but a retained v1 State snapshot still needs dry-run, backup, import, rebuild and rollback verification on the exact MSI |
+| Installed v1 migration acceptance | Closed locally on exact alpha.11: dry-run, protected backup/import, Agent-aware failure rollback, resumed runtime rebuild, repair and `already-imported` rerun passed |
 | Failed-upgrade rollback acceptance | Closed locally on exact alpha.10: forced 8080 conflict returned MSI 1603 and restored old product registration, services, binaries and exact State hashes |
 | Internal prerelease deployment gate | Closed on alpha.5: exact MSI, one Generation 2 Secure Boot client, ingress stopped + Fleet empty, and one Software Test with checkpoint restore passed |
 | Final production feature parity open | Two consecutive four-VM rounds, physical laptop and multi-client torrent remain later production evidence; alpha.8 no-network Offline ISO host/guest acceptance and diagnostics/evidence export are complete but do not replace those paths |
