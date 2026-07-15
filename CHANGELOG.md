@@ -1,6 +1,6 @@
 # Changelog
 
-- Alpha 14 retries atomic progress/metadata replacement during transient Windows sharing violations, preserving desktop-ready gating when the viewer reads the file concurrently. MSI `ProductVersion` advances to `2.0.29`; alpha.13 is rejected after one second-round client completed apps but lost the final progress update.
+- Alpha 14 retries atomic progress/metadata replacement during transient Windows sharing violations, preserving desktop-ready gating when the viewer reads the file concurrently. MSI `ProductVersion` advances to `2.0.29`; alpha.13 is rejected after one second-round client completed apps but lost the final progress update. Exact alpha.14 then passed two consecutive two-client Secure Boot PXE rounds (4/4 desktop-ready, 0 warnings, no fallback or sharing violation) under the user-approved 32 GB host resource scope.
 - Alpha 13 replaced WinPE wall-clock seed deadlines with a `Stopwatch` monotonic interval and server-derived deadlines. Both live rounds proved the timer fix, but the second round exposed an unrelated progress JSON sharing violation; alpha.13 is rejected and unpublished. MSI `ProductVersion` was `2.0.28`.
 - Alpha 12 attempted to calculate WinPE torrent seed deadlines in UTC. Live PXE validation proved the synchronized WinPE UTC clock could still be offset by 16 hours, so alpha.12 is rejected and unpublished. MSI `ProductVersion` was `2.0.27`.
 

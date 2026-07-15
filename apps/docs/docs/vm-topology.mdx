@@ -23,6 +23,16 @@ Get-VMNetworkAdapter -VMName '<deployment-host-vm>' | Select-Object Name, Switch
 Get-VMSwitch | Select-Object Name, SwitchType
 ```
 
+## 外層主機電源門檻
+
+Nested deployment 測試期間，外層 Hyper-V 主機不得睡眠或進入 Modern Standby。Winception host VM 內的 timer 會在 VM 暫停時安全暫停，但 guest 無法阻止外層主機睡眠；該輪不屬於不中斷驗收。
+
+開始前記錄外層主機目前的 AC sleep timeout，並在測試窗口暫時設為 **Never**。完成後恢復原值；Winception 不會自動修改外層主機的 power plan。
+
+```powershell
+powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE
+```
+
 ## Nested client
 
 Client 使用 Generation 2、至少固定 4 GB RAM、Microsoft Windows Secure Boot template，啟動前必須是 Off。Software Test VM 另需 clean checkpoint。

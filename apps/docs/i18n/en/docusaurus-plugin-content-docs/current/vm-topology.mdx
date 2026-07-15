@@ -23,6 +23,16 @@ Get-VMNetworkAdapter -VMName '<deployment-host-vm>' | Select-Object Name, Switch
 Get-VMSwitch | Select-Object Name, SwitchType
 ```
 
+## Outer-host power gate
+
+The outer Hyper-V host must not sleep or enter Modern Standby during a nested deployment test. Timers inside the Winception host VM pause safely while the VM is suspended, but a guest cannot keep its outer host awake; that run is not uninterrupted acceptance evidence.
+
+Record the outer host's current AC sleep timeout before testing and temporarily set sleep to **Never** for the test window. Restore the original value afterward. Winception does not change the outer host power plan.
+
+```powershell
+powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE
+```
+
 ## Nested client
 
 Use a Generation 2 client with at least 4 GB fixed RAM and the Microsoft Windows Secure Boot template. It must be Off before testing. A Software Test VM also requires a clean checkpoint.
