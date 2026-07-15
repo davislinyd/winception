@@ -1,6 +1,6 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Winception" Manufacturer="Winception" Version="$(var.ProductVersion)" UpgradeCode="A72C07E4-3F62-4A7B-88D3-C66F594115B4" Scope="perMachine">
-    <MajorUpgrade DowngradeErrorMessage="A newer version of Winception is already installed." />
+    <MajorUpgrade Schedule="afterInstallInitialize" DowngradeErrorMessage="A newer version of Winception is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <StandardDirectory Id="ProgramFiles64Folder">

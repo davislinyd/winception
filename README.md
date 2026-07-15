@@ -2,7 +2,7 @@
 
 Winception 是給內部 IT 技師使用的 Windows 11 單機部署產品。它以 OSDCloud 為執行基礎，從本機管理介面準備 WinPE/PXE runtime、OS image、deployment profile、software/scripts，並追蹤到 `windows-desktop-ready`。
 
-目前穩定版為 `v0.6.7`，永久保留於 tag `v0.6.7` 與 `release/v1`。v2 在 `codex/v2-rewrite` 開發；最新公開測試版為 `2.0.0-alpha.5`，目前 source candidate 為 `2.0.0-alpha.9`。完成 MSI、migration、VM、實機與 release-readiness matrix 前不可取代 `master`。
+目前穩定版為 `v0.6.7`，永久保留於 tag `v0.6.7` 與 `release/v1`。v2 在 `codex/v2-rewrite` 開發；最新公開測試版為 `2.0.0-alpha.5`，目前 source candidate 為 `2.0.0-alpha.10`。完成 MSI、migration、VM、實機與 release-readiness matrix 前不可取代 `master`。
 
 ## v2 產品架構
 
@@ -112,7 +112,7 @@ npm run v2:migrate:v1 -- --app-root C:\OSDCloud\HostTools\App --state-root C:\OS
 
 Winception is a single-host Windows 11 deployment product for internal IT technicians. It uses OSDCloud to prepare WinPE/PXE runtime, images, profiles, software and scripts, then tracks clients through `windows-desktop-ready`.
 
-The stable line is `v0.6.7`, preserved by tag `v0.6.7` and branch `release/v1`. v2 is developed on `codex/v2-rewrite`; the latest published test build is `2.0.0-alpha.5`, while the current source candidate is `2.0.0-alpha.9`. It must not replace `master` until signed MSI, migration, VM, physical-laptop and release-readiness acceptance are complete.
+The stable line is `v0.6.7`, preserved by tag `v0.6.7` and branch `release/v1`. v2 is developed on `codex/v2-rewrite`; the latest published test build is `2.0.0-alpha.5`, while the current source candidate is `2.0.0-alpha.10`. It must not replace `master` until signed MSI, migration, VM, physical-laptop and release-readiness acceptance are complete.
 
 v2 separates a low-privilege Fastify/React Web service from a privileged allow-list Agent over an ACL-protected named pipe. Mutations use schema contracts and resource-aware locks; SQLite stores structured state, DPAPI protects secrets, and large deployment artifacts remain on the filesystem. Management is loopback-only by default; LAN access is explicit HTTPS and fails closed.
 

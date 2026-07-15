@@ -26,12 +26,15 @@ Alpha.5 installed-deployment evidence: exact package source `3faf4f00db6bc29af62
 
 Alpha.8 installed-feature evidence: exact package source `8846cfc682562ce1c0a1d9b27405d6e73e448b1f`; MSI `ProductVersion 2.0.23`, SHA-256 `D0C320E0D50F9C1F2CEB26FF56C3D3DD8B20F1DDEA7BD842180DE046E3509696`. Major upgrade preserved SQLite length and exact service-settings SHA-256. Invalid-certificate rollback and successful self-signed HTTPS with normal trust validation passed, followed by complete loopback/test-certificate cleanup. Offline ISO operation `196a332e-eef8-496a-8163-324827751f00` produced a mounted/hash-verified 7,184,230,400-byte ISO with SHA-256 `7EBB8C769679A5210CC3F45604DA6952738DDDEC3C183608368E791A20D5CBFF`; staging and plaintext secrets were cleared. After the outer host restart recovered the nested Hyper-V provider, no-network VM `winception-offline-iso-alpha8-01` booted the exact ISO with Generation 2, Secure Boot ON, fixed 4 GiB and one internal disk, reached `windows-desktop-ready` 100%, completed the selected four steps 4/4, and returned Off.
 
+Alpha.9 rollback evidence: exact MSI `ProductVersion 2.0.24`, SHA-256 `DDCC9793BD740C26CABBD3133925A4C9F810A4A70915EE88BE936F75FAA2F336`. A deliberate listener conflict on loopback port 8080 caused the expected health-probe status 1603, but default WiX major-upgrade scheduling had removed alpha.8 outside a recoverable old-product transaction. Product files, registration and both services were absent; SQLite and service-settings still matched the pre-upgrade hashes. A signed alpha.8 recovery MSI restored Agent/Web and health. Alpha.9 is rejected and unpublished; alpha.10 schedules `RemoveExistingProducts` after `InstallInitialize` and requires the same installed failure injection.
+
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |
 |---|---|
 | Current certificate baseline is self-signed | Acceptable for approved internal test hosts after explicit CER trust; replace with the future public/organization code-signing and TLS certificates for formal distribution |
 | Installed v1 migration acceptance open | Source migration tests pass, but a retained v1 State snapshot still needs dry-run, backup, import, rebuild and rollback verification on the exact MSI |
+| Failed-upgrade rollback acceptance open | Alpha.9 exposed unsafe default major-upgrade scheduling. Alpha.10 has a source regression gate for transactional old-product removal and still needs the exact 8080 conflict installed test |
 | Internal prerelease deployment gate | Closed on alpha.5: exact MSI, one Generation 2 Secure Boot client, ingress stopped + Fleet empty, and one Software Test with checkpoint restore passed |
 | Final production feature parity open | Two consecutive four-VM rounds, physical laptop and multi-client torrent remain later production evidence; alpha.8 no-network Offline ISO host/guest acceptance and diagnostics/evidence export are complete but do not replace those paths |
 | LAN management acceptance | Closed on exact alpha.8: invalid-certificate fail-closed, single-address self-signed HTTPS with OS trust, and return to loopback with trust/PFX/CER cleanup passed |

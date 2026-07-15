@@ -7,6 +7,9 @@ $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $packagePath = Join-Path $repo 'installer\wix\Package.wxs'
 $source = Get-Content -LiteralPath $packagePath -Raw
 
+if ($source -notmatch '<MajorUpgrade Schedule="afterInstallInitialize"') {
+  throw 'Major upgrades must remove the previous product inside the rollback transaction.'
+}
 if ($source -notmatch 'Id="ProvisionServiceSettings"[^\r\n]+-AppRoot &quot;\[APPFOLDER\]\.&quot;') {
   throw 'ProvisionServiceSettings must neutralize the trailing APPFOLDER separator with a dot path segment.'
 }
