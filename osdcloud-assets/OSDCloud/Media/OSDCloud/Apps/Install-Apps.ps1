@@ -41,7 +41,16 @@ function Write-JsonFileAtomic {
     try {
         Write-Utf8File -Path $temporaryPath -Content ($Value | ConvertTo-Json -Depth 10)
         if (Test-Path -LiteralPath $Path -PathType Leaf) {
-            [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
+            foreach ($attempt in 1..40) {
+                try {
+                    [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
+                    break
+                }
+                catch [System.IO.IOException] {
+                    if ($attempt -eq 40) { throw }
+                    Start-Sleep -Milliseconds 100
+                }
+            }
         }
         else {
             [System.IO.File]::Move($temporaryPath, $Path)

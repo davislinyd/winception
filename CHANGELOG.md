@@ -1,6 +1,7 @@
 # Changelog
 
-- Alpha 13 replaces WinPE wall-clock seed deadlines with a `Stopwatch` monotonic interval and reports server-derived deadlines from monotonic seconds remaining. MSI `ProductVersion` advances to `2.0.28`; alpha.12 is rejected because the synchronized WinPE UTC clock was still offset.
+- Alpha 14 retries atomic progress/metadata replacement during transient Windows sharing violations, preserving desktop-ready gating when the viewer reads the file concurrently. MSI `ProductVersion` advances to `2.0.29`; alpha.13 is rejected after one second-round client completed apps but lost the final progress update.
+- Alpha 13 replaced WinPE wall-clock seed deadlines with a `Stopwatch` monotonic interval and server-derived deadlines. Both live rounds proved the timer fix, but the second round exposed an unrelated progress JSON sharing violation; alpha.13 is rejected and unpublished. MSI `ProductVersion` was `2.0.28`.
 - Alpha 12 attempted to calculate WinPE torrent seed deadlines in UTC. Live PXE validation proved the synchronized WinPE UTC clock could still be offset by 16 hours, so alpha.12 is rejected and unpublished. MSI `ProductVersion` was `2.0.27`.
 
 ## Unreleased

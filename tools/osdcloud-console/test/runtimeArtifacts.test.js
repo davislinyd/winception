@@ -1006,6 +1006,7 @@ test('SetupComplete defers client sequence to a SYSTEM startup task and gates de
   assert.doesNotMatch(setup, /\$deadline = \(Get-Date\)\.AddMinutes\(30\)/);
   assert.match(setup, /Set-DeploymentProgressFailure -Category 'interrupted'/);
   assert.equal(isOuterFunction('Write-JsonFileAtomic'), true);
+  assert.match(setup, /foreach \(\$attempt in 1\.\.40\)[\s\S]*catch \[System\.IO\.IOException\][\s\S]*Start-Sleep -Milliseconds 100/);
   assert.equal(isOuterFunction('Initialize-DeploymentProgress'), true);
   assert.equal(isOuterFunction('Set-DeploymentProgressPhase'), true);
   assert.equal(isOuterFunction('Wait-ForTargetUserInteractiveSession'), true);
