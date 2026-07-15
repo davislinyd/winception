@@ -63,12 +63,17 @@ export async function importV1State(options: V1ImportOptions): Promise<V1ImportR
   if (!existsSync(paths.baseConfig)) throw new ValidationError('The v1 base configuration was not found.');
 
   const sourceFiles = collectSourceFiles(paths);
+  const backupFiles = sourceFiles.filter((file) => file !== paths.secrets);
   const softwareFiles = collectTreeFiles(join(appRoot, 'Softwares'));
   const customScriptFiles = collectTreeFiles(join(appRoot, 'Scripts'));
   const fingerprint = fingerprintFiles([...sourceFiles, ...softwareFiles, ...customScriptFiles]);
   const previous = options.database.getSetting<{ fingerprint: string }>('migration.v1');
   if (previous?.fingerprint === fingerprint) {
-    return emptyReport('already-imported', fingerprint, existsSync(paths.evidence) ? relative(stateRoot, paths.evidence) : null);
+    const report = emptyReport('already-imported', fingerprint, existsSync(paths.evidence) ? relative(stateRoot, paths.evidence) : null);
+    backupCoreFiles(backupFiles, stateRoot, backupRoot, fingerprint);
+    const reportPath = join(backupRoot, fingerprint, 'migration-report.json');
+    if (!existsSync(reportPath)) writeJsonAtomic(reportPath, report);
+    return report;
   }
   if (previous) throw new ValidationError('A different v1 state was already imported.', 'Restore the v2 database backup before importing another v1 state.');
 
@@ -102,7 +107,7 @@ export async function importV1State(options: V1ImportOptions): Promise<V1ImportR
   };
   if (options.dryRun) return report;
 
-  backupCoreFiles(sourceFiles, stateRoot, backupRoot, fingerprint);
+  backupCoreFiles(backupFiles, stateRoot, backupRoot, fingerprint);
   const movedAssets = stageAssets(options.targetAssetRoot, appRoot, fingerprint);
   try {
     options.database.transaction(() => {
@@ -197,14 +202,41 @@ function isObject(value: unknown): value is JsonObject {
 }
 
 function backupCoreFiles(files: readonly string[], stateRoot: string, backupRoot: string, fingerprint: string): void {
-  const destinationRoot = join(backupRoot, fingerprint, 'source');
-  mkdirSync(destinationRoot, { recursive: true });
-  for (const file of files) {
-    const relativePath = isInside(stateRoot, file) ? relative(stateRoot, file) : join('app-config', basename(file));
-    const destination = join(destinationRoot, relativePath);
-    mkdirSync(dirname(destination), { recursive: true });
-    cpSync(file, destination, { force: false, errorOnExist: true });
+  const destinationRoot = join(backupRoot, fingerprint);
+  if (existsSync(destinationRoot)) {
+    assertBackupMatches(files, stateRoot, join(destinationRoot, 'source'));
+    return;
   }
+  mkdirSync(backupRoot, { recursive: true });
+  const stageRoot = join(backupRoot, `.v1-import-${fingerprint}`);
+  rmSync(stageRoot, { recursive: true, force: true });
+  try {
+    const sourceRoot = join(stageRoot, 'source');
+    for (const file of files) {
+      const destination = backupDestination(sourceRoot, stateRoot, file);
+      mkdirSync(dirname(destination), { recursive: true });
+      cpSync(file, destination, { force: false, errorOnExist: true });
+    }
+    renameSync(stageRoot, destinationRoot);
+  }
+  catch (error) {
+    rmSync(stageRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function assertBackupMatches(files: readonly string[], stateRoot: string, destinationRoot: string): void {
+  for (const file of files) {
+    const destination = backupDestination(destinationRoot, stateRoot, file);
+    if (!existsSync(destination) || !readFileSync(file).equals(readFileSync(destination))) {
+      throw new ValidationError('The existing v1 migration backup does not match the source state.', 'Preserve both copies and choose a new migration backup root.');
+    }
+  }
+}
+
+function backupDestination(destinationRoot: string, stateRoot: string, file: string): string {
+  const relativePath = isInside(stateRoot, file) ? relative(stateRoot, file) : join('app-config', basename(file));
+  return join(destinationRoot, relativePath);
 }
 
 function assertDistinctRoots(appRoot: string, stateRoot: string, backupRoot: string): void {

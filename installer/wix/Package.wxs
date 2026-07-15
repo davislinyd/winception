@@ -46,16 +46,22 @@
     <CustomAction Id="ConfigureWebServiceSid" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="sc.exe sidtype &quot;Winception.Web&quot; unrestricted" />
     <CustomAction Id="RollbackDatabase" Directory="System64Folder" Execute="rollback" Impersonate="no" Return="ignore" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Restore" />
     <CustomAction Id="BackupDatabase" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Backup" />
-    <CustomAction Id="ProbeWebHealth" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Probe" />
+    <CustomAction Id="RollbackV1Migration" Directory="System64Folder" Execute="rollback" Impersonate="no" Return="ignore" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-WinceptionV1Migration.ps1&quot; -Mode Rollback -AppRoot &quot;[APPFOLDER].&quot;" />
+    <CustomAction Id="MigrateV1State" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-WinceptionV1Migration.ps1&quot; -Mode Migrate -AppRoot &quot;[APPFOLDER].&quot;" />
+    <CustomAction Id="ProbeWebHealth" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Probe -ProbeAttempts 300" />
+    <CustomAction Id="CommitV1Migration" Directory="System64Folder" Execute="commit" Impersonate="no" Return="ignore" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-WinceptionV1Migration.ps1&quot; -Mode Commit -AppRoot &quot;[APPFOLDER].&quot;" />
     <CustomAction Id="CommitDatabase" Directory="System64Folder" Execute="commit" Impersonate="no" Return="ignore" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Invoke-MsiUpgradeStep.ps1&quot; -Mode Commit" />
     <CustomAction Id="RemoveFirewallRules" Directory="System64Folder" Execute="deferred" Impersonate="no" Return="check" ExeCommand="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[APPFOLDER]tools\v2\Remove-WinceptionFirewallRules.ps1&quot;" />
     <InstallExecuteSequence>
       <Custom Action="RollbackDatabase" After="InstallFiles" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="BackupDatabase" After="RollbackDatabase" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="ProvisionServiceSettings" After="BackupDatabase" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Custom Action="RollbackV1Migration" After="ProvisionServiceSettings" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="MigrateV1State" After="RollbackV1Migration" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="ConfigureWebServiceSid" After="InstallServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="ProbeWebHealth" After="StartServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
-      <Custom Action="CommitDatabase" After="ProbeWebHealth" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="CommitV1Migration" After="ProbeWebHealth" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="CommitDatabase" After="CommitV1Migration" Condition="NOT REMOVE~=&quot;ALL&quot;" />
       <Custom Action="RemoveFirewallRules" Before="RemoveFiles" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
   </Package>

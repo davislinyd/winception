@@ -2,7 +2,7 @@
 param(
   [Parameter(Mandatory)][ValidateSet('Backup', 'Restore', 'Probe', 'Commit')][string]$Mode,
   [string]$StateRoot = "$env:ProgramData\Winception\State",
-  [ValidateRange(1, 30)][int]$ProbeAttempts = 30
+  [ValidateRange(1, 600)][int]$ProbeAttempts = 30
 )
 
 $ErrorActionPreference = 'Stop'

@@ -10,6 +10,7 @@ import { UploadStore } from '../../../packages/infrastructure/src/uploadStore.js
 import { loadServiceSettings } from '../../../packages/infrastructure/src/serviceSettings.js';
 import { addPackagedPowerShellModulePath } from '../../../packages/infrastructure/src/powerShellModules.js';
 import { loadLegacyController } from './legacyController.js';
+import { rebuildImportedRuntime } from './migrationRuntime.js';
 import { createAgentRuntime } from './runtime.js';
 
 async function main(): Promise<void> {
@@ -39,6 +40,7 @@ async function main(): Promise<void> {
       readDeploymentSecrets: () => deploymentSecrets.read(),
     },
   });
+  await rebuildImportedRuntime({ database, controller, productState, deploymentSecrets });
   const evidence = new EvidenceManager({
     database,
     stateRoot,

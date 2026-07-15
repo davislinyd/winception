@@ -10,7 +10,7 @@
         "/api/v2",
         "v1 importer"
       ],
-      "body": "API、事件與 v1 migration /api/v2 Request、response、params 與 query 使用完整 JSON Schema。錯誤固定包含 error.code 、 message 、可選 correctiveAction 與 correlationId ；不回傳 raw PowerShell 或 secret。 Mutation 回傳 operation ID。Fleet、operation 與狀態更新使用版本化 SSE；斷線後先取得 REST snapshot，再恢復事件串流。OpenAPI 僅供已驗證的 management session 使用。 v1 importer Importer 支援 dry-run、backup、重跑與 migration report。它匯入 config、profiles、software/custom-script metadata 與重新加密的 secrets，但不匯入 running operation、DHCP lease、service PID 或 lock。 任一步驟失敗時保留 v1 State，不允許部分切換。既有 evidence 只讀封存，deployment runtime 由 v2 重建。",
+      "body": "API、事件與 v1 migration /api/v2 Request、response、params 與 query 使用完整 JSON Schema。錯誤固定包含 error.code 、 message 、可選 correctiveAction 與 correlationId ；不回傳 raw PowerShell 或 secret。 Mutation 回傳 operation ID。Fleet、operation 與狀態更新使用版本化 SSE；斷線後先取得 REST snapshot，再恢復事件串流。OpenAPI 僅供已驗證的 management session 使用。 v1 importer Importer 支援 dry-run、backup、重跑與 migration report。它匯入 config、profiles、software/custom-script metadata 與重新加密的 secrets，但不匯入 running operation、DHCP lease、service PID 或 lock。 標準 MSI 會偵測 C:\\OSDCloud\\HostTools\\App 與 State 。若找到 v1，會在服務啟動前匯入；非秘密來源與 report 保存於 C:\\ProgramData\\Winception\\State\\migration-backups\\ 。明文 secrets 不會複製到 backup，而是直接轉成 LocalMachine DPAPI ciphertext；原始 v1 State 不會修改。 Dry-run 可建立空的目標 SQLite schema，但不寫入 migration marker、product data、payload、backup 或 report。同一 fingerprint 可安全重跑；若來源在成功匯入後改變，工具會拒絕覆蓋既有 v2 State。 成功匯入後，Agent 在開放 named pipe 前以短生命週期明文 projection 重建 runtime，完成後清除明文並把 rebuild marker 設為完成。若 importer、runtime rebuild 或 Web health probe 失敗，MSI 會還原 v2 database 與 compatibility projection，保留 v1 State 及 migration backup，不完成切換。既有 evidence 僅記錄為唯讀封存。",
       "url": "/docs/api-migration"
     },
     {

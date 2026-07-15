@@ -16,6 +16,28 @@ if ($source -match '-AppRoot &quot;\[APPFOLDER\]&quot;') {
 if ($source -notmatch 'Action="ProvisionServiceSettings" After="BackupDatabase" Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED"') {
   throw 'ProvisionServiceSettings must run only for a fresh install and preserve service settings during major upgrades.'
 }
+if ($source -notmatch 'Id="MigrateV1State"[^\r\n]+Invoke-WinceptionV1Migration\.ps1[^\r\n]+-Mode Migrate') {
+  throw 'The MSI must invoke the allow-listed v1 State importer before service startup.'
+}
+if ($source -notmatch 'Action="RollbackV1Migration" After="ProvisionServiceSettings"' -or
+    $source -notmatch 'Action="MigrateV1State" After="RollbackV1Migration"') {
+  throw 'The MSI must schedule v1 migration rollback before the migration action.'
+}
+if ($source -notmatch 'Id="ProbeWebHealth"[^\r\n]+-ProbeAttempts 300') {
+  throw 'The MSI must allow enough time for a pending imported runtime rebuild before health acceptance.'
+}
+if ($source -notmatch 'Action="CommitV1Migration" After="ProbeWebHealth"' -or
+    $source -notmatch 'Action="CommitDatabase" After="CommitV1Migration"') {
+  throw 'The MSI must commit v1 migration state only after the health probe succeeds.'
+}
+$migrationPath = Join-Path $repo 'tools\v2\Invoke-WinceptionV1Migration.ps1'
+$migrationSource = Get-Content -LiteralPath $migrationPath -Raw
+if ($migrationSource -notmatch 'Get-CimInstance Win32_Process' -or $migrationSource -notmatch 'Stop the v1 Web console and deployment services') {
+  throw 'v1 migration must fail closed while the legacy runtime is active.'
+}
+if ($migrationSource -match 'osdcloud-secrets\.json') {
+  throw 'The MSI migration wrapper must not copy or print the v1 plaintext secrets file.'
+}
 if ($source -notmatch 'Id="RemoveFirewallRules"[^\r\n]+Remove-WinceptionFirewallRules\.ps1') {
   throw 'The MSI must execute the product-owned firewall cleanup script during uninstall.'
 }

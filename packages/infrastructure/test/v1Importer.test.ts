@@ -49,8 +49,13 @@ test('v1 importer supports dry-run, protected secrets, backup and idempotent rer
     });
     assert.equal(readFileSync(join(targetAssetRoot, 'Softwares', 'sevenzip', 'installer.exe'), 'utf8'), 'payload');
     assert.match(readFileSync(join(targetAssetRoot, 'Scripts', 'baseline.ps1'), 'utf8'), /Write-Output/u);
+    const reportPath = join(backupRoot, imported.fingerprint, 'migration-report.json');
+    assert.equal(existsSync(reportPath), true);
+    assert.equal(existsSync(join(backupRoot, imported.fingerprint, 'source', 'config', 'osdcloud-secrets.json')), false);
+    rmSync(reportPath);
     const rerun = await importV1State({ appRoot, stateRoot, backupRoot, database, secretProtector: protector, targetAssetRoot });
     assert.equal(rerun.status, 'already-imported');
+    assert.equal(existsSync(reportPath), true);
     database.close();
   }
   finally {
