@@ -854,6 +854,7 @@ test('installed runtime preparation uses packaged Node and does not require npm 
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Restore-DeploymentArtifacts.ps1'), 'utf8');
   const adapter = fs.readFileSync(path.join(process.cwd(), 'tools', 'osdcloud-console', 'src', 'windows', 'preflight.js'), 'utf8');
   const packager = fs.readFileSync(path.join(process.cwd(), 'tools', 'v2', 'Build-WinceptionV2Package.ps1'), 'utf8');
+  const packageMetadata = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
 
   assert.match(script, /function Resolve-NodeExecutable/);
   assert.match(script, /node\\node\.exe/);
@@ -862,7 +863,8 @@ test('installed runtime preparation uses packaged Node and does not require npm 
   assert.match(adapter, /'-PowerShellModulesRoot'[\s\S]*'powershell-modules'/);
   assert.match(packager, /Name = 'OSD'; Version = '26\.4\.23\.1'; Sha256 = '[A-F0-9]{64}'/);
   assert.match(packager, /Name = 'OSDCloud'; Version = '26\.4\.17\.1'; Sha256 = '[A-F0-9]{64}'/);
-  assert.match(packager, /\$MsiVersion = '2\.0\.21'/);
+  assert.match(packager, /\$MsiVersion = '\d+\.\d+\.\d+'/);
+  assert.ok(packager.includes(`$ReleaseTag = 'v${packageMetadata.version}'`));
   assert.match(packager, /powershellgallery\.com\/api\/v2\/package/);
   assert.match(packager, /pkg:nuget/);
 
