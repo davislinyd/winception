@@ -2,7 +2,7 @@
 param(
   [Parameter(Mandatory)][ValidateSet('Backup', 'Restore', 'Probe', 'Commit')][string]$Mode,
   [string]$StateRoot = "$env:ProgramData\Winception\State",
-  [ValidateRange(1, 600)][int]$ProbeAttempts = 30
+  [ValidateRange(1, 1800)][int]$ProbeAttempts = 30
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,6 +39,10 @@ switch ($Mode) {
     $healthUrl = '{0}://{1}:{2}/api/v2/health' -f $scheme, $settings.managementHost, $settings.managementPort
     $lastProbeError = $null
     foreach ($attempt in 1..$ProbeAttempts) {
+      $agentService = Get-Service -Name 'Winception.Agent' -ErrorAction SilentlyContinue
+      if ($null -eq $agentService -or $agentService.Status -eq 'Stopped') {
+        throw 'Winception Agent stopped before it became ready.'
+      }
       try {
         if ($tlsSettings -and $tlsSettings.thumbprint) {
           $expectedThumbprint = ([string]$tlsSettings.thumbprint).Replace(' ', '').ToUpperInvariant()
@@ -67,7 +71,10 @@ public static class WinceptionPinnedHttpsClient {
           $health = $json | ConvertFrom-Json
         }
         else { $health = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2 }
-        if ($health.ok -eq $true -and $health.service -eq 'web') { return }
+        $pipeReady = @(Get-ChildItem -LiteralPath '\\.\pipe\' -ErrorAction SilentlyContinue |
+          Where-Object { $_.Name -like '*Winception.Agent.v2*' }).Count -gt 0
+        if ($health.ok -eq $true -and $health.service -eq 'web' -and $agentService.Status -eq 'Running' -and $pipeReady) { return }
+        $lastProbeError = [InvalidOperationException]::new('Winception Agent is still preparing its privileged endpoint.')
       }
       catch { $lastProbeError = $_.Exception }
       Start-Sleep -Seconds 1

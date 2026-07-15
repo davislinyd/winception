@@ -30,6 +30,8 @@ Alpha.9 rollback evidence: exact MSI `ProductVersion 2.0.24`, SHA-256 `DDCC9793B
 
 Alpha.10 rollback evidence: exact package source `31efcac070cada447abc076f051bfee1a6c51a0e`; MSI `ProductVersion 2.0.25`, SHA-256 `781A065357822E5582BA12DDDC1241F778FA0007FEFA70E74F77B3FD16A80D2A`, valid expected self-signed Authenticode. An HTTP 503 blocker held loopback port 8080 through all 300 health attempts. MSI returned 1603, then restored both alpha.8 services, exact package-manifest/SQLite/service-settings hashes, legacy config count and `2.0.23` registration. After blocker removal Agent/Web returned Running and health reported `2.0.0-alpha.8`. The failed-upgrade rollback gate is closed locally.
 
+Alpha.10 migration evidence: the exact packaged dry-run read 14 settings, 4 profiles, 3 software entries, 1 script, 3 DPAPI secrets and retained evidence without creating backup or payload output; no secret value appeared in reports. Installed migration exposed a second acceptance defect: Web health became ready while Agent was still rebuilding WinPE and had no named pipe, so MSI committed too early and bootstrap later failed its Agent check. DISM eventually failed saving a broken reparse point; Agent stopped, `runtime.rebuildRequired` stayed true, action-lifetime plaintext was scrubbed and the v1 source remained. Alpha.11 makes Agent service/pipe readiness part of MSI acceptance, fails fast when Agent stops and permits a 15-minute progressing rebuild.
+
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |

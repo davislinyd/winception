@@ -2,7 +2,7 @@
 param(
   [string]$OutputRoot = 'installer/output',
   [ValidatePattern('^v2\.\d+\.\d+-(alpha|beta|rc)\.\d+$')]
-  [string]$ReleaseTag = 'v2.0.0-alpha.10',
+  [string]$ReleaseTag = 'v2.0.0-alpha.11',
   [ValidateSet('internal-prerelease', 'prerelease', 'stable')]
   [string]$Channel = 'internal-prerelease',
   [string]$CommitSha = ''

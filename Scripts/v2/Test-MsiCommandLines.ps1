@@ -26,7 +26,7 @@ if ($source -notmatch 'Action="RollbackV1Migration" After="ProvisionServiceSetti
     $source -notmatch 'Action="MigrateV1State" After="RollbackV1Migration"') {
   throw 'The MSI must schedule v1 migration rollback before the migration action.'
 }
-if ($source -notmatch 'Id="ProbeWebHealth"[^\r\n]+-ProbeAttempts 300') {
+if ($source -notmatch 'Id="ProbeWebHealth"[^\r\n]+-ProbeAttempts 900') {
   throw 'The MSI must allow enough time for a pending imported runtime rebuild before health acceptance.'
 }
 if ($source -notmatch 'Action="CommitV1Migration" After="ProbeWebHealth"' -or
@@ -64,6 +64,10 @@ if ($upgradeStepSource -match '\$settings\.tls') {
 }
 if ($upgradeStepSource -notmatch 'handler\.UseProxy = false;') {
   throw 'The pinned local HTTPS health probe must bypass system proxy configuration.'
+}
+if ($upgradeStepSource -notmatch "Get-Service -Name 'Winception\.Agent'" -or
+    $upgradeStepSource -notmatch "Winception\.Agent\.v2") {
+  throw 'The MSI health probe must wait for the privileged Agent service and named pipe.'
 }
 
 $managementEndpointPath = Join-Path $repo 'tools\v2\Set-WinceptionManagementEndpoint.ps1'
