@@ -28,13 +28,15 @@ Alpha.8 installed-feature evidence: exact package source `8846cfc682562ce1c0a1d9
 
 Alpha.9 rollback evidence: exact MSI `ProductVersion 2.0.24`, SHA-256 `DDCC9793BD740C26CABBD3133925A4C9F810A4A70915EE88BE936F75FAA2F336`. A deliberate listener conflict on loopback port 8080 caused the expected health-probe status 1603, but default WiX major-upgrade scheduling had removed alpha.8 outside a recoverable old-product transaction. Product files, registration and both services were absent; SQLite and service-settings still matched the pre-upgrade hashes. A signed alpha.8 recovery MSI restored Agent/Web and health. Alpha.9 is rejected and unpublished; alpha.10 schedules `RemoveExistingProducts` after `InstallInitialize` and requires the same installed failure injection.
 
+Alpha.10 rollback evidence: exact package source `31efcac070cada447abc076f051bfee1a6c51a0e`; MSI `ProductVersion 2.0.25`, SHA-256 `781A065357822E5582BA12DDDC1241F778FA0007FEFA70E74F77B3FD16A80D2A`, valid expected self-signed Authenticode. An HTTP 503 blocker held loopback port 8080 through all 300 health attempts. MSI returned 1603, then restored both alpha.8 services, exact package-manifest/SQLite/service-settings hashes, legacy config count and `2.0.23` registration. After blocker removal Agent/Web returned Running and health reported `2.0.0-alpha.8`. The failed-upgrade rollback gate is closed locally.
+
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |
 |---|---|
 | Current certificate baseline is self-signed | Acceptable for approved internal test hosts after explicit CER trust; replace with the future public/organization code-signing and TLS certificates for formal distribution |
 | Installed v1 migration acceptance open | Source migration tests pass, but a retained v1 State snapshot still needs dry-run, backup, import, rebuild and rollback verification on the exact MSI |
-| Failed-upgrade rollback acceptance open | Alpha.9 exposed unsafe default major-upgrade scheduling. Alpha.10 has a source regression gate for transactional old-product removal and still needs the exact 8080 conflict installed test |
+| Failed-upgrade rollback acceptance | Closed locally on exact alpha.10: forced 8080 conflict returned MSI 1603 and restored old product registration, services, binaries and exact State hashes |
 | Internal prerelease deployment gate | Closed on alpha.5: exact MSI, one Generation 2 Secure Boot client, ingress stopped + Fleet empty, and one Software Test with checkpoint restore passed |
 | Final production feature parity open | Two consecutive four-VM rounds, physical laptop and multi-client torrent remain later production evidence; alpha.8 no-network Offline ISO host/guest acceptance and diagnostics/evidence export are complete but do not replace those paths |
 | LAN management acceptance | Closed on exact alpha.8: invalid-certificate fail-closed, single-address self-signed HTTPS with OS trust, and return to loopback with trust/PFX/CER cleanup passed |
