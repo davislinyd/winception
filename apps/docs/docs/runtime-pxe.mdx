@@ -20,6 +20,10 @@ import { FlowExplorer } from '@site/src/components/FlowExplorer';
 6. Gen 2 Secure Boot client 從 UEFI IPv4 PXE 啟動，追蹤到 `windows-desktop-ready`。
 7. 保存 run/evidence，停止 ingress。
 
+## Deploy 的 Guided Setup
+
+右側 Guided Setup 可選取目前步驟，並只顯示對應的 v2 安全操作。看到 ingress gate 時，選取 **Run preflight**；未清除 blocking failure 前，Start all 與停止中的 HTTP／TFTP／DHCP／Torrent start 控制會維持停用。它不會自動啟動服務。
+
 ## 邊界
 
 Offline ISO 是 additive snapshot，不取代 PXE acceptance。Git clone 不是 deployment runtime；不要手動修改 Web-selected runtime root。

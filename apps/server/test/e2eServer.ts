@@ -47,7 +47,12 @@ function snapshot(): Record<string, unknown> {
     },
     fleet: { total: 2, counts: { running: 1, completed: 0, failed: 1, stale: 0 }, runs: [{ runId: 'run-1', clientId: 'client-01', clientIp: '192.168.100.101', status: 'running', latestStage: 'windows', latestPercent: 72 }, { runId: 'run-failed', clientId: 'client-failed', clientIp: '192.168.100.104', status: 'failed', latestStage: 'winpe', latestPercent: 18 }] },
     archivedFleet: { total: 0, counts: {}, runs: [] }, preflight: [{ name: 'Runtime', ok: true, blocking: true, detail: 'Ready' }], runtime: { status: 'Ready' }, diagnostics: { headline: 'No diagnostics bundle has been generated.' }, offlineIso: { headline: 'Create a host-side ISO snapshot.' },
-    initialization: { status: 'Ready', steps: [{ id: 'endpoint', title: 'Endpoint', detail: 'PXE endpoint selected', status: 'ready' }, { id: 'profile', title: 'Profile', detail: 'Windows 11 published', status: 'ready' }] },
+    initialization: { status: 'Ready', nextStepId: 'preflight', steps: [
+      { id: 'endpoint', title: 'Endpoint', detail: 'PXE endpoint selected', status: 'ready', action: 'interfaces', objective: 'Select the deployment interface.', safetyNote: 'Confirm the PXE network before continuing.', nextActionText: 'Select endpoint' },
+      { id: 'profile', title: 'Profile', detail: 'Windows 11 published', status: 'ready', action: 'profiles', objective: 'Publish the selected deployment profile.', safetyNote: 'Profile changes stop ingress before publishing.', nextActionText: 'Publish profile' },
+      { id: 'preflight', title: 'Preflight', detail: 'All required checks passed', status: 'ready', action: 'preflight', objective: 'Verify deployment prerequisites before starting ingress.', safetyNote: 'Warnings remain visible; blocking failures stop ingress.', nextActionText: 'Run preflight' },
+      { id: 'services', title: 'Services', detail: 'Ready to start', status: 'pending', action: 'all-services-toggle', objective: 'Start HTTP, TFTP and DHCP only after preflight passes.', safetyNote: 'Confirm the DHCP arrangement before starting.', nextActionText: 'Start services' },
+    ] },
     selectedRunEvents: [{ id: 'event-1', stage: 'windows-start', detail: 'Windows setup started.' }], screenshots: [{ id: 'shot-1' }], logs: { system: ['[SAFE] deployment snapshot loaded', '[SAFE] tracker is serving peers'] },
   };
 }

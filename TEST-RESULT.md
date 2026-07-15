@@ -2,6 +2,12 @@
 
 Authoritative versioned evidence and no-AI operator runbook. Evidence proves only the exact version, layer, path and date shown; historical v1 evidence does not constitute v2 release acceptance.
 
+## v2.0.0-alpha.16 Guided Setup recovery — local source verification, 2026-07-16
+
+- Scope: recover the v1-style Guided Setup action flow inside the v2 React shell. The selected live step now maps only to an existing v2 control; preflight gating exposes Run preflight and disables every stopped ingress start control until blocking failures clear. No Fastify, Agent, named-pipe, schema, OperationCoordinator, SQLite or DPAPI boundary changed.
+- Passed locally: `v2:typecheck`, `v2:lint`, `v2:cycles` (0 cycles), `v2:openapi:check`, `v2:test` (50/50), `v2:e2e` (5/5), `v2:docs:check`, `v2:diagrams:check`, `docs:check` and `docs:e2e` (2/2). Playwright verifies Guided Setup's enabled preflight action, disabled ingress starts while gated, navigation, keyboard/focus/axe, operation feedback, SSE recovery, narrow viewport and reduced motion.
+- This is source/UI evidence only. Alpha.16 MSI packaging, installed OSD Server service/health verification, PXE and physical-laptop acceptance remain unrecorded. Remote CI, prerelease publication, Pages publication, tag and `master` merge were not run.
+
 ## v2.0.0-alpha.15 v1 familiar UX — local source verification, 2026-07-16
 
 - Scope: React v1-style Deploy / Monitor shell, service cards, Fleet / evidence, torrent row actions, operation states, versioned payloads and evidence-free `deployment.changed` SSE recovery. This is source/UI evidence only; it does not prove the installed bundle, MSI, runtime, PXE, VM or physical-laptop acceptance.

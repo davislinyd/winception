@@ -16,7 +16,7 @@ test('v1-style navigation, configuration drawer and keyboard focus remain usable
   await page.getByRole('button', { name: 'Monitor' }).click();
   await expect(page.getByRole('heading', { name: 'Monitor', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Deploy' }).click();
-  await page.getByRole('button', { name: /Profile.*Windows 11/u }).click();
+  await page.locator('.deploy-summary').getByRole('button', { name: /Profile.*Windows 11/u }).click();
   await expect(page.getByRole('dialog', { name: 'Deployment profiles' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -26,12 +26,28 @@ test('v1-style navigation, configuration drawer and keyboard focus remain usable
   expect(accessibility.violations).toEqual([]);
 });
 
+test('Guided Setup exposes the next v2 action and keeps ingress controls behind preflight', async ({ page }) => {
+  await page.route('**/api/v2/deployment/snapshot', async (route) => {
+    const response = await route.fetch();
+    const payload = await response.json() as { result: { preflight: unknown[] } };
+    payload.result.preflight = [];
+    await route.fulfill({ response, json: payload });
+  });
+  await signIn(page);
+  const guided = page.locator('.guided-rail');
+  await expect(guided.getByRole('button', { name: 'Run preflight' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Start all' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Start TFTP' })).toBeDisabled();
+  await guided.getByRole('button', { name: 'Run preflight' }).click();
+  await expect(page.locator('.notice')).toContainText('Run preflight accepted as e2e-');
+});
+
 test('service cards, Fleet rows and tracker actions surface accepted, conflict and safe error states', async ({ page }) => {
   await signIn(page);
   await page.getByRole('button', { name: 'Start TFTP' }).click();
-  await expect(page.getByRole('status')).toContainText('Start TFTP accepted as e2e-1');
+  await expect(page.locator('.notice')).toContainText('Start TFTP accepted as e2e-');
   await page.getByRole('button', { name: 'Extend' }).click();
-  await expect(page.getByRole('status')).toContainText('Extend torrent client accepted');
+  await expect(page.locator('.notice')).toContainText('Extend torrent client accepted');
   await expect(page.getByLabel(/Additional seed minutes for run-1/u)).toHaveValue('15');
 
   await page.getByRole('button', { name: 'Save default' }).click();

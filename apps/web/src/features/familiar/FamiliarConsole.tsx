@@ -4,6 +4,7 @@ import { api } from '../../shared/api.js';
 
 export type ConsoleView = 'deploy' | 'monitor';
 export type ConnectionState = 'connecting' | 'live' | 'reconnecting';
+type DrawerKind = 'profile' | 'image' | 'endpoint' | 'setup';
 
 type Runner = (label: string, action: () => Promise<unknown>) => void;
 
@@ -21,7 +22,7 @@ export interface FamiliarConsoleProps {
 
 export function FamiliarConsole({ state, snapshot, operations, accepted, connection, snapshotStatus, configurationControls, onRefresh, onRun }: FamiliarConsoleProps): React.JSX.Element {
   const [view, setView] = useState<ConsoleView>('deploy');
-  const [drawer, setDrawer] = useState<'profile' | 'image' | 'endpoint' | null>(null);
+  const [drawer, setDrawer] = useState<DrawerKind | null>(null);
   const [selectedRunId, setSelectedRunId] = useState('');
   const [evidenceRunId, setEvidenceRunId] = useState<string | null>(null);
   const [consoleOpen, setConsoleOpen] = useState(false);
@@ -36,7 +37,7 @@ export function FamiliarConsole({ state, snapshot, operations, accepted, connect
     if (!selectedRunId && selectedRun?.runId) setSelectedRunId(selectedRun.runId);
   }, [selectedRun?.runId, selectedRunId]);
 
-  function openDrawer(kind: 'profile' | 'image' | 'endpoint', event: React.MouseEvent<HTMLButtonElement>): void {
+  function openDrawer(kind: DrawerKind, event: React.MouseEvent<HTMLButtonElement>): void {
     opener.current = event.currentTarget;
     setDrawer(kind);
   }
@@ -66,19 +67,19 @@ export function FamiliarConsole({ state, snapshot, operations, accepted, connect
 
     <main className="familiar-main">
       {view === 'deploy'
-        ? <DeployView root={root} state={state} onDrawer={openDrawer} onRun={onRun} onConfirm={askConfirm} />
+        ? <DeployView root={root} state={state} onDrawer={openDrawer} onRun={onRun} onConfirm={askConfirm} onOpenMonitor={() => setView('monitor')} />
         : <MonitorView root={root} selectedRun={selectedRun} selectedRunId={selectedRunId} onSelectRun={setSelectedRunId} onEvidence={setEvidenceRunId} onRun={onRun} onConfirm={askConfirm} />}
     </main>
 
     <ConsoleDock open={consoleOpen} onToggle={() => setConsoleOpen((value) => !value)} operations={operations} accepted={accepted} root={root} />
-    {drawer && <ConfigurationDrawer title={drawer === 'profile' ? 'Deployment profiles' : drawer === 'image' ? 'OS images' : 'Endpoint settings'} onClose={closeDrawer}>{configurationControls}</ConfigurationDrawer>}
+    {drawer && <ConfigurationDrawer title={drawer === 'profile' ? 'Deployment profiles' : drawer === 'image' ? 'OS images' : drawer === 'endpoint' ? 'Endpoint settings' : 'Setup settings'} onClose={closeDrawer}>{configurationControls}</ConfigurationDrawer>}
     {evidenceRunId && <EvidenceDrawer runId={evidenceRunId} root={root} onClose={() => setEvidenceRunId(null)} onRun={onRun} onConfirm={askConfirm} />}
     {confirm && <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} onConfirm={() => { setConfirm(null); onRun(confirm.label, confirm.action); }} />}
   </div>;
 }
 
-function DeployView({ root, state, onDrawer, onRun, onConfirm }: {
-  root: DeploymentSnapshotResult; state: SystemState | null; onDrawer: (kind: 'profile' | 'image' | 'endpoint', event: React.MouseEvent<HTMLButtonElement>) => void; onRun: Runner; onConfirm: (request: ConfirmRequest) => void;
+function DeployView({ root, state, onDrawer, onRun, onConfirm, onOpenMonitor }: {
+  root: DeploymentSnapshotResult; state: SystemState | null; onDrawer: (kind: DrawerKind, event: React.MouseEvent<HTMLButtonElement>) => void; onRun: Runner; onConfirm: (request: ConfirmRequest) => void; onOpenMonitor: () => void;
 }): React.JSX.Element {
   const preflight = list(extra(root, 'preflight')).map(asObject);
   const blockingFailure = preflight.some((check) => check.blocking !== false && check.ok !== true);
@@ -107,11 +108,48 @@ function DeployView({ root, state, onDrawer, onRun, onConfirm }: {
         <ReadinessCard title="Offline ISO" text={text(asObject(extra(root, 'offlineIso')).headline, 'Create an additive host-side snapshot.')} actionLabel="Create ISO" onAction={() => onRun('Create Offline ISO', api.createOfflineIso)} />
       </div>
     </div>
-    <aside className="guided-rail" aria-labelledby="guided-title">
-      <div className="guided-head"><p className="eyebrow">Guided setup</p><h2 id="guided-title">Set up deployment</h2><span className="status-pill">{text(initialization.status, 'Review')}</span></div>
-      {initSteps.length ? <ol className="guided-steps">{initSteps.map((step, index) => <li key={`${text(step.id, 'step')}-${index}`} className={text(step.status, 'pending')}><strong>{text(step.title, text(step.name, `Step ${index + 1}`))}</strong><span>{text(step.detail, text(step.status, 'pending'))}</span></li>)}</ol> : <p className="empty-state">Run a snapshot to load the deployment sequence.</p>}
-    </aside>
+    <GuidedSetupRail initialization={initialization} steps={initSteps} preflightReady={preflightReady} onDrawer={onDrawer} onRun={onRun} onConfirm={onConfirm} onOpenMonitor={onOpenMonitor} />
   </section>;
+}
+
+function GuidedSetupRail({ initialization, steps, preflightReady, onDrawer, onRun, onConfirm, onOpenMonitor }: {
+  initialization: Record<string, unknown>; steps: Record<string, unknown>[]; preflightReady: boolean; onDrawer: (kind: DrawerKind, event: React.MouseEvent<HTMLButtonElement>) => void; onRun: Runner; onConfirm: (request: ConfirmRequest) => void; onOpenMonitor: () => void;
+}): React.JSX.Element {
+  const [selectedStepId, setSelectedStepId] = useState('');
+  const nextStepId = text(initialization.nextStepId);
+  const selected = steps.find((step) => text(step.id) === selectedStepId) ?? steps.find((step) => text(step.id) === nextStepId) ?? steps[0];
+  const status = text(initialization.status, initialization.deploymentLive === true ? 'Live' : initialization.deploymentReady === true ? 'Ready' : initialization.initialized === true ? 'Configured' : 'Guided setup');
+  const action = text(selected?.action);
+  const actionLabel = text(selected?.nextActionText, guidedActionLabel(action));
+  const serviceStart = action === 'all-services-toggle';
+  const actionDisabled = serviceStart && !preflightReady;
+
+  function runAction(event: React.MouseEvent<HTMLButtonElement>): void {
+    if (action === 'project-root' || action === 'secrets') { onDrawer('setup', event); return; }
+    if (action === 'interfaces' || action === 'endpoint-sync') { onDrawer('endpoint', event); return; }
+    if (action === 'os-images') { onDrawer('image', event); return; }
+    if (action === 'profiles') { onDrawer('profile', event); return; }
+    if (action === 'prepare-runtime') { onRun('Prepare runtime', api.prepareRuntime); return; }
+    if (action === 'preflight') { onRun('Run preflight', api.preflight); return; }
+    if (action === 'all-services-toggle') {
+      onConfirm({ title: 'Start deployment ingress', message: 'Confirm the real LAN DHCP arrangement is safe before starting HTTP, TFTP and DHCP.', label: 'Start deployment ingress', action: api.startAllServices });
+      return;
+    }
+    if (action === 'dashboard') onOpenMonitor();
+  }
+
+  return <aside className="guided-rail" aria-labelledby="guided-title">
+    <div className="guided-head"><p className="eyebrow">Guided setup</p><h2 id="guided-title">Set up deployment</h2><span className="status-pill">{status}</span></div>
+    {steps.length ? <><ol className="guided-steps">{steps.map((step, index) => {
+      const stepId = text(step.id, `step-${index + 1}`);
+      const selectedStep = stepId === text(selected?.id);
+      return <li key={stepId} className={text(step.status, step.done === true ? 'ready' : 'pending')}><button type="button" className={selectedStep ? 'guided-step selected' : 'guided-step'} aria-current={selectedStep ? 'step' : undefined} onClick={() => setSelectedStepId(stepId)}><strong>{text(step.title, text(step.label, text(step.name, `Step ${index + 1}`)))}</strong><span>{text(step.detail, text(step.status, 'pending'))}</span></button></li>;
+    })}</ol>{selected && <section className="guided-step-detail" aria-live="polite"><h3>{text(selected.title, text(selected.label, 'Deployment step'))}</h3><p>{text(selected.objective, text(selected.detail, 'Review this deployment requirement.'))}</p>{text(selected.safetyNote) && <p className="guided-safety">{text(selected.safetyNote)}</p>}{action && action !== 'setup' && <><button disabled={actionDisabled} aria-describedby={actionDisabled ? 'guided-preflight-gate' : undefined} title={actionDisabled ? 'Run preflight and resolve blocking failures first.' : undefined} onClick={runAction}>{actionLabel}</button>{actionDisabled && <p id="guided-preflight-gate" className="guided-gate">Run preflight and resolve blocking failures before starting services.</p>}</>}</section>}</> : <p className="empty-state">Run a snapshot to load the deployment sequence.</p>}
+  </aside>;
+}
+
+function guidedActionLabel(action: string): string {
+  return ({ 'project-root': 'Set project root', secrets: 'Save secrets', 'prepare-runtime': 'Prepare runtime', 'endpoint-sync': 'Sync endpoint', interfaces: 'Select endpoint', 'os-images': 'Open OS images', profiles: 'Publish profile', preflight: 'Run preflight', 'all-services-toggle': 'Start services', dashboard: 'Open Monitor' } as Record<string, string>)[action] ?? 'Open';
 }
 
 function ServiceCards({ root, preflightReady, onRun, onConfirm }: { root: DeploymentSnapshotResult; preflightReady: boolean; onRun: Runner; onConfirm: (request: ConfirmRequest) => void }): React.JSX.Element {
@@ -122,21 +160,22 @@ function ServiceCards({ root, preflightReady, onRun, onConfirm }: { root: Deploy
     else onRun(`Start ${name.toUpperCase()}`, action);
   };
   return <section className="service-section" aria-labelledby="services-title"><div className="section-heading"><div><p className="eyebrow">Ingress control</p><h2 id="services-title">Services</h2></div><div className="button-row"><button className="secondary" onClick={() => onRun('Stop deployment ingress', api.stopAllServices)}>Stop all</button><button disabled={!preflightReady} title={preflightReady ? undefined : 'Run preflight and resolve blocking failures first.'} onClick={() => onConfirm({ title: 'Start deployment ingress', message: 'Confirm the real LAN DHCP arrangement is safe before starting HTTP, TFTP and DHCP.', label: 'Start deployment ingress', action: api.startAllServices })}>Start all</button></div></div>
-    {!preflightReady && <p className="service-gate" role="status">Ingress start is gated until preflight reports no blocking failure.</p>}
+    {!preflightReady && <div className="service-gate" role="status"><span>Ingress start is gated until preflight reports no blocking failure.</span><button className="secondary" onClick={() => onRun('Run preflight', api.preflight)}>Run preflight</button></div>}
     <div className="service-grid">
-      {(['http', 'tftp', 'dhcp'] as const).map((name): React.JSX.Element => <ServiceCard key={name} name={name} service={asObject(services[name])} onStart={() => start(name)} onStop={() => onRun(`Stop ${name.toUpperCase()}`, () => api.stopService(name))} />)}
-      <TorrentTracker root={root} onRun={onRun} onConfirm={onConfirm} onStart={() => start('torrent')} onStop={() => onRun('Stop Torrent', () => api.stopService('torrent'))} />
+      {(['http', 'tftp', 'dhcp'] as const).map((name): React.JSX.Element => <ServiceCard key={name} name={name} service={asObject(services[name])} preflightReady={preflightReady} onStart={() => start(name)} onStop={() => onRun(`Stop ${name.toUpperCase()}`, () => api.stopService(name))} />)}
+      <TorrentTracker root={root} onRun={onRun} onConfirm={onConfirm} preflightReady={preflightReady} onStart={() => start('torrent')} onStop={() => onRun('Stop Torrent', () => api.stopService('torrent'))} />
     </div>
   </section>;
 }
 
-function ServiceCard({ name, service, onStart, onStop }: { name: 'http' | 'tftp' | 'dhcp'; service: Record<string, unknown>; onStart: () => void; onStop: () => void }): React.JSX.Element {
+function ServiceCard({ name, service, preflightReady, onStart, onStop }: { name: 'http' | 'tftp' | 'dhcp'; service: Record<string, unknown>; preflightReady: boolean; onStart: () => void; onStop: () => void }): React.JSX.Element {
   const running = service.running === true;
   const label = name === 'http' ? 'HTTP Server' : name === 'tftp' ? 'TFTP Server' : 'DHCP Server';
-  return <article className={`service-card ${running ? 'running' : 'stopped'}`}><div className="service-card-head"><h3>{label}</h3><span className="status-pill">{running ? 'Running' : 'Stopped'}</span></div><code>{text(service.address, text(service.url, 'Configured from live endpoint'))}</code><button onClick={running ? onStop : onStart}>{running ? `Stop ${name.toUpperCase()}` : `Start ${name.toUpperCase()}`}</button></article>;
+  const blocked = !running && !preflightReady;
+  return <article className={`service-card ${running ? 'running' : 'stopped'}`}><div className="service-card-head"><h3>{label}</h3><span className="status-pill">{running ? 'Running' : 'Stopped'}</span></div><code>{text(service.address, text(service.url, 'Configured from live endpoint'))}</code><button disabled={blocked} title={blocked ? 'Run preflight and resolve blocking failures first.' : undefined} onClick={running ? onStop : onStart}>{running ? `Stop ${name.toUpperCase()}` : `Start ${name.toUpperCase()}`}</button></article>;
 }
 
-function TorrentTracker({ root, onRun, onConfirm, onStart, onStop }: { root: DeploymentSnapshotResult; onRun: Runner; onConfirm: (request: ConfirmRequest) => void; onStart: () => void; onStop: () => void }): React.JSX.Element {
+function TorrentTracker({ root, onRun, onConfirm, preflightReady, onStart, onStop }: { root: DeploymentSnapshotResult; onRun: Runner; onConfirm: (request: ConfirmRequest) => void; preflightReady: boolean; onStart: () => void; onStop: () => void }): React.JSX.Element {
   const torrent = asObject(asObject(root.services).torrent);
   const distribution = asObject(torrent.distribution);
   const clients = list(distribution.clients).map(asObject);
@@ -144,7 +183,7 @@ function TorrentTracker({ root, onRun, onConfirm, onStart, onStop }: { root: Dep
   const [extensions, setExtensions] = useState<Record<string, string>>({});
   const running = torrent.running === true;
   return <article className={`service-card torrent-card ${running ? 'running' : 'stopped'}`}><div className="service-card-head"><h3>Torrent Tracker</h3><span className="status-pill">{distribution.emergency ? 'Emergency fallback' : running ? 'Running' : 'Stopped'}</span></div><code>{text(torrent.serverIp, 'P2P OS image distribution')}:{number(torrent, 'trackerPort', 6969)} · {torrent.seederRunning ? `seeding ${text(torrent.seeding, '')}` : 'no seed'}</code>
-    <div className="torrent-settings"><label>Default seed wait (minutes)<input aria-label="Default seed wait minutes" type="number" min="0" max="1440" value={seedMinutes} onChange={(event) => setSeedMinutes(event.target.value)} /></label><button className="secondary" onClick={() => onRun('Save torrent settings', () => api.updateTorrentSettings(Number(seedMinutes)))}>Save default</button><button className="secondary" onClick={running ? onStop : onStart}>{running ? 'Stop tracker' : 'Start tracker'}</button></div>
+    <div className="torrent-settings"><label>Default seed wait (minutes)<input aria-label="Default seed wait minutes" type="number" min="0" max="1440" value={seedMinutes} onChange={(event) => setSeedMinutes(event.target.value)} /></label><button className="secondary" onClick={() => onRun('Save torrent settings', () => api.updateTorrentSettings(Number(seedMinutes)))}>Save default</button><button className="secondary" disabled={!running && !preflightReady} title={!running && !preflightReady ? 'Run preflight and resolve blocking failures first.' : undefined} onClick={running ? onStop : onStart}>{running ? 'Stop tracker' : 'Start tracker'}</button></div>
     <div className="torrent-summary"><Metric label="Wave / batch" value={distribution.waveId ? `${text(distribution.waveId)} / ${text(distribution.batch, '-')}` : 'Idle'} /><Metric label="Swarm coverage" value={`${number(distribution, 'coveragePercent', 0)}%`} /><Metric label="Clients" value={`↓ ${number(asObject(distribution.phases), 'downloading', 0)} · seed ${number(asObject(distribution.phases), 'seeding', 0)} · wait ${number(asObject(distribution.phases), 'waiting', 0)}`} /></div>
     {Boolean(distribution.emergency) && <p className="torrent-warning">Emergency host fallback: {text(asObject(distribution.emergency).reason, 'active')}</p>}
     {clients.length > 0 && <div className="table-wrap"><table className="torrent-table"><thead><tr><th>Client</th><th>Phase</th><th>Progress</th><th>Sources / receivers</th><th>Seed wait</th><th>Action</th></tr></thead><tbody>{clients.map((client) => {

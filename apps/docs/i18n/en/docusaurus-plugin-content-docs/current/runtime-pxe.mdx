@@ -20,6 +20,10 @@ import { FlowExplorer } from '@site/src/components/FlowExplorer';
 6. Boot a Generation 2 Secure Boot client over UEFI IPv4 PXE and track it through `windows-desktop-ready`.
 7. Preserve run evidence and stop ingress.
 
+## Guided Setup in Deploy
+
+The right-side Guided Setup lets the operator select the current step and exposes only its mapped safe v2 action. When the ingress gate appears, select **Run preflight**. Until blocking failures are cleared, Start all and stopped HTTP, TFTP, DHCP and Torrent start controls remain disabled. It never starts services automatically.
+
 ## Boundary
 
 Offline ISO is an additive snapshot and does not replace PXE acceptance. A Git clone is not deployment runtime; never patch the Web-selected runtime root manually.
