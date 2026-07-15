@@ -653,7 +653,7 @@ function Wait-TorrentSeedWindow {
     Write-Host ''
     Write-Host ('=' * 72) -ForegroundColor Cyan
     Write-Host ' TORRENT SEED WAIT ACTIVE' -ForegroundColor Cyan
-    Write-Host " Deadline: $($Context.seedDeadline.ToString('G'))" -ForegroundColor Cyan
+    Write-Host " Deadline: $($Context.seedDeadline.ToString('u')) UTC" -ForegroundColor Cyan
     Write-Host ' [E] Extend seed time    [Enter] Continue to reboot now' -ForegroundColor Yellow
     Write-Host ('=' * 72) -ForegroundColor Cyan
     Start-Sleep -Milliseconds 250
@@ -708,7 +708,7 @@ function Wait-TorrentSeedWindow {
                 }
             }
         } catch {}
-        $now = Get-Date
+        $now = [datetime]::UtcNow
         if ($now -ge $Context.seedDeadline) {
             if (-not $graceDeadline) {
                 $graceDeadline = $now.AddSeconds(60)
@@ -716,22 +716,22 @@ function Wait-TorrentSeedWindow {
             }
             elseif ($now -ge $graceDeadline) { break }
         }
-        if (((Get-Date) - $lastDisplay).TotalSeconds -ge 5) {
+        if (([datetime]::UtcNow - $lastDisplay).TotalSeconds -ge 5) {
             try {
                 $status = Invoke-Aria2Rpc -Method 'aria2.tellStatus' -Secret $Context.rpcSecret -Gid $Context.gid -Keys @('uploadLength', 'uploadSpeed')
                 $peers = @(Invoke-Aria2Rpc -Method 'aria2.getPeers' -Secret $Context.rpcSecret -Gid $Context.gid)
                 $lastUpload = [math]::Max($lastUpload, [double] $status.uploadLength)
                 $receivers = @($peers | Where-Object { [double] $_.uploadSpeed -gt 0 } | ForEach-Object { "$($_.ip):$($_.port)" } | Sort-Object -Unique)
-                $remaining = if ($graceDeadline) { $graceDeadline - (Get-Date) } else { $Context.seedDeadline - (Get-Date) }
+                $remaining = if ($graceDeadline) { $graceDeadline - [datetime]::UtcNow } else { $Context.seedDeadline - [datetime]::UtcNow }
                 $totalWaitMinutes = $Context.seedBaseMinutes + $Context.seedLocalExtensionMinutes + $Context.seedHostExtensionMinutes
                 Write-Progress -Id 23 -Activity 'Torrent seed wait' -Status ("remaining {0} | uploaded {1:N2} GiB | receivers {2}" -f (Format-TorrentEta -Seconds $remaining.TotalSeconds), ($lastUpload / 1GB), $receivers.Count) -PercentComplete ([math]::Max(0, [math]::Min(100, 100 - (($remaining.TotalSeconds / [math]::Max(1, $totalWaitMinutes * 60)) * 100))))
             } catch {}
-            $lastDisplay = Get-Date
+            $lastDisplay = [datetime]::UtcNow
         }
-        if (((Get-Date) - $lastConsoleReminder).TotalSeconds -ge 30) {
-            $remaining = if ($graceDeadline) { $graceDeadline - (Get-Date) } else { $Context.seedDeadline - (Get-Date) }
+        if (([datetime]::UtcNow - $lastConsoleReminder).TotalSeconds -ge 30) {
+            $remaining = if ($graceDeadline) { $graceDeadline - [datetime]::UtcNow } else { $Context.seedDeadline - [datetime]::UtcNow }
             Write-Host ("Torrent seed wait active: {0} remaining. [E] Extend | [Enter] Reboot now" -f (Format-TorrentEta -Seconds $remaining.TotalSeconds)) -ForegroundColor Cyan
-            $lastConsoleReminder = Get-Date
+            $lastConsoleReminder = [datetime]::UtcNow
         }
         Start-Sleep -Seconds 1
     }
@@ -1049,7 +1049,7 @@ function Invoke-TorrentOsImageDownload {
         Write-Host ("  Uploaded: {0:N2} GiB" -f ($lastUploadLength / 1GB))
         Write-Host "  Sources used: $(if ($sourceSummary.Count) { $sourceSummary -join ', ' } else { 'none observed' })"
         Write-Host "  Uploaded to: $(if ($receiverSummary.Count) { $receiverSummary -join ', ' } else { 'none observed' })"
-        $completedAt = Get-Date
+        $completedAt = [datetime]::UtcNow
         $seedDeadline = $completedAt.AddMinutes($seedMinutes)
         $contextPath = Join-Path $logRoot 'TorrentTransferContext.json'
         $telemetryStatePath = Join-Path $logRoot 'TorrentTelemetryState.json'

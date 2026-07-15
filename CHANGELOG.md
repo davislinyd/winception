@@ -1,5 +1,7 @@
 # Changelog
 
+- Alpha 12 makes the WinPE torrent seed window monotonic across Hyper-V time synchronization and time-zone changes by calculating deadlines and countdowns in UTC. MSI `ProductVersion` advances to `2.0.27`; the host-memory acceptance scope is two consecutive two-client rounds.
+
 ## Unreleased
 
 ### v2 productization rewrite

@@ -1244,7 +1244,10 @@ test('WinPE torrent download shows local progress and active peers through loopb
   assert.match(script, /seedHostExtensionMinutes/);
   assert.match(script, /-DisableKeepAlive/);
   assert.match(script, /aria2\.shutdown/);
+  assert.match(script, /\$completedAt = \[datetime\]::UtcNow/);
   assert.match(script, /seedDeadline = \$completedAt\.AddMinutes\(\$seedMinutes\)/);
+  assert.match(script, /\$now = \[datetime\]::UtcNow/);
+  assert.match(script, /Deadline: \$\(\$Context\.seedDeadline\.ToString\('u'\)\) UTC/);
   assert.match(script, /Wait-TorrentSeedWindow -Context \$torrentTransfer/);
   assert.match(script, /Report-TorrentTelemetry\.ps1/);
   assert.match(script, /torrent-seed-wait/);
