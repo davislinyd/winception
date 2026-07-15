@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Winception Management API",
-    "version": "2.0.0-alpha.14"
+    "version": "2.0.0-alpha.15"
   },
   "components": {
     "schemas": {}
@@ -47,7 +47,7 @@
                     "version": {
                       "type": "string",
                       "enum": [
-                        "2.0.0-alpha.14"
+                        "2.0.0-alpha.15"
                       ]
                     },
                     "contractVersion": {
@@ -325,7 +325,7 @@
                         "version": {
                           "type": "string",
                           "enum": [
-                            "2.0.0-alpha.14"
+                            "2.0.0-alpha.15"
                           ]
                         },
                         "contractVersion": {
@@ -26821,24 +26821,42 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": false,
-                "type": "object",
-                "required": [
-                  "runId",
-                  "clientId"
-                ],
-                "properties": {
-                  "runId": {
-                    "minLength": 1,
-                    "maxLength": 128,
-                    "type": "string"
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "runId"
+                    ],
+                    "properties": {
+                      "runId": {
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "type": "string"
+                      },
+                      "clientId": {
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "type": "string"
+                      }
+                    }
                   },
-                  "clientId": {
-                    "minLength": 1,
-                    "maxLength": 128,
-                    "type": "string"
+                  {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "allWaiting"
+                    ],
+                    "properties": {
+                      "allWaiting": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      }
+                    }
                   }
-                }
+                ]
               }
             }
           }
@@ -27327,7 +27345,7 @@
                 "type": "object",
                 "required": [
                   "runId",
-                  "clientId"
+                  "additionalMinutes"
                 ],
                 "properties": {
                   "runId": {
@@ -27339,6 +27357,11 @@
                     "minLength": 1,
                     "maxLength": 128,
                     "type": "string"
+                  },
+                  "additionalMinutes": {
+                    "minimum": 1,
+                    "maximum": 1440,
+                    "type": "integer"
                   }
                 }
               }

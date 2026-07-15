@@ -7,7 +7,8 @@ import {
   type SoftwareTestAbortPayload,
   type SoftwareTestStartPayload,
   type SystemState,
-  type TorrentClientPayload,
+  type TorrentExtendPayload,
+  type TorrentReleasePayload,
   type TorrentSettingsPayload,
 } from '../../../packages/contracts/src/index.js';
 import { OperationCoordinator } from '../../../packages/application/src/operationCoordinator.js';
@@ -104,7 +105,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   });
 
   registry.register('torrent.client.release', (payload) => {
-    const input = payload as TorrentClientPayload;
+    const input = payload as TorrentReleasePayload;
     const started = coordinator.start({ label: 'Releasing torrent client', resources: ['runtime-control'] }, () => {
       return options.controller.runExternallyCoordinated(() => options.controller.releaseTorrentClients(input));
     });
@@ -113,7 +114,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
   });
 
   registry.register('torrent.client.extend', (payload) => {
-    const input = payload as TorrentClientPayload;
+    const input = payload as TorrentExtendPayload;
     const started = coordinator.start({ label: 'Extending torrent client', resources: ['runtime-control'] }, () => {
       return options.controller.runExternallyCoordinated(() => options.controller.extendTorrentClient(input));
     });

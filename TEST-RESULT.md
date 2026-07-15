@@ -2,6 +2,12 @@
 
 Authoritative versioned evidence and no-AI operator runbook. Evidence proves only the exact version, layer, path and date shown; historical v1 evidence does not constitute v2 release acceptance.
 
+## v2.0.0-alpha.15 v1 familiar UX — local source verification, 2026-07-16
+
+- Scope: React v1-style Deploy / Monitor shell, service cards, Fleet / evidence, torrent row actions, operation states, versioned payloads and evidence-free `deployment.changed` SSE recovery. This is source/UI evidence only; it does not prove the installed bundle, MSI, runtime, PXE, VM or physical-laptop acceptance.
+- Passed locally: `v2:typecheck`, `v2:lint`, `v2:cycles` (0 cycles), `v2:openapi:check`, `v2:test` (50/50), `v2:e2e` (4/4), `v2:docs:check`, `v2:diagrams:check`, `docs:check` and `docs:e2e` (2/2). E2E covers navigation, service/TFTP/torrent row actions, accepted/409/safe failure states, SSE reconnect REST recovery, manual refresh, keyboard/focus/axe, narrow viewport and reduced motion.
+- Remote product CI, prerelease publication, GitHub Pages publication, tag, push and `master` merge were not run. Existing `tools/Restart-HyperVms.ps1` remains outside this work.
+
 ## Release-readiness matrix
 
 | Version | Source/CI | Installed bundle/MSI | VM deployment | Physical laptop | Decision |

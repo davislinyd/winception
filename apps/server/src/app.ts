@@ -19,6 +19,7 @@ import {
   WINCEPTION_V2_VERSION,
   CONTRACT_VERSION,
   type OperationRecord,
+  type DeploymentSnapshotResult,
   type SystemState,
 } from '../../../packages/contracts/src/index.js';
 import { AgentUnavailableError, OperationConflictError, ValidationError } from '../../../packages/domain/src/errors.js';
@@ -36,6 +37,12 @@ export interface WebAppOptions {
   logger?: boolean;
   tls?: ServerOptions;
   uploadStore?: UploadStore;
+}
+
+export function deploymentSnapshotFingerprint(deployment: DeploymentSnapshotResult): string {
+  const stableDeployment: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(deployment)) if (key !== 'generatedAt') stableDeployment[key] = value;
+  return JSON.stringify(stableDeployment);
 }
 
 export async function createWebApp(options: WebAppOptions): Promise<FastifyInstance> {
@@ -155,20 +162,25 @@ export async function createWebApp(options: WebAppOptions): Promise<FastifyInsta
   let polling = false;
   let stateFingerprint = '';
   let operationFingerprint = '';
+  let deploymentFingerprint = '';
   const poll = setInterval(() => {
     if (polling) return;
     polling = true;
     void Promise.all([
       options.agent.request<SystemState>('system.state', {}),
       options.agent.request('operations.list', {}),
-    ]).then(([state, operations]) => {
+      options.agent.request<DeploymentSnapshotResult>('deployment.snapshot', { includeEvidence: false }),
+    ]).then(([state, operations, deployment]) => {
       const stableState = { ...state, updatedAt: '' };
       const nextState = JSON.stringify(stableState);
       const nextOperations = JSON.stringify(operations);
+      const nextDeployment = deploymentSnapshotFingerprint(deployment);
       if (stateFingerprint && stateFingerprint !== nextState) events.publish('state.changed', state);
       if (operationFingerprint && operationFingerprint !== nextOperations) events.publish('operation.changed', operations);
+      if (deploymentFingerprint && deploymentFingerprint !== nextDeployment) events.publish('deployment.changed', {});
       stateFingerprint = nextState;
       operationFingerprint = nextOperations;
+      deploymentFingerprint = nextDeployment;
     }).catch(() => undefined).finally(() => { polling = false; });
   }, 2_000);
   heartbeat.unref();
@@ -245,6 +257,9 @@ function normalizeError(error: unknown, correlationId: string): { statusCode: nu
   }
   if (error instanceof AgentUnavailableError) {
     return { statusCode: error.statusCode, body: { error: { code: error.code, message: error.message, correlationId } } };
+  }
+  if (error && typeof error === 'object' && 'validation' in error) {
+    return { statusCode: 400, body: { error: { code: 'VALIDATION_FAILED', message: 'The request payload is invalid.', correctiveAction: 'Review the required fields and try again.', correlationId } } };
   }
   const candidate = error instanceof Error
     ? error as Error & { code?: string; statusCode?: number; correctiveAction?: string }

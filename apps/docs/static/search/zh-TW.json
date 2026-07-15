@@ -40,11 +40,12 @@
       "title": "開始使用",
       "description": "在全新 Windows 11 VM 安全安裝 Winception 2.0 的最短路徑。",
       "headings": [
+        "v1 熟悉操作介面",
         "本輪驗收範圍",
         "需要準備",
         "完成定義"
       ],
-      "body": "開始使用 Winception 2.0 是單機內部部署產品。管理面預設只綁定 127.0.0.1:8080 ；PXE 的 DHCP、TFTP、HTTP 是獨立資料面。 本輪驗收範圍 1. 全新 Windows 11 Pro／Enterprise x64 VM，Generation 2、Nested Virtualization、雙 NIC。 2. fresh install → repair → uninstall（State 保留）→ reinstall。 3. 一台至少 4 GB RAM 的 Generation 2 Secure Boot client 到 windows-desktop-ready 。 4. ingress stopped、Fleet empty 後完成一次 Software Test 並還原 checkpoint。 本輪不把單 client 當成兩輪各四台 VM 或實體 laptop 的證據。完成前版本只能標示為 internal prerelease。 需要準備 - Winception-v2.msi - Winception-Local-CodeSigning.cer - Install-Winception.ps1 - release-manifest.json 與 SHA256SUMS - elevated PowerShell；至少 2 GB 系統碟空間 - 可上網的管理 NIC，以及沒有其他 DHCP responder 的隔離 PXE NIC 先完成 VM topology /docs/vm-topology ，再使用 互動安裝工具 /docs/install 。安裝工具不修改 NIC，也不啟動 DHCP。 完成定義 Source tests、MSI hash 或 Web health 單獨通過都不等於 VM 驗收完成。接受證據必須標示 exact Git commit、MSI SHA-256、installed VM、PXE client 與 Software Test run。",
+      "body": "開始使用 Winception 2.0 是單機內部部署產品。管理面預設只綁定 127.0.0.1:8080 ；PXE 的 DHCP、TFTP、HTTP 是獨立資料面。 v1 熟悉操作介面 v2 的 Deploy / Monitor 保留 v1 熟悉的工作順序：先在 Deploy 查看 Profile、OS Image、Endpoint 與 HTTP／TFTP／DHCP／Torrent 狀態，再在 Monitor 用 Fleet 卡片、stage flow、evidence 與 torrent tracker 追蹤 client。畫面按鈕仍是 v2 非同步 operations：先顯示 accepted operation ID，接著顯示 running／succeeded／failed； 409 OPERATION CONFLICT 會列出衝突 operation 與 resource。SSE 的 deployment.changed 只要求瀏覽器重新取得 REST snapshot，不會傳送 Fleet、log 或 evidence 原文。torrent 的 Extend／Continue 直接從對應列操作，無須手動輸入 run ID 或 client ID。 本輪驗收範圍 1. 全新 Windows 11 Pro／Enterprise x64 VM，Generation 2、Nested Virtualization、雙 NIC。 2. fresh install → repair → uninstall（State 保留）→ reinstall。 3. 一台至少 4 GB RAM 的 Generation 2 Secure Boot client 到 windows-desktop-ready 。 4. ingress stopped、Fleet empty 後完成一次 Software Test 並還原 checkpoint。 本輪不把單 client 當成兩輪各四台 VM 或實體 laptop 的證據。完成前版本只能標示為 internal prerelease。 需要準備 - Winception-v2.msi - Winception-Local-CodeSigning.cer - Install-Winception.ps1 - release-manifest.json 與 SHA256SUMS - elevated PowerShell；至少 2 GB 系統碟空間 - 可上網的管理 NIC，以及沒有其他 DHCP responder 的隔離 PXE NIC 先完成 VM topology /docs/vm-topology ，再使用 互動安裝工具 /docs/install 。安裝工具不修改 NIC，也不啟動 DHCP。 完成定義 Source tests、MSI hash 或 Web health 單獨通過都不等於 VM 驗收完成。接受證據必須標示 exact Git commit、MSI SHA-256、installed VM、PXE client 與 Software Test run。",
       "url": "/docs/getting-started"
     },
     {

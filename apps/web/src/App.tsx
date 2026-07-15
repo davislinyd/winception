@@ -1,24 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
-import { WINCEPTION_V2_VERSION, type OperationRecord, type SystemState } from '../../../packages/contracts/src/index.js';
+import { WINCEPTION_V2_VERSION, type DeploymentSnapshotResult, type OperationRecord, type SystemState } from '../../../packages/contracts/src/index.js';
+import { FamiliarConsole, type ConnectionState } from './features/familiar/FamiliarConsole.js';
 import { ActionPanel } from './features/actions/ActionPanel.js';
-import { Operations } from './features/operations/Operations.js';
-import { Overview } from './features/overview/Overview.js';
 import { ProductControls } from './features/product/ProductControls.js';
-import { MonitorPanel } from './features/monitor/MonitorPanel.js';
 import { api, ApiRequestError } from './shared/api.js';
 
 export function App(): React.JSX.Element {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [state, setState] = useState<SystemState | null>(null);
+  const [snapshot, setSnapshot] = useState<DeploymentSnapshotResult | null>(null);
   const [operations, setOperations] = useState<OperationRecord[]>([]);
+  const [accepted, setAccepted] = useState<Array<{ id: string; label: string }>>([]);
+  const [connection, setConnection] = useState<ConnectionState>('connecting');
+  const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<ApiRequestError | null>(null);
 
-  const refresh = useCallback(async (): Promise<void> => {
+  const refresh = useCallback(async (reason?: 'deployment-change'): Promise<void> => {
     try {
-      const [nextState, nextOperations] = await Promise.all([api.state(), api.operations()]);
+      const [nextState, nextOperations, nextSnapshot] = await Promise.all([api.state(), api.operations(), api.snapshot()]);
       setState(nextState);
       setOperations(nextOperations);
+      setSnapshot(nextSnapshot);
+      setAccepted((current) => current.filter((item) => !nextOperations.some((operation) => operation.id === item.id)));
+      if (reason === 'deployment-change') setSnapshotStatus('Snapshot refreshed');
       setAuthenticated(true);
       setError(null);
     }
@@ -38,34 +43,35 @@ export function App(): React.JSX.Element {
     if (!authenticated) return undefined;
     const source = new EventSource('/api/v2/events', { withCredentials: true });
     const update = (): void => { void refresh(); };
+    const deploymentUpdate = (): void => { void refresh('deployment-change'); };
+    source.onopen = () => setConnection('live');
     source.addEventListener('state.changed', update);
     source.addEventListener('operation.changed', update);
-    source.onerror = () => { void refresh(); };
+    source.addEventListener('deployment.changed', deploymentUpdate);
+    source.onerror = () => { setConnection('reconnecting'); void refresh(); };
     return () => source.close();
   }, [authenticated, refresh]);
 
   if (authenticated === null) return <main className="centered"><p>Connecting to Winception…</p></main>;
   if (!authenticated) return <Login onSuccess={() => { setAuthenticated(true); void refresh(); }} onError={(caught) => setError(normalizeError(caught))} error={error} />;
 
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div><span className="brand-mark">W</span><div><strong>Winception</strong><small>{WINCEPTION_V2_VERSION}</small></div></div>
-        <button className="secondary compact" onClick={() => { void api.logout().finally(() => setAuthenticated(false)); }}>Sign out</button>
-      </header>
-      <main>
-        <div className="hero"><p className="eyebrow">Windows 11 zero-touch deployment</p><h1>Deployment control plane</h1><p>Every mutation is schema-validated, resource-locked, and delegated to the privileged Agent.</p></div>
-        {error && <ErrorBanner error={error} onClose={() => setError(null)} />}
-        {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss notification" onClick={() => setNotice(null)}>×</button></div>}
-        {state ? <Overview state={state} /> : <p className="empty-state">State is temporarily unavailable.</p>}
-        <MonitorPanel onCompleted={(message) => setNotice(message)} onError={(caught) => setError(normalizeError(caught))} />
-        <ProductControls onCompleted={(message) => { setNotice(message); void refresh(); }} onError={(caught) => setError(normalizeError(caught))} />
-        <ActionPanel onCompleted={(message) => { setNotice(message); void refresh(); }} onError={(caught) => setError(normalizeError(caught))} />
-        <Operations operations={operations} />
-      </main>
-      <ProductLegalNotice />
-    </div>
-  );
+  function run(label: string, action: () => Promise<unknown>): void {
+    void action().then((value) => {
+      if (typeof value === 'string') {
+        setAccepted((current) => [{ id: value, label }, ...current.filter((item) => item.id !== value)]);
+        setNotice(`${label} accepted as ${value}.`);
+      } else setNotice(`${label} completed.`);
+      void refresh();
+    }).catch((caught) => setError(normalizeError(caught)));
+  }
+
+  return <div className="app-shell">
+    {error && <ErrorBanner error={error} onClose={() => setError(null)} />}
+    {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss notification" onClick={() => setNotice(null)}>×</button></div>}
+    <FamiliarConsole state={state} snapshot={snapshot} operations={operations} accepted={accepted} connection={connection} snapshotStatus={snapshotStatus} configurationControls={<><ProductControls onCompleted={(message) => { setNotice(message); void refresh(); }} onError={(caught) => setError(normalizeError(caught))} /><ActionPanel onCompleted={(message) => { setNotice(message); void refresh(); }} onError={(caught) => setError(normalizeError(caught))} /></>} onRefresh={() => { setConnection('connecting'); void refresh(); }} onRun={run} />
+    <button className="sign-out-button secondary compact" onClick={() => { void api.logout().finally(() => setAuthenticated(false)); }}>Sign out</button>
+    <ProductLegalNotice />
+  </div>;
 }
 
 function Login({ onSuccess, onError, error }: { onSuccess: () => void; onError: (error: unknown) => void; error: ApiRequestError | null }): React.JSX.Element {
@@ -107,11 +113,11 @@ function ProductLegalNotice(): React.JSX.Element {
 }
 
 function ErrorBanner({ error, onClose }: { error: ApiRequestError; onClose: () => void }): React.JSX.Element {
-  return <div className="error-banner" role="alert"><div><strong>{error.message}</strong>{error.correctiveAction && <p>{error.correctiveAction}</p>}<small>Code {error.code}{error.correlationId ? ` · ${error.correlationId}` : ''}</small></div><button aria-label="Dismiss error" onClick={onClose}>×</button></div>;
+  return <div className="error-banner" role="alert"><div><strong>{error.message}</strong>{error.correctiveAction && <p>{error.correctiveAction}</p>}{error.conflicts.length > 0 && <p>Conflicting operations: {error.conflicts.map((conflict) => `${conflict.operationId}: ${conflict.label} (${conflict.resources.join(', ')})`).join('; ')}</p>}<small>Code {error.code}{error.correlationId ? ` · ${error.correlationId}` : ''}</small></div><button aria-label="Dismiss error" onClick={onClose}>×</button></div>;
 }
 
 function normalizeError(error: unknown): ApiRequestError {
   return error instanceof ApiRequestError
     ? error
-    : new ApiRequestError('CLIENT_ERROR', 'The management request failed.', undefined, undefined, 0);
+    : new ApiRequestError('CLIENT_ERROR', 'The management request failed.', undefined, undefined, 0, []);
 }

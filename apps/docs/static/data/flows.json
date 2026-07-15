@@ -34,7 +34,7 @@
           "衝突回傳 409 OPERATION_CONFLICT",
           "Agent 執行 allow-list command",
           "完成、失敗或中止皆釋放 locks",
-          "snapshot／SSE 恢復 UI 狀態"
+          "deployment.changed 觸發 REST snapshot 恢復 UI"
         ]
       }
     ],
@@ -71,7 +71,7 @@
           "A conflict returns 409 OPERATION_CONFLICT",
           "The Agent executes an allow-listed command",
           "Completion, failure and abort release every lock",
-          "REST snapshot and SSE restore UI state"
+          "deployment.changed triggers REST snapshot recovery"
         ]
       }
     ]

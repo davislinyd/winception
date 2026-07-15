@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentCommandName, SystemState } from '../../../packages/contracts/src/index.js';
+import type { AgentCommandName, DeploymentSnapshotResult, SystemState } from '../../../packages/contracts/src/index.js';
 import { CONTRACT_VERSION, WINCEPTION_V2_VERSION } from '../../../packages/contracts/src/index.js';
-import { createWebApp } from '../src/app.js';
+import { createWebApp, deploymentSnapshotFingerprint } from '../src/app.js';
 import type { AgentClientPort } from '../src/ports.js';
 import { UploadStore } from '../../../packages/infrastructure/src/uploadStore.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -66,6 +66,36 @@ test('management API requires a session and enforces same-origin mutation header
   finally {
     await app.close();
   }
+});
+
+test('torrent release and extend keep their versioned payload boundary', async () => {
+  const agent = new FakeAgent();
+  const app = await createWebApp({ agent, managementToken, secureCookie: false });
+  try {
+    const headers = { 'x-winception-token': managementToken };
+    const invalidExtend = await app.inject({ method: 'POST', url: '/api/v2/torrent/extend', headers, payload: { runId: 'run-1' } });
+    assert.equal(invalidExtend.statusCode, 400);
+    assert.equal(invalidExtend.json().error.code, 'VALIDATION_FAILED');
+
+    const extend = await app.inject({ method: 'POST', url: '/api/v2/torrent/extend', headers, payload: { runId: 'run-1', additionalMinutes: 15 } });
+    assert.equal(extend.statusCode, 202);
+    assert.deepEqual(agent.calls.at(-1), { command: 'torrent.client.extend', payload: { runId: 'run-1', additionalMinutes: 15 } });
+
+    const release = await app.inject({ method: 'POST', url: '/api/v2/torrent/release', headers, payload: { allWaiting: true } });
+    assert.equal(release.statusCode, 202);
+    assert.deepEqual(agent.calls.at(-1), { command: 'torrent.client.release', payload: { allWaiting: true } });
+  }
+  finally {
+    await app.close();
+  }
+});
+
+test('deployment snapshot fingerprints ignore generatedAt and retain live Fleet changes', () => {
+  const base = { generatedAt: '2026-07-16T00:00:00.000Z', fleet: { runs: [{ runId: 'run-1', percent: 20 }] } } as unknown as DeploymentSnapshotResult;
+  const timestampOnly = { ...base, generatedAt: '2026-07-16T00:00:02.000Z' };
+  const changedFleet = { ...base, fleet: { runs: [{ runId: 'run-1', percent: 21 }] } };
+  assert.equal(deploymentSnapshotFingerprint(base), deploymentSnapshotFingerprint(timestampOnly));
+  assert.notEqual(deploymentSnapshotFingerprint(base), deploymentSnapshotFingerprint(changedFleet));
 });
 
 test('binary uploads are staged under opaque tokens and require an explicit commit', async () => {

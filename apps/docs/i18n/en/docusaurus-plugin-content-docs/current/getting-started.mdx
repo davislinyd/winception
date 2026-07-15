@@ -8,6 +8,10 @@ description: The shortest safe path to install Winception 2.0 on a fresh Windows
 
 Winception 2.0 is a single-host, on-premises product. Management binds to `127.0.0.1:8080` by default; PXE DHCP, TFTP and HTTP form a separate data plane.
 
+## Familiar v1 workflow
+
+v2's **Deploy / Monitor** preserves v1's familiar order: inspect Profile, OS Image, Endpoint and HTTP/TFTP/DHCP/Torrent state in Deploy, then track clients through Fleet cards, stage flow, evidence and the torrent tracker in Monitor. Buttons still create asynchronous v2 operations: the UI first shows the accepted operation ID, then running/succeeded/failed state; `409 OPERATION_CONFLICT` lists the conflicting operation and resource. The `deployment.changed` SSE event only tells the browser to retrieve a REST snapshot; it never carries raw Fleet, log or evidence data. Torrent Extend/Continue is invoked from the corresponding row, without manually entering a run ID or client ID.
+
 ## Acceptance scope
 
 1. A fresh Windows 11 Pro or Enterprise x64 Generation 2 VM with nested virtualization and two NICs.

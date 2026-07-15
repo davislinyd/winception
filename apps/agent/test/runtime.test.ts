@@ -51,7 +51,7 @@ test('torrent runtime control and OS cache use independent resources', async () 
   controller.startOsDownload = () => ({ promise: new Promise<void>((resolve) => { releaseDownload = resolve; }) });
   const runtime = createAgentRuntime({ controller, operationRepository: operations });
   await runtime.registry.execute('os-image.download.start', { imageId: 'win11' });
-  await runtime.registry.execute('torrent.client.extend', { runId: 'run-1', clientId: 'client-1' });
+  await runtime.registry.execute('torrent.client.extend', { runId: 'run-1', clientId: 'client-1', additionalMinutes: 15 });
   releaseDownload();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal([...operations.records.values()].some((record) => record.status === 'failed'), false);

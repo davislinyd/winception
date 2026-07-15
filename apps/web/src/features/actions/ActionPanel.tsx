@@ -73,17 +73,17 @@ function OsImage({ busy, run }: { busy: string | null; run: Runner }): React.JSX
 function Torrent({ busy, run }: { busy: string | null; run: Runner }): React.JSX.Element {
   const [seedMinutes, setSeedMinutes] = useState('15');
   const [runId, setRunId] = useState('');
-  const [clientId, setClientId] = useState('');
+  const [additionalMinutes, setAdditionalMinutes] = useState('15');
   return (
     <article className="action-card">
       <h3>Torrent controls</h3>
       <label>Seed minutes<input type="number" min="0" max="1440" value={seedMinutes} onChange={(event) => setSeedMinutes(event.target.value)} /></label>
       <button disabled={Boolean(busy)} onClick={() => { void run('Torrent settings', () => api.updateTorrentSettings(Number(seedMinutes))); }}>Save settings</button>
       <label>Run ID<input value={runId} onChange={(event) => setRunId(event.target.value)} /></label>
-      <label>Client ID<input value={clientId} onChange={(event) => setClientId(event.target.value)} /></label>
+      <label>Additional seed minutes<input type="number" min="1" max="1440" value={additionalMinutes} onChange={(event) => setAdditionalMinutes(event.target.value)} /></label>
       <div className="button-row">
-        <button className="secondary" disabled={Boolean(busy) || !runId.trim() || !clientId.trim()} onClick={() => { void run('Extend client', () => api.extendTorrentClient(runId.trim(), clientId.trim())); }}>Extend</button>
-        <button className="danger" disabled={Boolean(busy) || !runId.trim() || !clientId.trim()} onClick={() => { void run('Release client', () => api.releaseTorrentClient(runId.trim(), clientId.trim())); }}>Release</button>
+        <button className="secondary" disabled={Boolean(busy) || !runId.trim()} onClick={() => { void run('Extend client', () => api.extendTorrentClient(runId.trim(), Number(additionalMinutes))); }}>Extend</button>
+        <button className="danger" disabled={Boolean(busy) || !runId.trim()} onClick={() => { void run('Release client', () => api.releaseTorrentClient(runId.trim())); }}>Release</button>
       </div>
     </article>
   );

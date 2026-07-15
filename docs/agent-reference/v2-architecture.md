@@ -32,9 +32,13 @@
 
 The v1 Controller remains behind a compatibility adapter for proven OSDCloud operations. `AsyncLocalStorage` marks calls already owned by the v2 coordinator, so the v1 inner lock does not falsely serialize independent resources. New v2 code must not import Controller internals outside the Agent composition/adapter layer.
 
-## Operation rules
+## Familiar Deploy / Monitor UI and operation rules
 
-Resources have one canonical order: `config`, `deployment-ingress`, `runtime`, `os-cache`, `profile-payload`, `software-test-vm`, `evidence`, `runtime-control`. Acquire atomically; never wait while holding a partial set. Software Test rechecks stopped ingress and empty Fleet while holding the same lock. Persist start and terminal state. On Agent restart, orphaned `running` records become `failed / AGENT_RESTARTED`. Mutations return operation IDs; REST snapshots recover SSE disconnects.
+The React shell recreates v1's Deploy / Monitor information hierarchy (configuration summary, service cards, guided rail, Fleet, torrent tracker, evidence drawer and console dock) without importing v1 Controller JavaScript or CSS. It consumes `deployment.snapshot` as a read model; raw command lines, secrets and privileged paths never enter the UI.
+
+Resources have one canonical order: `config`, `deployment-ingress`, `runtime`, `os-cache`, `profile-payload`, `software-test-vm`, `evidence`, `runtime-control`. Acquire atomically; never wait while holding a partial set. Software Test rechecks stopped ingress and empty Fleet while holding the same lock. Persist start and terminal state. On Agent restart, orphaned `running` records become `failed / AGENT_RESTARTED`. Mutations return operation IDs; the UI displays accepted, running and terminal state, and preserves a `409 OPERATION_CONFLICT` response with conflicting operation/resources.
+
+`deployment.changed` is an additive versioned SSE event. The Server fingerprints the evidence-free `deployment.snapshot` every two seconds and publishes `{}` only when its stable content changes. The browser then re-reads the REST snapshot; Fleet/log/evidence payloads are never transported by SSE. Torrent release accepts either a row-supplied `runId` with optional `clientId` or `{ allWaiting: true }`; extend requires that row's `runId`, optional `clientId`, and bounded `additionalMinutes`. Both remain allow-listed `runtime-control` mutations.
 
 ## Verification
 

@@ -1,6 +1,6 @@
 import { Type, type Static, type TSchema } from '@sinclair/typebox';
 
-export const WINCEPTION_V2_VERSION = '2.0.0-alpha.14' as const;
+export const WINCEPTION_V2_VERSION = '2.0.0-alpha.15' as const;
 export const CONTRACT_VERSION = 1 as const;
 
 export const JsonValueSchema = Type.Recursive((This) => Type.Union([
@@ -383,11 +383,21 @@ export const TorrentSettingsPayloadSchema = Type.Object({
   seedMinutes: Type.Integer({ minimum: 0, maximum: 1440 }),
 }, { additionalProperties: false });
 export type TorrentSettingsPayload = Static<typeof TorrentSettingsPayloadSchema>;
-export const TorrentClientPayloadSchema = Type.Object({
-  runId: Type.String({ minLength: 1, maxLength: 128 }),
-  clientId: Type.String({ minLength: 1, maxLength: 128 }),
+const TorrentRunIdSchema = Type.String({ minLength: 1, maxLength: 128 });
+const OptionalTorrentClientIdSchema = Type.Optional(Type.String({ minLength: 1, maxLength: 128 }));
+
+export const TorrentReleasePayloadSchema = Type.Union([
+  Type.Object({ runId: TorrentRunIdSchema, clientId: OptionalTorrentClientIdSchema }, { additionalProperties: false }),
+  Type.Object({ allWaiting: Type.Literal(true) }, { additionalProperties: false }),
+]);
+export type TorrentReleasePayload = Static<typeof TorrentReleasePayloadSchema>;
+
+export const TorrentExtendPayloadSchema = Type.Object({
+  runId: TorrentRunIdSchema,
+  clientId: OptionalTorrentClientIdSchema,
+  additionalMinutes: Type.Integer({ minimum: 1, maximum: 1440 }),
 }, { additionalProperties: false });
-export type TorrentClientPayload = Static<typeof TorrentClientPayloadSchema>;
+export type TorrentExtendPayload = Static<typeof TorrentExtendPayloadSchema>;
 export const OsImagePayloadSchema = Type.Object({
   imageId: Type.String({ minLength: 1, maxLength: 128 }),
 }, { additionalProperties: false });
@@ -526,8 +536,8 @@ export const AGENT_COMMAND_PAYLOAD_SCHEMAS: Readonly<Record<AgentCommandName, TS
   'software-test.abort': SoftwareTestAbortPayloadSchema,
   'os-image.delete': IdPayloadSchema,
   'torrent.settings.update': TorrentSettingsPayloadSchema,
-  'torrent.client.release': TorrentClientPayloadSchema,
-  'torrent.client.extend': TorrentClientPayloadSchema,
+  'torrent.client.release': TorrentReleasePayloadSchema,
+  'torrent.client.extend': TorrentExtendPayloadSchema,
   'os-image.download.start': OsImagePayloadSchema,
   'os-image.reexport.start': OsImagePayloadSchema,
   'offline-iso.start': EmptyPayloadSchema,
@@ -593,6 +603,7 @@ export const ServerEventSchema = Type.Object({
   type: Type.Union([
     Type.Literal('state.changed'),
     Type.Literal('operation.changed'),
+    Type.Literal('deployment.changed'),
     Type.Literal('heartbeat'),
   ]),
   at: Type.String({ format: 'date-time' }),

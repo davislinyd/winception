@@ -3,6 +3,7 @@ import type {
   AuthStatus,
   CustomScriptCreatePayload,
   DeploymentSnapshotResult,
+  DiagnosticsRunPayload,
   DiagnosticsResult,
   EndpointPayload,
   GatewayResult,
@@ -35,6 +36,7 @@ export class ApiRequestError extends Error {
     readonly correctiveAction: string | undefined,
     readonly correlationId: string | undefined,
     readonly status: number,
+    readonly conflicts: NonNullable<ApiError['error']['conflicts']>,
   ) {
     super(message);
     this.name = 'ApiRequestError';
@@ -52,11 +54,15 @@ export const api = Object.freeze({
   configureSoftwareTest: (payload: SoftwareTestConfigurePayload) => operation('/api/v2/software-test/configure', payload),
   softwareTestStatus: () => resultGet<SoftwareTestStatusResult>('/api/v2/software-test/status'),
   updateTorrentSettings: (seedMinutes: number) => operation('/api/v2/torrent/settings', { seedMinutes }),
-  releaseTorrentClient: (runId: string, clientId: string) => operation('/api/v2/torrent/release', { runId, clientId }),
-  extendTorrentClient: (runId: string, clientId: string) => operation('/api/v2/torrent/extend', { runId, clientId }),
+  releaseTorrentClient: (runId: string, clientId?: string) => operation('/api/v2/torrent/release', { runId, ...(clientId ? { clientId } : {}) }),
+  releaseAllWaitingTorrentClients: () => operation('/api/v2/torrent/release', { allWaiting: true }),
+  extendTorrentClient: (runId: string, additionalMinutes: number, clientId?: string) => operation('/api/v2/torrent/extend', { runId, additionalMinutes, ...(clientId ? { clientId } : {}) }),
   downloadOsImage: (imageId: string) => operation('/api/v2/os-images/download', { imageId }),
   reexportOsImage: (imageId: string) => operation('/api/v2/os-images/reexport', { imageId }),
-  snapshot: (selectedRunId?: string) => result<DeploymentSnapshotResult>('/api/v2/deployment/snapshot', selectedRunId ? { selectedRunId, includeEvidence: true } : { includeEvidence: true }),
+  snapshot: (selectedRunId?: string, includeEvidence = false) => result<DeploymentSnapshotResult>('/api/v2/deployment/snapshot', {
+    ...(selectedRunId ? { selectedRunId } : {}),
+    includeEvidence,
+  }),
   network: () => resultGet<GatewayResult>('/api/v2/network'),
   interfaces: () => resultGet<NetworkInterface[]>('/api/v2/interfaces'),
   profiles: () => resultGet<ProfilesResult>('/api/v2/profiles'),
@@ -68,7 +74,7 @@ export const api = Object.freeze({
   stopService: (name: ServicePayload['name']) => operation('/api/v2/services/stop', { name }),
   preflight: () => operation('/api/v2/preflight', {}),
   prepareRuntime: () => operation('/api/v2/runtime/prepare', {}),
-  runDiagnostics: () => operation('/api/v2/diagnostics', {}),
+  runDiagnostics: (payload: DiagnosticsRunPayload = {}) => operation('/api/v2/diagnostics', payload),
   createOfflineIso: () => operation('/api/v2/offline-iso', {}),
   updateProjectRoot: (projectRoot: string) => operation('/api/v2/project-root', { projectRoot }),
   updateEndpoint: (payload: EndpointPayload) => operation('/api/v2/endpoint', payload),
@@ -164,5 +170,6 @@ function responseError(payload: ApiError, status: number): ApiRequestError {
     detail?.correctiveAction,
     detail?.correlationId,
     status,
+    detail?.conflicts ?? [],
   );
 }
