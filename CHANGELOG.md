@@ -1,6 +1,7 @@
 # Changelog
 
-- Alpha 12 makes the WinPE torrent seed window monotonic across Hyper-V time synchronization and time-zone changes by calculating deadlines and countdowns in UTC. MSI `ProductVersion` advances to `2.0.27`; the host-memory acceptance scope is two consecutive two-client rounds.
+- Alpha 13 replaces WinPE wall-clock seed deadlines with a `Stopwatch` monotonic interval and reports server-derived deadlines from monotonic seconds remaining. MSI `ProductVersion` advances to `2.0.28`; alpha.12 is rejected because the synchronized WinPE UTC clock was still offset.
+- Alpha 12 attempted to calculate WinPE torrent seed deadlines in UTC. Live PXE validation proved the synchronized WinPE UTC clock could still be offset by 16 hours, so alpha.12 is rejected and unpublished. MSI `ProductVersion` was `2.0.27`.
 
 ## Unreleased
 

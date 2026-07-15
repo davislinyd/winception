@@ -60,7 +60,11 @@ while ($true) {
         if ($context.PSObject.Properties['seedBaseMinutes']) { $payload.seedBaseMinutes = [int] $context.seedBaseMinutes }
         if ($context.PSObject.Properties['seedLocalExtensionMinutes']) { $payload.seedLocalExtensionMinutes = [int] $context.seedLocalExtensionMinutes }
         if ($context.PSObject.Properties['seedHostExtensionMinutes']) { $payload.seedHostExtensionMinutes = [int] $context.seedHostExtensionMinutes }
-        if ($context.PSObject.Properties['seedDeadline']) { $payload.seedDeadline = [string] $context.seedDeadline }
+        if ($context.PSObject.Properties['seedStartTimestamp'] -and $context.PSObject.Properties['seedBaseMinutes']) {
+            $totalSeconds = 60 * ([int] $context.seedBaseMinutes + [int] $context.seedLocalExtensionMinutes + [int] $context.seedHostExtensionMinutes)
+            $elapsedSeconds = ([System.Diagnostics.Stopwatch]::GetTimestamp() - [long] $context.seedStartTimestamp) / [double] [System.Diagnostics.Stopwatch]::Frequency
+            $payload.seedSecondsRemaining = [math]::Max(0, [math]::Ceiling($totalSeconds - $elapsedSeconds))
+        }
         $body = $payload | ConvertTo-Json -Depth 5 -Compress
         $lastError = $null
         $response = $null

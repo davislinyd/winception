@@ -152,12 +152,13 @@ test('waiting clients can receive persisted cumulative extensions up to 1440 min
   try {
     f.coordinator.receiveTelemetry({
       runId: 'run-extend', clientId: 'client-extend', phase: 'waiting',
-      seedBaseMinutes: 15, seedLocalExtensionMinutes: 60,
+      seedBaseMinutes: 15, seedLocalExtensionMinutes: 60, seedSecondsRemaining: 900,
     }, '10.0.0.8');
     let visible = f.coordinator.state().clients[0];
     assert.equal(visible.seedBaseMinutes, 15);
     assert.equal(visible.seedLocalExtensionMinutes, 60);
     assert.equal(visible.seedHostExtensionMinutes, 0);
+    assert.equal(visible.seedDeadline, '2026-06-19T00:15:00.000Z');
     const first = f.coordinator.extend({ runId: 'run-extend', additionalMinutes: 900 });
     assert.equal(first.extensionId, 1);
     assert.equal(first.extensionMinutes, 900);

@@ -334,7 +334,10 @@ export class TorrentDistributionCoordinator extends EventEmitter {
       seedBaseMinutes: finiteNumber(payload?.seedBaseMinutes),
       seedLocalExtensionMinutes: finiteNumber(payload?.seedLocalExtensionMinutes),
       seedHostExtensionMinutes: finiteNumber(payload?.seedHostExtensionMinutes),
-      seedDeadline: typeof payload?.seedDeadline === 'string' ? payload.seedDeadline : null,
+      seedSecondsRemaining: finiteNumber(payload?.seedSecondsRemaining),
+      seedDeadline: finiteNumber(payload?.seedSecondsRemaining) > 0
+        ? new Date(now + (finiteNumber(payload.seedSecondsRemaining) * 1000)).toISOString()
+        : null,
       updatedAt: now,
     };
     const previous = this.telemetry.get(runId);

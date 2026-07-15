@@ -1244,10 +1244,10 @@ test('WinPE torrent download shows local progress and active peers through loopb
   assert.match(script, /seedHostExtensionMinutes/);
   assert.match(script, /-DisableKeepAlive/);
   assert.match(script, /aria2\.shutdown/);
-  assert.match(script, /\$completedAt = \[datetime\]::UtcNow/);
-  assert.match(script, /seedDeadline = \$completedAt\.AddMinutes\(\$seedMinutes\)/);
-  assert.match(script, /\$now = \[datetime\]::UtcNow/);
-  assert.match(script, /Deadline: \$\(\$Context\.seedDeadline\.ToString\('u'\)\) UTC/);
+  assert.match(script, /seedStartTimestamp = \[System\.Diagnostics\.Stopwatch\]::GetTimestamp\(\)/);
+  assert.match(script, /Get-TorrentSeedSecondsRemaining/);
+  assert.match(script, /measured by a monotonic timer/);
+  assert.doesNotMatch(script, /seedDeadline/);
   assert.match(script, /Wait-TorrentSeedWindow -Context \$torrentTransfer/);
   assert.match(script, /Report-TorrentTelemetry\.ps1/);
   assert.match(script, /torrent-seed-wait/);
@@ -1260,8 +1260,12 @@ test('WinPE torrent download shows local progress and active peers through loopb
 
 test('endpoint sync injects the torrent telemetry reporter into rebuilt WinPE', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
+  const reporter = fs.readFileSync(path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Report-TorrentTelemetry.ps1'), 'utf8');
   assert.match(script, /OSDCloud\/Report-TorrentTelemetry\.ps1/);
   assert.match(script, /WinPE\\OSDCloud\\Report-TorrentTelemetry\.ps1/);
+  assert.match(reporter, /Stopwatch\]::GetTimestamp/);
+  assert.match(reporter, /seedSecondsRemaining/);
+  assert.doesNotMatch(reporter, /seedDeadline/);
 });
 
 test('asset sync exports and restores the torrent telemetry reporter', () => {
