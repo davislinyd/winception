@@ -34,6 +34,8 @@ Alpha.10 migration evidence: the exact packaged dry-run read 14 settings, 4 prof
 
 Alpha.11 migration evidence: exact package source `a517d2e2afa4bfc28ee1193c6c3845afd7415739`; MSI `ProductVersion 2.0.26`, SHA-256 `A369CE6FF6E3D2DE752BC0EA78B853E6B63561F2EDF44A0AE445D501F3A427D2`. The packaged dry-run imported the representative 14/4/3/1 metadata set and recognized all 3 synthetic secrets without side effects or disclosure. A no-network missing-aria2 run stopped Agent and proved MSI 1603 rollback, v1 preservation and plaintext cleanup. Adding the catalog-exact aria2 payload allowed the same source to resume: install and repair each passed 34/34; SQLite counts matched, the runtime rebuild marker cleared, DPAPI ciphertext never equalled plaintext, backups excluded the source secrets, Agent/Web/pipe/DACL/profile/health/manual passed, and the packaged rerun returned `already-imported`. Installed v1 migration acceptance is closed locally.
 
+Alpha.11 full local suite evidence: source `153025c` passed the complete v1 suite with all 3 aria2 integrations and no skipped tests; v2 global coverage was 94.00% line/85.06% branch and critical coverage was 99.01%/92.21%. Web Playwright passed 3/3, docs Playwright 2/2, both bilingual documentation targets built, production audit reported 0 vulnerabilities, and secret rules plus Gitleaks passed. The diff from package source `a517d2e` contains only release evidence and a test-only metadata assertion; packaged production inputs did not change. Remote product CI was intentionally not run.
+
 ## Remaining external release acceptance
 
 | Blocker | Required evidence |
@@ -42,7 +44,7 @@ Alpha.11 migration evidence: exact package source `a517d2e2afa4bfc28ee1193c6c384
 | Installed v1 migration acceptance | Closed locally on exact alpha.11: dry-run, protected backup/import, Agent-aware failure rollback, resumed runtime rebuild, repair and `already-imported` rerun passed |
 | Failed-upgrade rollback acceptance | Closed locally on exact alpha.10: forced 8080 conflict returned MSI 1603 and restored old product registration, services, binaries and exact State hashes |
 | Internal prerelease deployment gate | Closed on alpha.5: exact MSI, one Generation 2 Secure Boot client, ingress stopped + Fleet empty, and one Software Test with checkpoint restore passed |
-| Final production feature parity open | Two consecutive four-VM rounds, physical laptop and multi-client torrent remain later production evidence; alpha.8 no-network Offline ISO host/guest acceptance and diagnostics/evidence export are complete but do not replace those paths |
+| Final production feature parity open | Two consecutive four-VM rounds, physical laptop and multi-client torrent remain later production evidence; alpha.8 no-network Offline ISO host/guest acceptance, diagnostics/evidence export and alpha.11 full local release suite are complete but do not replace those paths |
 | LAN management acceptance | Closed on exact alpha.8: invalid-certificate fail-closed, single-address self-signed HTTPS with OS trust, and return to loopback with trust/PFX/CER cleanup passed |
 | Offline interactive CLI parity open | The coordinated Web/API path securely materializes DPAPI secrets and created the ISO; direct `-CheckOnly` still needs bundled-module bootstrap and a v2-safe Agent handoff instead of a plaintext secrets file |
 | Upstream redistribution review incomplete | Confirm OSDCloud/ADK/WinPE, aria2 and every bundled client payload against the release SBOM; the Winception product license is already `AGPL-3.0-only` |
