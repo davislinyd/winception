@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v0.6.7', () => {
+test('release metadata is aligned to v1.0.1', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '0.6.7');
-  assert.equal(packageLock.version, '0.6.7');
-  assert.equal(packageLock.packages[''].version, '0.6.7');
-  assert.match(changelog, /## v0\.6\.7 — 2026-07-13/);
-  assert.match(manual, /Operations Manual · v0\.6\.7/);
-  assert.match(manual, /Product documentation for Web v0\.6\.7/);
+  assert.equal(packageJson.version, '1.0.1');
+  assert.equal(packageLock.version, '1.0.1');
+  assert.equal(packageLock.packages[''].version, '1.0.1');
+  assert.match(changelog, /## v1\.0\.1 — 2026-07-16/);
+  assert.match(manual, /Operations Manual · v1\.0\.1/);
+  assert.match(manual, /Product documentation for Web v1\.0\.1/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
