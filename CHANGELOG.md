@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.0.1 — 2026-07-16
+
+- Maintenance release: update product metadata and the operator manual to v1.0.1.
+
 ## v0.6.7 — 2026-07-13
 
 - Software Test VM now keeps `Stop test` reachable from the global Console dock as well as Deployment Profiles. During its active run, Profile, OS Image, and Endpoint are inspection-only; all mutation and deployment controls remain locked.
