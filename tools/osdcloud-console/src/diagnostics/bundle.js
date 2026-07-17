@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 if (Test-Path -LiteralPath '${escapedZip}') {
   Remove-Item -LiteralPath '${escapedZip}' -Force
 }
-Compress-Archive -LiteralPath '${escapedSource}\\*' -DestinationPath '${escapedZip}' -CompressionLevel Optimal -Force
+Compress-Archive -Path (Join-Path -Path '${escapedSource}' -ChildPath '*') -DestinationPath '${escapedZip}' -CompressionLevel Optimal -Force
 `;
   await runPowerShell(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
 }

@@ -65,6 +65,9 @@ export function renderDiagnosticsSummary(appState) {
     diagnostics.probableCause ? `Probable cause: ${diagnostics.probableCause}` : '',
     diagnostics.recommendedAction ? `Recommended action: ${diagnostics.recommendedAction}` : '',
     diagnostics.bundleName ? `Bundle: ${diagnostics.bundleName}` : '',
+    diagnostics.bundleName && diagnostics.bundleAvailable !== true
+      ? 'Diagnostic ZIP is no longer available. Run diagnostics again to create a new bundle.'
+      : '',
   ].filter(Boolean);
   for (const line of rows) {
     const row = document.createElement('div');
@@ -73,7 +76,7 @@ export function renderDiagnosticsSummary(appState) {
     elements.diagnosticsSummary.append(row);
   }
 
-  if (diagnostics.bundleName) {
+  if (diagnostics.bundleName && diagnostics.bundleAvailable === true) {
     elements.diagnosticsDownloadButton.disabled = false;
     elements.diagnosticsDownloadButton.dataset.bundleName = diagnostics.bundleName;
   }

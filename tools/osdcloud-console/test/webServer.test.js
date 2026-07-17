@@ -564,6 +564,7 @@ test('diagnostics API returns the latest summary and serves the ZIP bundle', asy
           probableCause: 'Catalog probe failed.',
           recommendedAction: 'Repair OSD modules.',
           bundleName: 'diag.zip',
+          bundleAvailable: true,
         };
         return {
           summary: latestDiagnostics,
@@ -588,6 +589,7 @@ test('diagnostics API returns the latest summary and serves the ZIP bundle', asy
     assert.equal(payload.result.bundleName, 'diag.zip');
     assert.equal(payload.result.bundlePath, zipPath);
     assert.equal(payload.state.diagnostics.bundleName, 'diag.zip');
+    assert.equal(payload.state.diagnostics.bundleAvailable, true);
     assert.equal(payload.state.diagnostics.trigger, 'manual-ui');
 
     response = await fetch(`${base}/api/diagnostics/latest`);

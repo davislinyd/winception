@@ -138,6 +138,18 @@ function Stop-WebConsoleFallback {
     }
 }
 
+function Clear-DiagnosticsState {
+    $stateRoot = [System.IO.Path]::GetFullPath((Join-Path $HostToolsRoot 'State'))
+    $diagnosticsRoot = [System.IO.Path]::GetFullPath((Join-Path $stateRoot 'diagnostics'))
+    if (-not $diagnosticsRoot.StartsWith("$stateRoot\", [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove diagnostics outside HostTools State: $diagnosticsRoot"
+    }
+    if (Test-Path -LiteralPath $diagnosticsRoot) {
+        Write-Host "Removing prior diagnostics: $diagnosticsRoot"
+        Remove-Item -LiteralPath $diagnosticsRoot -Recurse -Force
+    }
+}
+
 Write-Host "Copying updated files to $AppRoot..."
 Copy-Item -Path (Join-Path $SourceRoot "tools") -Destination $AppRoot -Recurse -Force
 Copy-Item -Path (Join-Path $SourceRoot "Softwares") -Destination $AppRoot -Recurse -Force
@@ -148,6 +160,7 @@ $ManualRoot = Join-Path $AppRoot 'docs'
 New-Item -ItemType Directory -Path $ManualRoot -Force | Out-Null
 Copy-Item -Path (Join-Path $SourceRoot 'docs\winception-operations-manual.html') -Destination $ManualRoot -Force
 Copy-Item -Path (Join-Path $SourceRoot 'docs\manual-assets') -Destination $ManualRoot -Recurse -Force
+Clear-DiagnosticsState
 
 Write-Host "Stopping active Web Console..."
 if ((Request-TrayStop) -and (Wait-TrayStop)) {

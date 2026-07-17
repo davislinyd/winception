@@ -2,6 +2,7 @@ import { collectDiagnosticsContext } from './collectors.js';
 import { writeDiagnosticsBundle } from './bundle.js';
 import { buildDiagnosticsChecks, summarizeDiagnostics } from './rules.js';
 import { diagnosticsLatestPathForConfig, diagnosticsRootForConfig, ensureInside, readJsonIfExists } from './shared.js';
+import fs from 'node:fs';
 import path from 'node:path';
 
 export async function runDiagnostics(config = {}, options = {}) {
@@ -19,12 +20,24 @@ export async function runDiagnostics(config = {}, options = {}) {
 }
 
 export function readLatestDiagnostics(config = {}) {
-  return readJsonIfExists(diagnosticsLatestPathForConfig(config), null);
+  const latest = readJsonIfExists(diagnosticsLatestPathForConfig(config), null);
+  if (!latest) {
+    return null;
+  }
+  return {
+    ...latest,
+    bundleAvailable: Boolean(resolveDiagnosticsBundlePath(config, latest.bundleName)),
+  };
 }
 
 export function resolveDiagnosticsBundlePath(config = {}, bundleName) {
-  if (!bundleName) {
+  if (!bundleName || path.extname(bundleName).toLowerCase() !== '.zip') {
     return null;
   }
-  return ensureInside(diagnosticsRootForConfig(config), path.join(diagnosticsRootForConfig(config), bundleName));
+  try {
+    const candidate = ensureInside(diagnosticsRootForConfig(config), path.join(diagnosticsRootForConfig(config), bundleName));
+    return fs.existsSync(candidate) && fs.statSync(candidate).isFile() ? candidate : null;
+  } catch {
+    return null;
+  }
 }

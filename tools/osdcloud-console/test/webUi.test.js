@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v1.0.1', () => {
+test('release metadata is aligned to v1.0.2', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '1.0.1');
-  assert.equal(packageLock.version, '1.0.1');
-  assert.equal(packageLock.packages[''].version, '1.0.1');
-  assert.match(changelog, /## v1\.0\.1 — 2026-07-16/);
-  assert.match(manual, /Operations Manual · v1\.0\.1/);
-  assert.match(manual, /Product documentation for Web v1\.0\.1/);
+  assert.equal(packageJson.version, '1.0.2');
+  assert.equal(packageLock.version, '1.0.2');
+  assert.equal(packageLock.packages[''].version, '1.0.2');
+  assert.match(changelog, /## v1\.0\.2 — 2026-07-17/);
+  assert.match(manual, /Operations Manual · v1\.0\.2/);
+  assert.match(manual, /Product documentation for Web v1\.0\.2/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -637,6 +637,8 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Catalog load failed/);
   assert.match(script, /Generate diagnostics/);
   assert.match(script, /No diagnostics bundle has been generated yet\./);
+  assert.match(script, /Diagnostic ZIP is no longer available\. Run diagnostics again to create a new bundle\./);
+  assert.match(script, /diagnostics\.bundleAvailable === true/);
   assert.match(script, /os-download-status-actions/);
   assert.match(script, /Create offline ISO/);
   assert.match(script, /\/api\/offline-iso\/create/);

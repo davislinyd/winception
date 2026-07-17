@@ -154,6 +154,8 @@ Web Console 的頂部工作區是 **Deploy** / **Monitor**。`Deploy` 內含 gui
 7. Run preflight：確認所有 blocking checks 通過。
 8. Start services：由技術人員明確啟動服務。
 
+每次成功部署或 reload HostTools 都會清除舊的 diagnostics summary 與 ZIP，避免新 Console 把前次主機失敗誤顯示為目前狀態。請按 `Run diagnostics` 建立本次主機的新證據包；若既有摘要的 ZIP 已不在本機，Console 會停用下載並要求重新產生。
+
 #### 第一次部署會下載什麼、存到哪裡
 
 第一次部署不會在 `Start services` 那一刻一次抓完所有內容；Winception 依功能邊界分別在 setup、Prepare runtime、OS Image Cache、profile publish 與 client 首次 driver pack 請求時補齊檔案。
@@ -501,6 +503,8 @@ The Web Console top bar has **Deploy** / **Monitor**. `Deploy` contains the guid
 6. Deployment Profile: choose OS image, language/region/time zone, software, custom scripts, and execution order.
 7. Run preflight: confirm all blocking checks pass.
 8. Start services: a technician explicitly starts services.
+
+Each successful HostTools deployment or reload clears the prior diagnostics summary and ZIP so a new Console does not present an earlier host failure as current. Select `Run diagnostics` to create fresh host evidence; if an existing summary's ZIP is no longer local, Console disables its download and asks you to generate diagnostics again.
 
 #### Files Downloaded on First Deployment and Where They Go
 

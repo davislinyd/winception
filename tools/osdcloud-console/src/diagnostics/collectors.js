@@ -8,27 +8,38 @@ import { localEndpointOverlayStatus, osImageDeployableStatus, profilePayloadStat
 import { redactJson, redactText } from './redact.js';
 import { diagnosticsTimestamp, runCategoryForStage } from './shared.js';
 
-function readCommandVersion(command, args) {
+export function readCommandVersion(command, args, options = {}) {
+  const platform = options.platform ?? process.platform;
+  const spawnSyncFn = options.spawnSyncFn ?? spawnSync;
+  const isWindowsNpm = platform === 'win32' && command.toLowerCase() === 'npm';
+  const executable = isWindowsNpm ? (options.comSpec ?? process.env.ComSpec ?? 'cmd.exe') : command;
+  const commandArgs = isWindowsNpm ? ['/d', '/s', '/c', 'npm --version'] : args;
   try {
-    const result = spawnSync(command, args, {
+    const result = spawnSyncFn(executable, commandArgs, {
       windowsHide: true,
       encoding: 'utf8',
     });
+    if (result.error) {
+      return { ok: false, error: result.error.message || `${command} failed to start` };
+    }
     if (result.status === 0) {
       return { ok: true, value: String(result.stdout ?? '').trim() };
     }
     return {
       ok: false,
-      error: String(result.stderr ?? '').trim() || String(result.stdout ?? '').trim() || `${command} exited with code ${result.status}`,
+      error: String(result.stderr ?? '').trim()
+        || String(result.stdout ?? '').trim()
+        || `${command} exited with code ${result.status ?? 'unknown'}`,
     };
   } catch (error) {
     return { ok: false, error: error.message };
   }
 }
 
-async function probePowerShellModules() {
+export async function probePowerShellModules() {
   const script = `
 $ErrorActionPreference = 'Stop'
+$WarningPreference = 'SilentlyContinue'
 function ModuleRows($name) {
   @(Get-Module -ListAvailable -Name $name | Select-Object Name,Version,Path | ForEach-Object {
     [pscustomobject]@{
@@ -41,7 +52,7 @@ function ModuleRows($name) {
 $imports = [ordered]@{}
 foreach ($name in @('OSD','OSDCloud')) {
   try {
-    Import-Module $name -Force -ErrorAction Stop
+    Import-Module $name -Force -ErrorAction Stop -WarningAction SilentlyContinue
     $loaded = Get-Module -Name $name | Select-Object -First 1
     $imports[$name] = [pscustomobject]@{
       ok = $true
@@ -57,7 +68,7 @@ foreach ($name in @('OSD','OSDCloud')) {
 }
 $catalog = [ordered]@{ ok = $false; count = $null; error = $null }
 try {
-  Import-Module OSD -Force -ErrorAction Stop
+  Import-Module OSD -Force -ErrorAction Stop -WarningAction SilentlyContinue
   $catalog.ok = $true
   $catalog.count = @(Get-OSDCloudOperatingSystems -ErrorAction Stop).Count
 }

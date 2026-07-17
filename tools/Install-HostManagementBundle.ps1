@@ -135,6 +135,21 @@ function Set-ObjectProperty {
     }
 }
 
+function Clear-DiagnosticsState {
+    param([Parameter(Mandatory)][string] $StateRootPath)
+
+    $diagnosticsRoot = Join-Path $StateRootPath 'diagnostics'
+    if (-not (Test-Path -LiteralPath $diagnosticsRoot)) {
+        return
+    }
+
+    $safeDiagnosticsRoot = Assert-SafeRemoveRoot -Path $diagnosticsRoot
+    Write-Host "remove $safeDiagnosticsRoot"
+    if (-not $DryRun) {
+        Remove-Item -LiteralPath $safeDiagnosticsRoot -Recurse -Force
+    }
+}
+
 $sourceRootFull = Get-FullPath $SourceRoot
 $appRootFull = Get-FullPath $AppRoot
 $stateRootFull = Get-FullPath $StateRoot
@@ -244,6 +259,8 @@ Write-Host "write $launcherPath"
 if (-not $DryRun) {
     [System.IO.File]::WriteAllText($launcherPath, $launcherContent + [Environment]::NewLine, $Utf8NoBom)
 }
+
+Clear-DiagnosticsState -StateRootPath $stateRootFull
 
 Write-Host "Installed host management bundle:"
 Write-Host "  AppRoot  = $appRootFull"

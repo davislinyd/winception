@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.0.2 — 2026-07-17
+
+- Diagnostics now invoke `npm --version` through the Windows command interpreter, eliminating the false host-prerequisite failure caused by directly spawning `npm.cmd`. Successful HostTools deployments clear prior diagnostics; missing ZIP files are not offered for download.
+
 ## v1.0.1 — 2026-07-16
 
 - Maintenance release: update product metadata and the operator manual to v1.0.1.

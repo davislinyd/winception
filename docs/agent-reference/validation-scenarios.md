@@ -13,6 +13,7 @@ Read this file when selecting verification for subsystem-specific changes.
 
 - Web layout or visual changes must run `npm run check`, relevant Web UI tests such as `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/` when appropriate.
 - Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
+- Diagnostics changes must test the Windows npm probe, missing-ZIP download rejection, disabled download affordance, and that a successful HostTools deployment clears the prior diagnostics State while `-DryRun` preserves it.
 - Web API auth changes must test loopback bypass, non-loopback 401 without `X-Winception-Token`, success with a valid token, `/api/auth/status` without secrets, and static/manual routes remaining readable.
 - Read-only verification must not click service start/stop, endpoint sync, profile publish/delete, or clear-status actions unless the user explicitly authorizes live mutation.
 

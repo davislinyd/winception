@@ -568,6 +568,10 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     const localConfig = path.join(stateRoot, 'config', 'osdcloud-console.local.json');
     const stateConfig = path.join(stateRoot, 'config', 'osdcloud-console.json');
     const stateSecrets = path.join(stateRoot, 'config', 'osdcloud-secrets.json');
+    const staleDiagnosticsRoot = path.join(stateRoot, 'diagnostics');
+    fs.mkdirSync(staleDiagnosticsRoot, { recursive: true });
+    fs.writeFileSync(path.join(staleDiagnosticsRoot, 'latest.json'), '{"bundleName":"stale.zip"}\n', 'utf8');
+    fs.writeFileSync(path.join(staleDiagnosticsRoot, 'stale.zip'), 'stale', 'utf8');
     const result = spawnSync('powershell.exe', [
       '-NoProfile',
       '-ExecutionPolicy',
@@ -604,6 +608,7 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     assert.equal(fs.existsSync(path.join(appRoot, 'docs', 'winception-operations-manual.html')), true);
     assert.deepEqual(fs.readdirSync(path.join(appRoot, 'docs', 'manual-assets')).sort(), manualAssetNames.slice().sort());
     assert.equal(fs.existsSync(path.join(root, 'HostTools', 'Open-WebConsole.cmd')), true);
+    assert.equal(fs.existsSync(staleDiagnosticsRoot), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -752,6 +757,40 @@ test('installed Web console launcher escapes environment assignment and reads lo
   assert.doesNotMatch(script, /CommandLine like '%Start-WebConsoleTray\.ps1%'/);
 });
 
+test('host bundle dry-run preserves diagnostics state', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-host-bundle-dry-run-'));
+  try {
+    createSetupSourceFixture(root);
+    const appRoot = path.join(root, 'HostTools', 'App');
+    const stateRoot = path.join(root, 'HostTools', 'State');
+    const diagnosticsRoot = path.join(stateRoot, 'diagnostics');
+    fs.mkdirSync(diagnosticsRoot, { recursive: true });
+    fs.writeFileSync(path.join(diagnosticsRoot, 'latest.json'), '{"bundleName":"stale.zip"}\n', 'utf8');
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path.join(root, 'tools', 'Install-HostManagementBundle.ps1'),
+      '-SourceRoot',
+      root,
+      '-AppRoot',
+      appRoot,
+      '-StateRoot',
+      stateRoot,
+      '-DryRun',
+    ], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(fs.existsSync(path.join(diagnosticsRoot, 'latest.json')), true);
+    assert.match(result.stdout, /remove .*diagnostics/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('Web console tray prefers checked-in Web logo icon with host fallback', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Start-WebConsoleTray.ps1'), 'utf8');
   assert.match(script, /Get-AppRootMutexName/);
@@ -777,6 +816,8 @@ test('reload stops the Web console tray gracefully before process fallback', () 
   assert.match(script, /function Wait-WebPortClosed/);
   assert.match(script, /function Stop-WebConsoleFallback/);
   assert.match(script, /function Stop-WebPortOwner/);
+  assert.match(script, /function Clear-DiagnosticsState/);
+  assert.match(script, /Removing prior diagnostics:/);
   assert.match(script, /web-console-tray\.json/);
   assert.match(script, /web-console-tray\.stop\.json/);
   assert.match(script, /Get-NetTCPConnection -LocalPort \$webPort -State Listen/);
