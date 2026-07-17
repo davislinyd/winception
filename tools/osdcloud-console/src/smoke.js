@@ -385,7 +385,7 @@ try {
       }),
     },
   });
-  const webServer = new WebManagementServer({ controller: webController });
+  const webServer = new WebManagementServer({ controller: webController, startUpdateCheck: false });
   await webServer.start({ host: '127.0.0.1', port: 0 });
   const webBase = `http://127.0.0.1:${webServer.address.port}`;
   try {

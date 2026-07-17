@@ -20,6 +20,7 @@ import { formatDisplayLogLine } from '../timeFormat.js';
 import { TorrentSeeder, TorrentTracker, createOsImageTorrent } from '../torrent.js';
 import { TorrentDistributionCoordinator } from '../torrentCoordinator.js';
 import { appVersion } from '../version.js';
+import { ReleaseUpdateChecker } from '../updateCheck.js';
 import { syncIpxeEndpoint } from '../windows/bootArtifacts.js';
 import { listIpv4ServiceInterfaces } from '../windows/network.js';
 import { gatewayOptions, inspectNetworkGateway, networkTopology, prepareNetworkGateway, removeNetworkGateway, validateGatewayInput } from '../windows/gateway.js';
@@ -130,6 +131,7 @@ export class ServiceController extends EventEmitter {
       ? { topology: 'shared-lan', ready: true, detail: 'Client Internet is provided by the existing LAN/router.' }
       : { topology: 'dual-nic-nat', ready: false, detail: 'Gateway state has not been inspected yet.' };
     this.latestDiagnostics = safeRead(() => this.dependencies.readLatestDiagnostics(this.config), null).value;
+    this.updateChecker = options.updateChecker ?? new ReleaseUpdateChecker(this.config, options.updateCheckOptions);
     this.autoDiagnosticsKeys = new Set();
     this.diagnosticsPromise = null;
     this.bindServiceEvents();
@@ -429,6 +431,7 @@ export class ServiceController extends EventEmitter {
       generatedAt: new Date().toISOString(),
       app: {
         version: appVersion,
+        update: this.updateChecker.getState(),
       },
       host: {
         elevated: elevatedResult.value,
@@ -522,6 +525,10 @@ export class ServiceController extends EventEmitter {
       elevated: elevatedResult.value,
     });
     return state;
+  }
+
+  async checkForUpdate(options = {}) {
+    return this.updateChecker.check(options);
   }
 
   async listInterfaces() {

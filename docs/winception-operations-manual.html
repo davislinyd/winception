@@ -313,7 +313,7 @@
 
   <div id="locale-zh" class="locale-view" lang="zh-Hant">
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v1.0.2</p>
+      <p class="eyebrow">Operations Manual · v1.0.3</p>
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
@@ -400,6 +400,7 @@ cd '&lt;repo-root&gt;'
             <tr><td><code>&lt;deployment-root&gt;</code></td><td>Web 選定的 deployment runtime。</td><td>product workflows。</td></tr>
           </tbody></table></div>
           <div class="callout"><strong>不要直接修改 runtime root</strong>部署行為要先在 source 修正，再透過 publish、reload、Endpoint Sync 或 profile publish 更新 runtime。</div>
+          <div class="callout"><strong>HostTools 更新檢查</strong>Web Console 啟動後會背景查詢最新正式 GitHub Release，並把安全的版本、日期與 Release 連結快取 24 小時於 <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>。右上角 Update 可手動重查；離線或 GitHub 無法使用不影響 Console 或部署。它只顯示正式版，不下載、安裝、覆寫或重啟任何服務；有新版時開啟 <em>View update</em>，再依 Release 指引手動更新。</div>
         </section>
 
         <section id="readiness">
@@ -527,7 +528,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 
   <div id="locale-en" class="locale-view" lang="en" hidden>
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v1.0.2</p>
+      <p class="eyebrow">Operations Manual · v1.0.3</p>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
@@ -614,6 +615,7 @@ cd '&lt;repo-root&gt;'
             <tr><td><code>&lt;deployment-root&gt;</code></td><td>Web-selected deployment runtime.</td><td>product workflows.</td></tr>
           </tbody></table></div>
           <div class="callout"><strong>Do not directly edit the runtime root</strong>Fix deployment behavior in source first, then update runtime through publish, reload, Endpoint Sync, or profile publish.</div>
+          <div class="callout"><strong>HostTools update checks</strong>After startup, the Web Console checks the latest formal GitHub Release in the background and caches only its safe version, date, and Release link for 24 hours at <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>. Use Update in the upper-right corner to check again. Offline or GitHub availability failures do not affect the Console or deployment. It shows formal releases only and never downloads, installs, overwrites, or restarts anything; when available, open <em>View update</em> and follow the Release guidance manually.</div>
         </section>
 
         <section id="en-readiness">
@@ -739,7 +741,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
     </div>
   </div>
 
-  <footer>Winception deployment manual · Product documentation for Web v1.0.2.</footer>
+  <footer>Winception deployment manual · Product documentation for Web v1.0.3.</footer>
 
   <dialog id="lightbox" aria-label="Image preview">
     <div class="lightbox-inner">

@@ -94,6 +94,7 @@ export function refresh(options = {}) {
         warning: requestMs > 2_000 || (payload.state.health?.stateSnapshotMs ?? 0) > 2_000,
       };
       state.current = payload.state;
+      state.updateCheckRequestFailed = false;
       state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
       state.refreshError = null;
       state.auth.error = '';

@@ -39,6 +39,13 @@
         <span id="operation-badge" class="badge neutral live-chip">Idle</span>
         <span class="host-chip" title="Console session"><span class="host-chip-dot"></span>admin</span>
         <span id="updated-at" class="font-data-tabular text-data-tabular updated-chip"></span>
+        <div class="update-control">
+          <button id="update-check-button" class="update-check-button" data-action="update-check" type="button" title="Check for updates" aria-label="Check for updates">
+            <span class="material-symbols-outlined" aria-hidden="true">system_update</span>
+            <span id="update-status" role="status">Check updates</span>
+          </button>
+          <a id="update-release-link" class="update-release-link" href="#" target="_blank" rel="noopener noreferrer" hidden>View update</a>
+        </div>
         <a id="manual-link" class="topbar-manual-link" href="/manual/" target="_blank" rel="noopener noreferrer" title="Deployment manual" aria-label="Open deployment manual in a new tab">
           <span class="material-symbols-outlined" aria-hidden="true">menu_book</span>
           <span class="topbar-manual-label">Manual</span>

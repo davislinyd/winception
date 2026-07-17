@@ -127,6 +127,7 @@ const apiRouteTable = [
   { method: 'GET', path: '/api/os-download-catalog' },
   { method: 'GET', path: '/api/diagnostics/latest' },
   { method: 'GET', path: '/api/software-test/status' },
+  { method: 'POST', path: '/api/update/check' },
   { method: 'GET', path: '/api/diagnostics/download' },
   { method: 'GET', path: '/api/software/script' },
   { method: 'GET', path: '/api/scripts/content' },
@@ -202,6 +203,7 @@ export class WebManagementServer {
     this.listenHost = null;
     this.authToken = null;
     this.eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+    this.startUpdateCheck = options.startUpdateCheck !== false;
   }
 
   get address() {
@@ -234,6 +236,9 @@ export class WebManagementServer {
         resolve();
       });
     });
+    if (this.startUpdateCheck) {
+      void Promise.resolve(this.controller.checkForUpdate({ force: false })).catch(() => {});
+    }
   }
 
   async stop() {
@@ -380,6 +385,11 @@ export class WebManagementServer {
     }
     if (req.method === 'GET' && pathname === '/api/diagnostics/latest') {
       sendJson(res, 200, { ok: true, result: this.controller.diagnosticsSummary() });
+      return;
+    }
+    if (req.method === 'POST' && pathname === '/api/update/check') {
+      const update = await this.controller.checkForUpdate({ force: true });
+      sendJson(res, 200, { ok: true, update, state: this.controller.getState() });
       return;
     }
     if (req.method === 'GET' && pathname === '/api/diagnostics/download') {

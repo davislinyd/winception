@@ -72,6 +72,7 @@ async function makeServer(root, overrides = {}) {
   const controller = new ServiceController({
     config,
     services,
+    updateChecker: overrides.updateChecker,
     dependencies: {
       listIpv4ServiceInterfaces: async () => [{ interfaceAlias: 'LAN', ipAddress: '127.0.0.1', prefixLength: 24 }],
       isElevated: () => true,
@@ -394,7 +395,12 @@ async function makeServer(root, overrides = {}) {
   fs.writeFileSync(path.join(manualRoot, 'winception-operations-manual.html'), '<!doctype html><title>Winception Manual</title>');
   fs.writeFileSync(path.join(manualAssetsRoot, 'flow.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
   fs.writeFileSync(path.join(manualAssetsRoot, 'screen.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
-  const server = new WebManagementServer({ controller, staticRoot, manualRoot });
+  const server = new WebManagementServer({
+    controller,
+    staticRoot,
+    manualRoot,
+    startUpdateCheck: overrides.startUpdateCheck ?? false,
+  });
   server.osCatalogCalls = osCatalogCalls;
   await server.start({ host: overrides.listenHost ?? '127.0.0.1', port: 0 });
   return server;
@@ -423,6 +429,89 @@ test('serves static UI and read-only state', async () => {
     assert.equal(secretsStep.action, 'secrets');
     assert.equal(secretsStep.detail, 'Missing: windowsUsername, windowsPassword, pxeinstallPassword');
     assert.equal(fs.existsSync(path.join(root, 'status')), false);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('update check runs after the listener is ready without delaying startup', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-update-startup-'));
+  let resolveCheck;
+  const calls = [];
+  const update = {
+    availability: 'unknown',
+    checkStatus: 'checking',
+    currentVersion: appVersion,
+    latest: null,
+    checkedAt: null,
+    lastSuccessfulAt: null,
+  };
+  const server = await makeServer(root, {
+    startUpdateCheck: true,
+    updateChecker: {
+      getState: () => update,
+      check: (options) => {
+        calls.push(options);
+        return new Promise((resolve) => {
+          resolveCheck = resolve;
+        });
+      },
+    },
+  });
+  try {
+    assert.deepEqual(calls, [{ force: false }]);
+    assert.ok(server.address.port > 0);
+  } finally {
+    resolveCheck?.(update);
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('manual update check is token-protected and returns a safe state snapshot', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-update-api-'));
+  const calls = [];
+  const update = {
+    availability: 'available',
+    checkStatus: 'success',
+    currentVersion: appVersion,
+    latest: {
+      version: '9.9.9',
+      publishedAt: '2026-07-17T00:00:00.000Z',
+      htmlUrl: 'https://github.com/davislinyd/winception/releases/tag/v9.9.9',
+    },
+    checkedAt: '2026-07-17T00:00:00.000Z',
+    lastSuccessfulAt: '2026-07-17T00:00:00.000Z',
+  };
+  const server = await makeServer(root, {
+    listenHost: '0.0.0.0',
+    updateChecker: {
+      getState: () => update,
+      check: async (options) => {
+        calls.push(options);
+        return update;
+      },
+    },
+  });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    let response = await fetch(`${base}/api/update/check`, { method: 'POST' });
+    assert.equal(response.status, 401);
+
+    const tokenPath = path.join(root, 'config', 'web-console-token.json');
+    const token = JSON.parse(fs.readFileSync(tokenPath, 'utf8')).token;
+    response = await fetch(`${base}/api/update/check`, {
+      method: 'POST',
+      headers: { 'x-winception-token': token },
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.deepEqual(payload.update, update);
+    assert.deepEqual(payload.state.app.update, update);
+    assert.deepEqual(calls, [{ force: true }]);
+    assert.equal(JSON.stringify(payload).includes(token), false);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });

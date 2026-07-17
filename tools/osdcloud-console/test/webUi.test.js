@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v1.0.2', () => {
+test('release metadata is aligned to v1.0.3', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '1.0.2');
-  assert.equal(packageLock.version, '1.0.2');
-  assert.equal(packageLock.packages[''].version, '1.0.2');
-  assert.match(changelog, /## v1\.0\.2 — 2026-07-17/);
-  assert.match(manual, /Operations Manual · v1\.0\.2/);
-  assert.match(manual, /Product documentation for Web v1\.0\.2/);
+  assert.equal(packageJson.version, '1.0.3');
+  assert.equal(packageLock.version, '1.0.3');
+  assert.equal(packageLock.packages[''].version, '1.0.3');
+  assert.match(changelog, /## v1\.0\.3 — 2026-07-17/);
+  assert.match(manual, /Operations Manual · v1\.0\.3/);
+  assert.match(manual, /Product documentation for Web v1\.0\.3/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -132,6 +132,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /class="topbar-nav"/);
   assert.match(html, /class="brand-mark"/);
   assert.match(html, /id="manual-link"[^>]*href="\/manual\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
+  assert.match(html, /id="update-check-button"[^>]*data-action="update-check"/);
+  assert.match(html, /id="update-status" role="status">Check updates/);
+  assert.match(html, /id="update-release-link"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
   assert.match(html, /aria-label="Open deployment manual in a new tab"/);
   assert.match(html, />menu_book<\/span>/);
   assert.match(html, /<span class="topbar-manual-label">Manual<\/span>/);
@@ -153,6 +156,11 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /const normalizedView = viewName === 'prepare' \|\| viewName === 'guided' \? 'dashboard' : viewName/);
   assert.doesNotMatch(script, /if \(viewName === 'dashboard'\) \{[\s\S]*setSetupRailCollapsed\(true\);/);
   assert.match(styles, /\.topbar-manual-link \{/);
+  assert.match(styles, /\.update-check-button \{/);
+  assert.match(script, /function renderUpdateStatus\(appState\)/);
+  assert.match(script, /Update v\$\{update\.latest\.version\} available/);
+  assert.match(script, /api\('\/api\/update\/check', \{ method: 'POST' \}\)/);
+  assert.doesNotMatch(script, /window\.open\(.*update/);
   assert.match(styles, /@media \(max-width: 1024px\)[\s\S]*\.topbar-manual-label \{ display: none; \}/);
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
   assert.match(html, /class="deploy-summary"/);

@@ -187,7 +187,7 @@ function makeController(root, overrides = {}) {
   return {
     config,
     services,
-    controller: new ServiceController({ config, services, dependencies }),
+    controller: new ServiceController({ config, services, dependencies, updateChecker: overrides.updateChecker }),
   };
 }
 
@@ -199,11 +199,52 @@ test('state reads do not create live status roots', () => {
     assert.equal(fs.existsSync(statusRoot), false);
     const state = controller.getState();
     assert.equal(state.app.version, appVersion);
+    assert.deepEqual(state.app.update, {
+      availability: 'unknown',
+      checkStatus: 'idle',
+      currentVersion: appVersion,
+      latest: null,
+      checkedAt: null,
+      lastSuccessfulAt: null,
+    });
     assert.equal(state.services.http.running, false);
     assert.equal(state.profile.activeProfile.id, 'default');
     assert.deepEqual(state.profile.softwareCatalog.map((software) => software.id), ['7zip', 'chrome']);
     assert.deepEqual(state.profile.softwareCatalog.find((software) => software.id === '7zip').usedByProfiles, [{ id: 'default', name: 'Default' }]);
     assert.equal(fs.existsSync(statusRoot), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('state exposes the safe update snapshot and manual checks delegate to the checker', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-update-'));
+  try {
+    const calls = [];
+    const update = {
+      availability: 'available',
+      checkStatus: 'success',
+      currentVersion: appVersion,
+      latest: {
+        version: '9.9.9',
+        publishedAt: '2026-07-17T00:00:00.000Z',
+        htmlUrl: 'https://github.com/davislinyd/winception/releases/tag/v9.9.9',
+      },
+      checkedAt: '2026-07-17T00:00:00.000Z',
+      lastSuccessfulAt: '2026-07-17T00:00:00.000Z',
+    };
+    const { controller } = makeController(root, {
+      updateChecker: {
+        getState: () => update,
+        check: async (options) => {
+          calls.push(options);
+          return update;
+        },
+      },
+    });
+    assert.deepEqual(controller.getState().app.update, update);
+    assert.deepEqual(await controller.checkForUpdate({ force: true }), update);
+    assert.deepEqual(calls, [{ force: true }]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -20,6 +20,46 @@ export function renderFleetExpandedState() {
   elements.fleetExpandToggle.title = state.fleetExpanded ? 'Return to dashboard overview' : 'Expand Client Fleet';
 }
 
+function updateStatusText(update) {
+  if (state.updateCheckRunning || update?.checkStatus === 'checking') {
+    return 'Checking updates...';
+  }
+  if (state.updateCheckRequestFailed || update?.checkStatus === 'unavailable') {
+    return update?.lastSuccessfulAt
+      ? `Update unavailable · last verified ${localTime(update.lastSuccessfulAt)}`
+      : 'Update check unavailable';
+  }
+  if (update?.availability === 'available' && update.latest?.version) {
+    return `Update v${update.latest.version} available`;
+  }
+  if (update?.availability === 'current') {
+    return update?.lastSuccessfulAt
+      ? `No newer release · ${localTime(update.lastSuccessfulAt)}`
+      : 'No newer release';
+  }
+  if (update?.checkStatus === 'success') {
+    return 'No stable release published';
+  }
+  return 'Check updates';
+}
+
+function renderUpdateStatus(appState) {
+  if (!elements.updateCheckButton || !elements.updateStatus || !elements.updateReleaseLink) {
+    return;
+  }
+  const update = appState.app?.update;
+  const available = update?.availability === 'available' && Boolean(update.latest?.htmlUrl);
+  elements.updateCheckButton.disabled = state.updateCheckRunning;
+  elements.updateCheckButton.classList.toggle('available', available);
+  elements.updateCheckButton.classList.toggle('unavailable', state.updateCheckRequestFailed || update?.checkStatus === 'unavailable');
+  elements.updateStatus.textContent = updateStatusText(update);
+  elements.updateCheckButton.title = update?.lastSuccessfulAt
+    ? `Check for updates. Last verified ${localTime(update.lastSuccessfulAt)}.`
+    : 'Check for updates.';
+  elements.updateReleaseLink.hidden = !available;
+  elements.updateReleaseLink.href = available ? update.latest.htmlUrl : '#';
+}
+
 export function render() {
   const appState = state.current;
   if (!appState) {
@@ -27,6 +67,7 @@ export function render() {
   }
   renderFleetExpandedState();
   elements.appVersion.textContent = appState.app?.version ? `v${appState.app.version}` : '';
+  renderUpdateStatus(appState);
   elements.endpointLine.textContent = endpointLabel(appState.config);
   elements.updatedAt.textContent = `Updated ${localTime(appState.generatedAt)}`;
   renderWarningBanner(appState);

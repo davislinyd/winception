@@ -557,11 +557,32 @@ export async function handleFleetBulkAction(action) {
   }
 }
 
+async function handleUpdateCheck() {
+  if (state.updateCheckRunning) {
+    return;
+  }
+  state.updateCheckRunning = true;
+  state.updateCheckRequestFailed = false;
+  render();
+  try {
+    const payload = await api('/api/update/check', { method: 'POST' });
+    state.current = payload.state;
+    state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
+  } catch {
+    state.updateCheckRequestFailed = true;
+  } finally {
+    state.updateCheckRunning = false;
+    render();
+  }
+}
+
 export async function handleAction(action, source = null) {
   const services = state.current?.services ?? {};
   if (action === 'run-evidence') {
     const runId = source?.dataset?.runId ?? source?.closest?.('[data-run-id]')?.dataset?.runId;
     showValidationEvidence(runId);
+  } else if (action === 'update-check') {
+    await handleUpdateCheck();
   } else if (action === 'initialization') {
     openDialog(elements.initializationDialog);
   } else if (action === 'preflight') {

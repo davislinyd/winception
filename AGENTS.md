@@ -67,6 +67,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - A Git clone alone is not a deployable PXE runtime and must remain an installation/configuration source only. After setup installs `C:\OSDCloud\HostTools`, the original clone may be deleted if no further source edits are needed on that host.
 - Do not manually patch, copy into, or directly edit the Web-selected deployment project root.
 - After changing `tools/osdcloud-console/src/`, reload or restart the Web console before validating behavior. Changes limited to `tools/osdcloud-console/web/js/`, `web/css/`, or `web/index.html` only need a browser reload.
+- HostTools version checks may query the public GitHub latest formal Release only after the Web listener is ready. They must use the State cache, remain non-blocking and offline-safe, ignore prerelease/draft tags, and never download, install, overwrite, or restart.
 - Web read-only checks must not mutate live runtime state.
 - Web mutating actions can modify live deployment state.
 - Run preflight before starting services.

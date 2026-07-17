@@ -19,6 +19,8 @@ export const state = {
   osDownloadCatalogError: null,
   osDownloadCatalogFilters: null,
   osDownloadStarting: false,
+  updateCheckRunning: false,
+  updateCheckRequestFailed: false,
   refreshError: null,
   osImportInspection: null,
   auth: {

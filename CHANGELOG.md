@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.0.3 — 2026-07-17
+
+- Web Console now checks the latest formal Winception GitHub Release after startup and on demand. The host-side check caches only safe release metadata for 24 hours in HostTools State, keeps working offline, and never downloads, installs, or restarts anything.
+
 ## v1.0.2 — 2026-07-17
 
 - Diagnostics now invoke `npm --version` through the Windows command interpreter, eliminating the false host-prerequisite failure caused by directly spawning `npm.cmd`. Successful HostTools deployments clear prior diagnostics; missing ZIP files are not offered for download.
