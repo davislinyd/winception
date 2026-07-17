@@ -20,7 +20,6 @@ export const elements = {
   webTokenInput: $('#web-token-input'),
   webTokenError: $('#web-token-error'),
   refreshButton: $('#refresh-button'),
-  updatedAt: $('#updated-at'),
   endpointSummary: $('#endpoint-summary'),
   runtimeReadinessBadge: $('#runtime-readiness-badge'),
   runtimeReadinessSummary: $('#runtime-readiness-summary'),
