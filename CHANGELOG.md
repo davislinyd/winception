@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Publish the illustrated bilingual operations manual to GitHub Pages from stable v1 release tags, keeping Pages content isolated from unreleased source changes.
+
 ## v1.0.3 — 2026-07-17
 
 - Web Console now checks the latest formal Winception GitHub Release after startup and on demand. The host-side check caches only safe release metadata for 24 hours in HostTools State, keeps working offline, and never downloads, installs, or restarts anything.
