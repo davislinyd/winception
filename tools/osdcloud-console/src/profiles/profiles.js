@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadCustomScriptCatalog } from './scripts.js';
-import { arrayFrom, assertInside, defaultInstallSequenceTimeoutSeconds, deploymentProfileOptions, generateDeploymentProfileId, inputError, normalizeExecutionSettings, normalizeId, normalizeLocaleTag, normalizePositiveInteger, normalizeProfileDescription, normalizeProfileName, normalizeWindowsTimeZoneId, profileNameKey, readJson, resolveExecutionSettings, selectedProfileFileName, writeJson } from './shared.js';
+import { arrayFrom, assertInside, defaultInstallSequenceTimeoutSeconds, deploymentProfileOptions, generateDeploymentProfileId, inputError, normalizeAutoLogon, normalizeExecutionSettings, normalizeId, normalizeLocaleTag, normalizePositiveInteger, normalizeProfileDescription, normalizeProfileName, normalizeWindowsTimeZoneId, profileNameKey, readJson, resolveExecutionSettings, selectedProfileFileName, writeJson } from './shared.js';
 import { loadSoftwareCatalog } from './software.js';
 
 export function normalizeInstallSequence(value, catalog, scriptCatalog, label) {
@@ -247,6 +247,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
     const locale = normalizeLocaleTag(raw.locale, `deployment profile ${id} locale`, { optional: true });
     const inputLanguage = normalizeLocaleTag(raw.inputLanguage, `deployment profile ${id} inputLanguage`, { optional: true });
     const timeZone = normalizeWindowsTimeZoneId(raw.timeZone, `deployment profile ${id} timeZone`, { optional: true });
+    const autoLogon = normalizeAutoLogon(raw.autoLogon, `deployment profile ${id} autoLogon`);
 
     const name = normalizeProfileName(raw.name ?? id, `deployment profile ${id} name`);
     const nameKey = profileNameKey(name);
@@ -270,6 +271,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       locale,
       inputLanguage,
       timeZone,
+      autoLogon,
       filePath,
     };
   });
@@ -411,12 +413,16 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
     `deployment profile ${id} timeZone`,
     { optional: true },
   );
+  const autoLogon = Object.prototype.hasOwnProperty.call(input, 'autoLogon')
+    ? normalizeAutoLogon(input.autoLogon, `deployment profile ${id} autoLogon`)
+    : false;
 
   const raw = {
     id,
     name,
     software: softwareIds,
     installSequence,
+    autoLogon,
   };
   if (osImageId) {
     raw.osImage = osImageId;
@@ -456,6 +462,7 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
       locale,
       inputLanguage,
       timeZone,
+      autoLogon,
       filePath,
     },
     filePath,
@@ -526,6 +533,10 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   const timeZone = hasTimeZone
     ? normalizeWindowsTimeZoneId(input.timeZone, `deployment profile ${id} timeZone`, { optional: true })
     : profile.timeZone ?? null;
+  const hasAutoLogon = Object.prototype.hasOwnProperty.call(input, 'autoLogon');
+  const autoLogon = hasAutoLogon
+    ? normalizeAutoLogon(input.autoLogon, `deployment profile ${id} autoLogon`)
+    : profile.autoLogon;
   if (osImageId && options.osImageCatalog && !options.osImageCatalog.byId?.has(osImageId)) {
     throw new Error(`Profile ${id} references unknown OS image: ${osImageId}`);
   }
@@ -571,6 +582,9 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
   } else {
     delete raw.timeZone;
   }
+  if (hasAutoLogon || raw.autoLogon !== undefined) {
+    raw.autoLogon = autoLogon;
+  }
   writeJson(filePath, raw);
 
   return {
@@ -588,6 +602,7 @@ export function updateDeploymentProfile(config = {}, profileId, input = {}, opti
       locale,
       inputLanguage,
       timeZone,
+      autoLogon,
     },
     filePath,
   };

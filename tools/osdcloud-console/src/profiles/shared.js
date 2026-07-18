@@ -136,6 +136,16 @@ export function normalizeExecutionSettings(value, label) {
   return { defaultTimeoutSeconds };
 }
 
+export function normalizeAutoLogon(value, label) {
+  if (value === undefined) {
+    return false;
+  }
+  if (typeof value !== 'boolean') {
+    throw inputError(`${label} must be a boolean`);
+  }
+  return value;
+}
+
 export function resolveExecutionSettings(value, label) {
   const normalized = normalizeExecutionSettings(value, label);
   return {

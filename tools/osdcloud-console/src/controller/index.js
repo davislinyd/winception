@@ -1481,6 +1481,7 @@ export class ServiceController extends EventEmitter {
           ...(Object.prototype.hasOwnProperty.call(input, 'locale') ? { locale: input.locale } : {}),
           ...(Object.prototype.hasOwnProperty.call(input, 'inputLanguage') ? { inputLanguage: input.inputLanguage } : {}),
           ...(Object.prototype.hasOwnProperty.call(input, 'timeZone') ? { timeZone: input.timeZone } : {}),
+          ...(Object.prototype.hasOwnProperty.call(input, 'autoLogon') ? { autoLogon: input.autoLogon } : {}),
         };
         if (!editingActive) {
           const updated = this.dependencies.updateDeploymentProfile(this.config, targetId, updateInput);

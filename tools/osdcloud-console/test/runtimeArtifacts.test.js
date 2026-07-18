@@ -948,7 +948,7 @@ test('endpoint sync injects deployment Config scripts from the bundle, not the m
   assert.doesNotMatch(mountInjection, /\$ipxeLab 'Config\\Scripts\\Shutdown\\Invoke-OobeCustomization\.ps1'/);
 });
 
-test('SetupComplete defers client sequence to a SYSTEM startup task and gates desktop-ready', () => {
+test('SetupComplete waits for the target user logon before SYSTEM finalization and gates desktop-ready', () => {
   const setupPath = path.join(
     process.cwd(),
     'osdcloud-assets',
@@ -967,14 +967,11 @@ test('SetupComplete defers client sequence to a SYSTEM startup task and gates de
   };
 
   assert.match(setup, /\[switch\] \$PostLogonFinalize/);
-  assert.match(setup, /\[long\] \$RegisteredBootTimeUtcTicks = 0/);
   assert.match(setup, /OSDCloudPostLogonFinalize/);
-  assert.match(setup, /LastBootUpTime\.ToUniversalTime\(\)\.Ticks/);
-  assert.match(setup, /-PostLogonFinalize -RegisteredBootTimeUtcTicks \$registeredBootTimeUtcTicks/);
-  assert.match(setup, /\$currentBootTimeUtcTicks -eq \$RegisteredBootTimeUtcTicks/);
-  assert.match(setup, /Client finalization is waiting for the required post-SetupComplete reboot/);
   assert.match(setup, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
-  assert.match(setup, /New-ScheduledTaskTrigger -AtStartup/);
+  assert.match(setup, /\$targetUserId = "\$env:COMPUTERNAME\\\$UserName"/);
+  assert.match(setup, /New-ScheduledTaskTrigger -AtLogOn -User \$targetUserId/);
+  assert.doesNotMatch(setup, /RegisteredBootTimeUtcTicks|New-ScheduledTaskTrigger -AtStartup/);
   assert.match(setup, /Wait-ForTargetUserInteractiveSession -TargetUser \$UserName/);
   assert.match(setup, /\[int\] \$TimeoutSeconds = 600/);
   assert.match(setup, /\[int\] \$PollSeconds = 2/);
@@ -1000,6 +997,10 @@ test('SetupComplete defers client sequence to a SYSTEM startup task and gates de
   assert.match(setup, /-MultipleInstances IgnoreNew/);
   assert.doesNotMatch(setup, /\$deadline = \(Get-Date\)\.AddMinutes\(30\)/);
   assert.match(setup, /Set-DeploymentProgressFailure -Category 'interrupted'/);
+  assert.match(setup, /\$AutoLogonEnabled = Get-DeploymentAutoLogonEnabled/);
+  assert.match(setup, /if \(\$AutoLogonEnabled\) \{[\s\S]*?DefaultPassword/);
+  assert.match(setup, /Remove-ItemProperty -Path \$Winlogon -Name \$_ -Force -ErrorAction SilentlyContinue/);
+  assert.match(setup, /Windows is ready for the target user manual sign-in/);
   assert.equal(isOuterFunction('Write-JsonFileAtomic'), true);
   assert.equal(isOuterFunction('Initialize-DeploymentProgress'), true);
   assert.equal(isOuterFunction('Set-DeploymentProgressPhase'), true);
@@ -1020,6 +1021,31 @@ test('SetupComplete defers client sequence to a SYSTEM startup task and gates de
     'SetupComplete.ps1',
   ), 'utf8');
   assert.equal(winPeMirror.replace(/\r\n/gu, '\n'), setup.replace(/\r\n/gu, '\n'));
+
+  const shutdown = fs.readFileSync(path.join(
+    process.cwd(), 'osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'Shutdown', 'Invoke-OobeCustomization.ps1',
+  ), 'utf8');
+  const winPeShutdown = fs.readFileSync(path.join(
+    process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Config', 'Scripts', 'Shutdown', 'Invoke-OobeCustomization.ps1',
+  ), 'utf8');
+  assert.match(shutdown, /\$autoLogonXml = if \(\$autoLogonEnabled\)/);
+  assert.match(shutdown, /if \(\$autoLogonEnabled\) \{[\s\S]*?AutoAdminLogon/);
+  assert.match(shutdown, /reg\.exe delete \$winlogonKey \/v \$_ \/f/);
+  assert.equal(winPeShutdown.replace(/\r\n/gu, '\n'), shutdown.replace(/\r\n/gu, '\n'));
+});
+
+test('PXE and USB metadata carry only the profile automatic sign-in boolean', () => {
+  const pxe = fs.readFileSync(path.join(
+    process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1',
+  ), 'utf8');
+  const usb = fs.readFileSync(path.join(
+    process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Invoke-OobeCustomization-USB.ps1',
+  ), 'utf8');
+
+  assert.match(pxe, /\$ProfileAutoLogon = \$false/);
+  assert.match(pxe, /\$profileManifest\.autoLogon -is \[bool\]/);
+  assert.match(pxe, /autoLogon = \$ProfileAutoLogon/);
+  assert.match(usb, /autoLogon = \(\$selectedProfile\.autoLogon -is \[bool\]/);
 });
 
 test('finished app status sends only the safe completed-step summary', () => {

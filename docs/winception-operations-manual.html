@@ -313,7 +313,7 @@
 
   <div id="locale-zh" class="locale-view" lang="zh-Hant">
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v1.0.3</p>
+      <p class="eyebrow">Operations Manual · v1.0.3-1</p>
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
@@ -454,7 +454,7 @@ cd '&lt;repo-root&gt;'
             <li>在 Web Console 按 <strong>Start all services</strong>。</li>
             <li>目標電腦選擇 UEFI IPv4 PXE boot。</li>
             <li>WinPE 掛載 SMB share，讀取 selected manifests，套用 Windows image。</li>
-            <li>Windows 第一次開機後自動登入 <code>&lt;windowsUsername&gt;</code>。</li>
+            <li>Windows 第一次開機後停在 <code>&lt;windowsUsername&gt;</code> 登入畫面；技術人員手動登入後才開始 finalizer。只有 profile 明確啟用的測試專用 automatic sign-in 會略過此步驟。</li>
             <li>Windows finalizer 執行 active profile 的 software/custom scripts。</li>
             <li>Web Console 收到 <code>windows-desktop-ready</code>。</li>
           </ol>
@@ -528,7 +528,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 
   <div id="locale-en" class="locale-view" lang="en" hidden>
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v1.0.3</p>
+      <p class="eyebrow">Operations Manual · v1.0.3-1</p>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
@@ -669,7 +669,7 @@ cd '&lt;repo-root&gt;'
             <li>Click <strong>Start all services</strong> in the Web Console.</li>
             <li>Select UEFI IPv4 PXE boot on the target computer.</li>
             <li>WinPE mounts the SMB share, reads selected manifests, and applies the Windows image.</li>
-            <li>Windows automatically signs in as <code>&lt;windowsUsername&gt;</code> on first boot.</li>
+            <li>Windows stops at the <code>&lt;windowsUsername&gt;</code> sign-in screen on first boot. The technician signs in before finalization starts; only an explicitly enabled test-only profile uses automatic sign-in.</li>
             <li>The Windows finalizer runs the active profile software/custom scripts.</li>
             <li>The Web Console receives <code>windows-desktop-ready</code>.</li>
           </ol>
@@ -741,7 +741,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
     </div>
   </div>
 
-  <footer>Winception deployment manual · Product documentation for Web v1.0.3.</footer>
+  <footer>Winception deployment manual · Product documentation for Web v1.0.3-1.</footer>
 
   <dialog id="lightbox" aria-label="Image preview">
     <div class="lightbox-inner">

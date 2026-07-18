@@ -884,7 +884,7 @@ if ($CommitWinPe) {
                 Write-Host "Injected local deployment secrets into boot.wim from $deploymentSecretSource"
             }
             else {
-                Write-Warning "No local deployment secrets found. Create C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json before deployment so WinPE can map SMB and configure autologon."
+                Write-Warning "No local deployment secrets found. Create C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json before deployment so WinPE can map SMB and provision the local Windows account."
             }
 
             Set-StartOsdCloudEndpoint -Path (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1')

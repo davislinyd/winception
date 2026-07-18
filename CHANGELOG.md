@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v1.0.3-1 — 2026-07-19
+
+- Deployment profiles now default automatic sign-in to off. The technician signs in with the target local account after Windows setup; an explicitly enabled test-only profile is the only automatic sign-in exception.
+- The client finalizer now uses a target-user `AtLogOn` trigger under SYSTEM rather than timing out before manual sign-in. PXE and offline USB metadata carry the same profile setting, and OOBE clears Winlogon automatic sign-in values by default.
 
 - Publish the illustrated bilingual operations manual to GitHub Pages from stable v1 release tags, keeping Pages content isolated from unreleased source changes.
 

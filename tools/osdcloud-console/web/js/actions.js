@@ -729,6 +729,7 @@ export async function handleAction(action, source = null) {
               `Profile: ${profileUpdate.name}`,
               `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`,
               `Custom scripts: ${scriptDetail}`,
+              `Automatic sign-in: ${profileUpdate.autoLogon ? 'TEST ONLY — enabled' : 'Disabled (manual target sign-in required)'}`,
             ],
             confirmLabel: 'Save changes',
             severity: 'warning',
@@ -740,6 +741,7 @@ export async function handleAction(action, source = null) {
               `Profile: ${profileUpdate.name}`,
               `Software: ${profileUpdate.softwareIds.join(', ') || 'none'}`,
               `Custom scripts: ${scriptDetail}`,
+              `Automatic sign-in: ${profileUpdate.autoLogon ? 'TEST ONLY — enabled' : 'Disabled (manual target sign-in required)'}`,
             ],
             confirmLabel: 'Save changes',
           });

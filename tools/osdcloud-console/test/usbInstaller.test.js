@@ -141,6 +141,7 @@ test('USB OOBE customization is injected privately and invoked explicitly', () =
   assert.match(oobe, /\$coreRoot = 'X:\\OSDCloud\\Config\\Scripts\\Shutdown'/);
   assert.match(oobe, /Copy-Item -LiteralPath \$coreSource -Destination \$coreScript -Force/);
   assert.match(oobe, /& \$coreScript/);
+  assert.match(oobe, /autoLogon = \(\$selectedProfile\.autoLogon -is \[bool\]/);
 });
 
 test('USB local status gate leaves the two PXE SetupComplete copies identical', () => {

@@ -1,7 +1,6 @@
 [CmdletBinding()]
 param(
-    [switch] $PostLogonFinalize,
-    [long] $RegisteredBootTimeUtcTicks = 0
+    [switch] $PostLogonFinalize
 )
 
 $ErrorActionPreference = 'Continue'
@@ -65,6 +64,16 @@ function Get-DeploymentMetadata {
 }
 
 $DeploymentMetadata = Get-DeploymentMetadata
+
+function Get-DeploymentAutoLogonEnabled {
+    if (-not $DeploymentMetadata -or -not $DeploymentMetadata.PSObject.Properties['autoLogon']) {
+        return $false
+    }
+
+    return ($DeploymentMetadata.autoLogon -is [bool] -and [bool] $DeploymentMetadata.autoLogon)
+}
+
+$AutoLogonEnabled = Get-DeploymentAutoLogonEnabled
 
 function Get-SelectedOsMetadata {
     if ($DeploymentMetadata.selectedOs) {
@@ -1043,9 +1052,9 @@ function Install-PostLogonFinalizer {
 
     [void] (Initialize-DeploymentProgress)
     $powerShellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $registeredBootTimeUtcTicks = [long] (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
-    $action = New-ScheduledTaskAction -Execute $powerShellPath -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -PostLogonFinalize -RegisteredBootTimeUtcTicks $registeredBootTimeUtcTicks"
-    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $targetUserId = "$env:COMPUTERNAME\$UserName"
+    $action = New-ScheduledTaskAction -Execute $powerShellPath -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -PostLogonFinalize"
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $targetUserId
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 105) -MultipleInstances IgnoreNew
     Register-ScheduledTask -TaskName $PostLogonTaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop | Out-Null
@@ -1057,6 +1066,7 @@ function Install-PostLogonFinalizer {
 
     [ordered]@{
         taskName = $PostLogonTaskName
+        targetUser = $targetUserId
         viewerPath = $viewerPath
         progressPath = $DeploymentProgressPath
     }
@@ -1064,14 +1074,6 @@ function Install-PostLogonFinalizer {
 
 function Invoke-PostLogonFinalization {
     $keepFinalizerForReboot = $false
-    if ($RegisteredBootTimeUtcTicks -gt 0) {
-        $currentBootTimeUtcTicks = [long] (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
-        if ($currentBootTimeUtcTicks -eq $RegisteredBootTimeUtcTicks) {
-            Write-Host 'Client finalization is waiting for the required post-SetupComplete reboot.'
-            return $true
-        }
-    }
-
     $progress = Get-JsonFileObject -Path $DeploymentProgressPath
     if ($progress -and [string] $progress.status -eq 'running') {
         Set-DeploymentProgressFailure -Category 'interrupted'
@@ -1185,12 +1187,18 @@ try {
     Stop-Service -Name wuauserv, UsoSvc, bits -Force -ErrorAction SilentlyContinue
 
     $Winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
-    New-ItemProperty -Path $Winlogon -Name AutoAdminLogon -PropertyType String -Value '1' -Force | Out-Null
-    New-ItemProperty -Path $Winlogon -Name ForceAutoLogon -PropertyType String -Value '1' -Force | Out-Null
-    New-ItemProperty -Path $Winlogon -Name DefaultUserName -PropertyType String -Value $UserName -Force | Out-Null
-    New-ItemProperty -Path $Winlogon -Name DefaultPassword -PropertyType String -Value $PlainPassword -Force | Out-Null
-    New-ItemProperty -Path $Winlogon -Name DefaultDomainName -PropertyType String -Value $env:COMPUTERNAME -Force | Out-Null
-    New-ItemProperty -Path $Winlogon -Name AutoLogonCount -PropertyType DWord -Value 5 -Force | Out-Null
+    if ($AutoLogonEnabled) {
+        New-ItemProperty -Path $Winlogon -Name AutoAdminLogon -PropertyType String -Value '1' -Force | Out-Null
+        New-ItemProperty -Path $Winlogon -Name ForceAutoLogon -PropertyType String -Value '1' -Force | Out-Null
+        New-ItemProperty -Path $Winlogon -Name DefaultUserName -PropertyType String -Value $UserName -Force | Out-Null
+        New-ItemProperty -Path $Winlogon -Name DefaultPassword -PropertyType String -Value $PlainPassword -Force | Out-Null
+        New-ItemProperty -Path $Winlogon -Name DefaultDomainName -PropertyType String -Value $env:COMPUTERNAME -Force | Out-Null
+        New-ItemProperty -Path $Winlogon -Name AutoLogonCount -PropertyType DWord -Value 5 -Force | Out-Null
+    }
+    else {
+        @('AutoAdminLogon', 'ForceAutoLogon', 'DefaultUserName', 'DefaultPassword', 'DefaultDomainName', 'AutoLogonCount') |
+            ForEach-Object { Remove-ItemProperty -Path $Winlogon -Name $_ -Force -ErrorAction SilentlyContinue }
+    }
 
     $LogonUI = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI'
     if (Test-Path $LogonUI) {
@@ -1203,11 +1211,19 @@ try {
     $targetUserEnvironment = Set-TargetUserEnvironment -TargetUser $UserName
     $finalizer = Install-PostLogonFinalizer
     $reporterPath = Install-DesktopReadyReporter
-    [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-awaiting-logon' -Message 'SetupComplete prepared post-logon client finalization.' -Percent 94.2 -Extra @{
+    [void] (Set-DeploymentProgressPhase -Phase 'awaiting-user-session')
+    $awaitingLogonMessage = if ($AutoLogonEnabled) {
+        'SetupComplete prepared post-logon client finalization for test-profile automatic sign-in.'
+    }
+    else {
+        'Windows is ready for the target user manual sign-in; post-logon client finalization is waiting.'
+    }
+    [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-awaiting-logon' -Message $awaitingLogonMessage -Percent 94.2 -Extra @{
         reporterPath = $reporterPath
         finalizer = $finalizer
         targetUserEnvironment = $targetUserEnvironment
         selectedOs = $SelectedOs
+        autoLogon = $AutoLogonEnabled
     })
 }
 catch {
@@ -1221,4 +1237,10 @@ finally {
     Stop-Transcript -ErrorAction SilentlyContinue
 }
 
-shutdown.exe /r /t 10 /c "OSDCloud $UserName desktop autologon"
+$restartMessage = if ($AutoLogonEnabled) {
+    "OSDCloud $UserName test-profile automatic sign-in"
+}
+else {
+    "OSDCloud is ready for $UserName manual sign-in"
+}
+shutdown.exe /r /t 10 /c $restartMessage

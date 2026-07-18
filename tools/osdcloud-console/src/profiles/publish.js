@@ -54,6 +54,7 @@ export function profileManifest(state, osImageResult = null) {
     execution: {
       defaultTimeoutSeconds: state.activeProfile.execution?.defaultTimeoutSeconds ?? defaultInstallSequenceTimeoutSeconds,
     },
+    autoLogon: state.activeProfile.autoLogon === true,
     installSequence: sequence.map((entry) => ({
       type: entry.type,
       id: entry.id,

@@ -55,6 +55,18 @@ function Get-SelectedOsMetadata {
     }
 }
 
+function Get-DeploymentAutoLogonEnabled {
+    param(
+        [object] $DeploymentMetadata
+    )
+
+    if (-not $DeploymentMetadata -or -not $DeploymentMetadata.PSObject.Properties['autoLogon']) {
+        return $false
+    }
+
+    return ($DeploymentMetadata.autoLogon -is [bool] -and [bool] $DeploymentMetadata.autoLogon)
+}
+
 function ConvertTo-XmlText {
     param(
         [string] $Value
@@ -119,6 +131,7 @@ try {
     Write-Host "Target Windows root: $windowsRoot"
     $deploymentMetadata = Get-DeploymentMetadata -WindowsRoot $windowsRoot
     $selectedOs = Get-SelectedOsMetadata -DeploymentMetadata $deploymentMetadata
+    $autoLogonEnabled = Get-DeploymentAutoLogonEnabled -DeploymentMetadata $deploymentMetadata
     $uiLanguage = if ($selectedOs.uiLanguage) { [string] $selectedOs.uiLanguage } elseif ($selectedOs.language) { [string] $selectedOs.language } else { 'zh-TW' }
     $locale = if ($selectedOs.locale) { [string] $selectedOs.locale } else { $uiLanguage }
     $inputLanguage = if ($selectedOs.inputLanguage) { [string] $selectedOs.inputLanguage } elseif ($selectedOs.language) { [string] $selectedOs.language } else { $uiLanguage }
@@ -134,10 +147,27 @@ try {
     $windowsPassword = Get-DeploymentSecret -JsonName 'windowsPassword' -EnvironmentName 'OSDCLOUD_WINDOWS_PASSWORD'
     $windowsUsernameXml = ConvertTo-XmlText -Value $windowsUsername
     $windowsPasswordXml = ConvertTo-XmlText -Value $windowsPassword
+    $autoLogonXml = if ($autoLogonEnabled) {
+@"
+      <AutoLogon>
+        <Password>
+          <Value>$windowsPasswordXml</Value>
+          <PlainText>true</PlainText>
+        </Password>
+        <Enabled>true</Enabled>
+        <LogonCount>5</LogonCount>
+        <Username>$windowsUsernameXml</Username>
+      </AutoLogon>
+"@
+    }
+    else {
+        ''
+    }
     Write-Host "OOBE UILanguage: $uiLanguage"
     Write-Host "OOBE regional format (UserLocale): $locale"
     Write-Host "OOBE input language (InputLocale): $inputLanguage"
     Write-Host "OOBE time zone: $timeZone"
+    Write-Host "OOBE automatic sign-in: $autoLogonEnabled"
 
     $panther = Join-Path $windowsRoot 'Windows\Panther'
     $sysprep = Join-Path $windowsRoot 'Windows\System32\Sysprep'
@@ -182,15 +212,7 @@ try {
           </LocalAccount>
         </LocalAccounts>
       </UserAccounts>
-      <AutoLogon>
-        <Password>
-          <Value>$windowsPasswordXml</Value>
-          <PlainText>true</PlainText>
-        </Password>
-        <Enabled>true</Enabled>
-        <LogonCount>5</LogonCount>
-        <Username>$windowsUsernameXml</Username>
-      </AutoLogon>
+$autoLogonXml
     </component>
   </settings>
 </unattend>
@@ -282,11 +304,18 @@ exit /b 0
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' /v HideOnlineAccountScreens /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' /v HideEULAPage /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' /v HideWirelessSetupInOOBE /t REG_DWORD /d 1 /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoAdminLogon /t REG_SZ /d '1' /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v ForceAutoLogon /t REG_SZ /d '1' /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultUserName /t REG_SZ /d $windowsUsername /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultPassword /t REG_SZ /d $windowsPassword /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoLogonCount /t REG_DWORD /d 5 /f | Out-Null
+    $winlogonKey = 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    if ($autoLogonEnabled) {
+        reg.exe add $winlogonKey /v AutoAdminLogon /t REG_SZ /d '1' /f | Out-Null
+        reg.exe add $winlogonKey /v ForceAutoLogon /t REG_SZ /d '1' /f | Out-Null
+        reg.exe add $winlogonKey /v DefaultUserName /t REG_SZ /d $windowsUsername /f | Out-Null
+        reg.exe add $winlogonKey /v DefaultPassword /t REG_SZ /d $windowsPassword /f | Out-Null
+        reg.exe add $winlogonKey /v AutoLogonCount /t REG_DWORD /d 5 /f | Out-Null
+    }
+    else {
+        @('AutoAdminLogon', 'ForceAutoLogon', 'DefaultUserName', 'DefaultPassword', 'DefaultDomainName', 'AutoLogonCount') |
+            ForEach-Object { reg.exe delete $winlogonKey /v $_ /f 2>$null | Out-Null }
+    }
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v NoAutoUpdate /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v AUOptions /t REG_DWORD /d 2 /f | Out-Null
     reg.exe unload HKLM\OSD_OFF_SOFTWARE | Out-Null

@@ -45,6 +45,7 @@ $metadata = [ordered]@{
     imageFileUrl = ''
     osImageIndex = [int] $selectedOs.imageIndex
     selectedOs = $selectedOs
+    autoLogon = ($selectedProfile.autoLogon -is [bool] -and [bool] $selectedProfile.autoLogon)
     createdAt = (Get-Date).ToString('o')
 }
 $metadata | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $metadataRoot 'DeploymentStatus.json') -Encoding UTF8 -Force

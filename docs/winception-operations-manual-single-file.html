@@ -528,7 +528,7 @@ cd "&lt;repo-root&gt;"
             <li>在 Web Console 按 <strong>Start all services</strong>。</li>
             <li>在目標電腦選擇 UEFI IPv4 PXE 開機。</li>
             <li>WinPE 掛載 SMB share，讀取 selected manifests，套用 Windows image。</li>
-            <li>Windows 第一次開機後自動登入 <code>&lt;windowsUsername&gt;</code>。</li>
+            <li>Windows 第一次開機後停在 <code>&lt;windowsUsername&gt;</code> 登入畫面；技術人員手動登入後才開始 finalizer。只有 profile 明確啟用的測試專用 automatic sign-in 會略過此步驟。</li>
             <li>Windows finalizer 依 active profile 執行 software / custom scripts。</li>
             <li>Web Console 收到 <code>windows-desktop-ready</code> 後，才算部署完成。</li>
           </ol>

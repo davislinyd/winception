@@ -486,6 +486,7 @@ function Save-DeploymentStatusMetadata {
             imageFileDestinationDisplayRoot = Get-ImageDestinationDisplayRoot -ImageFile $imageFile
             osImageIndex = [int] $SelectedOs.imageIndex
             selectedOs = Get-SelectedOsStatusPayload -SelectedOs $SelectedOs
+            autoLogon = $ProfileAutoLogon
             createdAt = (Get-Date).ToString('o')
         }
 
@@ -1158,13 +1159,15 @@ if (-not $SelectedOs -or [string]::IsNullOrWhiteSpace([string] $SelectedOs.fileN
     throw "selected-os.json did not produce a usable OS selection from $osRoot"
 }
 
-# Apply independent profile international settings from selected-profile.json.
+# Apply independent profile settings from selected-profile.json.
 # displayLanguage is kept separate from the WIM language metadata and is validated
 # against that single-language WIM before the profile is published.
 $profileManifestPath = 'Z:\OSDCloud\Apps\selected-profile.json'
+$ProfileAutoLogon = $false
 if (Test-Path -LiteralPath $profileManifestPath -PathType Leaf) {
     try {
         $profileManifest = Get-Content -LiteralPath $profileManifestPath -Raw | ConvertFrom-Json
+        $ProfileAutoLogon = ($profileManifest.autoLogon -is [bool] -and [bool] $profileManifest.autoLogon)
         if (-not [string]::IsNullOrWhiteSpace([string] $profileManifest.displayLanguage)) {
             $SelectedOs | Add-Member -NotePropertyName uiLanguage -NotePropertyValue ([string] $profileManifest.displayLanguage) -Force
             Write-Host "Profile display language override: $($profileManifest.displayLanguage)"
