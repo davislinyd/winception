@@ -353,7 +353,6 @@ Last completed run : <run-id>
 
 ### 10. 參考文件
 
-- [公開操作手冊](https://davislinyd.github.io/winception/)：最新正式 v1.x.x 的中英雙語圖解手冊。
 - [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)：中英雙語圖解操作手冊。
 - [`docs/diagrams/technical-flow.md`](docs/diagrams/technical-flow.md)：系統架構與資料流圖。
 - [`docs/diagrams/user-flow.md`](docs/diagrams/user-flow.md)：Web Console 操作流程圖。
@@ -712,7 +711,6 @@ Last completed run : <run-id>
 
 ### 10. Reference Documents
 
-- [Public operations manual](https://davislinyd.github.io/winception/): illustrated bilingual manual for the latest formal v1.x.x release.
 - [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html): illustrated bilingual operations manual.
 - [`docs/diagrams/technical-flow.md`](docs/diagrams/technical-flow.md): system architecture and data-flow diagram.
 - [`docs/diagrams/user-flow.md`](docs/diagrams/user-flow.md): Web Console operator-flow diagram.
