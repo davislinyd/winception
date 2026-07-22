@@ -138,7 +138,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /aria-label="Open deployment manual in a new tab"/);
   assert.match(html, />menu_book<\/span>/);
   assert.match(html, /<span class="topbar-manual-label">Manual<\/span>/);
-  assert.doesNotMatch(html, /id="updated-at"/);
+  assert.ok(html.indexOf('id="updated-at"') < html.indexOf('id="manual-link"'));
   assert.ok(html.indexOf('id="manual-link"') < html.indexOf('id="refresh-button"'));
   // Setup is integrated as a collapsible right rail on the Deploy view (no sidebar chip)
   assert.match(html, /id="deploy-grid"/);
@@ -161,7 +161,6 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /Update v\$\{update\.latest\.version\} available/);
   assert.match(script, /api\('\/api\/update\/check', \{ method: 'POST' \}\)/);
   assert.doesNotMatch(script, /window\.open\(.*update/);
-  assert.doesNotMatch(script, /last verified|No newer release ·|elements\.updatedAt/);
   assert.match(styles, /@media \(max-width: 1024px\)[\s\S]*\.topbar-manual-label \{ display: none; \}/);
   // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
   assert.match(html, /class="deploy-summary"/);
