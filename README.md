@@ -6,7 +6,7 @@
 
 ### 01. 產品概要
 
-Winception 是一套 Windows 11 deployment 工具。技術人員在部署主機上安裝 Web Console，準備 runtime、Windows 映像、deployment profile 與服務端點後，目標電腦從 UEFI IPv4 PXE 開機；Windows Setup 完成後，技術人員以部署目標帳號登入，後續的 client finalizer、應用程式與自訂腳本流程會自動完成。
+Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在部署主機上安裝 Web Console，準備 runtime、Windows 映像、deployment profile 與服務端點後，目標電腦只需要從 UEFI IPv4 PXE 開機，後續的 WinPE、OSDCloud、Windows SetupComplete、應用程式與自訂腳本流程會自動完成。
 
 主要能力：
 
@@ -235,7 +235,7 @@ Boot mode 決策：
 3. 不使用外部安裝媒體，不手動點選 OOBE。
 4. 在 Web Console 觀察 Client Fleet、Activity、Validation Evidence 與 System Log。
 5. 目標電腦完成 WinPE image apply 後會自動重新開機。
-6. Windows 第一次開機後會停在 `<windowsUsername>` 的登入畫面；技術人員手動登入後，才開始 client finalizer。只有 profile 明確勾選的測試專用 automatic sign-in 會略過此步驟。
+6. Windows 第一次開機後會自動登入 `<windowsUsername>`。
 7. Windows finalizer 會執行 active profile 的 software/custom script sequence。
 8. 成功後 Web Console 會收到 `windows-desktop-ready`。
 
@@ -260,7 +260,7 @@ windows-logon-start
 windows-desktop-ready
 ```
 
-`Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。重開後的 SYSTEM finalizer 會在目標帳號登入後先等待其桌面就緒，再開始安裝；登入後的 client 畫面會顯示 finalizer 啟動、目前步驟、是否仍在運作、即時 elapsed、slow warning 與已完成步驟耗時。這些安全狀態每兩秒刷新；完成時 Validation Evidence 只收到每步名稱、類型、status 與實際 duration，不含原始 installer output、命令列或秘密。若 custom script 需要 Internet，請把該依賴放在這個 post-logon sequence 內處理；deployment 階段不應依賴 client 外網。SetupComplete 會在 deployment 完成前停用 Windows Update / BITS 自動活動，因此依賴 BITS 或 Windows Update 的 custom script 必須自行啟動必要服務，或改用直接下載工具。
+`Minimal` profile 不安裝額外 client software。其他 profile 會依 `installSequence` 執行 software 與 custom scripts；任一步失敗、缺檔或 timeout，後續步驟不再執行，Web Console 會顯示對應錯誤階段。重開後的 SYSTEM finalizer 會先等待目標使用者桌面，再開始安裝；首次登入的 client 畫面會分別顯示等待登入、finalizer 啟動、目前步驟、是否仍在運作、即時 elapsed、slow warning 與已完成步驟耗時。這些安全狀態每兩秒刷新；完成時 Validation Evidence 只收到每步名稱、類型、status 與實際 duration，不含原始 installer output、命令列或秘密。若 custom script 需要 Internet，請把該依賴放在這個 post-logon sequence 內處理；deployment 階段不應依賴 client 外網。SetupComplete 會在 deployment 完成前停用 Windows Update / BITS 自動活動，因此依賴 BITS 或 Windows Update 的 custom script 必須自行啟動必要服務，或改用直接下載工具。
 
 Software Catalog 的新增精靈分三步：先建立 `Package`（Software ID、顯示名稱與必填 MSI/EXE payload；每個必填欄位都有紅色 `*`，installer type 依副檔名自動判定），再選擇 `Installation`，最後設定 `Requirements & review`。選檔後若重新開啟檔案選擇器再按取消，已選 payload 會保留。`Guided installer` 會由 Winception 產生 MSI/EXE 靜默安裝腳本；`Custom PowerShell` 仍需附帶 payload，並執行受信任管理員提供的 `install.ps1`。可先選擇 payload 後載入 MSI/EXE 參考範本，再依實際安裝器修改。Custom PowerShell 會先做 Windows PowerShell 5.1 語法檢查，因為 client 固定以 Windows 內建的 `powershell.exe`（PowerShell 5.1）在 SYSTEM、非互動環境執行；syntax preflight 只確保語法可被同一個 runtime 解析，不是 sandbox 或實機安裝測試。
 
@@ -364,7 +364,7 @@ Last completed run : <run-id>
 
 ### 01. Product Overview
 
-Winception is a Windows 11 deployment toolkit. A technician installs the Web Console on a deployment host, prepares the runtime, Windows image, deployment profile, and service endpoint, then the target computer boots from UEFI IPv4 PXE. After Windows Setup, the technician signs in with the target deployment account; the client finalizer, applications, and custom scripts then finish automatically.
+Winception is a Windows 11 zero-touch deployment toolkit. A technician installs the Web Console on a deployment host, prepares the runtime, Windows image, deployment profile, and service endpoint, then the target computer only needs to boot from UEFI IPv4 PXE. WinPE, OSDCloud, Windows SetupComplete, applications, and custom scripts finish automatically.
 
 Core capabilities:
 
@@ -593,7 +593,7 @@ After preparation is complete in the Web Console:
 3. Do not use external installation media and do not click through OOBE manually.
 4. Watch Client Fleet, Activity, Validation Evidence, and System Log in the Web Console.
 5. The target computer automatically reboots after WinPE image apply finishes.
-6. Windows stops at the `<windowsUsername>` sign-in screen on first boot. The technician signs in before the client finalizer starts; only an explicitly enabled test-only profile uses automatic sign-in.
+6. Windows automatically signs in as `<windowsUsername>` on first boot.
 7. The Windows finalizer runs the active profile software/custom script sequence.
 8. The Web Console receives `windows-desktop-ready` on success.
 
@@ -618,7 +618,7 @@ windows-logon-start
 windows-desktop-ready
 ```
 
-The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage. After the target user signs in, the SYSTEM finalizer waits for that desktop to become ready before installation starts; the client screen then shows finalizer start, active step, liveness, live elapsed time, slow warning, and completed-step durations. These safe fields refresh every two seconds; on completion, Validation Evidence receives only each step's name, type, status, and actual duration, never raw installer output, command lines, or secrets. If a custom script needs Internet, put that dependency inside this post-logon sequence; the deployment phase must not depend on client external Internet. SetupComplete disables automatic Windows Update / BITS activity before deployment completion, so custom scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.
+The `Minimal` profile installs no extra client software. Other profiles run software and custom scripts according to `installSequence`; if any step fails, is missing, or times out, later steps do not run and the Web Console shows the matching error stage. After reboot, the SYSTEM finalizer waits for the target user's desktop before installation starts; the first-logon client screen separately shows the sign-in wait, finalizer start, active step, liveness, live elapsed time, slow warning, and completed-step durations. These safe fields refresh every two seconds; on completion, Validation Evidence receives only each step's name, type, status, and actual duration, never raw installer output, command lines, or secrets. If a custom script needs Internet, put that dependency inside this post-logon sequence; the deployment phase must not depend on client external Internet. SetupComplete disables automatic Windows Update / BITS activity before deployment completion, so custom scripts that depend on BITS or Windows Update must start the required services themselves or use a direct download tool.
 
 The Software Catalog add wizard has three steps: `Package` collects the Software ID, display name, and required MSI/EXE payload (each required field has a red `*`, and the installer type is inferred from its extension); `Installation` selects the install method; `Requirements & review` records dependencies and client-network conditions. Reopening the file picker and cancelling preserves an already selected payload. `Guided installer` generates an MSI/EXE silent install script. `Custom PowerShell` still includes a payload and runs a trusted administrator-provided `install.ps1`. After choosing a payload, an MSI/EXE reference template can be loaded and adapted. Custom PowerShell receives Windows PowerShell 5.1 syntax validation because the client runs the inbox `powershell.exe` (PowerShell 5.1) as non-interactive SYSTEM. The preflight confirms that this same runtime can parse the syntax; it is neither a sandbox nor an installation test.
 

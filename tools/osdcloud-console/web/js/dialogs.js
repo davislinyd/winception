@@ -515,7 +515,6 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
     elements.softwareProfileLocale.value = targetProfile?.locale ?? '';
     elements.softwareProfileInputLanguage.value = targetProfile?.inputLanguage ?? '';
     elements.softwareProfileTimezone.value = targetProfile?.timeZone ?? '';
-    elements.softwareProfileAutoLogon.checked = targetProfile?.autoLogon === true;
 
     const moveSelected = (id, toIndex) => {
       const fromIndex = selectedOrder.indexOf(id);
@@ -736,7 +735,6 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
       const locale = elements.softwareProfileLocale.value.trim() || null;
       const inputLanguage = elements.softwareProfileInputLanguage.value.trim() || null;
       const timeZone = elements.softwareProfileTimezone.value.trim() || null;
-      const autoLogon = elements.softwareProfileAutoLogon.checked;
       done({
         profileId: targetProfile?.id ?? '',
         isActive: isActiveTarget,
@@ -749,7 +747,6 @@ export function showSoftwareDialog(profile, profileToEdit = null) {
         locale,
         inputLanguage,
         timeZone,
-        autoLogon,
       });
     };
     const selectAll = () => {

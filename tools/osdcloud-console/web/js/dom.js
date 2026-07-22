@@ -191,7 +191,6 @@ export const elements = {
   softwareProfileLocale: $('#software-profile-locale'),
   softwareProfileInputLanguage: $('#software-profile-input-language'),
   softwareProfileTimezone: $('#software-profile-timezone'),
-  softwareProfileAutoLogon: $('#software-profile-auto-logon'),
   softwareSelectAll: $('#software-select-all'),
   softwareSelectNone: $('#software-select-none'),
   softwareList: $('#software-list'),

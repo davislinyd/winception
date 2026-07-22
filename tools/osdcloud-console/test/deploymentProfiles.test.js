@@ -113,7 +113,6 @@ test('loads active deployment profile with selected software order', () => {
     const state = resolveDeploymentProfileState(configFor(root));
 
     assert.equal(state.activeProfile.id, 'default');
-    assert.equal(state.activeProfile.autoLogon, false);
     assert.deepEqual(state.activeProfile.softwareIds, ['two', 'one']);
     assert.deepEqual(state.selectedSoftware.map((software) => software.id), ['two', 'one']);
   } finally {
@@ -630,7 +629,6 @@ test('creates a deployment profile by copying active profile software', () => {
       software: ['one'],
       installSequence: installSequenceFromSoftware(['one']),
       osImage: 'TEST-OS',
-      autoLogon: false,
     });
     assert.equal(resolveDeploymentProfileState(configFor(root)).activeProfile.id, 'default');
     assert.equal(fs.existsSync(path.join(root, 'Apps', 'selected-profile.json')), false);
@@ -655,37 +653,6 @@ test('creates a deployment profile with optional description', () => {
     const raw = JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'AAAAAAA0.json'), 'utf8'));
     assert.equal(raw.description, 'Laptop staging profile');
     assert.deepEqual(raw.software, ['one']);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('profile autoLogon is strict, defaults off, and is published explicitly', async () => {
-  const root = makeRoot();
-  try {
-    writeBaseFiles(root);
-    const config = configFor(root);
-
-    assert.equal(resolveDeploymentProfileState(config).activeProfile.autoLogon, false);
-    assert.throws(
-      () => updateDeploymentProfile(config, 'default', { autoLogon: 'true' }),
-      /deployment profile default autoLogon must be a boolean/,
-    );
-
-    const enabled = updateDeploymentProfile(config, 'default', { autoLogon: true });
-    assert.equal(enabled.profile.autoLogon, true);
-    assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'profiles', 'default.json'), 'utf8')).autoLogon, true);
-
-    const preserved = updateDeploymentProfile(config, 'default', { name: 'Default Renamed' });
-    assert.equal(preserved.profile.autoLogon, true);
-
-    const published = await publishDeploymentProfile(config);
-    assert.equal(JSON.parse(fs.readFileSync(published.manifestPath, 'utf8')).autoLogon, true);
-
-    const disabled = updateDeploymentProfile(config, 'default', { autoLogon: false });
-    assert.equal(disabled.profile.autoLogon, false);
-    const republished = await publishDeploymentProfile(config);
-    assert.equal(JSON.parse(fs.readFileSync(republished.manifestPath, 'utf8')).autoLogon, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

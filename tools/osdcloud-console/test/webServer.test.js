@@ -181,33 +181,24 @@ async function makeServer(root, overrides = {}) {
         }];
       },
       createDeploymentProfile: (_config, input) => ({
-        profile: { id: 'AAAAAAA0', name: input.name, description: input.description ?? '', softwareIds: [], autoLogon: input.autoLogon === true },
+        profile: { id: 'AAAAAAA0', name: input.name, description: input.description ?? '', softwareIds: [] },
         filePath: path.join(root, 'AAAAAAA0.json'),
       }),
-      updateDeploymentProfile: (_config, profileId, input) => {
-        if (input.autoLogon !== undefined && typeof input.autoLogon !== 'boolean') {
-          const error = new Error('deployment profile autoLogon must be a boolean');
-          error.statusCode = 400;
-          error.publicError = { message: error.message, code: 'invalid_input', action: 'Correct the input and try again.' };
-          throw error;
-        }
-        return {
-          profile: {
-            id: profileId,
-            name: input.name ?? 'Default',
-            description: input.description ?? '',
-            softwareIds: input.softwareIds,
-            installSequence: input.installSequence,
-            osImageId: input.osImageId,
-            displayLanguage: input.displayLanguage,
-            locale: input.locale,
-            inputLanguage: input.inputLanguage,
-            timeZone: input.timeZone,
-            autoLogon: input.autoLogon === true,
-          },
-          filePath: path.join(root, `${profileId}.json`),
-        };
-      },
+      updateDeploymentProfile: (_config, profileId, input) => ({
+        profile: {
+          id: profileId,
+          name: input.name ?? 'Default',
+          description: input.description ?? '',
+          softwareIds: input.softwareIds,
+          installSequence: input.installSequence,
+          osImageId: input.osImageId,
+          displayLanguage: input.displayLanguage,
+          locale: input.locale,
+          inputLanguage: input.inputLanguage,
+          timeZone: input.timeZone,
+        },
+        filePath: path.join(root, `${profileId}.json`),
+      }),
       publishDeploymentProfile: (_config, profileId) => ({
         profile: { id: profileId, name: 'Default', description: '', softwareIds: [] },
         selectedSoftware: [],
@@ -993,7 +984,6 @@ test('runs mutating API actions through the controller', async () => {
         locale: 'en-US',
         inputLanguage: 'en-US',
         timeZone: 'Taipei Standard Time',
-        autoLogon: true,
         installSequence: [
           { type: 'script', id: 'SC-TEST001' },
           { type: 'software', id: 'chrome', timeoutSeconds: 45 },
@@ -1009,7 +999,6 @@ test('runs mutating API actions through the controller', async () => {
     assert.equal(payload.result.profile.locale, 'en-US');
     assert.equal(payload.result.profile.inputLanguage, 'en-US');
     assert.equal(payload.result.profile.timeZone, 'Taipei Standard Time');
-    assert.equal(payload.result.profile.autoLogon, true);
     assert.deepEqual(payload.result.profile.softwareIds, ['chrome', '7zip']);
     assert.deepEqual(payload.result.profile.installSequence, [
       { type: 'script', id: 'SC-TEST001' },
@@ -1020,20 +1009,12 @@ test('runs mutating API actions through the controller', async () => {
     response = await fetch(`${base}/api/profile/software`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Legacy Default', softwareIds: [], autoLogon: false }),
+      body: JSON.stringify({ name: 'Legacy Default', softwareIds: [] }),
     });
     assert.equal(response.status, 200);
     payload = await response.json();
     assert.equal(payload.result.profile.name, 'Legacy Default');
     assert.deepEqual(payload.result.profile.softwareIds, []);
-    assert.equal(payload.result.profile.autoLogon, false);
-
-    response = await fetch(`${base}/api/profile/software`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ autoLogon: 'true' }),
-    });
-    assert.equal(response.status, 400);
 
     response = await fetch(`${base}/api/profiles/delete`, {
       method: 'POST',
