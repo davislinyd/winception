@@ -99,9 +99,15 @@ foreach ($item in Get-ChildItem -LiteralPath $stageRoot -Recurse -File -Force) {
     }
 }
 
+$forbiddenDataPathPattern = if ($Channel -eq 'Release') {
+    '(^|\\)(\.git|\.ai|fixtures|logs|screenshots|transcripts|runtime|downloads|tests?)(\\|$)'
+} else {
+    '(^|\\)(\.git|\.ai|logs|screenshots|transcripts|runtime|downloads|tests?)(\\|$)'
+}
+
 foreach ($record in $records) {
     $relative = ([string] $record.path).Replace('/', '\')
-    if ($relative -match '(^|\\)(\.git|\.ai|fixtures|logs|screenshots|transcripts|runtime|downloads|tests?)(\\|$)' -or
+    if ($relative -match $forbiddenDataPathPattern -or
         $relative -match '(^|\\)([^\\]*secret[^\\]*|[^\\]*\.local\.json)$' -and $relative -notmatch 'osdcloud-secrets\.example\.json$' -or
         $relative -match '\.(iso|wim|esd|vhd|vhdx|avhdx|log|etl|evtx|png|jpg|jpeg|msi|exe|pcapng)$' -and
         $relative -notmatch '^docs\\manual-assets\\') {
