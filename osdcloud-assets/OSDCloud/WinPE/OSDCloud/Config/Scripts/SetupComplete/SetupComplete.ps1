@@ -47,7 +47,6 @@ $UserName = Get-DeploymentSecret -JsonName 'windowsUsername' -EnvironmentName 'O
 $PlainPassword = Get-DeploymentSecret -JsonName 'windowsPassword' -EnvironmentName 'OSDCLOUD_WINDOWS_PASSWORD'
 $SecurePassword = ConvertTo-SecureString $PlainPassword -AsPlainText -Force
 $DeploymentMetadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
-$DefaultStatusUrl = 'http://192.168.77.1/osdcloud/status'
 function Get-DeploymentMetadata {
     if (Test-Path -LiteralPath $DeploymentMetadataPath -PathType Leaf) {
         try {
@@ -60,11 +59,12 @@ function Get-DeploymentMetadata {
     [pscustomobject]@{
         runId = "windows-$env:COMPUTERNAME-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         clientId = $env:COMPUTERNAME
-        statusUrl = $DefaultStatusUrl
+        statusUrl = ''
     }
 }
 
 $DeploymentMetadata = Get-DeploymentMetadata
+$BootSessionToken = [string] $DeploymentMetadata.bootSessionToken
 
 function Get-SelectedOsMetadata {
     if ($DeploymentMetadata.selectedOs) {
@@ -118,7 +118,14 @@ function Send-DeploymentStatus {
         return $true
     }
 
-    $statusUrl = if ($DeploymentMetadata.statusUrl) { [string] $DeploymentMetadata.statusUrl } else { $DefaultStatusUrl }
+    $statusUrl = if ($DeploymentMetadata.statusUrl) { [string] $DeploymentMetadata.statusUrl } else { '' }
+    if ([string]::IsNullOrWhiteSpace($statusUrl)) {
+        return $false
+    }
+    $statusHeaders = @{}
+    if ($BootSessionToken) {
+        $statusHeaders['X-Winception-Boot-Session'] = $BootSessionToken
+    }
     $payload = [ordered]@{
         timestamp = (Get-Date).ToString('o')
         runId = [string] $DeploymentMetadata.runId
@@ -137,7 +144,7 @@ function Send-DeploymentStatus {
 
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
     try {
-        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri $statusUrl -Method Post -Headers $statusHeaders -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
         return $true
     }
     catch {
@@ -147,6 +154,9 @@ function Send-DeploymentStatus {
         $req = [System.Net.HttpWebRequest]::Create($statusUrl)
         $req.Method = 'POST'
         $req.ContentType = 'application/json'
+        if ($statusHeaders['X-Winception-Boot-Session']) {
+            $req.Headers['X-Winception-Boot-Session'] = $statusHeaders['X-Winception-Boot-Session']
+        }
         $req.Timeout = 5000
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
         $req.ContentLength = $bytes.Length
@@ -160,6 +170,68 @@ function Send-DeploymentStatus {
     }
 
     return $false
+}
+
+function Clear-AutoLogonSecrets {
+    $failures = [System.Collections.Generic.List[string]]::new()
+    $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    foreach ($name in @('AutoAdminLogon', 'ForceAutoLogon', 'DefaultPassword', 'DefaultUserName', 'DefaultDomainName', 'AutoLogonCount')) {
+        try {
+            if ((Get-ItemProperty -LiteralPath $winlogon -Name $name -ErrorAction SilentlyContinue).PSObject.Properties[$name]) {
+                Remove-ItemProperty -LiteralPath $winlogon -Name $name -Force -ErrorAction Stop
+            }
+            if ((Get-ItemProperty -LiteralPath $winlogon -Name $name -ErrorAction SilentlyContinue).PSObject.Properties[$name]) {
+                $failures.Add("registry:$name")
+            }
+        }
+        catch {
+            $failures.Add("registry:$name")
+        }
+    }
+
+    foreach ($path in @(
+        'C:\Windows\Panther\Unattend.xml',
+        'C:\Windows\System32\Sysprep\Unattend.xml',
+        'C:\Windows\System32\Sysprep\Panther\Unattend.xml',
+        'C:\Windows\Setup\Scripts\unattend.xml',
+        'C:\ProgramData\OSDCloud\secrets.json'
+    )) {
+        try {
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+                Remove-Item -LiteralPath $path -Force -ErrorAction Stop
+            }
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+                $failures.Add("file:$path")
+            }
+        }
+        catch {
+            $failures.Add("file:$path")
+        }
+    }
+
+    try {
+        foreach ($name in @('OSDCLOUD_WINDOWS_USERNAME', 'OSDCLOUD_WINDOWS_PASSWORD', 'OSDCLOUD_PXEINSTALL_PASSWORD')) {
+            [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+        }
+        if ($DeploymentMetadata.PSObject.Properties['bootSessionToken']) {
+            $DeploymentMetadata.PSObject.Properties.Remove('bootSessionToken')
+            Write-JsonFileAtomic -Path $DeploymentMetadataPath -Value $DeploymentMetadata
+        }
+    }
+    catch {
+        $failures.Add('metadata')
+    }
+
+    $failureMarker = 'C:\ProgramData\OSDCloud\auto-logon-cleanup.failed'
+    $successMarker = 'C:\ProgramData\OSDCloud\auto-logon-cleanup.ok'
+    if ($failures.Count -gt 0) {
+        Remove-Item -LiteralPath $successMarker -Force -ErrorAction SilentlyContinue
+        [System.IO.File]::WriteAllText($failureMarker, "cleanup failed: $($failures -join ',')`r`n", [System.Text.UTF8Encoding]::new($false))
+        return [pscustomobject]@{ ok = $false; failures = @($failures) }
+    }
+    Remove-Item -LiteralPath $failureMarker -Force -ErrorAction SilentlyContinue
+    [System.IO.File]::WriteAllText($successMarker, "cleanup completed $(Get-Date -Format o)`r`n", [System.Text.UTF8Encoding]::new($false))
+    [pscustomobject]@{ ok = $true; failures = @() }
 }
 
 function Get-FirstObjectPropertyValue {
@@ -698,7 +770,6 @@ function Install-DesktopReadyReporter {
     $reporter = @'
 $ErrorActionPreference = 'Continue'
 $metadataPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
-$defaultStatusUrl = 'http://192.168.77.1/osdcloud/status'
 $taskName = 'OSDCloudDesktopReadyReport'
 $progressPath = 'C:\ProgramData\OSDCloud\deployment-progress.json'
 $targetUser = 'TARGET_USER_PLACEHOLDER'
@@ -718,11 +789,12 @@ function Get-Metadata {
     [pscustomobject]@{
         runId = "windows-$env:COMPUTERNAME-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         clientId = $env:COMPUTERNAME
-        statusUrl = $defaultStatusUrl
+        statusUrl = ''
     }
 }
 
 $metadata = Get-Metadata
+$bootSessionToken = [string] $metadata.bootSessionToken
 
 function Get-ProgressStatus {
     if (-not (Test-Path -LiteralPath $progressPath -PathType Leaf)) {
@@ -781,7 +853,14 @@ function Send-Status {
         return $true
     }
 
-    $statusUrl = if ($metadata.statusUrl) { [string] $metadata.statusUrl } else { $defaultStatusUrl }
+    $statusUrl = if ($metadata.statusUrl) { [string] $metadata.statusUrl } else { '' }
+    if ([string]::IsNullOrWhiteSpace($statusUrl)) {
+        return $false
+    }
+    $statusHeaders = @{}
+    if ($bootSessionToken) {
+        $statusHeaders['X-Winception-Boot-Session'] = $bootSessionToken
+    }
     $payload = [ordered]@{
         timestamp = (Get-Date).ToString('o')
         runId = [string] $metadata.runId
@@ -804,7 +883,7 @@ function Send-Status {
 
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
     try {
-        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri $statusUrl -Method Post -Headers $statusHeaders -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
         return $true
     }
     catch {
@@ -814,6 +893,9 @@ function Send-Status {
         $req = [System.Net.HttpWebRequest]::Create($statusUrl)
         $req.Method = 'POST'
         $req.ContentType = 'application/json'
+        if ($statusHeaders['X-Winception-Boot-Session']) {
+            $req.Headers['X-Winception-Boot-Session'] = $statusHeaders['X-Winception-Boot-Session']
+        }
         $req.Timeout = 5000
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
         $req.ContentLength = $bytes.Length
@@ -827,6 +909,53 @@ function Send-Status {
     }
 
     return $false
+}
+
+function Clear-AutoLogonSecrets {
+    $ok = $true
+    $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    foreach ($name in @('AutoAdminLogon', 'ForceAutoLogon', 'DefaultPassword', 'DefaultUserName', 'DefaultDomainName', 'AutoLogonCount')) {
+        try {
+            if ((Get-ItemProperty -LiteralPath $winlogon -Name $name -ErrorAction SilentlyContinue).PSObject.Properties[$name]) {
+                Remove-ItemProperty -LiteralPath $winlogon -Name $name -Force -ErrorAction Stop
+            }
+            if ((Get-ItemProperty -LiteralPath $winlogon -Name $name -ErrorAction SilentlyContinue).PSObject.Properties[$name]) {
+                $ok = $false
+            }
+        }
+        catch {
+            $ok = $false
+        }
+    }
+    foreach ($path in @(
+        'C:\Windows\Panther\Unattend.xml',
+        'C:\Windows\System32\Sysprep\Unattend.xml',
+        'C:\Windows\System32\Sysprep\Panther\Unattend.xml',
+        'C:\Windows\Setup\Scripts\unattend.xml',
+        'C:\ProgramData\OSDCloud\secrets.json'
+    )) {
+        try {
+            Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $path -PathType Leaf) { $ok = $false }
+        }
+        catch { $ok = $false }
+    }
+    try {
+        if ($metadata.PSObject.Properties['bootSessionToken']) {
+            $metadata.PSObject.Properties.Remove('bootSessionToken')
+            $metadata | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $metadataPath -Encoding UTF8 -Force
+        }
+    }
+    catch { $ok = $false }
+    if ($ok) {
+        Remove-Item -LiteralPath 'C:\ProgramData\OSDCloud\auto-logon-cleanup.failed' -Force -ErrorAction SilentlyContinue
+        'cleanup completed' | Set-Content -LiteralPath 'C:\ProgramData\OSDCloud\auto-logon-cleanup.ok' -Encoding ASCII -Force
+    }
+    else {
+        Remove-Item -LiteralPath 'C:\ProgramData\OSDCloud\auto-logon-cleanup.ok' -Force -ErrorAction SilentlyContinue
+        'cleanup failed' | Set-Content -LiteralPath 'C:\ProgramData\OSDCloud\auto-logon-cleanup.failed' -Encoding ASCII -Force
+    }
+    return $ok
 }
 
 function Test-TargetUserIdentity {
@@ -995,6 +1124,10 @@ try {
     do {
         $progressStatus = Get-ProgressStatus
         if ($progressStatus -eq 'failed') {
+            $cleanup = Clear-AutoLogonSecrets
+            if (-not $cleanup) {
+                [void] (Send-Status -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed after client finalization failure.' -Extra @{ securityFailure = $true })
+            }
             Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
             break
         }
@@ -1004,6 +1137,12 @@ try {
         }
         $facts = Get-DesktopReadyFacts
         if ($facts.explorerRunning -and $facts.interactiveUserIsTarget -and $facts.desktopReadyFile -and @($facts.oobeProcesses).Count -eq 0) {
+            $cleanup = Clear-AutoLogonSecrets
+            if (-not $cleanup) {
+                [void] (Send-Status -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed; desktop-ready is withheld.' -Extra @{ securityFailure = $true; facts = $facts })
+                Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+                break
+            }
             if (Send-Status -Stage 'windows-desktop-ready' -Message 'Windows desktop is ready for TARGET_USER_PLACEHOLDER.' -Percent 100 -Extra $facts) {
                 $desktopReadyReported = $true
                 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
@@ -1015,7 +1154,13 @@ try {
     } while ($timeoutTimer.Elapsed.TotalSeconds -lt $timeoutSeconds)
 
     if (-not $desktopReadyReported -and $timeoutTimer.Elapsed.TotalSeconds -ge $timeoutSeconds) {
-        [void] (Send-Status -Stage 'windows-desktop-timeout' -Message 'Timed out waiting for Explorer and desktop marker or status upload.' -Extra (Get-DesktopReadyFacts))
+        $cleanup = Clear-AutoLogonSecrets
+        if ($cleanup) {
+            [void] (Send-Status -Stage 'windows-desktop-timeout' -Message 'Timed out waiting for Explorer and desktop marker or status upload.' -Extra (Get-DesktopReadyFacts))
+        }
+        else {
+            [void] (Send-Status -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed after desktop-ready timeout.' -Extra @{ securityFailure = $true })
+        }
     }
 }
 finally {
@@ -1075,6 +1220,10 @@ function Invoke-PostLogonFinalization {
     $progress = Get-JsonFileObject -Path $DeploymentProgressPath
     if ($progress -and [string] $progress.status -eq 'running') {
         Set-DeploymentProgressFailure -Category 'interrupted'
+        $cleanup = Clear-AutoLogonSecrets
+        if (-not $cleanup.ok) {
+            [void] (Send-DeploymentStatus -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed after interrupted client finalization.' -Extra @{ securityFailure = $true })
+        }
         [void] (Send-DeploymentStatus -Stage 'windows-apps-error' -Message 'Client finalization was interrupted before completion.' -Percent 94.9 -Extra @{ category = 'interrupted' })
         [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-error' -Message 'Post-logon client finalization was interrupted.' -Extra @{ script = 'SetupComplete.ps1'; category = 'interrupted' })
         Unregister-ScheduledTask -TaskName $PostLogonTaskName -Confirm:$false -ErrorAction SilentlyContinue
@@ -1085,6 +1234,10 @@ function Invoke-PostLogonFinalization {
         return $true
     }
     if ($progress -and [string] $progress.status -eq 'failed') {
+        $cleanup = Clear-AutoLogonSecrets
+        if (-not $cleanup.ok) {
+            [void] (Send-DeploymentStatus -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed after client finalization failure.' -Extra @{ securityFailure = $true })
+        }
         Unregister-ScheduledTask -TaskName $PostLogonTaskName -Confirm:$false -ErrorAction SilentlyContinue
         return $false
     }
@@ -1115,6 +1268,10 @@ function Invoke-PostLogonFinalization {
         $current = Get-JsonFileObject -Path $DeploymentProgressPath
         if (-not $current -or [string] $current.status -ne 'failed') {
             Set-DeploymentProgressFailure -Category 'runner_error'
+        }
+        $cleanup = Clear-AutoLogonSecrets
+        if (-not $cleanup.ok) {
+            [void] (Send-DeploymentStatus -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed after post-logon finalizer error.' -Extra @{ securityFailure = $true })
         }
         [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-error' -Message $_.Exception.Message -Extra @{ script = 'SetupComplete.ps1'; phase = 'post-logon-finalize' })
         return $false
@@ -1213,6 +1370,10 @@ try {
 catch {
     if (Test-Path -LiteralPath $DeploymentProgressPath -PathType Leaf) {
         Set-DeploymentProgressFailure -Category 'setupcomplete_error'
+    }
+    $cleanup = Clear-AutoLogonSecrets
+    if (-not $cleanup.ok) {
+        [void] (Send-DeploymentStatus -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed after SetupComplete error.' -Extra @{ securityFailure = $true })
     }
     [void] (Send-DeploymentStatus -Stage 'windows-setupcomplete-error' -Message $_.Exception.Message -Extra @{ script = 'SetupComplete.ps1' })
     throw

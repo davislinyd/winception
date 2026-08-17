@@ -51,7 +51,20 @@ test('accepts minimum config shape', () => {
   assert.equal(validateConfig(config), config);
   assert.deepEqual(config.web, { host: '127.0.0.1', port: 8080 });
   assert.equal(config.network.topology, 'shared-lan');
-  assert.equal(config.network.nat.internalSubnet, '192.168.100.0/24');
+  assert.equal(config.network.nat.internalSubnet, null);
+
+  config.adapter.serverIp = '192.168.100';
+  assert.throws(() => validateConfig(config), /Invalid IPv4 address/);
+  config.adapter.serverIp = '192.168.100.100';
+  config.dhcp.leaseEndIp = '192.168.100.199';
+  assert.throws(() => validateConfig(config), /leaseEndIp must be greater/);
+  config.dhcp.leaseEndIp = '192.168.100.250';
+  config.dhcp.dhcpMode = 'proxy';
+  delete config.dhcp.leaseStartIp;
+  delete config.dhcp.leaseEndIp;
+  delete config.dhcp.subnetMask;
+  delete config.dhcp.router;
+  assert.doesNotThrow(() => validateConfig(config));
 });
 
 test('dual NIC NAT requires distinct adapters and DHCP Server mode', () => {
@@ -125,7 +138,7 @@ test('builds HTTP server config with root driver pack cache settings', () => {
 
 test('mediaHttpServerConfig forwards the resolved state root for secrets lookup', () => {
   // Regression: the media HTTP server reads deployment secrets (e.g.
-  // pxeinstallPassword served via /osdcloud/boot-config) from
+  // pxeinstallPassword served via the ephemeral /osdcloud/boot-session envelope) from
   // stateRootForConfig()/config/osdcloud-secrets.json. If mediaHttpServerConfig
   // drops the state-root info, stateRootForConfig() falls back to defaultAppRoot
   // and serves stale committed secrets, breaking WinPE SMB auth (net use error 86).
@@ -137,6 +150,15 @@ test('mediaHttpServerConfig forwards the resolved state root for secrets lookup'
 
   const httpConfig = mediaHttpServerConfig(config);
   assert.equal(stateRootForConfig(httpConfig), path.resolve('C:\\OSDCloud\\HostTools\\State'));
+});
+
+test('mediaHttpServerConfig forwards boot-session security policy', () => {
+  const config = {
+    http: { host: '10.0.0.1', port: 80 },
+    security: { requireBootSession: true, requireLeaseBinding: true, bootSessionTtlSeconds: 120 },
+  };
+
+  assert.deepEqual(mediaHttpServerConfig(config).security, config.security);
 });
 
 test('applies selectable project root outside the Git clone', () => {
@@ -182,6 +204,24 @@ test('rejects project root inside the Git clone', () => {
   );
 });
 
+test('rejects project roots inside the installed HostTools tree', () => {
+  const config = {
+    paths: {
+      appRoot: 'C:\\OSDCloud\\HostTools\\App',
+      stateRoot: 'C:\\OSDCloud\\HostTools\\State',
+    },
+  };
+
+  assert.throws(
+    () => applyProjectRoot(config, 'C:\\OSDCloud\\HostTools\\State\\runtime'),
+    /HostTools directory/,
+  );
+  assert.equal(workspaceInfo({
+    ...config,
+    runtimeArtifacts: { liveRoot: 'C:\\OSDCloud\\HostTools\\State\\runtime' },
+  }).runtimeInsideHostTools, true);
+});
+
 test('workspace info tracks separate app and state roots when configured', () => {
   const info = workspaceInfo({
     paths: {
@@ -194,8 +234,10 @@ test('workspace info tracks separate app and state roots when configured', () =>
   assert.equal(info.appRoot, 'C:\\OSDCloud\\HostTools\\App');
   assert.equal(info.repoRoot, 'C:\\OSDCloud\\HostTools\\App');
   assert.equal(info.stateRoot, 'C:\\OSDCloud\\HostTools\\State');
+  assert.equal(info.hostToolsRoot, 'C:\\OSDCloud\\HostTools');
   assert.equal(info.runtimeRoot, 'C:\\OSDCloud');
   assert.equal(info.runtimeInsideRepo, false);
+  assert.equal(info.runtimeInsideHostTools, false);
 });
 
 test('applies service endpoint to every network-facing config value', () => {
@@ -392,6 +434,13 @@ test('saves public config without losing existing fields', () => {
     assert.equal(saved.__configPath, undefined);
     assert.equal(saved.dhcp.leaseSeconds, 3600);
     assert.equal(saved.paths.endpointSyncScript, 'C:\\repo\\tools\\Set-OsdCloudIpxeEndpoint.ps1');
+
+    const original = '{"keep":"original"}\n';
+    fs.writeFileSync(configPath, original, 'utf8');
+    const invalid = JSON.parse(JSON.stringify(config));
+    invalid.adapter.serverIp = '192.168.100';
+    assert.throws(() => saveConfig(invalid, configPath), /Invalid IPv4 address/);
+    assert.equal(fs.readFileSync(configPath, 'utf8'), original);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

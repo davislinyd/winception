@@ -435,6 +435,40 @@ test('serves static UI and read-only state', async () => {
   }
 });
 
+test('project root API applies the request and rejects invalid paths before stopping services', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-project-root-'));
+  const server = await makeServer(root);
+  try {
+    const sourceRoot = path.join(root, 'source');
+    const runtimeRoot = path.join(root, 'runtime');
+    server.controller.config.paths.repoRoot = sourceRoot;
+    const base = `http://127.0.0.1:${server.address.port}`;
+
+    let response = await fetch(`${base}/api/project-root`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runtimeRoot }),
+    });
+    assert.equal(response.status, 200);
+    let payload = await response.json();
+    assert.equal(payload.result.workspace.runtimeRoot, runtimeRoot);
+    const stopCount = server.controller.services.dhcp.stops;
+
+    response = await fetch(`${base}/api/project-root`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ runtimeRoot: path.join(sourceRoot, 'inside') }),
+    });
+    assert.equal(response.status, 400);
+    payload = await response.json();
+    assert.equal(payload.ok, false);
+    assert.equal(server.controller.services.dhcp.stops, stopCount);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('update check runs after the listener is ready without delaying startup', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-update-startup-'));
   let resolveCheck;

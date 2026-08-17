@@ -313,7 +313,7 @@
 
   <div id="locale-zh" class="locale-view" lang="zh-Hant">
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v1.0.3</p>
+      <p class="eyebrow">Operations Manual · v1.1.0</p>
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
@@ -371,12 +371,13 @@ cd '&lt;repo-root&gt;'
             <tr><td>Install bundle</td><td>安裝 App 與 State。</td><td>不寫入 deployment secrets。</td></tr>
             <tr><td>Web launch</td><td>啟動 <code>http://127.0.0.1:8080</code>。</td><td>不啟動 DHCP/TFTP/HTTP deployment services。</td></tr>
           </tbody></table></div>
+          <div class="callout"><strong>Release / Development data policy（v1.1.0）</strong>正式 HostTools ZIP 是 zero-preload Release：首次安裝只建立 App、State schema、空 catalog、空 profile 目錄與未設定 endpoint；Web Console 可啟動，但 services 保持停止，必須完成 Guided Setup。Release 不含 deployment data、secrets、歷史狀態或 Development fixture。Development fixture 只能明確執行 <code>.Setup-DeploymentServer.cmd -Channel Development -SeedDevelopmentFixture</code> 或 <code>Seed-DevelopmentFixture.ps1</code> 載入，Release setup 不會自動 seed。<code>release-candidate.yml</code> 只產生 unsigned RC；沒有核准 Authenticode 憑證與 policy 不得標成 production。升級會先建立 timestamped State backup，再遷移 schema，只替換 App；migration 失敗會停止並保留 backup。</div>
         </section>
 
         <section id="architecture">
           <p class="section-kicker">03 · Services</p>
           <h2>服務如何運作</h2>
-          <p>Web Console 是控制面；DHCP、TFTP、HTTP、SMB 與 Torrent 是資料面。Endpoint Sync 負責讓 live boot files、WinPE embedded endpoint、SMB firewall 與 local overlay 保持一致；每次同步也會把 service IP 寫入 WinPE 的優先 health probe。更新後的 WinPE startup script 必須透過 Endpoint Sync 注入既有 <code>boot.wim</code>。</p>
+          <p>Web Console 是控制面；DHCP、TFTP、HTTP、SMB 與 Torrent 是資料面。Endpoint Sync 負責讓 live boot files、WinPE endpoint、SMB firewall 與 local overlay 保持一致；每次同步也會把 service IP 寫入 WinPE 的優先 health probe。deployment secrets 不會寫入 <code>boot.wim</code>；WinPE 開機時以 client public key、nonce、boot ID、client MAC 與近期有效 DHCP lease 申請短效、單次使用的 <code>/osdcloud/boot-session</code> envelope，Host 每次使用 session 都會重新確認 lease binding。更新後的 WinPE startup script 必須透過 Endpoint Sync 同步既有 <code>boot.wim</code>。</p>
           <figure>
             <div class="media-frame"><img src="manual-assets/system-architecture.svg" alt="Winception Web Console、DHCP、TFTP、HTTP、Torrent、SMB、WinPE、OSDCloud 與 Windows client 的資料流"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.svg" data-zoom-alt="Winception 系統架構與資料流">放大架構圖</button></div>
             <figcaption>實線表示控制或階段交接，藍色虛線表示 boot/image 資料，綠色虛線表示 status 與 evidence。</figcaption>
@@ -400,14 +401,16 @@ cd '&lt;repo-root&gt;'
             <tr><td><code>&lt;deployment-root&gt;</code></td><td>Web 選定的 deployment runtime。</td><td>product workflows。</td></tr>
           </tbody></table></div>
           <div class="callout"><strong>不要直接修改 runtime root</strong>部署行為要先在 source 修正，再透過 publish、reload、Endpoint Sync 或 profile publish 更新 runtime。</div>
-          <div class="callout"><strong>HostTools 更新檢查</strong>Web Console 啟動後會背景查詢最新正式 GitHub Release，並把安全的版本、日期與 Release 連結快取 24 小時於 <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>。右上角 Update 可手動重查；離線或 GitHub 無法使用不影響 Console 或部署。它只顯示正式版，不下載、安裝、覆寫或重啟任何服務；有新版時開啟 <em>View update</em>，再依 Release 指引手動更新。</div>
+          <div class="callout"><strong>HostTools 更新檢查</strong>Web Console 啟動後會背景查詢最新正式 GitHub Release，並把安全的版本、日期與 Release 連結快取 24 小時於 <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>。請從右上角 <em>管理</em> 入口的「檢查更新」手動重查；離線或 GitHub 無法使用不影響 Console 或部署。它只顯示正式版，不下載、安裝、覆寫或重啟任何服務；有新版時開啟 <em>查看更新</em>，再依 Release 指引手動更新。</div>
         </section>
 
         <section id="readiness">
           <p class="section-kicker">05 · Preparation</p>
           <h2>部署前準備</h2>
+          <p>目前 Web Console 首頁預設為繁體中文「新手工作台」：頂部工作區是 <strong>開始部署</strong> 與 <strong>部署活動</strong>，右上角的 <strong>管理</strong> 集中進階功能。首頁會依 state 只顯示一個下一步，並以「部署內容 → 環境檢查 → 啟動服務」呈現流程；服務、Endpoint Sync、Profile publish、Offline ISO 與其他有副作用的操作仍沿用既有確認視窗與安全門檻。</p>
+          <div class="callout"><strong>新手操作方式</strong>先看「下一步」卡片的主按鈕。若需要調整 Profile、OS Image、Endpoint、Boot Mode、DHCP Mode、NAT、Diagnostics、Software Test 或 System Log，開啟 <strong>管理</strong>；完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions 位於 <strong>部署活動</strong>。</div>
           <ol>
-            <li>確認 deployment project root。</li>
+            <li>確認 deployment project root；可輸入自訂絕對路徑，但不得位於 Git clone 或 <code>HostTools</code> 內。</li>
             <li>儲存 deployment secrets。</li>
             <li>執行 Prepare runtime。</li>
             <li>選擇 service interface 與 endpoint。</li>
@@ -441,7 +444,7 @@ cd '&lt;repo-root&gt;'
             <li>輸出 USB 為 GPT、UEFI x64、FAT32 <code>WinPE</code> 與 NTFS <code>OSDCloudUSB</code>；<code>-Iso</code> 則輸出 no-prompt UDF ISO 到 <code>&lt;project-root&gt;\Exports</code>。</li>
             <li><code>-OpenInRufus</code> 只預載 ISO 與 NTFS preference；Rufus 仍由 operator 選目標 disk 並開始寫入。</li>
             <li>離線 WinPE 只允許一個 internal target disk；同一 media 完整套用後會以 media ID + <code>appliedAt</code> 阻止再次清除。</li>
-            <li>Web Console 的 Deploy 主畫面提供 <strong>Offline ISO</strong> 卡片；按 <strong>Create ISO</strong> 後只在主機端建立 ISO，並在畫面顯示主機輸出資料夾與完整 ISO 路徑，不提供瀏覽器下載。</li>
+            <li>Web Console 的 <strong>管理 → Offline ISO</strong> 提供 <strong>建立 ISO</strong>；只在主機端建立 ISO，並在畫面顯示主機輸出資料夾與完整 ISO 路徑，不提供瀏覽器下載。</li>
           </ul>
           <div class="callout warning"><strong>敏感媒體</strong>USB / ISO 內含可部署 Windows 的 local secrets，必須視為敏感資產。這條路徑的證據只證明該次 snapshot，不可替代 PXE readiness。</div>
           <div class="callout"><strong>目前驗收</strong>正式離線驗收已完成 ISO 路徑：rebuild 後的 ISO 在 Hyper-V Gen2、Secure Boot ON、無 NIC 的條件下部署到 <code>windows-desktop-ready</code>。</div>
@@ -451,7 +454,7 @@ cd '&lt;repo-root&gt;'
           <p class="section-kicker">07 · Client deployment</p>
           <h2>部署一台電腦</h2>
           <ol>
-            <li>在 Web Console 按 <strong>Start all services</strong>。</li>
+            <li>在 Web Console 開啟 <strong>管理 → 服務控制</strong>，確認 Preflight 與 DHCP 安全條件後按 <strong>啟動部署服務</strong>。</li>
             <li>目標電腦選擇 UEFI IPv4 PXE boot。</li>
             <li>WinPE 掛載 SMB share，讀取 selected manifests，套用 Windows image。</li>
             <li>Windows 第一次開機後自動登入 <code>&lt;windowsUsername&gt;</code>。</li>
@@ -486,7 +489,7 @@ User               : &lt;target-computer&gt;\&lt;windowsUsername&gt;</code></pre
             <tr><td>Runtime blocked</td><td>Runtime Readiness detail</td><td>執行 Prepare runtime。</td></tr>
             <tr><td>Preflight blocked</td><td>Preflight Summary</td><td>依 failed row 的 How to fix 修正後重跑。</td></tr>
             <tr><td>Client 沒取得 lease</td><td>DHCP mode、services、target network</td><td>確認 DHCP 設定與 responder 衝突。</td></tr>
-            <tr><td>WinPE 無法掛 SMB</td><td>SMB share、防火牆、secrets、endpoint</td><td>更新 secrets 或重跑 Endpoint Sync。</td></tr>
+            <tr><td>WinPE 無法掛 SMB</td><td>SMB share、防火牆、boot-session、endpoint</td><td>更新 secrets、確認 client lease/identity，再重跑 Preflight；只有 WinPE endpoint/template 變更才需 Endpoint Sync。</td></tr>
             <tr><td>Profile stale</td><td>Deployment Profiles</td><td>Set active 或 Edit active 後存檔。</td></tr>
             <tr><td>Apps/Scripts failed</td><td>Validation Evidence summary</td><td>查看 <code>C:\Windows\Temp\osdcloud-logs</code>。</td></tr>
           </tbody></table></div>
@@ -528,7 +531,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 
   <div id="locale-en" class="locale-view" lang="en" hidden>
     <header class="hero">
-      <p class="eyebrow">Operations Manual · v1.0.3</p>
+      <p class="eyebrow">Operations Manual · v1.1.0</p>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
@@ -586,12 +589,13 @@ cd '&lt;repo-root&gt;'
             <tr><td>Install bundle</td><td>Installs App and State.</td><td>Does not write deployment secrets.</td></tr>
             <tr><td>Web launch</td><td>Starts <code>http://127.0.0.1:8080</code>.</td><td>Does not start DHCP/TFTP/HTTP deployment services.</td></tr>
           </tbody></table></div>
+          <div class="callout"><strong>Release / Development data policy (v1.1.0)</strong>The formal HostTools ZIP is zero-preload Release: a fresh install creates only the App, State schema, empty catalogs, an empty profile directory, and an unset endpoint. The Web Console can start, but services remain stopped until Guided Setup is complete. Release contains no deployment data, secrets, historical state, or Development fixtures. Load Development fixtures only with <code>.\Setup-DeploymentServer.cmd -Channel Development -SeedDevelopmentFixture</code> or the explicit <code>Seed-DevelopmentFixture.ps1</code> command; Release setup never seeds them. <code>release-candidate.yml</code> produces only an unsigned RC; without an approved Authenticode certificate and policy it cannot be labeled production. An upgrade backs up State, migrates the schema, and replaces only App; a migration failure stops and retains the backup.</div>
         </section>
 
         <section id="en-architecture">
           <p class="section-kicker">03 · Services</p>
           <h2>How The Services Work</h2>
-          <p>The Web Console is the control plane; DHCP, TFTP, HTTP, SMB, and Torrent form the data plane. Endpoint Sync keeps live boot files, the WinPE embedded endpoint, SMB firewall rules, and local overlay aligned; each sync also writes the service IP as WinPE's preferred health probe. Inject an updated WinPE startup script into an existing <code>boot.wim</code> by running Endpoint Sync.</p>
+          <p>The Web Console is the control plane; DHCP, TFTP, HTTP, SMB, and Torrent form the data plane. Endpoint Sync keeps live boot files, the WinPE endpoint, SMB firewall rules, and local overlay aligned; each sync also writes the service IP as WinPE's preferred health probe. Deployment secrets are never written into <code>boot.wim</code>; WinPE requests a short-lived, single-use <code>/osdcloud/boot-session</code> envelope bound to its public key, nonce, boot ID, client MAC, and an active DHCP lease, and the host rechecks that lease binding on each session use. Run Endpoint Sync after updating the WinPE startup script.</p>
           <figure>
             <div class="media-frame"><img src="manual-assets/system-architecture.en.svg" alt="Data flow among the Winception Web Console, DHCP, TFTP, HTTP, Torrent, SMB, WinPE, OSDCloud, and Windows clients"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.en.svg" data-zoom-alt="Winception architecture and data flow">Enlarge architecture</button></div>
             <figcaption>Solid lines show control or stage handoff, blue dashed lines show boot/image data, and green dashed lines show status and evidence.</figcaption>
@@ -615,14 +619,16 @@ cd '&lt;repo-root&gt;'
             <tr><td><code>&lt;deployment-root&gt;</code></td><td>Web-selected deployment runtime.</td><td>product workflows.</td></tr>
           </tbody></table></div>
           <div class="callout"><strong>Do not directly edit the runtime root</strong>Fix deployment behavior in source first, then update runtime through publish, reload, Endpoint Sync, or profile publish.</div>
-          <div class="callout"><strong>HostTools update checks</strong>After startup, the Web Console checks the latest formal GitHub Release in the background and caches only its safe version, date, and Release link for 24 hours at <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>. Use Update in the upper-right corner to check again. Offline or GitHub availability failures do not affect the Console or deployment. It shows formal releases only and never downloads, installs, overwrites, or restarts anything; when available, open <em>View update</em> and follow the Release guidance manually.</div>
+          <div class="callout"><strong>HostTools update checks</strong>After startup, the Web Console checks the latest formal GitHub Release in the background and caches only its safe version, date, and Release link for 24 hours at <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>. Use <em>Management → Check updates</em> to check again. Offline or GitHub availability failures do not affect the Console or deployment. It shows formal releases only and never downloads, installs, overwrites, or restarts anything; when available, open <em>View update</em> and follow the Release guidance manually.</div>
         </section>
 
         <section id="en-readiness">
           <p class="section-kicker">05 · Preparation</p>
           <h2>Pre-Deployment Preparation</h2>
+          <p>The Web Console now opens on a Traditional-Chinese beginner-first home. The top bar has <strong>Start deployment</strong> and <strong>Activity</strong>, while <strong>Management</strong> groups advanced controls. The home derives one next action from current state and presents the path as deployment content → environment checks → services. Existing confirmation dialogs, Preflight gates, and DHCP safety rules remain in force for side-effecting actions.</p>
+          <div class="callout"><strong>Beginner workflow</strong>Follow the primary button in the Next step card. Open <strong>Management</strong> for Profiles, OS Image, Endpoint, Boot Mode, DHCP Mode, NAT, Diagnostics, Software Test, and System Log. Use <strong>Activity</strong> for the complete Fleet search, filters, Evidence, Archive, Delete, and bulk actions.</div>
           <ol>
-            <li>Confirm the deployment project root.</li>
+            <li>Confirm the deployment project root; custom values are allowed when they are absolute paths outside the Git clone and <code>HostTools</code>.</li>
             <li>Save deployment secrets.</li>
             <li>Run Prepare runtime.</li>
             <li>Select the service interface and endpoint.</li>
@@ -656,7 +662,7 @@ cd '&lt;repo-root&gt;'
             <li>USB output is GPT, UEFI x64, a FAT32 <code>WinPE</code> partition, and an NTFS <code>OSDCloudUSB</code> partition. <code>-Iso</code> exports a no-prompt UDF ISO to <code>&lt;project-root&gt;\Exports</code>.</li>
             <li><code>-OpenInRufus</code> only preloads the ISO and NTFS preference. The operator still chooses the target disk and starts the write in Rufus.</li>
             <li>Offline WinPE allows one internal target disk only. After a successful deployment, the same media is blocked from wiping the machine again by media ID + <code>appliedAt</code>.</li>
-            <li>The Deploy view in the Web Console now exposes an <strong>Offline ISO</strong> card. <strong>Create ISO</strong> builds the ISO on the host only, then shows the host output folder and full ISO path in the UI; it does not offer a browser download.</li>
+            <li><strong>Management → Offline ISO</strong> exposes <strong>Create ISO</strong>. It builds the ISO on the host only, then shows the host output folder and full ISO path in the UI; it does not offer a browser download.</li>
           </ul>
           <div class="callout warning"><strong>Sensitive media</strong>USB / ISO media contains deployable local Windows secrets and must be handled as a sensitive asset. Evidence from this path proves only that specific snapshot and does not replace PXE readiness.</div>
           <div class="callout"><strong>Current validation</strong>Formal offline validation is complete for the ISO path: the rebuilt ISO reached <code>windows-desktop-ready</code> on Hyper-V Gen2 with Secure Boot ON and no NIC.</div>
@@ -666,7 +672,7 @@ cd '&lt;repo-root&gt;'
           <p class="section-kicker">07 · Client deployment</p>
           <h2>Deploy One Computer</h2>
           <ol>
-            <li>Click <strong>Start all services</strong> in the Web Console.</li>
+            <li>Open <strong>Management → service controls</strong>, confirm Preflight and DHCP safety, then click <strong>Start deployment services</strong>.</li>
             <li>Select UEFI IPv4 PXE boot on the target computer.</li>
             <li>WinPE mounts the SMB share, reads selected manifests, and applies the Windows image.</li>
             <li>Windows automatically signs in as <code>&lt;windowsUsername&gt;</code> on first boot.</li>
@@ -701,7 +707,7 @@ User               : &lt;target-computer&gt;\&lt;windowsUsername&gt;</code></pre
             <tr><td>Runtime blocked</td><td>Runtime Readiness detail</td><td>Run Prepare runtime.</td></tr>
             <tr><td>Preflight blocked</td><td>Preflight Summary</td><td>Follow the failed row How to fix, then rerun.</td></tr>
             <tr><td>Client gets no lease</td><td>DHCP mode, services, target network</td><td>Confirm DHCP settings and responder conflict.</td></tr>
-            <tr><td>WinPE cannot mount SMB</td><td>SMB share, firewall, secrets, endpoint</td><td>Update secrets or rerun Endpoint Sync.</td></tr>
+            <tr><td>WinPE cannot mount SMB</td><td>SMB share, firewall, boot-session, endpoint</td><td>Update secrets, verify the client lease/identity, and rerun Preflight; run Endpoint Sync only after WinPE endpoint/template changes.</td></tr>
             <tr><td>Profile stale</td><td>Deployment Profiles</td><td>Set active or edit active profile and save.</td></tr>
             <tr><td>Apps/Scripts failed</td><td>Validation Evidence summary</td><td>Review <code>C:\Windows\Temp\osdcloud-logs</code>.</td></tr>
           </tbody></table></div>
@@ -741,7 +747,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
     </div>
   </div>
 
-  <footer>Winception deployment manual · Product documentation for Web v1.0.3.</footer>
+  <footer>Winception deployment manual · Product documentation for Web v1.1.0.</footer>
 
   <dialog id="lightbox" aria-label="Image preview">
     <div class="lightbox-inner">

@@ -9,6 +9,7 @@ $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 $SourceRoot = Split-Path -Parent $PSScriptRoot
 $HostToolsRoot = Split-Path -Parent $AppRoot
+$StateRoot = Join-Path $HostToolsRoot 'State'
 $RunRoot = Join-Path $HostToolsRoot 'State\run'
 $TrayStatePath = Join-Path $RunRoot 'web-console-tray.json'
 $TrayStopRequestPath = Join-Path $RunRoot 'web-console-tray.stop.json'
@@ -26,6 +27,22 @@ function Get-WebPort {
     }
     catch {}
     return $webPort
+}
+
+function Get-InstallChannel {
+    $stateConfigPath = Join-Path $StateRoot 'config\osdcloud-console.json'
+    if (-not (Test-Path -LiteralPath $stateConfigPath -PathType Leaf)) {
+        return 'Release'
+    }
+    try {
+        $cfg = Get-Content -LiteralPath $stateConfigPath -Raw | ConvertFrom-Json
+        if ([string]$cfg.product.channel -ieq 'development' -or [string]$cfg.product.dataPolicy -ieq 'development-fixture') {
+            return 'Development'
+        }
+    }
+    catch {
+    }
+    return 'Release'
 }
 
 function Read-TrayState {
@@ -150,18 +167,6 @@ function Clear-DiagnosticsState {
     }
 }
 
-Write-Host "Copying updated files to $AppRoot..."
-Copy-Item -Path (Join-Path $SourceRoot "tools") -Destination $AppRoot -Recurse -Force
-Copy-Item -Path (Join-Path $SourceRoot "Softwares") -Destination $AppRoot -Recurse -Force
-Copy-Item -Path (Join-Path $SourceRoot "osdcloud-assets") -Destination $AppRoot -Recurse -Force
-Copy-Item -Path (Join-Path $SourceRoot "package.json") -Destination $AppRoot -Force
-Copy-Item -Path (Join-Path $SourceRoot 'New-WinceptionUsbInstaller.cmd') -Destination $AppRoot -Force
-$ManualRoot = Join-Path $AppRoot 'docs'
-New-Item -ItemType Directory -Path $ManualRoot -Force | Out-Null
-Copy-Item -Path (Join-Path $SourceRoot 'docs\winception-operations-manual.html') -Destination $ManualRoot -Force
-Copy-Item -Path (Join-Path $SourceRoot 'docs\manual-assets') -Destination $ManualRoot -Recurse -Force
-Clear-DiagnosticsState
-
 Write-Host "Stopping active Web Console..."
 if ((Request-TrayStop) -and (Wait-TrayStop)) {
     Write-Host "Web Console tray stopped gracefully."
@@ -169,6 +174,24 @@ if ((Request-TrayStop) -and (Wait-TrayStop)) {
 else {
     Stop-WebConsoleFallback
 }
+
+Write-Host "Installing filtered $((Get-InstallChannel)) HostTools App from $SourceRoot..."
+# Install-HostManagementBundle's production allowlist copies docs\winception-operations-manual.html,
+# docs\manual-assets, and New-WinceptionUsbInstaller.cmd without mirroring development state.
+$installScript = Join-Path $SourceRoot 'tools\Install-HostManagementBundle.ps1'
+if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
+    throw "Missing HostTools installer: $installScript"
+}
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installScript `
+    -SourceRoot $SourceRoot `
+    -AppRoot $AppRoot `
+    -StateRoot $StateRoot `
+    -Channel (Get-InstallChannel) `
+    -Force
+if ($LASTEXITCODE -ne 0) {
+    throw "HostTools App reload failed with exit code $LASTEXITCODE"
+}
+Clear-DiagnosticsState
 
 Write-Host "Starting Web Console..."
 Start-Process -FilePath "powershell.exe" -ArgumentList @(

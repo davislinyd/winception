@@ -1,5 +1,6 @@
 #!ipxe
-set base http://192.168.77.1/osdcloud
+dhcp
+set base http://${next-server}/osdcloud
 kernel ${base}/wimboot
 initrd ${base}/bootmgr bootmgr
 initrd ${base}/bootx64.efi bootx64.efi

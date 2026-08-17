@@ -235,7 +235,7 @@ class LocalTrackerAnnouncer {
 }
 
 // Generate the .torrent for the active deployable WIM and write it next to the
-// image. Returns the metadata the boot-config endpoint advertises to clients.
+// image. Returns the metadata the boot-session endpoint advertises to clients.
 export async function createOsImageTorrent(config, options = {}) {
   const torrent = torrentServerConfig(config);
   const cacheRoot = options.cacheRoot ?? torrent.osCacheRoot;

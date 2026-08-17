@@ -109,6 +109,9 @@ test('endpoint sync script writes marker schema v2 with sync input fingerprints'
   assert.match(source, /syncInputs\s*=/);
   assert.match(source, /Get-BootWimSyncInputs/);
   assert.match(source, /ConvertTo-CanonicalJson/);
+  assert.match(source, /ephemeral-boot-session/);
+  assert.doesNotMatch(source, /Injected local deployment secrets into boot\.wim/);
+  assert.doesNotMatch(source, /Get-DeploymentSecretSource/);
 });
 
 test('resolves endpoint sync paths from derived repo root by default', () => {
@@ -141,7 +144,7 @@ test('resolves endpoint sync script from app root when provided', () => {
   );
 });
 
-test('builds boot.wim sync inputs from endpoint, secrets, and template sources', () => {
+test('builds boot.wim sync inputs from endpoint and templates without embedded secrets', () => {
   const fixture = createBootWimSyncFixture();
 
   try {
@@ -151,8 +154,8 @@ test('builds boot.wim sync inputs from endpoint, secrets, and template sources',
       statusUrl: 'http://192.168.100.1/osdcloud/status',
     });
     assert.deepEqual(syncInputs.secrets, {
-      present: true,
-      sha256: sha256Text(JSON.stringify({ windowsUsername: 'custom-user', windowsPassword: 'custom-pass', pxeinstallPassword: 'custom-pxe' })),
+      present: false,
+      mode: 'ephemeral-boot-session',
     });
     assert.equal(
       syncInputs.templates['Windows/System32/Startnet.cmd'],
@@ -585,7 +588,7 @@ test('WinPE boot.wim synchronization check reports endpoint settings drift', () 
   }
 });
 
-test('WinPE boot.wim synchronization check reports deployment secrets drift', () => {
+test('WinPE boot.wim synchronization check ignores secret changes because boot credentials are ephemeral', () => {
   const fixture = createBootWimSyncFixture();
 
   try {
@@ -594,8 +597,24 @@ test('WinPE boot.wim synchronization check reports deployment secrets drift', ()
 
     writeText(fixture.secretsPath, JSON.stringify({ windowsUsername: 'custom-user', windowsPassword: 'changed-pass', pxeinstallPassword: 'custom-pxe' }));
     const result = checkBootWimSyncState(fixture.config, fixture.publishedBootWim);
+    assert.equal(result.ok, true);
+    assert.match(result.detail, /up to date with WinPE sync inputs/);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('WinPE boot.wim synchronization rejects a legacy marker that records embedded credentials', () => {
+  const fixture = createBootWimSyncFixture();
+
+  try {
+    const syncInputs = buildBootWimSyncInputs(fixture.config);
+    syncInputs.secrets = { present: true, sha256: 'LEGACY-SECRET-HASH' };
+    writeSyncMarker(fixture.publishedBootWim, syncInputs);
+
+    const result = checkBootWimSyncState(fixture.config, fixture.publishedBootWim);
     assert.equal(result.ok, false);
-    assert.match(result.detail, /deployment secrets/);
+    assert.match(result.detail, /embedded credential material/);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }

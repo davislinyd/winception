@@ -141,6 +141,21 @@ body { overflow: hidden; background: var(--paper); }
 /* Status cluster pinned to the right */
 .topbar-status { margin-left: auto; display: flex; align-items: center; gap: 14px; min-width: 0; }
 .topbar-status #operation-badge { border-radius: 999px; padding: 3px 10px; }
+.topbar-management-button {
+  align-items: center;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: 600 12px/1 Inter, sans-serif;
+  gap: 6px;
+  padding: 7px 11px;
+  white-space: nowrap;
+}
+.topbar-management-button:hover { background: var(--surface-container); border-color: var(--accent-tint-border); }
+.topbar-management-button .material-symbols-outlined { font-size: 17px; }
 .update-control { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .update-check-button {
   display: inline-flex; align-items: center; gap: 5px; min-width: 0;

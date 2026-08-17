@@ -1,0 +1,122 @@
+name: Winception isolated Hyper-V Lab regression
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winception-lab
+  cancel-in-progress: false
+
+jobs:
+  isolated-lab:
+    name: Secure Boot and iPXE PXE regression
+    runs-on: [self-hosted, windows, hyperv, winception-lab]
+    timeout-minutes: 180
+    env:
+      WINCEPTION_RUNTIME_ROOT: C:\OSDCloud
+      WINCEPTION_APP_ROOT: C:\OSDCloud\HostTools\App
+      WINCEPTION_STATE_ROOT: C:\OSDCloud\HostTools\State
+      NPM_CONFIG_CACHE: ${{ runner.temp }}\winception-npm-cache
+    steps:
+      - name: Checkout merge source
+        uses: actions/checkout@v4
+
+      - name: Use Node 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install source dependencies
+        shell: powershell
+        run: npm ci --no-audit --no-fund
+
+      - name: Export versioned HostTools bundle
+        shell: powershell
+        run: |
+          $bundleRoot = Join-Path $env:RUNNER_TEMP ('winception-bundle-{0}' -f $env:GITHUB_SHA)
+          New-Item -ItemType Directory -Path $bundleRoot -Force | Out-Null
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:GITHUB_WORKSPACE 'tools\Export-HostToolsBundle.ps1') -SourceRoot $env:GITHUB_WORKSPACE -OutputRoot $bundleRoot -Commit $env:GITHUB_SHA -CreateZip -Force | Out-Null
+          "WINCEPTION_BUNDLE_ROOT=$bundleRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Validate dedicated AutoLab guard
+        shell: powershell
+        run: |
+          $configured = Join-Path $env:WINCEPTION_STATE_ROOT 'config\lab-regression.json'
+          $labConfig = if (Test-Path -LiteralPath $configured -PathType Leaf) {
+            $configured
+          } else {
+            Join-Path $env:GITHUB_WORKSPACE 'config\lab-regression.example.json'
+          }
+          "WINCEPTION_LAB_CONFIG=$labConfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:GITHUB_WORKSPACE 'tools\Initialize-WinceptionLab.ps1') -ConfigPath $labConfig -ValidateOnly
+
+      - name: Install HostTools bundle
+        shell: powershell
+        run: |
+          $stageRoot = Join-Path $env:WINCEPTION_BUNDLE_ROOT 'HostTools'
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $stageRoot 'tools\Install-HostManagementBundle.ps1') -SourceRoot $stageRoot -AppRoot $env:WINCEPTION_APP_ROOT -StateRoot $env:WINCEPTION_STATE_ROOT -Force
+          Push-Location $env:WINCEPTION_APP_ROOT
+          npm ci --no-audit --no-fund
+          Pop-Location
+
+      - name: Seed Development fixture explicitly into Lab State
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:GITHUB_WORKSPACE 'tools\Seed-DevelopmentFixture.ps1') -SourceRoot $env:GITHUB_WORKSPACE -StateRoot $env:WINCEPTION_STATE_ROOT -ActiveProfileId IZVZO7PU -Force
+
+      - name: Run unattended isolated Lab regression
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:WINCEPTION_APP_ROOT 'tools\Invoke-WinceptionLabRegression.ps1') -ConfigPath $env:WINCEPTION_LAB_CONFIG -Mode All
+
+      - name: Package Lab evidence
+        if: always()
+        shell: powershell
+        run: |
+          $evidenceRoot = Join-Path $env:WINCEPTION_STATE_ROOT 'lab\evidence'
+          $evidenceZip = Join-Path $env:RUNNER_TEMP ('winception-lab-evidence-{0}.zip' -f $env:GITHUB_RUN_ID)
+          if (Test-Path -LiteralPath $evidenceRoot -PathType Container) {
+            Compress-Archive -Path (Join-Path $evidenceRoot '*') -DestinationPath $evidenceZip -CompressionLevel Optimal -Force
+          }
+          "WINCEPTION_EVIDENCE_ZIP=$evidenceZip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload HostTools bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winception-hosttools-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}\winception-bundle-${{ github.sha }}\winception-hosttools-*.zip
+            ${{ runner.temp }}\winception-bundle-${{ github.sha }}\HostTools\bundle-manifest.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload Lab evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winception-lab-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}\winception-lab-evidence-${{ github.run_id }}.zip
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Write Lab job summary
+        if: always()
+        shell: powershell
+        run: |
+          $summary = @(
+            '## Winception isolated Hyper-V Lab'
+            ''
+            '- Network: Winception-AutoLab / 192.168.177.0/24'
+            '- Matrix: four Secure Boot VMs plus one iPXE VM'
+            '- Cleanup: attempted by regression finally and evidence collection step'
+            '- Production/WAN/LAN DHCP: out of scope and guarded against'
+            '- Automatic retry: disabled'
+          ) -join [Environment]::NewLine
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary

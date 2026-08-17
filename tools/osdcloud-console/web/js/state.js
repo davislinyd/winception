@@ -1,7 +1,6 @@
 export const RESERVED_WINDOWS_USERNAMES = new Set([
   'administrator', 'guest', 'defaultaccount', 'wdagutilityaccount', 'system',
 ]);
-export const DEFAULT_WINDOWS_USERNAME = 'LabAdmin';
 
 export const state = {
   current: null,
@@ -42,13 +41,12 @@ export const state = {
   consoleDockOperationKey: '',
   guidedConsoleAttentionAction: null,
   guidedConsoleAttentionShown: false,
-  setupRailCollapsed: false,
   initializationDetailScrollPositions: {},
   endpointSyncReturnToInitialization: false,
   initializationRootDraft: '',
   initializationSecretsEditing: false,
   initializationSecretsDraft: {
-    windowsUsername: DEFAULT_WINDOWS_USERNAME,
+    windowsUsername: '',
     windowsPassword: '',
   },
   currentView: null,

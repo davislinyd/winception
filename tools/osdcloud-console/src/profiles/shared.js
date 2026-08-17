@@ -33,7 +33,7 @@ export function inputError(message, statusCode = 400) {
 
 export function deploymentProfileDefaults(appRoot, stateRoot) {
   return {
-    activeProfile: 'I20HRVF5',
+    activeProfile: null,
     profilesRoot: path.join(stateRoot, 'config', 'deployment-profiles'),
     softwareCatalogPath: path.join(stateRoot, 'config', 'software-catalog.json'),
     softwareSourceRoot: path.join(stateRoot, 'Softwares'),

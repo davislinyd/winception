@@ -75,9 +75,13 @@ export function runtimeReadinessFailureMessage(readiness) {
 
 export function projectRootStatus(config) {
   const workspace = workspaceInfo(config);
+  const invalidInsideRepo = workspace.runtimeInsideRepo === true;
+  const invalidInsideHostTools = workspace.runtimeInsideHostTools === true;
   return {
-    ready: Boolean(workspace.runtimeRoot) && workspace.runtimeInsideRepo !== true,
-    detail: workspace.runtimeInsideRepo
+    ready: Boolean(workspace.runtimeRoot) && !invalidInsideRepo && !invalidInsideHostTools,
+    detail: invalidInsideHostTools
+      ? `Invalid: runtime root is inside HostTools (${workspace.runtimeRoot}).`
+      : invalidInsideRepo
       ? `Invalid: runtime root is inside the Git clone (${workspace.runtimeRoot}).`
       : workspace.runtimeRoot,
     workspace,
@@ -137,7 +141,12 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
       status: present ? 'ready' : 'blocked',
     };
   });
-  const endpointDetailItems = !endpoint.ready ? undefined : [
+  const endpointDetailItems = !endpoint.ready ? [{
+    title: 'Not configured',
+    meta: 'PXE/service endpoint',
+    detail: endpoint.detail ?? 'Choose a service interface and IP before syncing the deployment endpoint.',
+    status: 'blocked',
+  }] : [
     {
       title: 'Service interface',
       meta: 'NIC',
@@ -161,7 +170,12 @@ export function buildInitializationState({ config, secrets, runtime, endpoint, o
     }))
     : [{ title: 'No cached WIM images', meta: 'os image', detail: 'Download or import a Windows image first.', status: 'blocked' }];
   const activeProfile = profile?.activeProfile;
-  const profileDetailItems = !activeProfile ? undefined : [
+  const profileDetailItems = !activeProfile ? [{
+    title: 'No deployment profile',
+    meta: 'profile catalog is empty',
+    detail: 'Create the first profile, choose an OS image, then publish it before running Preflight.',
+    status: 'blocked',
+  }] : [
     {
       title: activeProfile.name ?? activeProfile.id,
       meta: 'active profile',

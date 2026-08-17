@@ -2,7 +2,7 @@ import dgram from 'node:dgram';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { resolveHttpFile } from '../config.js';
+import { deploymentEndpointMissing, resolveHttpFile } from '../config.js';
 import { evaluateOsImageCache } from '../osimages/catalog.js';
 import { evaluateDeploymentProfilePayload } from '../profiles/profiles.js';
 import { resolveBaseConfigPath, resolveRepoRoot } from './bootArtifacts.js';
@@ -137,6 +137,15 @@ export async function runPreflight(config, services = {}, options = {}) {
     }
     return result;
   };
+
+  const missingEndpoint = deploymentEndpointMissing(config);
+  if (missingEndpoint.length > 0) {
+    report(fail(
+      'Deployment endpoint',
+      `Endpoint is not configured. Complete Guided Setup before preflight: ${missingEndpoint.join(', ')}`,
+    ));
+    return checks;
+  }
 
   try {
     report((await isElevated()) ? pass('Administrator', 'running elevated') : fail('Administrator', 'run elevated before binding ports 67/69/80'));

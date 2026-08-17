@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OSDCloud Host Console</title>
+  <title>Winception 部署主控台</title>
   <link rel="stylesheet" href="./css/01-base.css">
   <link rel="stylesheet" href="./css/02-cards-forms.css">
   <link rel="stylesheet" href="./css/03-layout.css">
@@ -24,33 +24,22 @@
           <span id="app-version" class="topbar-brand-version"></span>
         </div>
       </div>
-      <nav class="topbar-nav" aria-label="Views">
-        <button id="tab-dashboard" class="topbar-navlink active" type="button" title="Deploy">
+      <nav class="topbar-nav" aria-label="主要工作區">
+        <button id="tab-dashboard" class="topbar-navlink active" type="button" title="開始部署">
           <span class="material-symbols-outlined">rocket_launch</span>
-          <span>Deploy</span>
+          <span>開始部署</span>
         </button>
-        <button id="tab-fleet" class="topbar-navlink" type="button" title="Monitor">
+        <button id="tab-fleet" class="topbar-navlink" type="button" title="部署活動">
           <span class="material-symbols-outlined">analytics</span>
-          <span>Monitor</span>
+          <span>部署活動</span>
         </button>
       </nav>
       <div class="topbar-status">
-        <span id="endpoint-line" class="font-technical-string text-technical-string endpoint-chip">Loading endpoint...</span>
-        <span id="operation-badge" class="badge neutral live-chip">Idle</span>
-        <span class="host-chip" title="Console session"><span class="host-chip-dot"></span>admin</span>
-        <span id="updated-at" class="font-data-tabular text-data-tabular updated-chip"></span>
-        <div class="update-control">
-          <button id="update-check-button" class="update-check-button" data-action="update-check" type="button" title="Check for updates" aria-label="Check for updates">
-            <span class="material-symbols-outlined" aria-hidden="true">system_update</span>
-            <span id="update-status" role="status">Check updates</span>
-          </button>
-          <a id="update-release-link" class="update-release-link" href="#" target="_blank" rel="noopener noreferrer" hidden>View update</a>
-        </div>
-        <a id="manual-link" class="topbar-manual-link" href="/manual/" target="_blank" rel="noopener noreferrer" title="Deployment manual" aria-label="Open deployment manual in a new tab">
-          <span class="material-symbols-outlined" aria-hidden="true">menu_book</span>
-          <span class="topbar-manual-label">Manual</span>
-        </a>
-        <button id="refresh-button" class="ctx-icon-btn" type="button" aria-label="Refresh"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
+        <span id="operation-badge" class="badge neutral live-chip">閒置</span>
+        <button id="management-open-button" class="topbar-management-button" data-action="management" type="button" aria-haspopup="dialog" aria-controls="management-dialog">
+          <span class="material-symbols-outlined" aria-hidden="true">tune</span>
+          <span>管理</span>
+        </button>
       </div>
     </header>
     <main class="shell-main flex flex-col">
@@ -69,131 +58,124 @@
         </form>
       </section>
       <section id="view-dashboard" class="view active flex-col" aria-labelledby="dashboard-title">
+        <div class="beginner-page">
+          <div class="deploy-main beginner-main flex flex-col gap-sm">
+            <section id="warning-banner" class="hidden" role="alert">
+              <div class="flex items-center gap-sm">
+                <span class="material-symbols-outlined text-[24px]">warning</span>
+                <span id="warning-banner-text" class="font-ui-label text-ui-label font-medium"></span>
+              </div>
+              <button data-action="endpoint-sync" data-icon="sync_alt" class="warning" type="button">同步端點</button>
+            </section>
 
-        <!-- Deploy = two columns: dashboard (left, scrolls independently) + full-height collapsible guided-setup rail (right) -->
-        <div id="deploy-grid" class="deploy-grid">
-        <div class="deploy-main flex flex-col gap-sm">
-
-        <!-- endpoint-sync warning lives in the left column only -->
-        <section id="warning-banner" class="hidden" role="alert">
-          <div class="flex items-center gap-sm">
-            <span class="material-symbols-outlined text-[24px]">warning</span>
-            <span id="warning-banner-text" class="font-ui-label text-ui-label font-medium"></span>
-          </div>
-          <button data-action="endpoint-sync" data-icon="sync_alt" class="warning" type="button">Sync now</button>
-        </section>
-
-        <!-- Deploy = dashboard: config + action, status tiles, inline services -->
-        <div class="deploy-summary">
-          <button class="deploy-seg" data-action="profiles" data-operation-allowed="inspect" aria-controls="deployment-profiles-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">Profile</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-profile-details" class="deploy-seg-value"></div></button>
-          <button class="deploy-seg" data-action="os-images" data-operation-allowed="inspect" aria-controls="os-images-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">OS Image</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="active-os-details" class="deploy-seg-value"></div></button>
-          <button class="deploy-seg" data-action="interfaces" data-operation-allowed="inspect" aria-controls="endpoint-settings-dialog" aria-expanded="false" type="button"><span class="deploy-seg-label">Endpoint</span><span class="deploy-seg-caret material-symbols-outlined">expand_more</span><div id="summary-endpoint" class="deploy-seg-value mono"></div></button>
-        </div>
-        <div id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden></div>
-
-        <!-- embedded config editor host (Profile / OS Image / Endpoint render here inline) -->
-        <div id="config-embed" class="config-embed" hidden></div>
-
-        <!-- status tiles (click to open Activity, pre-filtered) -->
-        <div id="dash-tiles" class="dash-tiles"></div>
-
-        <!-- inline service control -->
-        <section class="dash-card dash-services">
-          <div class="dash-card-head"><span>Services</span><button data-action="all-services-toggle" data-icon="play_arrow" class="bento-mini danger all-services-toggle" type="button">Start all</button></div>
-          <div id="services-grid" class="dash-services-grid" aria-label="Services"></div>
-        </section>
-
-        <!-- DOM-only: kept for JS render targets, never displayed -->
-        <div hidden aria-hidden="true">
-          <section id="endpoint-summary" class="endpoint-summary-grid" aria-label="Endpoint summary" hidden></section>
-          <div id="pipeline-steps" class="pipeline-horizontal"></div>
-          <div id="live-metrics" class="live-metrics"></div>
-          <section class="sync-progress-panel" hidden>
-            <div class="panel-title-row"><h3>Endpoint Sync Progress</h3><span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span></div>
-            <div id="sync-action-items" class="sync-action-summary font-log-entry text-log-entry"></div>
-            <details class="sync-output-details"><summary>Sequence and process output</summary>
-              <div class="sync-progress-grid"><section><h4>Target</h4><dl id="sync-progress-target" class="stitch-details"></dl></section><section><h4>Sequence</h4><div id="sync-progress-steps" class="flex flex-col gap-sm"></div></section></div>
-              <pre id="sync-output" class="font-log-entry text-log-entry text-on-surface-variant"></pre>
-            </details>
-          </section>
-          <section class="driver-cache-panel" hidden>
-            <div class="panel-title-row"><h3>Driver Cache</h3><span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span></div>
-            <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
-          </section>
-        </div>
-
-        <!-- Always-visible readiness: runtime + preflight side by side, no toggle to hunt for -->
-        <div class="dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-4 gap-sm">
-          <section class="runtime-readiness-panel p-md flex flex-col gap-sm">
-            <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Runtime Readiness</h3><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">Checking</span></div>
-            <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
-            <div class="runtime-readiness-actions flex flex-wrap gap-sm">
-              <button data-action="prepare-runtime" data-icon="deployed_code_update" class="warning" type="button">Prepare runtime</button>
-            </div>
-          </section>
-          <section class="preflight-summary-panel p-md flex flex-col gap-sm">
-            <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Preflight Summary</h3><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">Not run</span></div>
-            <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
-          </section>
-          <section class="preflight-summary-panel p-md flex flex-col gap-sm">
-            <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Diagnostics</h3><span id="diagnostics-status-badge" class="status-pill neutral" aria-live="polite">No data</span></div>
-            <div id="diagnostics-headline" class="font-ui-label text-ui-label">No diagnostics bundle has been generated yet.</div>
-            <div id="diagnostics-summary" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
-            <div class="runtime-readiness-actions flex flex-wrap gap-sm">
-              <button id="diagnostics-run-button" data-action="diagnostics-run" data-diagnostics-scope="full" data-diagnostics-trigger="manual" data-icon="health_metrics" class="warning" type="button">Run diagnostics</button>
-              <button id="diagnostics-download-button" data-action="diagnostics-download" data-icon="download" type="button" disabled>Download ZIP</button>
-            </div>
-          </section>
-          <section class="offline-iso-panel p-md flex flex-col gap-sm">
-            <div class="panel-title-row"><h3 class="font-ui-label text-ui-label uppercase tracking-wider text-on-surface-variant">Offline ISO</h3><span id="offline-iso-status-badge" class="status-pill neutral" aria-live="polite">Idle</span></div>
-            <div id="offline-iso-headline" class="font-ui-label text-ui-label">Create a host-side ISO snapshot from the active deployment state.</div>
-            <dl id="offline-iso-details" class="stitch-details font-data-tabular text-data-tabular"></dl>
-            <div class="runtime-readiness-actions flex flex-wrap gap-sm">
-              <button id="offline-iso-create-button" data-action="offline-iso-create" data-icon="download" class="warning" type="button">Create ISO</button>
-            </div>
-          </section>
-        </div>
-        </div><!-- /deploy-main -->
-
-        <!-- Guided setup, integrated as a collapsible right rail -->
-        <aside id="setup-rail" class="setup-rail">
-          <section id="initialization-dialog" class="setup-rail-panel" aria-labelledby="guided-setup-title">
-            <div class="guided-v3">
-              <div class="guided-v3-head">
-                <div class="guided-v3-head-text">
-                  <span class="guided-v3-eyebrow">Guided setup</span>
-                  <h2 id="guided-setup-title" class="guided-v3-title">Set up deployment</h2>
-                  <span id="initialization-summary" class="guided-v3-sub">Checking initialization state...</span>
+            <section id="beginner-home" class="beginner-home" aria-labelledby="dashboard-title">
+              <div class="beginner-heading">
+                <div>
+                  <span class="beginner-eyebrow">Winception 部署主控台</span>
+                  <h1 id="dashboard-title">開始部署</h1>
+                  <p>按照目前狀態完成下一步，不需要先理解所有技術設定。</p>
                 </div>
-                <button id="setup-rail-collapse" class="setup-rail-collapse" type="button" title="Collapse — maximize Deploy" aria-label="Collapse guided setup"><span class="material-symbols-outlined">chevron_right</span></button>
-                <div class="guided-v3-progress">
-                  <div class="guided-v3-progress-meta">
-                    <span id="initialization-badge" class="status-pill neutral" aria-live="polite">Checking</span>
-                    <span id="init-progress-text" class="guided-v3-progress-text"></span>
+                <span id="beginner-overall-badge" class="status-pill neutral" aria-live="polite">正在載入</span>
+              </div>
+
+              <section class="beginner-config-card" aria-labelledby="beginner-config-title">
+                <div class="beginner-card-heading">
+                  <div>
+                    <span class="beginner-section-kicker">目前部署</span>
+                    <h2 id="beginner-config-title">部署內容</h2>
                   </div>
-                  <div class="guided-progress-track"><div id="init-progress-fill" class="guided-progress-fill"></div></div>
+                  <button class="beginner-link-button" data-action="management" type="button" aria-haspopup="dialog" aria-controls="management-dialog">管理部署內容</button>
                 </div>
-              </div>
-          <div class="guided-v3-body">
-            <div class="guided-v3-main">
-              <div id="initialization-steps" class="guided-timeline"></div>
+                <div class="beginner-config-grid">
+                  <button class="beginner-config-item" data-action="profiles" data-operation-allowed="inspect" aria-controls="deployment-profiles-dialog" aria-expanded="false" type="button">
+                    <span class="beginner-config-label">Profile</span>
+                    <span id="active-profile-details" class="beginner-config-value"></span>
+                  </button>
+                  <button class="beginner-config-item" data-action="os-images" data-operation-allowed="inspect" aria-controls="os-images-dialog" aria-expanded="false" type="button">
+                    <span class="beginner-config-label">OS Image</span>
+                    <span id="active-os-details" class="beginner-config-value"></span>
+                  </button>
+                  <button class="beginner-config-item" data-action="interfaces" data-operation-allowed="inspect" aria-controls="endpoint-settings-dialog" aria-expanded="false" type="button">
+                    <span class="beginner-config-label">Endpoint</span>
+                    <span id="summary-endpoint" class="beginner-config-value mono"></span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="beginner-next-card" aria-labelledby="beginner-next-title">
+                <div class="beginner-next-copy">
+                  <span class="beginner-section-kicker">下一步</span>
+                  <h2 id="beginner-next-title">正在檢查部署狀態</h2>
+                  <p id="beginner-next-detail">系統正在讀取目前的部署設定。</p>
+                  <p id="beginner-blocker-summary" class="beginner-blocker-summary" hidden></p>
+                </div>
+                <div class="beginner-next-actions">
+                  <button id="beginner-primary-action" class="btn-primary beginner-primary-action" data-action="beginner-primary" type="button" disabled>正在載入</button>
+                  <button id="beginner-secondary-action" class="beginner-secondary-action" data-action="initialization" type="button">查看完整檢查清單</button>
+                </div>
+              </section>
+
+              <section class="beginner-flow-card" aria-labelledby="beginner-flow-title">
+                <div class="beginner-card-heading">
+                  <div>
+                    <span class="beginner-section-kicker">部署流程</span>
+                    <h2 id="beginner-flow-title">三個階段</h2>
+                  </div>
+                </div>
+                <ol class="beginner-flow-list">
+                  <li id="beginner-step-content" class="beginner-flow-step">
+                    <span class="beginner-flow-number">1</span>
+                    <span><strong>部署內容</strong><small>Profile 與 OS Image</small></span>
+                    <span class="beginner-flow-status" aria-live="polite"></span>
+                  </li>
+                  <li id="beginner-step-environment" class="beginner-flow-step">
+                    <span class="beginner-flow-number">2</span>
+                    <span><strong>環境檢查</strong><small>Runtime 與 Preflight</small></span>
+                    <span class="beginner-flow-status" aria-live="polite"></span>
+                  </li>
+                  <li id="beginner-step-services" class="beginner-flow-step">
+                    <span class="beginner-flow-number">3</span>
+                    <span><strong>啟動服務</strong><small>HTTP、TFTP、DHCP</small></span>
+                    <span class="beginner-flow-status" aria-live="polite"></span>
+                  </li>
+                </ol>
+              </section>
+
+              <section class="beginner-summary-card" aria-labelledby="beginner-summary-title">
+                <div class="beginner-card-heading">
+                  <div>
+                    <span class="beginner-section-kicker">部署概況</span>
+                    <h2 id="beginner-summary-title">Client 狀態</h2>
+                  </div>
+                  <button class="beginner-link-button" data-goto="activity" data-fleet-filter="all" type="button">查看全部活動</button>
+                </div>
+                <div id="beginner-summary-items" class="beginner-summary-items"></div>
+              </section>
+            </section>
+
+            <div id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden></div>
+            <div id="config-embed" class="config-embed" hidden></div>
+
+            <div class="beginner-support-targets" hidden aria-hidden="true">
+              <section id="endpoint-summary" class="endpoint-summary-grid" aria-label="Endpoint summary" hidden></section>
+              <div id="pipeline-steps" class="pipeline-horizontal"></div>
+              <div id="live-metrics" class="live-metrics"></div>
+              <div id="dash-tiles" class="dash-tiles"></div>
+              <section class="sync-progress-panel" hidden>
+                <div class="panel-title-row"><h3>Endpoint Sync Progress</h3><span id="sync-progress-subtitle" class="font-technical-string text-technical-string text-on-surface-variant">Target endpoint is selected from live configuration.</span></div>
+                <div id="sync-action-items" class="sync-action-summary font-log-entry text-log-entry"></div>
+                <details class="sync-output-details"><summary>Sequence and process output</summary>
+                  <div class="sync-progress-grid"><section><h4>Target</h4><dl id="sync-progress-target" class="stitch-details"></dl></section><section><h4>Sequence</h4><div id="sync-progress-steps" class="flex flex-col gap-sm"></div></section></div>
+                  <pre id="sync-output" class="font-log-entry text-log-entry text-on-surface-variant"></pre>
+                </details>
+              </section>
+              <section class="driver-cache-panel" hidden>
+                <div class="panel-title-row"><h3>Driver Cache</h3><span id="driver-cache-count" class="font-technical-string text-technical-string text-on-surface-variant"></span></div>
+                <div id="driver-cache-details" class="driver-cache-details font-data-tabular text-data-tabular"></div>
+              </section>
             </div>
-            <!-- right column: full detail of the selected step, sticky so no scrolling is needed -->
-            <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by app.js --></section>
           </div>
-              <div class="guided-v3-foot">
-                <button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="btn-primary" type="button">Next step</button>
-              </div>
-            </div>
-          </section>
-          <button id="setup-rail-strip" class="setup-rail-strip" type="button" title="Expand guided setup">
-            <span class="material-symbols-outlined">chevron_left</span>
-            <span class="setup-rail-strip-label">Guided setup</span>
-            <span id="setup-rail-strip-count" class="setup-rail-strip-count"></span>
-            <span class="material-symbols-outlined filled">checklist</span>
-          </button>
-        </aside>
-        </div><!-- /deploy-grid -->
+        </div>
       </section>
 
       <!-- Fleet View Container -->
@@ -202,16 +184,16 @@
           <div class="fleet-stat-strip" id="fleet-stat-strip"></div>
           <div class="fleet-toolbar-right">
             <div class="fleet-filter" id="fleet-filter" role="tablist">
-              <button type="button" class="active" data-fleet-filter="all">All</button>
-              <button type="button" data-fleet-filter="active">Active</button>
-              <button type="button" data-fleet-filter="done">Done</button>
-              <button type="button" data-fleet-filter="failed">Failed</button>
-              <button type="button" data-fleet-filter="stale">Stale</button>
-              <button type="button" data-fleet-filter="archived">Archived</button>
+              <button type="button" class="active" data-fleet-filter="all">全部</button>
+              <button type="button" data-fleet-filter="active">進行中</button>
+              <button type="button" data-fleet-filter="done">已完成</button>
+              <button type="button" data-fleet-filter="failed">失敗</button>
+              <button type="button" data-fleet-filter="stale">過期</button>
+              <button type="button" data-fleet-filter="archived">已封存</button>
             </div>
             <label class="fleet-search">
               <span class="material-symbols-outlined text-[16px]">search</span>
-              <input id="fleet-search" type="search" placeholder="Search host or run ID" autocomplete="off">
+              <input id="fleet-search" type="search" placeholder="搜尋主機或執行編號" autocomplete="off">
             </label>
           </div>
         </div>
@@ -223,6 +205,130 @@
       </section>
 
     </main>
+
+    <dialog id="management-dialog" class="management-dialog" aria-labelledby="management-title">
+      <form method="dialog" class="management-card">
+        <div class="dialog-header management-header">
+          <div>
+            <span class="beginner-section-kicker">進階功能</span>
+            <h2 id="management-title">管理部署</h2>
+          </div>
+          <button value="cancel" type="submit">關閉</button>
+        </div>
+        <p class="management-intro">一般部署只需要使用首頁的下一步。需要調整設定、檢查細節或匯出證據時，再從這裡進入。</p>
+
+        <div class="management-grid">
+          <section class="management-section" aria-labelledby="management-content-title">
+            <div class="management-section-heading">
+              <div><span class="beginner-section-kicker">部署內容</span><h3 id="management-content-title">選擇要部署的內容</h3></div>
+            </div>
+            <div class="management-action-grid">
+              <button data-action="management-target" data-management-target="profiles" type="button"><span class="material-symbols-outlined">badge</span><span><strong>Profiles</strong><small>選擇部署設定與軟體</small></span></button>
+              <button data-action="management-target" data-management-target="os-images" type="button"><span class="material-symbols-outlined">disc_full</span><span><strong>OS Image</strong><small>快取、下載或匯入映像</small></span></button>
+              <button data-action="management-target" data-management-target="software-add" type="button"><span class="material-symbols-outlined">install_desktop</span><span><strong>Client Software</strong><small>新增 MSI、EXE 安裝套件</small></span></button>
+              <button data-action="management-target" data-management-target="script-add" type="button"><span class="material-symbols-outlined">code</span><span><strong>PowerShell Scripts</strong><small>新增部署前後腳本</small></span></button>
+            </div>
+          </section>
+
+          <section class="management-section" aria-labelledby="management-network-title">
+            <div class="management-section-heading">
+              <div><span class="beginner-section-kicker">網路與服務</span><h3 id="management-network-title">Endpoint 與部署服務</h3></div>
+            </div>
+            <div class="management-action-grid">
+              <button data-action="management-target" data-management-target="interfaces" type="button"><span class="material-symbols-outlined">lan</span><span><strong>Endpoint Settings</strong><small>介面、Boot Mode、DHCP、NAT 與 Sync</small></span></button>
+              <button data-action="management-target" data-management-target="initialization" data-management-step="endpoint" type="button"><span class="material-symbols-outlined">fact_check</span><span><strong>完整檢查清單</strong><small>查看所有 10 個部署步驟</small></span></button>
+            </div>
+            <div class="management-inline-panel">
+              <div class="management-inline-heading"><div><h4>服務控制</h4><p>啟動服務前必須先通過 Preflight。</p></div><button data-action="all-services-toggle" data-icon="play_arrow" class="warning all-services-toggle" type="button">啟動部署服務</button></div>
+              <div id="services-grid" class="dash-services-grid management-services-grid" aria-label="部署服務"></div>
+            </div>
+          </section>
+
+          <section class="management-section" aria-labelledby="management-check-title">
+            <div class="management-section-heading">
+              <div><span class="beginner-section-kicker">檢查與證據</span><h3 id="management-check-title">確認主機狀態</h3></div>
+            </div>
+            <div class="management-check-grid">
+              <section class="management-status-panel">
+                <div class="panel-title-row"><h4>Runtime</h4><span id="runtime-readiness-badge" class="status-pill neutral" aria-live="polite">檢查中</span></div>
+                <div id="runtime-readiness-summary" class="font-data-tabular text-data-tabular"></div>
+                <button data-action="prepare-runtime" data-icon="deployed_code_update" class="warning" type="button">準備執行環境</button>
+              </section>
+              <section class="management-status-panel">
+                <div class="panel-title-row"><h4>Preflight</h4><span id="preflight-status-badge" class="status-pill neutral" aria-live="polite">尚未執行</span></div>
+                <div id="preflight-list" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
+                <button data-action="preflight" data-icon="fact_check" class="warning" type="button">執行部署前檢查</button>
+              </section>
+              <section class="management-status-panel">
+                <div class="panel-title-row"><h4>Diagnostics</h4><span id="diagnostics-status-badge" class="status-pill neutral" aria-live="polite">沒有資料</span></div>
+                <div id="diagnostics-headline" class="font-ui-label text-ui-label">尚未產生診斷資料。</div>
+                <div id="diagnostics-summary" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
+                <div class="management-button-row"><button id="diagnostics-run-button" data-action="diagnostics-run" data-diagnostics-scope="full" data-diagnostics-trigger="manual" data-icon="health_metrics" class="warning" type="button">執行診斷</button><button id="diagnostics-download-button" data-action="diagnostics-download" data-icon="download" type="button" disabled>下載 ZIP</button></div>
+              </section>
+              <section class="management-status-panel">
+                <div class="panel-title-row"><h4>Offline ISO</h4><span id="offline-iso-status-badge" class="status-pill neutral" aria-live="polite">閒置</span></div>
+                <div id="offline-iso-headline" class="font-ui-label text-ui-label">從目前部署狀態建立主機端 ISO。</div>
+                <dl id="offline-iso-details" class="stitch-details font-data-tabular text-data-tabular"></dl>
+                <button id="offline-iso-create-button" data-action="offline-iso-create" data-icon="download" class="warning" type="button">建立 ISO</button>
+              </section>
+            </div>
+            <div class="management-action-grid management-maintenance-actions">
+              <button data-action="management-target" data-management-target="software-test-settings" type="button"><span class="material-symbols-outlined">science</span><span><strong>Software Test</strong><small>管理專用測試 VM</small></span></button>
+              <button data-action="management-target" data-management-target="logs" type="button"><span class="material-symbols-outlined">receipt_long</span><span><strong>System Log</strong><small>查看操作輸出與錯誤</small></span></button>
+            </div>
+          </section>
+
+          <section class="management-section management-system-section" aria-labelledby="management-system-title">
+            <div class="management-section-heading">
+              <div><span class="beginner-section-kicker">系統</span><h3 id="management-system-title">主機與文件</h3></div>
+            </div>
+            <dl class="management-system-details">
+              <div><dt>Endpoint</dt><dd id="endpoint-line">尚未載入</dd></div>
+              <div><dt>最後更新</dt><dd id="updated-at"></dd></div>
+              <div><dt>Console session</dt><dd><span class="host-chip"><span class="host-chip-dot"></span>admin</span></dd></div>
+            </dl>
+            <div class="management-button-row">
+              <button id="update-check-button" class="update-check-button" data-action="update-check" type="button" title="檢查更新" aria-label="檢查更新"><span class="material-symbols-outlined" aria-hidden="true">system_update</span><span id="update-status" role="status">檢查更新</span></button>
+              <a id="update-release-link" class="update-release-link" href="#" target="_blank" rel="noopener noreferrer" hidden>查看更新</a>
+              <a id="manual-link" class="topbar-manual-link" href="/manual/" target="_blank" rel="noopener noreferrer" title="部署操作手冊" aria-label="在新分頁開啟部署操作手冊"><span class="material-symbols-outlined" aria-hidden="true">menu_book</span><span class="topbar-manual-label">使用手冊</span></a>
+              <button id="refresh-button" class="ctx-icon-btn" type="button" aria-label="重新整理"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
+            </div>
+          </section>
+        </div>
+
+        <div hidden aria-hidden="true">
+          <section id="endpoint-summary" class="endpoint-summary-grid" aria-label="Endpoint summary"></section>
+          <div id="summary-services"></div>
+          <div id="pipeline-steps" class="pipeline-horizontal"></div>
+          <div id="live-metrics" class="live-metrics"></div>
+          <div id="ss-runtime"></div><div id="ss-preflight"></div><div id="ss-services"></div><div id="ss-active"></div><div id="ss-done"></div>
+          <section class="sync-progress-panel" hidden><span id="sync-progress-subtitle"></span><div id="sync-action-items"></div><dl id="sync-progress-target"></dl><div id="sync-progress-steps"></div><pre id="sync-output"></pre></section>
+          <section class="driver-cache-panel" hidden><span id="driver-cache-count"></span><div id="driver-cache-details"></div></section>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="initialization-dialog" class="setup-dialog" aria-labelledby="guided-setup-title">
+      <form method="dialog" class="guided-v3">
+        <div class="guided-v3-head">
+          <div class="guided-v3-head-text">
+            <span class="guided-v3-eyebrow">部署設定</span>
+            <h2 id="guided-setup-title" class="guided-v3-title">完成部署準備</h2>
+            <span id="initialization-summary" class="guided-v3-sub">正在檢查初始化狀態...</span>
+          </div>
+          <button value="cancel" class="setup-dialog-close" type="submit" aria-label="關閉部署設定">關閉</button>
+          <div class="guided-v3-progress">
+            <div class="guided-v3-progress-meta"><span id="initialization-badge" class="status-pill neutral" aria-live="polite">檢查中</span><span id="init-progress-text" class="guided-v3-progress-text"></span></div>
+            <div class="guided-progress-track"><div id="init-progress-fill" class="guided-progress-fill"></div></div>
+          </div>
+        </div>
+        <div class="guided-v3-body">
+          <div class="guided-v3-main"><div id="initialization-steps" class="guided-timeline"></div></div>
+          <section id="guided-step-detail" class="guided-v3-detail"><!-- filled by setup.js --></section>
+        </div>
+        <div class="guided-v3-foot"><button id="initialization-next" data-init-action="next" data-icon="arrow_forward" class="btn-primary" type="button">下一步</button></div>
+      </form>
+    </dialog>
 
     <!-- Global console dock: live operation output visible from every view -->
     <section id="console-dock" class="console-dock collapsed" aria-label="Console output">

@@ -1,5 +1,18 @@
 # Deployment Test Result
 
+## v1.1.0 商品化候選驗證（2026-08-18 current run）
+
+本次候選已實作 Release 零預載／Development fixture 雙軌、State-preserving upgrade/migration、短效 boot-session credential envelope 與 auto-logon cleanup gate。`node --check`、PowerShell parser、`npm run check`、`npm run smoke`、`git diff --check`、商業化／安裝遷移／Windows credential／Lab contract 測試與 Web/API/UI targeted tests 已通過。另修正 HostTools 安裝器誤排除產品手冊 PNG，以及兩份 PXE SetupComplete 換行不一致問題。
+
+完整 `npm test` 在排除目前 Codex runtime 注入的不完整 PackageManagement 路徑後通過：438 PASS、3 SKIP、0 FAIL。可重複的 runner 前置設定如下：
+
+```powershell
+$env:PSModulePath = (($env:PSModulePath -split ';') | Where-Object { $_ -and ($_ -notmatch 'codex-primary-runtime') }) -join ';'
+npm test
+```
+
+這是目前執行環境的 runner 隔離條件，不是產品 runtime 修補。`Initialize-WinceptionLab.ps1 -ValidateOnly` 仍因目前 PowerShell 非 elevated 而停止；2026-08-18 尚未重新執行隔離 AutoLab 或實體 UEFI IPv4 PXE，因此本候選尚未達正式 Release gate；下方既有部署紀錄均為歷史 evidence。
+
 Authoritative evidence and no-AI operator runbook for a completed from-zero deployment setup test.
 
 **Date validated**: 2026-06-24
@@ -72,6 +85,22 @@ OobeProcesses        : <empty>
 ```
 
 The run reached `windows-desktop-ready` without a NIC, SMB, torrent, DHCP lease, or host telemetry.
+
+## Unattended PR And Isolated Hyper-V Lab Contract
+
+The source automation added on 2026-08-08 defines the repeatable validation lane; this source-only change did not execute the dedicated runner, create/restore its VMs, start services, run Endpoint Sync, or enable DHCP.
+
+PR pull requests run only in an isolated checkout with Node 24.x, npm ci, JavaScript syntax checks, Windows PowerShell parser checks, npm run check, npm test, npm run smoke, and targeted Web/Lab contract tests. The PR workflow has no service, endpoint, profile publish, or DHCP step.
+
+After a master push, the dedicated Windows self-hosted Hyper-V runner:
+
+1. Acquires the Winception-AutoLab concurrency lock and validates the exact Internal switch, vEthernet adapter, isolated subnet, DHCP binding, five powered-off Gen2 VMs, Secure Boot roles, fixed memory, and Winception-Clean checkpoints.
+2. Exports a commit/versioned tracked HostTools bundle with per-file length and SHA-256 manifest; secrets, runtime state, generated media, logs, screenshots, .ai, and untracked files are excluded.
+3. Installs the bundle in HostTools App, runs npm ci, restores/prepares the product-managed runtime through existing helpers, synchronizes endpoint/profile/OS image through existing APIs, and runs server:preflight.
+4. Runs four Secure Boot VMs in parallel, then one dedicated Secure Boot-off iPXE VM. Each run needs Fleet status completed at windows-desktop-ready plus PowerShell Direct evidence for desktop marker, Explorer, OOBE, Windows version, profile, and app/script sequence. iPXE also needs snponly.efi, boot.ipxe, wimboot, and callback evidence.
+5. Stops known Lab services, powers off VMs, restores checkpoints, clears temporary status/operation state, and uploads only redacted evidence on both success and failure. There is no automatic retry.
+
+Required failure tests include preflight blocking without DHCP start, stale/running VM, missing checkpoint, foreign switch/adapter/DHCP binding, occupied port, invalid cache hash, PowerShell Direct timeout, cleanup failure, Ctrl+C, job cancellation, and concurrency collision. A passing isolated Lab run is not production/WAN/LAN DHCP or physical-laptop evidence.
 
 ## Rebuild From Zero (No-AI Runbook)
 

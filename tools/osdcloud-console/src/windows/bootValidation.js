@@ -1,6 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import { stateRootForConfig } from '../config.js';
 import { resolveTftpPath } from '../tftp.js';
 import { buildBootWimSyncInputs, diffBootWimSyncInputs, hashBootWimSyncInputs, readBootWimSyncMarker } from './bootArtifacts.js';
 import { runPowerShell } from './powershell.js';
@@ -44,8 +42,6 @@ export function checkBootWimSyncStateLegacy(config, publishedBootWim) {
   }
 
   try {
-    const stateRoot = stateRootForConfig(config);
-    const secretsPath = path.join(stateRoot, 'config', 'osdcloud-secrets.json');
     const configPath = config.__configPath;
     const localConfigPath = config.__localConfigPath;
 
@@ -53,13 +49,6 @@ export function checkBootWimSyncStateLegacy(config, publishedBootWim) {
     let outOfSync = false;
     const details = [];
 
-    if (fs.existsSync(secretsPath)) {
-      const secretsMtime = fs.statSync(secretsPath).mtimeMs;
-      if (secretsMtime > publishedMtime) {
-        outOfSync = true;
-        details.push('secrets');
-      }
-    }
     if (configPath && fs.existsSync(configPath)) {
       const configMtime = fs.statSync(configPath).mtimeMs;
       if (configMtime > publishedMtime) {
@@ -78,13 +67,13 @@ export function checkBootWimSyncStateLegacy(config, publishedBootWim) {
     if (outOfSync) {
       return fail(
         'WinPE boot.wim synchronization',
-        `The published boot.wim is older than the current ${details.join(' and ')}. You must run Endpoint Sync to apply settings/secrets changes to the WinPE boot image.`,
+        `The published boot.wim is older than the current ${details.join(' and ')}. You must run Endpoint Sync to apply WinPE settings before PXE boot.`,
       );
     }
 
     return pass(
       'WinPE boot.wim synchronization',
-      'The published boot.wim is up to date with configuration and secrets.',
+      'The published boot.wim is up to date with WinPE configuration.',
     );
   } catch (error) {
     return fail('WinPE boot.wim synchronization', `Failed to check configuration timestamps: ${error.message}`);
@@ -104,7 +93,7 @@ export function checkBootWimSyncState(config, publishedBootWim) {
     }
     return pass(
       'WinPE boot.wim synchronization',
-      'The published boot.wim is up to date with configuration and secrets (legacy sync marker; run Endpoint Sync to upgrade to input fingerprint checks).',
+      'The published boot.wim is up to date with WinPE configuration (legacy sync marker; run Endpoint Sync to upgrade to input fingerprint checks).',
     );
   }
 

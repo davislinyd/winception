@@ -103,13 +103,30 @@ test('serves status and ranged files', async () => {
     response = await fetch(`http://127.0.0.1:${port}/osdcloud/status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ runId: 'test-run', stage: 'apply-image' }),
+      body: JSON.stringify({
+        runId: 'test-run',
+        stage: 'apply-image',
+        receivedAt: '2000-01-01T00:00:00.000Z',
+        remote: 'forged-client',
+      }),
     });
     assert.equal(response.status, 204);
 
     response = await fetch(`http://127.0.0.1:${port}/osdcloud/status`);
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).stage, 'apply-image');
+    const latest = await response.json();
+    assert.equal(latest.stage, 'apply-image');
+    assert.notEqual(latest.receivedAt, '2000-01-01T00:00:00.000Z');
+    assert.match(latest.receivedAt, /^20\d\d-\d\d-\d\dT/u);
+    assert.notEqual(latest.remote, 'forged-client');
+    assert.match(latest.remote, /:/u);
+
+    response = await fetch(`http://127.0.0.1:${port}/osdcloud/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify([]),
+    });
+    assert.equal(response.status, 400);
 
     response = await fetch(`http://127.0.0.1:${port}/osdcloud/status/runs`);
     assert.equal(response.status, 200);
@@ -401,7 +418,7 @@ test('rejects non-PNG screenshot content types and oversized bodies', async () =
   }
 });
 
-test('serves boot configuration with secrets', async () => {
+test('disables the legacy plaintext boot configuration endpoint', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-bootconfig-test-'));
   const statusRoot = path.join(root, 'status');
   const secretsDir = path.join(root, 'config');
@@ -426,15 +443,12 @@ test('serves boot configuration with secrets', async () => {
     await server.start();
     const port = server.address.port;
     const response = await fetch(`http://127.0.0.1:${port}/osdcloud/boot-config`);
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 410);
     const body = await response.json();
-    assert.equal(body.ok, true);
-    assert.equal(body.server, '127.0.0.1');
-    assert.equal(body.share, '\\\\127.0.0.1\\OSDCloudiPXE');
-    assert.equal(body.smbUser, 'pxeinstall');
-    assert.equal(body.smbPassword, 'pxe-pass');
-    assert.equal(body.windowsUsername, 'custom-user');
-    assert.equal(body.windowsPassword, 'custom-pass');
+    assert.equal(body.ok, false);
+    assert.match(body.error, /boot-session/u);
+    assert.equal(body.smbPassword, undefined);
+    assert.equal(body.windowsPassword, undefined);
   } finally {
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });
@@ -529,12 +543,10 @@ async function setupTorrentServer(overrides = {}) {
   return { root, server, fileName, meta, cacheRoot };
 }
 
-test('boot-config advertises torrent details when a torrent is published', async () => {
+test('boot-session payload helper advertises torrent details when a torrent is published', async () => {
   const { root, server, fileName, meta } = await setupTorrentServer();
   try {
-    await server.start();
-    const port = server.address.port;
-    const body = await (await fetch(`http://127.0.0.1:${port}/osdcloud/boot-config`)).json();
+    const body = server.torrentBootConfig('127.0.0.1');
     assert.equal(body.torrentEnabled, true);
     assert.equal(body.osWimFileName, fileName);
     assert.equal(body.osWimSha256, meta.wimSha256);
@@ -547,12 +559,10 @@ test('boot-config advertises torrent details when a torrent is published', async
   }
 });
 
-test('boot-config reports torrentEnabled:false when torrent is disabled', async () => {
+test('boot-session payload helper reports torrentEnabled:false when torrent is disabled', async () => {
   const { root, server } = await setupTorrentServer({ torrent: { enabled: false } });
   try {
-    await server.start();
-    const port = server.address.port;
-    const body = await (await fetch(`http://127.0.0.1:${port}/osdcloud/boot-config`)).json();
+    const body = server.torrentBootConfig('127.0.0.1');
     assert.equal(body.torrentEnabled, false);
     assert.equal(body.torrentUrl, undefined);
   } finally {

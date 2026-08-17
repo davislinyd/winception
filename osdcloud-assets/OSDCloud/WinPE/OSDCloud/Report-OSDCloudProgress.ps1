@@ -1,7 +1,8 @@
 param(
-    [string] $StatusUrl = 'http://192.168.77.1/osdcloud/status',
+    [string] $StatusUrl = '',
     [string] $RunId = '',
     [string] $ClientId = '',
+    [string] $BootSessionToken = '',
     [string] $ScreenshotUrl = '',
     [string] $TranscriptPath = 'X:\OSDCloud\Logs\Start-OSDCloud-iPXE.log',
     [string] $StopFile = 'X:\OSDCloud\Logs\Stop-OSDCloudProgressReporter.txt',
@@ -11,6 +12,10 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+$bootSessionHeaders = @{}
+if (-not [string]::IsNullOrWhiteSpace($BootSessionToken)) {
+    $bootSessionHeaders['X-Winception-Boot-Session'] = $BootSessionToken
+}
 
 if ([string]::IsNullOrWhiteSpace($RunId)) {
     $RunId = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -50,8 +55,12 @@ function Send-Status {
 
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
 
+    if ([string]::IsNullOrWhiteSpace($StatusUrl)) {
+        return
+    }
+
     try {
-        Invoke-WebRequest -Uri $StatusUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri $StatusUrl -Method Post -Headers $bootSessionHeaders -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
         return
     }
     catch {
@@ -60,6 +69,9 @@ function Send-Status {
     try {
         $client = [System.Net.WebClient]::new()
         $client.Headers['Content-Type'] = 'application/json'
+        if ($bootSessionHeaders['X-Winception-Boot-Session']) {
+            $client.Headers['X-Winception-Boot-Session'] = $bootSessionHeaders['X-Winception-Boot-Session']
+        }
         [void] $client.UploadString($StatusUrl, 'POST', $json)
     }
     catch {
@@ -142,10 +154,13 @@ function Send-Screenshot {
 
     $path = $null
     try {
+        if ([string]::IsNullOrWhiteSpace($StatusUrl)) {
+            return
+        }
         $path = Capture-Screenshot -Stage $Stage
         $uri = New-ScreenshotUri -Stage $Stage -Source $Source
         try {
-            Invoke-WebRequest -Uri $uri -Method Post -ContentType 'image/png' -DisableKeepAlive -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
+            Invoke-WebRequest -Uri $uri -Method Post -Headers $bootSessionHeaders -ContentType 'image/png' -DisableKeepAlive -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
             return
         }
         catch {
@@ -154,6 +169,9 @@ function Send-Screenshot {
         $client = [System.Net.WebClient]::new()
         try {
             $client.Headers['Content-Type'] = 'image/png'
+            if ($bootSessionHeaders['X-Winception-Boot-Session']) {
+                $client.Headers['X-Winception-Boot-Session'] = $bootSessionHeaders['X-Winception-Boot-Session']
+            }
             [void] $client.UploadFile($uri, 'POST', $path)
         }
         finally {

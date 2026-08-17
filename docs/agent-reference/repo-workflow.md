@@ -80,3 +80,11 @@ downloads/
 ```
 
 Generated runtime outputs and local development data must remain excluded from version control.
+
+## Automation Bundle And Evidence
+
+- The PR workflow operates in the GitHub runner checkout and must never use C:\OSDCloud as its working directory. Its job is limited to source/Web/API/PowerShell checks and local smoke tests.
+- The master Lab workflow first exports a versioned HostTools bundle from tracked allowlisted files only. The exporter rejects output inside the source root, rejects path traversal, excludes secrets, runtime state, logs, screenshots, WIM/ISO/VHD files, .ai, and untracked files, and writes bundle-manifest.json with commit, version, length, and SHA-256.
+- The installed bundle is copied to C:\OSDCloud\HostTools\App and receives npm ci there. The live deployment root remains product-managed by Initialize-DeploymentServer.ps1, runtime restore, Endpoint Sync, and the existing Web/API contracts; agents must not patch it directly.
+- Lab evidence belongs under HostTools State lab evidence and is uploaded only after de-secretization. Expected evidence includes runner guard, cache manifest, bundle manifest, server/API preflight, Fleet runs, sanitized HTTP/TFTP/DHCP logs, iPXE artifacts, and PowerShell Direct VM results.
+- GitHub Actions artifacts are disposable evidence, not source files. Never upload the local secret store, environment values, raw credentials, unredacted command lines, WIM/ISO/VHD artifacts, or production runtime snapshots.

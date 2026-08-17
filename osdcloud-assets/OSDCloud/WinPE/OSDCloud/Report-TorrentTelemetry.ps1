@@ -64,9 +64,13 @@ while ($true) {
         $body = $payload | ConvertTo-Json -Depth 5 -Compress
         $lastError = $null
         $response = $null
+        $headers = @{}
+        if ($context.PSObject.Properties['bootSessionToken'] -and -not [string]::IsNullOrWhiteSpace([string] $context.bootSessionToken)) {
+            $headers['X-Winception-Boot-Session'] = [string] $context.bootSessionToken
+        }
         foreach ($attempt in 1..2) {
             try {
-                $response = Invoke-RestMethod -Uri ([string] $context.telemetryUrl) -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $body -TimeoutSec 3 -ErrorAction Stop
+                $response = Invoke-RestMethod -Uri ([string] $context.telemetryUrl) -Method Post -Headers $headers -ContentType 'application/json' -DisableKeepAlive -Body $body -TimeoutSec 3 -ErrorAction Stop
                 break
             }
             catch {

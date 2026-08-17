@@ -276,6 +276,13 @@ export async function openSoftwareInstallScript(config = {}, softwareId, options
 
 export function loadSoftwareCatalog(config = {}, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
+  if (!profileOptions.softwareCatalogPath || !fs.existsSync(profileOptions.softwareCatalogPath)) {
+    return {
+      path: profileOptions.softwareCatalogPath,
+      software: [],
+      byId: new Map(),
+    };
+  }
   const raw = readJson(profileOptions.softwareCatalogPath, 'software catalog');
   const softwareRows = arrayFrom(raw.software, 'software catalog software');
   const seen = new Set();

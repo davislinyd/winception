@@ -4,7 +4,7 @@ param(
     [string] $Action = 'Inspect',
     [string] $WanInterfaceAlias,
     [string] $PxeInterfaceAlias,
-    [string] $InternalSubnet = '192.168.100.0/24',
+    [string] $InternalSubnet = '',
     [string] $SwitchName = 'Winception-PXE',
     [string] $NatName = 'WinceptionNAT',
     [string] $ConfigPath,
@@ -130,11 +130,12 @@ function Get-GatewayState {
     $wanRoute = if ($wan) { Get-DefaultRoute -InterfaceAlias $WanInterfaceAlias } else { $null }
     $pxeRoute = if ($pxe) { Get-DefaultRoute -InterfaceAlias $PxeInterfaceAlias } else { $null }
     $virtualRoute = if ($virtual) { Get-DefaultRoute -InterfaceAlias $virtualAlias } else { $null }
-    $subnet = Get-SubnetInfo -Cidr $InternalSubnet
-    $virtualIp = if ($virtual) { Get-NetIPAddress -InterfaceAlias $virtualAlias -AddressFamily IPv4 -IPAddress $subnet.Gateway -ErrorAction SilentlyContinue | Select-Object -First 1 } else { $null }
+    $subnet = if (-not [string]::IsNullOrWhiteSpace($InternalSubnet)) { Get-SubnetInfo -Cidr $InternalSubnet } else { $null }
+    $virtualIp = if ($virtual -and $subnet) { Get-NetIPAddress -InterfaceAlias $virtualAlias -AddressFamily IPv4 -IPAddress $subnet.Gateway -ErrorAction SilentlyContinue | Select-Object -First 1 } else { $null }
     $ipInterface = if ($virtual) { Get-NetIPInterface -InterfaceAlias $virtualAlias -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1 } else { $null }
     $stored = Read-State
     $blockers = @()
+    if (-not $subnet) { $blockers += 'Internal subnet is not configured.' }
     if ($WanInterfaceAlias -and -not $wan) { $blockers += "WAN interface not found: $WanInterfaceAlias" }
     if ($PxeInterfaceAlias -and -not $pxe) { $blockers += "PXE interface not found: $PxeInterfaceAlias" }
     if ($wan -and (Test-IsVirtualGatewayAdapter $wan)) { $blockers += "WAN interface must be a physical NIC, not $($wan.Name)." }
@@ -145,12 +146,12 @@ function Get-GatewayState {
     if ($sharedAccess -and $sharedAccess.Status -eq 'Running') { $blockers += 'Internet Connection Sharing (SharedAccess) is running.' }
     foreach ($existingNat in $allNat) {
         if ($existingNat.Name -ne $NatName) { $blockers += "Existing NetNat is owned by another service: $($existingNat.Name)." }
-        elseif ($existingNat.InternalIPInterfaceAddressPrefix -ne $subnet.Cidr) { $blockers += "Winception NAT prefix differs: $($existingNat.InternalIPInterfaceAddressPrefix)." }
+        elseif (-not $subnet -or $existingNat.InternalIPInterfaceAddressPrefix -ne $subnet.Cidr) { $blockers += "Winception NAT prefix differs or internal subnet is not configured: $($existingNat.InternalIPInterfaceAddressPrefix)." }
     }
     if ($switch -and $pxe -and $switch.NetAdapterInterfaceDescription -and $switch.NetAdapterInterfaceDescription -ne $pxe.InterfaceDescription) {
         $blockers += "Existing switch $SwitchName is bound to a different physical adapter."
     }
-    $ready = [bool] ($feature.Installed -and $wanRoute -and $switch -and $virtual -and $virtualIp -and $nat -and $ipInterface.Forwarding -eq 'Enabled' -and $blockers.Count -eq 0)
+    $ready = [bool] ($subnet -and $feature.Installed -and $wanRoute -and $switch -and $virtual -and $virtualIp -and $nat -and $ipInterface -and $ipInterface.Forwarding -eq 'Enabled' -and $blockers.Count -eq 0)
     [pscustomobject]@{
         topology = 'dual-nic-nat'
         ready = $ready
@@ -159,7 +160,7 @@ function Get-GatewayState {
         hyperV = [pscustomobject]@{ installed = $feature.Installed; restartNeeded = $feature.RestartNeeded }
         wan = if ($wan) { [pscustomobject]@{ name = $wan.Name; status = $wan.Status.ToString(); gateway = if ($wanRoute) { $wanRoute.NextHop } else { '' } } } else { $null }
         pxe = if ($pxe) { [pscustomobject]@{ name = $pxe.Name; status = $pxe.Status.ToString(); gateway = if ($pxeRoute) { $pxeRoute.NextHop } else { '' } } } else { $null }
-        virtualAdapter = if ($virtual) { [pscustomobject]@{ name = $virtual.Name; gateway = $subnet.Gateway; forwarding = if ($ipInterface) { $ipInterface.Forwarding.ToString() } else { '' } } } else { $null }
+        virtualAdapter = if ($virtual) { [pscustomobject]@{ name = $virtual.Name; gateway = if ($subnet) { $subnet.Gateway } else { '' }; forwarding = if ($ipInterface) { $ipInterface.Forwarding.ToString() } else { '' } } } else { $null }
         nat = if ($nat) { [pscustomobject]@{ name = $nat.Name; internalSubnet = $nat.InternalIPInterfaceAddressPrefix } } else { $null }
         blockers = @($blockers)
     }

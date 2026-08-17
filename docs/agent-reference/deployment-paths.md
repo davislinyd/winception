@@ -66,6 +66,14 @@ Use VM regression only when the user explicitly asks for VM or regression valida
 - Keep VM names, VM-specific IPs, VHDX details, VMConnect screenshots, and PowerShell Direct results out of physical-laptop evidence.
 - Keep detailed VM history and timing evidence in history docs, not in `AGENTS.md`.
 
+### Isolated GitHub Actions Lab Path
+
+- The unattended merge path is a separate acceptance lane from both the physical-laptop path and the historical VM path. It uses only the dedicated Winception-AutoLab Internal switch on 192.168.177.0/24, service 192.168.177.1, and the five configured Gen2 VMs.
+- The Lab runner guard must reject any external switch, WAN/daily LAN adapter, foreign DHCP binding, non-target VM attached to the Lab switch, running target VM, missing Winception-Clean checkpoint, or occupied service port. It must stop before starting a deployment service when a guard fails.
+- The Lab path creates a commit-specific HostTools bundle and does not patch the live runtime directly. Runtime preparation and Endpoint Sync use the existing installed helpers; evidence is copied out only after redaction.
+- The merge matrix covers four Secure Boot clients in parallel and a separate Secure Boot-off iPXE fallback client. Fleet status and PowerShell Direct guest evidence are both required. A Lab result does not prove production DHCP, a physical laptop, or a WAN/LAN endpoint is ready.
+- On success, failure, Ctrl+C, or job cancellation, cleanup must attempt service stop, VM stop, checkpoint restore, temporary status cleanup, and evidence preservation. No automatic retry or production release is part of this path.
+
 ## Retired ISO Path
 
 - `C:\OSDCloud\Win11-Lab` and `OSDCloud_NoPrompt.iso` are retired historical evidence.

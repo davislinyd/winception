@@ -3,6 +3,7 @@ param(
     [string] $SourceRoot,
     [string] $AppRoot = 'C:\OSDCloud\HostTools\App',
     [string] $StateRoot = 'C:\OSDCloud\HostTools\State',
+    [ValidateSet('Release', 'Development')][string] $Channel = 'Release',
     [switch] $Force,
     [switch] $DryRun
 )
@@ -135,6 +136,106 @@ function Set-ObjectProperty {
     }
 }
 
+function Test-ExcludedProductPath {
+    param([Parameter(Mandatory)][string] $RelativePath)
+
+    $normalized = $RelativePath.Replace('/', '\').TrimStart('\')
+    if ($normalized -match '(^|\\)(\.git|\.ai|node_modules|downloads|\.downloads|status|logs|screenshots|transcripts|runtime|test|tests)(\\|$)') {
+        return $true
+    }
+    if ($normalized -match '(^|\\)([^\\]*secret[^\\]*|[^\\]*\.local\.json)$') {
+        return -not ($normalized -match 'osdcloud-secrets\.example\.json$')
+    }
+    if ($normalized -match '\.(iso|wim|esd|vhd|vhdx|avhdx|log|etl|evtx|png|jpg|jpeg|msi|exe|pcapng)$' -and
+        $normalized -notmatch '^docs\\manual-assets\\') {
+        return $true
+    }
+    if ($normalized -match '(^|\\)(config\\lab-regression\.example\.json|osdcloud-assets\\manifest\.json)$') {
+        return $true
+    }
+    if ($normalized -match '(^|\\)(Initialize-WinceptionLab\.ps1|Invoke-WinceptionLabRegression\.ps1|Export-HostToolsBundle\.ps1|lab-deploy\.yml|pr\.yml)(\\|$)') {
+        return $true
+    }
+    if ($Channel -eq 'Release' -and $normalized -match '(^|\\)Seed-DevelopmentFixture\.ps1(\\|$)') {
+        return $true
+    }
+    if ($normalized -match '(^|\\)(Softwares\\(?:7zip|chrome|SW-4UT7PDID)|Scripts\\SC-J5GF07Y2|osdcloud-assets\\OSDCloud\\Media\\OSDCloud\\(?:Apps\\(?:7zip|chrome|SW-4UT7PDID)|Scripts\\SC-J5GF07Y2))(\\|$)') {
+        return $true
+    }
+    $false
+}
+
+function Copy-FilteredDirectoryTree {
+    param(
+        [Parameter(Mandatory)][string] $Source,
+        [Parameter(Mandatory)][string] $Destination,
+        [switch] $Optional
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
+        if ($Optional) { return }
+        throw "Missing source directory: $Source"
+    }
+
+    foreach ($file in Get-ChildItem -LiteralPath $Source -Recurse -File -Force) {
+        $relative = $file.FullName.Substring($sourceRootFull.Length).TrimStart('\')
+        if (Test-ExcludedProductPath -RelativePath $relative) {
+            continue
+        }
+        $destinationPath = Join-Path $appRootFull $relative
+        Copy-File -Source $file.FullName -Destination $destinationPath
+    }
+}
+
+function Backup-StateRoot {
+    param([Parameter(Mandatory)][string] $Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        return $null
+    }
+    $entries = @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)
+    if ($entries.Count -eq 0) {
+        return $null
+    }
+
+    $backupRoot = Join-Path $hostToolsRoot 'Backups'
+    $stamp = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff')
+    $backupPath = Join-Path $backupRoot "HostTools-State-$stamp"
+    Write-Host "backup $Path -> $backupPath"
+    if (-not $DryRun) {
+        Ensure-Directory -Path $backupRoot
+        Copy-Item -LiteralPath $Path -Destination $backupPath -Recurse -Force
+    }
+    $backupPath
+}
+
+function Invoke-StateMigration {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][string] $AppVersion
+    )
+
+    $schemaPath = Join-Path $Path 'state-schema.json'
+    $currentVersion = 0
+    if (Test-Path -LiteralPath $schemaPath -PathType Leaf) {
+        try {
+            $metadata = Get-Content -LiteralPath $schemaPath -Raw | ConvertFrom-Json
+            $currentVersion = if ($null -eq $metadata.schemaVersion) { 0 } else { [int] $metadata.schemaVersion }
+        } catch {
+            throw "Unable to read State schema metadata: $schemaPath - $($_.Exception.Message)"
+        }
+    }
+    if ($currentVersion -gt 1) {
+        throw "Unsupported HostTools State schema version $currentVersion; current version is 1."
+    }
+
+    Write-JsonFile -Path $schemaPath -Value ([pscustomobject]@{
+        schemaVersion = 1
+        appVersion = $AppVersion
+        migratedAt = [DateTimeOffset]::UtcNow.ToString('o')
+    })
+}
+
 function Clear-DiagnosticsState {
     param([Parameter(Mandatory)][string] $StateRootPath)
 
@@ -154,6 +255,7 @@ $sourceRootFull = Get-FullPath $SourceRoot
 $appRootFull = Get-FullPath $AppRoot
 $stateRootFull = Get-FullPath $StateRoot
 $hostToolsRoot = Split-Path -Parent $appRootFull
+$stateWasPresent = Test-Path -LiteralPath $stateRootFull -PathType Container
 
 if (-not (Test-Path -LiteralPath (Join-Path $sourceRootFull 'package.json') -PathType Leaf)) {
     throw "Source root is missing package.json: $sourceRootFull"
@@ -162,6 +264,9 @@ if (-not (Test-Path -LiteralPath (Join-Path $sourceRootFull 'package.json') -Pat
 if (-not (Test-Path -LiteralPath (Join-Path $sourceRootFull 'tools\osdcloud-console\src\webServer.js') -PathType Leaf)) {
     throw "Source root is missing Web console sources: $sourceRootFull"
 }
+
+$sourcePackage = Get-Content -LiteralPath (Join-Path $sourceRootFull 'package.json') -Raw | ConvertFrom-Json
+$stateBackupPath = Backup-StateRoot -Path $stateRootFull
 
 if ($Force -and (Test-Path -LiteralPath $appRootFull)) {
     $safeAppRoot = Assert-SafeRemoveRoot -Path $appRootFull
@@ -190,14 +295,62 @@ foreach ($relativeFile in @(
 }
 
 foreach ($relativeDirectory in @(
-    'tools',
+    'tools\osdcloud-console\src',
+    'tools\osdcloud-console\web',
+    'tools\lib',
     'config',
     'docs\manual-assets',
-    'osdcloud-assets'
+    'osdcloud-assets\OSDCloud\Config',
+    'osdcloud-assets\OSDCloud\WinPE',
+    'osdcloud-assets\OSDCloud\Tools',
+    'osdcloud-assets\OSDCloud\Media\OSDCloud\Apps'
 )) {
-    Copy-DirectoryTree `
+    Copy-FilteredDirectoryTree `
         -Source (Join-Path $sourceRootFull $relativeDirectory) `
         -Destination (Join-Path $appRootFull $relativeDirectory)
+}
+
+foreach ($relativeDirectory in @(
+    'osdcloud-assets\OSDCloud\PXE-HttpRoot',
+    'osdcloud-assets\OSDCloud\PXE-TFTP'
+)) {
+    Copy-FilteredDirectoryTree `
+        -Source (Join-Path $sourceRootFull $relativeDirectory) `
+        -Destination (Join-Path $appRootFull $relativeDirectory) `
+        -Optional
+}
+
+foreach ($relativeFile in @(
+    'tools\Install-HostManagementBundle.ps1',
+    'tools\Setup-DeploymentServer.ps1',
+    'tools\Reload-Console.ps1',
+    'tools\Start-InstalledWebConsole.ps1',
+    'tools\Start-WebConsoleTray.ps1',
+    'tools\Configure-WinceptionGateway.ps1',
+    'tools\Initialize-DeploymentServer.ps1',
+    'tools\Invoke-SoftwareTestVm.ps1',
+    'tools\New-WinceptionUsbInstaller.ps1',
+    'tools\Publish-SecureBootTftp.ps1',
+    'tools\Repair-WinPeBootWim.ps1',
+    'tools\Restore-DeploymentArtifacts.ps1',
+    'tools\Restore-HostManagementState.ps1',
+    'tools\Set-IpxePhysicalNic.ps1',
+    'tools\Set-OsdCloudIpxeEndpoint.ps1',
+    'tools\Sync-OsdCloudAssets.ps1'
+)) {
+    $sourcePath = Join-Path $sourceRootFull $relativeFile
+    if ((Test-Path -LiteralPath $sourcePath -PathType Leaf) -and -not (Test-ExcludedProductPath -RelativePath $relativeFile)) {
+        Copy-File -Source $sourcePath -Destination (Join-Path $appRootFull $relativeFile)
+    }
+}
+
+if ($Channel -eq 'Development') {
+    Copy-File `
+        -Source (Join-Path $sourceRootFull 'tools\Seed-DevelopmentFixture.ps1') `
+        -Destination (Join-Path $appRootFull 'tools\Seed-DevelopmentFixture.ps1')
+    Copy-FilteredDirectoryTree `
+        -Source (Join-Path $sourceRootFull 'fixtures\development') `
+        -Destination (Join-Path $appRootFull 'fixtures\development')
 }
 
 $stateConfigRoot = Join-Path $stateRootFull 'config'
@@ -233,20 +386,7 @@ foreach ($seedFile in @(
         -Destination (Join-Path $stateRootFull $seedFile)
 }
 
-Copy-SeedFilesByPattern `
-    -SourceRootPath (Join-Path $sourceRootFull 'config\deployment-profiles') `
-    -DestinationRootPath (Join-Path $stateRootFull 'config\deployment-profiles') `
-    -Patterns @('*.json')
-
-Copy-SeedFilesByPattern `
-    -SourceRootPath (Join-Path $sourceRootFull 'Softwares') `
-    -DestinationRootPath (Join-Path $stateRootFull 'Softwares') `
-    -Patterns @('*.ps1')
-
-Copy-SeedFilesByPattern `
-    -SourceRootPath (Join-Path $sourceRootFull 'Scripts') `
-    -DestinationRootPath (Join-Path $stateRootFull 'Scripts') `
-    -Patterns @('*.ps1')
+Invoke-StateMigration -Path $stateRootFull -AppVersion ([string] $sourcePackage.version)
 
 $launcherPath = Join-Path $hostToolsRoot 'Open-WebConsole.cmd'
 $launcherContent = @"
@@ -265,3 +405,8 @@ Clear-DiagnosticsState -StateRootPath $stateRootFull
 Write-Host "Installed host management bundle:"
 Write-Host "  AppRoot  = $appRootFull"
 Write-Host "  StateRoot = $stateRootFull"
+Write-Host "  Channel  = $Channel"
+Write-Host "  Install  = $(if ($stateWasPresent) { 'upgrade' } else { 'fresh' })"
+if ($stateBackupPath) {
+    Write-Host "  StateBackup = $stateBackupPath"
+}

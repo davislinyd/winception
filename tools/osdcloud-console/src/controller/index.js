@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { applyProjectRoot, applyServiceEndpoint, loadConfig, maxTorrentSeedMinutes, mediaHttpServerConfig, saveConfig, torrentServerConfig, webServerConfig, workspaceInfo } from '../config.js';
+import { applyProjectRoot, applyServiceEndpoint, assertRuntimeRootAllowed, deploymentEndpointMissing, loadConfig, maxTorrentSeedMinutes, mediaHttpServerConfig, runtimeRootForConfig, saveConfig, torrentServerConfig, webServerConfig, workspaceInfo } from '../config.js';
 import { DhcpResponder } from '../dhcp.js';
 import { summarizeDriverPackCache } from '../driverPackCache.js';
 import { MediaHttpServer } from '../httpServer.js';
@@ -27,7 +27,7 @@ import { gatewayOptions, inspectNetworkGateway, networkTopology, prepareNetworkG
 import { isElevatedSync } from '../windows/powershell.js';
 import { prepareRuntimeArtifacts, removeStatusFiles, runPreflight } from '../windows/preflight.js';
 import { EventEmitter } from 'node:events';
-import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, osImageDeployableStatus, publicApiError, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
+import { deploymentSecretsStatus, errorWithStatus, isBenignObjectSecurityTypeDataLine, localEndpointOverlayStatus, makeOutputLogger, osImageDeployableStatus, preflightStatus, publicApiError, safeRead, serviceSummary, softwarePayloadLogLines, writeDeploymentSecrets } from './helpers.js';
 import { buildInitializationState, osImageSummary, osImageUsageFromProfiles, profileSummary, retailOnlyCatalogFilters, runtimeReadinessFailureMessage } from './state.js';
 import { readLatestDiagnostics, resolveDiagnosticsBundlePath, runDiagnostics } from '../diagnostics/index.js';
 import { prepareSoftwareTestRun, readSoftwareTestStatus, requestSoftwareTestAbort, runPreparedSoftwareTest, saveSoftwareTestConfiguration } from '../softwareTest.js';
@@ -98,6 +98,7 @@ export class ServiceController extends EventEmitter {
       uploadOsImageFile,
       writeDeploymentSecrets,
       applyProjectRoot,
+      assertRuntimeRootAllowed,
       runDiagnostics,
       readLatestDiagnostics,
       resolveDiagnosticsBundlePath,
@@ -114,6 +115,7 @@ export class ServiceController extends EventEmitter {
       torrentSeeder: new TorrentSeeder(torrentConfig, this.torrentCoordinator),
     };
     this.services.http?.setTorrentCoordinator?.(this.torrentCoordinator);
+    this.services.http?.setBootLeaseValidator?.((address, mac) => this.services.dhcp?.hasActiveLease?.(address, mac) === true);
     this.runtimeLog = new RingBuffer(options.logLimit ?? 500);
     this.preflightResults = [];
     this.endpointUpdateStatus = [];
@@ -230,6 +232,80 @@ export class ServiceController extends EventEmitter {
       throw errorWithStatus(`Unknown service: ${name}`, 404);
     }
     return service;
+  }
+
+  deploymentReadinessRequired() {
+    return Boolean(this.config.product?.channel)
+      || this.config.initialization?.failClosed === true;
+  }
+
+  assertDeploymentReadyForServices() {
+    if (!this.deploymentReadinessRequired()) {
+      return;
+    }
+
+    const missingEndpoint = deploymentEndpointMissing(this.config);
+    if (missingEndpoint.length > 0) {
+      throw errorWithStatus(
+        `Deployment endpoint is not configured. Complete Guided Setup first: ${missingEndpoint.join(', ')}`,
+        412,
+        { code: 'deployment_not_ready', action: 'Select a service interface and complete endpoint setup.' },
+      );
+    }
+
+    const secrets = this.dependencies.getDeploymentSecretsStatus(this.config);
+    if (secrets?.ready !== true) {
+      throw errorWithStatus(
+        `Deployment secrets are incomplete: ${(secrets?.missing ?? []).join(', ') || 'unknown fields'}`,
+        412,
+        { code: 'deployment_not_ready', action: 'Save deployment credentials in Guided Setup.' },
+      );
+    }
+
+    const runtime = this.dependencies.getRuntimeReadiness(this.config);
+    if (runtime?.ready !== true) {
+      throw errorWithStatus(
+        runtimeReadinessFailureMessage(runtime),
+        412,
+        { code: 'deployment_not_ready', action: 'Prepare runtime artifacts before starting services.' },
+      );
+    }
+
+    const profileState = this.dependencies.resolveDeploymentProfileState(this.config);
+    if (!profileState?.activeProfile?.id) {
+      throw errorWithStatus(
+        'No active deployment profile is selected.',
+        412,
+        { code: 'deployment_not_ready', action: 'Create and select a deployment profile.' },
+      );
+    }
+
+    const imageStatus = osImageDeployableStatus(this.dependencies.resolveOsImageState(this.config));
+    if (imageStatus.ready !== true) {
+      throw errorWithStatus(
+        `A deployable OS image is required: ${imageStatus.detail}`,
+        412,
+        { code: 'deployment_not_ready', action: 'Cache and publish an OS image before starting services.' },
+      );
+    }
+
+    const profilePayload = this.dependencies.evaluateDeploymentProfilePayload(this.config);
+    if (profilePayload?.ok !== true) {
+      throw errorWithStatus(
+        `Deployment profile is not published: ${profilePayload?.detail ?? 'unknown validation failure'}`,
+        412,
+        { code: 'deployment_not_ready', action: 'Publish the selected profile before starting services.' },
+      );
+    }
+
+    const preflight = preflightStatus(this.preflightResults);
+    if (preflight.ready !== true) {
+      throw errorWithStatus(
+        `Preflight is blocking service start: ${preflight.detail}`,
+        412,
+        { code: 'deployment_not_ready', action: 'Run and pass preflight before starting services.' },
+      );
+    }
   }
 
   async runOperation(label, action, options = {}) {
@@ -646,8 +722,13 @@ export class ServiceController extends EventEmitter {
 
   async updateProjectRoot(input = {}) {
     return this.runOperation('Saving project root', async () => {
+      const runtimeRoot = input?.runtimeRoot ?? runtimeRootForConfig(this.config);
+      try {
+        this.dependencies.assertRuntimeRootAllowed(this.config, runtimeRoot);
+      } catch (error) {
+        throw errorWithStatus(error.message, 400);
+      }
       await this.stopAllServices();
-      const runtimeRoot = 'C:\\OSDCloud';
       this.dependencies.applyProjectRoot(this.config, runtimeRoot);
       const savedPath = this.dependencies.saveConfig(this.config);
       this.refreshServiceConfigs();
@@ -663,6 +744,8 @@ export class ServiceController extends EventEmitter {
   async startService(name) {
     return this.runOperation(`Starting ${name}`, async () => {
       try {
+        this.serviceByName(name);
+        this.assertDeploymentReadyForServices();
         await this.serviceByName(name).start();
         return this.servicesState()[name];
       } catch (error) {
@@ -687,6 +770,7 @@ export class ServiceController extends EventEmitter {
   async startAll() {
     return this.runOperation('Starting all services', async () => {
       try {
+        this.assertDeploymentReadyForServices();
         await this.services.http.start();
         await this.services.tftp.start();
         await this.services.dhcp.start();
@@ -1467,6 +1551,13 @@ export class ServiceController extends EventEmitter {
     return this.runOperation('Saving deployment profile', async () => {
       try {
         const state = this.dependencies.resolveDeploymentProfileState(this.config);
+        if (!state?.activeProfile?.id) {
+          throw errorWithStatus(
+            'No active deployment profile is selected.',
+            412,
+            { code: 'deployment_not_ready', action: 'Create and select a deployment profile first.' },
+          );
+        }
         const activeId = state.activeProfile.id;
         const targetId = input.profileId ?? input.id ?? activeId;
         const editingActive = targetId === activeId;

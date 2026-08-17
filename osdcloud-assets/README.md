@@ -87,4 +87,4 @@ Real passwords must stay outside Git. Prefer the Web initialization wizard to wr
 C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json
 ```
 
-API responses and logs must report only redacted presence/missing status. Endpoint Sync injects the local secret file into live `boot.wim`; do not place plaintext secret values in this mirror.
+API responses and logs must report only redacted presence/missing status. Endpoint Sync must not inject the local secret file into live `boot.wim`; WinPE obtains a short-lived, single-use credential envelope from `/osdcloud/boot-session` bound to its public key, nonce, boot ID, client MAC, and active DHCP lease. Do not place plaintext secret values in this mirror.

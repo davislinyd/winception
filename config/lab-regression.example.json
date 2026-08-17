@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "runnerLabel": "winception-lab",
+  "switchName": "Winception-AutoLab",
+  "serviceInterfaceAlias": "vEthernet (Winception-AutoLab)",
+  "serviceIp": "192.168.177.1",
+  "prefixLength": 24,
+  "dhcp": {
+    "leaseStartIp": "192.168.177.200",
+    "leaseEndIp": "192.168.177.250",
+    "router": "192.168.177.1"
+  },
+  "runtimeRoot": "C:\\OSDCloud",
+  "appRoot": "C:\\OSDCloud\\HostTools\\App",
+  "stateRoot": "C:\\OSDCloud\\HostTools\\State",
+  "checkpointName": "Winception-Clean",
+  "secureBootVms": [
+    "winception-client-01",
+    "winception-client-02",
+    "winception-client-03",
+    "winception-client-04"
+  ],
+  "ipxeVm": "winception-client-ipxe-01",
+  "baseVhdxPath": "C:\\OSDCloud\\HostTools\\State\\lab\\base\\Winception-Client.vhdx",
+  "evidenceRoot": "C:\\OSDCloud\\HostTools\\State\\lab\\evidence",
+  "secretReference": "WinceptionLabDeployment",
+  "secretStorePath": "C:\\OSDCloud\\HostTools\\State\\config\\osdcloud-secrets.json",
+  "web": {
+    "host": "127.0.0.1",
+    "port": 8080
+  },
+  "servicePorts": {
+    "http": 80,
+    "tftp": 69,
+    "dhcp": 67,
+    "torrent": 6969
+  },
+  "timeouts": {
+    "webReadySeconds": 60,
+    "preflightMinutes": 15,
+    "deploymentMinutes": 60,
+    "guestMinutes": 15,
+    "cleanupMinutes": 10
+  },
+  "cache": {
+    "manifestPath": "C:\\OSDCloud\\HostTools\\State\\lab\\cache-manifest.json",
+    "allowNetworkRefresh": true,
+    "requiredPaths": [
+      {"kind":"base-vhdx","path":"C:\\OSDCloud\\HostTools\\State\\lab\\base\\Winception-Client.vhdx"},
+      {"kind":"runtime","path":"C:\\OSDCloud\\Media\\sources\\boot.wim"},
+      {"kind":"runtime","path":"C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.ipxe"},
+      {"kind":"runtime","path":"C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\wimboot"},
+      {"kind":"runtime","path":"C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi"}
+    ]
+  }
+}

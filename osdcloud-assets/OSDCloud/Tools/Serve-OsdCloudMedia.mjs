@@ -4,7 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(process.argv[2] ?? 'C:\\OSDCloud\\PXE-HttpRoot');
-const host = process.argv[3] ?? '192.168.77.1';
+const host = process.argv[3] ?? '';
+if (!host) {
+  throw new Error('OSDCloud media HTTP endpoint host is not configured. Provide the endpoint host before starting the media server.');
+}
 const port = Number.parseInt(process.argv[4] ?? '80', 10);
 const logPath = process.argv[5] ?? 'C:\\OSDCloud\\PXE-HttpRoot\\host-http.log';
 const statusRoot = path.resolve(process.argv[6] ?? path.join(root, 'status'));

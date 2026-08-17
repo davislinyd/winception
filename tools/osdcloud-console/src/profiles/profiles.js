@@ -181,7 +181,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
     ?? config.osImage?.activeImage
     ?? null;
   if (!fs.existsSync(profileOptions.profilesRoot)) {
-    throw new Error(`Deployment profile folder not found: ${profileOptions.profilesRoot}`);
+    return [];
   }
 
   const files = fs.readdirSync(profileOptions.profilesRoot)
@@ -282,10 +282,27 @@ export function resolveDeploymentProfileState(config = {}, profileId = null, opt
   const catalog = loadSoftwareCatalog(config, options);
   const scriptCatalog = loadCustomScriptCatalog(config, options);
   const profiles = loadDeploymentProfiles(config, { ...options, catalog, scriptCatalog });
-  const selectedId = normalizeId(profileId ?? profileOptions.activeProfile, 'active profile');
+  const selectedIdValue = profileId ?? profileOptions.activeProfile;
+  const selectedId = selectedIdValue === undefined || selectedIdValue === null || String(selectedIdValue).trim() === ''
+    ? null
+    : normalizeId(selectedIdValue, 'active profile');
   const activeProfile = profiles.find((profile) => profile.id === selectedId);
-  if (!activeProfile) {
+  if (!activeProfile && selectedId) {
     throw new Error(`Active deployment profile not found: ${selectedId}`);
+  }
+
+  if (!activeProfile) {
+    return {
+      options: profileOptions,
+      catalog,
+      scriptCatalog,
+      profiles,
+      activeProfile: null,
+      selectedSoftware: [],
+      selectedScripts: [],
+      installSequence: [],
+      osImageId: null,
+    };
   }
 
   const selectedSoftware = activeProfile.softwareIds.map((id) => catalog.byId.get(id));
@@ -380,34 +397,44 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
     throw new Error(`Deployment profile file already exists: ${filePath}`);
   }
 
+  const baseProfile = state.activeProfile ?? {
+    installSequence: [],
+    hasExplicitExecution: false,
+    execution: { defaultTimeoutSeconds: defaultInstallSequenceTimeoutSeconds },
+    osImageId: null,
+    displayLanguage: null,
+    locale: null,
+    inputLanguage: null,
+    timeZone: null,
+  };
   const installSequence = sortInstallSequenceBySoftwareDependencies(
-    (state.activeProfile.installSequence ?? []).map((entry) => ({ ...entry })),
+    (baseProfile.installSequence ?? []).map((entry) => ({ ...entry })),
     state.catalog,
     `deployment profile ${id} installSequence`,
   );
   const softwareIds = softwareIdsFromInstallSequence(installSequence);
-  const rawOsImageId = String(input.osImageId ?? state.activeProfile.osImageId ?? '').trim();
+  const rawOsImageId = String(input.osImageId ?? baseProfile.osImageId ?? '').trim();
   const osImageId = rawOsImageId ? normalizeId(rawOsImageId, `deployment profile ${id} osImage`) : null;
   const explicitExecution = Object.prototype.hasOwnProperty.call(input, 'execution')
     ? normalizeExecutionSettings(input.execution, `deployment profile ${id} execution`)
-    : (state.activeProfile.hasExplicitExecution ? { ...state.activeProfile.execution } : null);
+    : (baseProfile.hasExplicitExecution ? { ...baseProfile.execution } : null);
   const displayLanguage = normalizeLocaleTag(
-    Object.prototype.hasOwnProperty.call(input, 'displayLanguage') ? input.displayLanguage : state.activeProfile.displayLanguage,
+    Object.prototype.hasOwnProperty.call(input, 'displayLanguage') ? input.displayLanguage : baseProfile.displayLanguage,
     `deployment profile ${id} displayLanguage`,
     { optional: true },
   );
   const locale = normalizeLocaleTag(
-    Object.prototype.hasOwnProperty.call(input, 'locale') ? input.locale : state.activeProfile.locale,
+    Object.prototype.hasOwnProperty.call(input, 'locale') ? input.locale : baseProfile.locale,
     `deployment profile ${id} locale`,
     { optional: true },
   );
   const inputLanguage = normalizeLocaleTag(
-    Object.prototype.hasOwnProperty.call(input, 'inputLanguage') ? input.inputLanguage : state.activeProfile.inputLanguage,
+    Object.prototype.hasOwnProperty.call(input, 'inputLanguage') ? input.inputLanguage : baseProfile.inputLanguage,
     `deployment profile ${id} inputLanguage`,
     { optional: true },
   );
   const timeZone = normalizeWindowsTimeZoneId(
-    Object.prototype.hasOwnProperty.call(input, 'timeZone') ? input.timeZone : state.activeProfile.timeZone,
+    Object.prototype.hasOwnProperty.call(input, 'timeZone') ? input.timeZone : baseProfile.timeZone,
     `deployment profile ${id} timeZone`,
     { optional: true },
   );
@@ -600,8 +627,10 @@ export function updateDeploymentProfileSoftware(config = {}, profileId, software
 export function deleteDeploymentProfile(config = {}, profileId, options = {}) {
   const profileOptions = deploymentProfileOptions(config, options);
   const id = normalizeId(profileId, 'profile');
-  const activeProfileId = normalizeId(profileOptions.activeProfile, 'active profile');
-  if (id === activeProfileId) {
+  const activeProfileId = profileOptions.activeProfile
+    ? normalizeId(profileOptions.activeProfile, 'active profile')
+    : null;
+  if (activeProfileId && id === activeProfileId) {
     throw new Error(`Cannot delete active deployment profile: ${id}`);
   }
 
@@ -635,6 +664,9 @@ export function fail(name, detail = '') {
 export function evaluateDeploymentProfilePayload(config = {}, options = {}) {
   try {
     const state = resolveDeploymentProfileState(config, null, options);
+    if (!state.activeProfile) {
+      return fail('Deployment profile', 'no active deployment profile selected; create a profile and select an OS image before publishing');
+    }
     const appsRoot = state.options.appsRoot;
     if (!state.activeProfile.osImageId) {
       return fail('Deployment profile', 'no OS image selected; use Web OS Image Cache to export a WIM and publish selected-os.json before publishing the profile');

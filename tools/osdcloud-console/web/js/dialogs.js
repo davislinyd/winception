@@ -5,7 +5,7 @@ import { operationErrorDetails, showOperationError, showOperationNotice } from '
 import { bytes, osImageLabel, text } from './format.js';
 import { render } from './render.js';
 import { state } from './state.js';
-import { makeIcon, setControlsDisabled, setDefinitionListNodes, setSetupRailCollapsed } from './ui.js';
+import { makeIcon, setControlsDisabled, setDefinitionListNodes } from './ui.js';
 
 export let suppressBackdropClickUntil = 0;
 export const humanCatalogIdPattern = /^[a-z0-9][a-z0-9-]{0,15}$/u;
@@ -82,7 +82,7 @@ export function restoreEmbeddedConfigScrollPosition() {
 
 export function syncEmbeddedConfigSummaryState() {
   for (const { dialog, action } of embeddedConfigTargets()) {
-    const button = document.querySelector(`.deploy-seg[data-action="${action}"]`);
+    const button = document.querySelector(`.deploy-seg[data-action="${action}"], .beginner-config-item[data-action="${action}"]`);
     const open = dialog.classList.contains('embedded-open');
     if (!button) {
       continue;
@@ -190,11 +190,6 @@ export function bindEmbeddedConfigHeaderToggles() {
 }
 
 export function openDialog(dialog) {
-  if (dialog === elements.initializationDialog) {
-    switchToView('dashboard');
-    setSetupRailCollapsed(false);
-    return;
-  }
   if (isEmbeddedConfigDialog(dialog)) {
     openEmbeddedConfig(dialog);
     return;
@@ -212,9 +207,6 @@ export function openDialog(dialog) {
 }
 
 export function closeDialog(dialog, returnValue = '') {
-  if (dialog === elements.initializationDialog) {
-    return;
-  }
   if (!isDialogOpen(dialog)) {
     return;
   }

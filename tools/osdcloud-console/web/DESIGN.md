@@ -57,10 +57,10 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ .topbar 56px  狂草「W」+ Winception · Deploy/Monitor · 狀態 │
+│ .topbar 56px  狂草「W」+ Winception · 開始部署/部署活動 · 管理 │
 ├────────────────────────────────────────────────────────────┤
 │ .shell-main(scroll)  內容滿版,左右 5% gutters             │
-│   #view-dashboard = 兩欄: dashboard(左) + 導引設定軌(右40%)│
+│   #view-dashboard = 新手工作台（單一下一步 + 狀態摘要） │
 │   #view-fleet                                              │
 ├────────────────────────────────────────────────────────────┤
 │ #console-dock(橫跨內容欄底,可收合)                         │
@@ -71,12 +71,11 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
   100vh。頂部列 / 內容欄 / 主控台 dock 垂直堆疊。
 - 頂部列 `--surface-container-low` 底 + 底部 hairline;品牌為 狂草毛筆「W」墨色
   SVG(`feTurbulence`+位移濾鏡)+ Source Serif「Winception」字標;nav 僅
-  Deploy / Monitor(active = 亮底 + 底部 2px 陶土紅 inset)。
+  開始部署 / 部署活動，技術控制集中在 Management(active = 亮底 + 底部 2px 陶土紅 inset)。
 - 內容滿版、左右 5% gutters,不再限寬置中(`--content-max` 已停用)。
-- Deploy = 兩欄:左為 dashboard,右為可收合的「導引設定」軌
-  (`.deploy-grid` = `minmax(0,1fr) 40%`)。收合後軌縮為 48px 直條、dashboard
-  最大化。導引設定不再是獨立 nav 目的地。
-- `@media (max-width: 1024px)`: 兩欄堆疊為單欄,頂部列縮邊距。
+- 首頁以 `.beginner-home` 顯示目前部署內容、單一下一步、三階段流程與簡短概況；
+  `.management-dialog` 集中進階設定，Guided Setup 使用可關閉 dialog。
+- `@media (max-width: 1024px)`: 首頁維持單欄、Management 與 Setup dialog 收窄，頂部列縮邊距。
 - z-index: topbar 20 / dock 25 / `.fleet-backdrop` 40 / `.client-fleet-panel` 45 /
   fallback dialog 60。
 
@@ -90,9 +89,9 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
 - **Focus ring**: `0 0 0 3px rgba(156,66,33,.18)`(陶土紅 18%)。
 - **Dialog backdrop**: `rgba(44,33,19,.45)` 暖色遮罩。
 
-## Guided setup rail 導引設定軌
+## Guided setup dialog 導引設定視窗
 
-位於 Deploy 右側 40% 欄,可收合為 48px 直條(點擊 chevron 或 strip 展開)。
+Guided Setup 不再永久佔據首頁；從首頁下一步或 Management 開啟可關閉 dialog，仍保留原有十個底層步驟與操作安全門檻。
 
 ### 步驟圖示(per-state icons)
 

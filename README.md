@@ -12,12 +12,13 @@ Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在�
 
 - 安裝自包含的 host management bundle 到 `C:\OSDCloud\HostTools\App`。
 - 將可變主機狀態保存到 `C:\OSDCloud\HostTools\State`。
-- 由 Web Console 管理 deployment project root，預設可使用 `C:\OSDCloud`。
+- 由 Web Console 管理 deployment project root，預設可使用 `C:\OSDCloud`；自訂值必須是 Git clone 與 `HostTools` 之外的絕對路徑。
 - 透過 DHCP、TFTP、HTTP、SMB 與 Torrent P2P 提供 Windows 11 部署資料。
 - 支援 Secure Boot boot mode 與 iPXE fallback boot mode。
 - 以 deployment profile 控制 OS image、display language、regional format、input language、time zone、client software 與 custom scripts。
+- 首頁預設為繁體中文「新手工作台」：只顯示目前部署內容、狀態、單一下一步與簡短部署概況；進階能力集中在「管理」入口。
 - 透過 Client Fleet、Activity、Validation Evidence 與 System Log 追蹤每台電腦的部署狀態。
-- 在 Deploy 主畫面提供 `Offline ISO` 卡片，從 active deployment state 建立 host-side ISO，並顯示主機輸出資料夾與完整檔案路徑。
+- `部署活動` 保留 Fleet 的搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions；`管理` 入口集中 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。
 - 在 Web Console 版本號旁自動檢查正式 GitHub Release；只提示可用更新與 Release 指引，不會下載、覆寫或重啟服務。
 
 適用對象：
@@ -26,7 +27,7 @@ Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在�
 - 在現場啟動 PXE 服務並部署 Windows 11 電腦的操作人員。
 - 需要判斷部署是否完成、失敗原因與可採取動作的支援人員。
 
-完整圖解手冊可開啟 [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)，安裝後也可在 Web Console 右上角用 **Manual** 開啟 `/manual/`。
+完整圖解手冊可開啟 [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)，安裝後也可在 Web Console 的 **管理** 入口用 **使用手冊** 開啟 `/manual/`。
 
 ### 02. 部署主機安裝
 
@@ -71,6 +72,22 @@ setup 完成後開啟：
 http://127.0.0.1:8080
 ```
 
+### Release / Development 資料政策（v1.1.0）
+
+正式 HostTools ZIP 是 `Release` channel：採 zero-preload。首次安裝只建立 App、State schema、空 catalog、空 profile 目錄與未設定 endpoint；Web Console 可以啟動，但 services 保持停止，技術人員必須完成 Guided Setup。正式包不含 deployment profile、software/script fixture、OS image、selected manifest、endpoint、DHCP reservation、secrets 或歷史部署資料。`bundle-manifest.json` 會記錄 channel、data policy、fixture presence、commit、version、length 與 SHA-256。
+
+升級只替換 `HostTools\App`，不 reset `HostTools\State`。升級前會建立 timestamped State backup，再執行 schema migration；migration 失敗會停止流程並保留 backup，使用 `tools\Restore-HostManagementState.ps1` 復原。重複執行 setup/reload 不會重新植入開發資料。
+
+`Development` channel 不會自動 seed。需要示範資料時，明確執行：
+
+```powershell
+.\Setup-DeploymentServer.cmd -Channel Development -SeedDevelopmentFixture
+# 或在已安裝的 Development App 中：
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Seed-DevelopmentFixture.ps1 -StateRoot C:\OSDCloud\HostTools\State
+```
+
+Release ZIP 不包含 Development fixture 或 seed script；Lab 也必須先安裝 Release 空白包，再由 runner 明確 seed。`.github/workflows/release-candidate.yml` 只建立可驗證的 unsigned RC；沒有核准 Authenticode 憑證與 policy 時不得標成 production。正式 Release 另外需要 clean-checkout bundle inventory、secret/fixture scan、hash、簽章與 fresh-host/upgrade/live PXE 證據，不會由 setup 自動建立 Git tag、push 或 release。
+
 若部署主機後續不需要修改 source，可改用：
 
 ```text
@@ -79,7 +96,7 @@ C:\OSDCloud\HostTools\Open-WebConsole.cmd
 
 ### HostTools 版本檢查與更新
 
-Web Console 啟動後會在背景查詢 Winception 的最新正式 GitHub Release，結果快取 24 小時於 `C:\OSDCloud\HostTools\State\updates\release-check.json`。右上角的 Update 控制可手動重新檢查；離線、逾時或 GitHub 無法使用時，Console 與 PXE 部署會照常運作，並保留上次成功確認的結果。
+Web Console 啟動後會在背景查詢 Winception 的最新正式 GitHub Release，結果快取 24 小時於 `C:\OSDCloud\HostTools\State\updates\release-check.json`。請從 **管理** 入口的「檢查更新」手動重新檢查；離線、逾時或 GitHub 無法使用時，Console 與 PXE 部署會照常運作，並保留上次成功確認的結果。
 
 此功能只檢查非 draft、非 prerelease 的正式版本。發現新版本時，按 **View update** 開啟 Release notes，再依該 Release 的手動更新指引執行；Console 不會自動下載、安裝、覆寫或重啟任何服務。
 
@@ -91,7 +108,7 @@ Winception 的服務分成控制面與資料面：
 | --- | --- |
 | Web Console | 提供操作介面、API、狀態彙整與確認式變更動作 |
 | Runtime Readiness | 檢查 runtime root 是否具備 boot、WinPE、iPXE 與必要支援檔 |
-| Endpoint Sync | 將本次服務介面、IP、DHCP pool、HTTP base、SMB endpoint 與 secrets 同步到 live boot files 與 `boot.wim`；WinPE server health probe 的優先 IP 也會一併更新 |
+| Endpoint Sync | 將本次服務介面、IP、DHCP pool、HTTP base 與 SMB endpoint 同步到 live boot files 與 `boot.wim`；WinPE 以短效 `boot-session` envelope 取得 credentials，不把 secrets 寫入 `boot.wim`；server health probe 的優先 IP 也會一併更新 |
 | DHCP responder | 在指定模式下提供 lease 或 PXE boot options |
 | TFTP service | 提供 Secure Boot chain 所需的 Microsoft-signed boot files |
 | HTTP media service | 提供 iPXE script、WinPE boot files、status API、screenshot API 與 Torrent control API |
@@ -102,7 +119,7 @@ Winception 的服務分成控制面與資料面：
 正常部署資料流：
 
 1. 技術人員在 Web Console 選定服務介面與 DHCP/boot mode。
-2. Endpoint Sync 發布 live `boot.ipxe`、TFTP boot files、SMB firewall 與 WinPE 內嵌 endpoint。
+2. Endpoint Sync 發布 live `boot.ipxe`、TFTP boot files、SMB firewall 與 WinPE endpoint；client 開機時再以一次性 `POST /osdcloud/boot-session` 取得加密 credentials。
 3. 技術人員準備 OS Image Cache，將來源 ISO/ESD/WIM 匯出成單一 deployable WIM。
 4. 技術人員發布 active deployment profile，產生 `selected-os.json` 與 `selected-profile.json`。
 5. `Run preflight` 檢查 runtime、endpoint、OS image、profile payload、SMB、ports 與服務設定。
@@ -144,13 +161,13 @@ C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json
 
 - 不把 plaintext secrets 寫進 repo、文件、logs、commit message 或 status。
 - API 和 Web UI 只顯示 present/missing/redacted 狀態。
-- Endpoint Sync 會把必要 secret 安全注入 live `boot.wim`，讓 WinPE 可掛載 SMB 並完成 Windows 設定。
+- Endpoint Sync 絕不把 deployment secret 注入 live `boot.wim`。WinPE 以 client public key、nonce、boot ID、client MAC 與近期有效 DHCP lease 申請短效、單次使用的 `/osdcloud/boot-session` envelope；Host 會在每次 session 使用時重新確認 lease binding。部署 terminal state 後會清除 AutoLogon、Unattend 與 `ProgramData\OSDCloud\secrets.json`。Cleanup 失敗時不得視為 `windows-desktop-ready`。
 - 需要輪替帳號或密碼時，從 Web Console 的 Deployment Secrets 流程更新。
 - Web Console API 在 loopback (`localhost` / `127.x` / `::1`) 預設免 token；若 Web host 綁定非 loopback，所有 `/api/*` 除 `/api/auth/status` 需 `X-Winception-Token`。Token 存在 `C:\OSDCloud\HostTools\State\config\web-console-token.json`，不會寫入 repo 或 API response。
 
 ### 05. 部署前準備
 
-Web Console 的頂部工作區是 **Deploy** / **Monitor**。`Deploy` 內含 guided setup rail 與 runtime/preflight/services/diagnostics/Offline ISO 操作面；`Monitor` 檢視 Activity fleet 與 evidence。第一次開啟 Web Console 時，在 `Deploy` 內依 Guided Setup 完成：
+Web Console 的頂部工作區是 **開始部署** / **部署活動**，右上角是 **管理**。首頁是新手工作台：依目前 state 只提供一個下一步按鈕，順序會在基本設定、部署內容、Runtime、Preflight、服務與部署活動之間切換。所有有副作用的動作仍沿用既有確認視窗、Preflight 門檻與 DHCP 安全規則；需要調整技術設定或取得證據時，再從 **管理** 進入 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。**部署活動** 則保留完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions。第一次開啟 Web Console 時，按首頁的 `完成基本設定`，在可關閉的 Guided Setup dialog 內完成：
 
 1. Project root：確認 deployment root，預設可用 `C:\OSDCloud`。
 2. Deployment secrets：輸入目標 Windows local account 與 SMB account secret。
@@ -162,6 +179,17 @@ Web Console 的頂部工作區是 **Deploy** / **Monitor**。`Deploy` 內含 gui
 8. Start services：由技術人員明確啟動服務。
 
 每次成功部署或 reload HostTools 都會清除舊的 diagnostics summary 與 ZIP，避免新 Console 把前次主機失敗誤顯示為目前狀態。請按 `Run diagnostics` 建立本次主機的新證據包；若既有摘要的 ZIP 已不在本機，Console 會停用下載並要求重新產生。
+
+### 自動化測試與隔離 Hyper-V Lab
+
+Winception 的自動化分成兩條 GitHub Actions 流程：
+
+- pull_request 使用 self-hosted / windows / winception-lab runner，只執行 Node、Web/API、PowerShell parser、npm run check、npm test 與 npm run smoke。Checkout 與 npm cache 留在 runner workspace，不會寫入 C:\OSDCloud，也不會執行 Endpoint Sync、profile publish、服務啟停或 DHCP。
+- master push 使用 self-hosted / windows / hyperv / winception-lab runner，建立目前 commit 的 allowlisted Release HostTools bundle，驗證 bundle-manifest.json，安裝空白包後再由 runner 明確 seed Development fixture，然後在固定的 Winception-AutoLab Internal switch（192.168.177.0/24，service 192.168.177.1）執行四台 Secure Boot VM 與一台 iPXE VM 的 PXE 回歸。成功或失敗都會停止服務、關閉 VM、還原 Winception-Clean checkpoint 並上傳去秘密化 evidence。
+
+第一次只需在專用 runner 執行一次性 bootstrap、建立五台 Gen2 VM/checkpoint、配置受 ACL 保護的 C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json 與 runner labels。日常 PR/merge job 不需要人類介入；runner guard 會拒絕 external switch、非指定 adapter、running/stale VM、缺 checkpoint、外部 DHCP binding 或已被非 Lab process 佔用的服務 port。Initialize-WinceptionLab.ps1 -ValidateOnly 可在不改變主機的情況下驗證前置條件。
+
+完整回歸由 tools\Invoke-WinceptionLabRegression.ps1 執行既有 Initialize-DeploymentServer.ps1、Web API、server:preflight、Fleet polling 與 PowerShell Direct guest evidence。Preflight 失敗時永遠不呼叫 start-all；iPXE 輪次會另行確認 snponly.efi、boot.ipxe、wimboot、WinPE callback 與 windows-desktop-ready。Lab evidence 只保留去秘密化的 preflight、Fleet、HTTP/TFTP/DHCP logs、bundle manifest、VM 版本/profile/app-script 結果。此流程不代表 production/WAN/LAN DHCP 或實體筆電已驗證，也不自動發布 release。
 
 #### 第一次部署會下載什麼、存到哪裡
 
@@ -304,7 +332,7 @@ ImageFileDestination.PSDrive.DisplayRoot : \\<service-ip>\OSDCloudiPXE
 OSImageIndex                         : 1
 ```
 
-若使用 Torrent P2P，Tracker card 會顯示 wave、batch、slot、host ratio、active peers、piece coverage、download/upload rates 與 seed wait 摘要。摘要列出 `Base`、client console `E` 的累積 `Client` 延長、Web 的累積 `Web` 延長、總 wait、剩餘時間與 deadline。預設 seed wait 是 15 分鐘；可在 card 設定 0–1440 分鐘，設定只會套用到之後讀取 boot-config 的 WinPE client。每台 fresh waiting client 可個別延長 1–1440 分鐘，下載完成後的總 wait 不可超過 1440 分鐘；WinPE console 也可按 `E` 延長，deadline 後保留 60 秒按 `E` 或 Enter 決策。Torrent telemetry 短暫中斷不等於部署失敗；以 client 本機進度、SHA-256 驗證與最終 status 為準。更新 WinPE 行為後必須 Endpoint Sync 重新注入 `boot.wim`。
+若使用 Torrent P2P，Tracker card 會顯示 wave、batch、slot、host ratio、active peers、piece coverage、download/upload rates 與 seed wait 摘要。摘要列出 `Base`、client console `E` 的累積 `Client` 延長、Web 的累積 `Web` 延長、總 wait、剩餘時間與 deadline。預設 seed wait 是 15 分鐘；可在 card 設定 0–1440 分鐘，設定只會套用到之後取得 boot-session metadata 的 WinPE client。每台 fresh waiting client 可個別延長 1–1440 分鐘，下載完成後的總 wait 不可超過 1440 分鐘；WinPE console 也可按 `E` 延長，deadline 後保留 60 秒按 `E` 或 Enter 決策。Torrent telemetry 短暫中斷不等於部署失敗；以 client 本機進度、SHA-256 驗證與最終 status 為準。更新 WinPE 行為後必須 Endpoint Sync 重新同步 `boot.wim`。
 
 ### 08. 日常維護與故障排除
 
@@ -317,7 +345,7 @@ OSImageIndex                         : 1
 | Client 沒取得 lease | DHCP mode、服務狀態、目標網段 | 確認 DHCP 設定與目標網段沒有 responder 衝突 |
 | Secure Boot chain 未進 WinPE | TFTP log、boot mode、published TFTP files | 重跑 Endpoint Sync 或重新發布 Secure Boot TFTP staging |
 | iPXE chain 未載入 script | boot mode、Secure Boot、DHCP boot URL | 確認目標電腦允許未簽章 iPXE chain |
-| WinPE 無法掛 SMB | SMB share、防火牆、`pxeinstallPassword`、endpoint | 更新 secrets 或重跑 Endpoint Sync |
+| WinPE 無法掛 SMB | SMB share、防火牆、`pxeinstallPassword`、boot-session、endpoint | 更新 secrets、確認 client lease/identity，再重跑 Preflight；只有 WinPE endpoint/template 變更才需 Endpoint Sync |
 | OS image 不套用 | `selected-os.json`、deployable WIM、SMB path | 在 OS Image Cache 匯出 WIM 並重新 publish profile |
 | Profile stale | Deployment Profiles | 對 active profile 執行 Set active 或 Edit active 後存檔 |
 | 停在 awaiting Windows | SetupComplete status URL、Windows network、embedded scripts | 檢查 per-run events 與 client logs |
@@ -369,12 +397,13 @@ Core capabilities:
 
 - Installs a self-contained host management bundle at `C:\OSDCloud\HostTools\App`.
 - Stores mutable host state at `C:\OSDCloud\HostTools\State`.
-- Lets the Web Console manage the deployment project root, with `C:\OSDCloud` as the default option.
+- Lets the Web Console manage the deployment project root, with `C:\OSDCloud` as the default option; custom values must be absolute paths outside the Git clone and `HostTools`.
 - Serves Windows 11 deployment data through DHCP, TFTP, HTTP, SMB, and Torrent P2P.
 - Supports Secure Boot boot mode and an iPXE fallback boot mode.
 - Uses deployment profiles to control OS image, display language, regional format, input language, time zone, client software, and custom scripts.
 - Tracks each computer through Client Fleet, Activity, Validation Evidence, and System Log.
-- Exposes an `Offline ISO` card on Deploy to build a host-side ISO from the active deployment state and show the host output folder plus full file path.
+- Uses a Traditional-Chinese beginner-first home: one state-derived next action, deployment content, a three-step flow, and a short deployment summary. Advanced Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log controls live under Management.
+- Keeps Activity as the full Fleet workspace with search, filters, Evidence, Archive, Delete, and bulk actions.
 - Checks formal GitHub Releases beside the Web Console version and only presents an available update plus its Release guidance; it never downloads, overwrites, or restarts services.
 
 Intended users:
@@ -383,7 +412,7 @@ Intended users:
 - Operators who start PXE services and deploy Windows 11 computers onsite.
 - Support staff who need to determine completion, failure cause, and next action.
 
-Open the illustrated bilingual manual at [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html). After installation, the Web Console also exposes it through **Manual** at `/manual/`.
+Open the illustrated bilingual manual at [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html). After installation, the Web Console also exposes it through **Management → Manual** at `/manual/`.
 
 ### 02. Deployment Host Installation
 
@@ -428,6 +457,22 @@ After setup finishes, open:
 http://127.0.0.1:8080
 ```
 
+### Release / Development Data Policy (v1.1.0)
+
+The formal HostTools ZIP is the `Release` channel and uses zero-preload. A fresh install creates only the App, State schema, empty catalogs, an empty profile directory, and an unset endpoint. The Web Console can start, but deployment services remain stopped until a technician completes Guided Setup. The formal bundle contains no deployment profiles, software/script fixtures, OS image, selected manifest, endpoint, DHCP reservation, secret, or historical deployment data. `bundle-manifest.json` records the channel, data policy, fixture presence, commit, version, length, and SHA-256 for every file.
+
+An upgrade replaces only `HostTools\App` and preserves `HostTools\State`. It creates a timestamped State backup before schema migration; a migration failure stops the flow and retains the backup for `tools\Restore-HostManagementState.ps1`. Repeating setup/reload never reseeds development data.
+
+The `Development` channel never seeds implicitly. Load demonstration data only through an explicit command:
+
+```powershell
+.\Setup-DeploymentServer.cmd -Channel Development -SeedDevelopmentFixture
+# Or from an installed Development App:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Seed-DevelopmentFixture.ps1 -StateRoot C:\OSDCloud\HostTools\State
+```
+
+The Release ZIP contains neither the Development fixtures nor the seed script. The Lab must install the empty Release bundle first and seed its runner State explicitly. `.github/workflows/release-candidate.yml` produces only a verifiable unsigned RC; without an approved Authenticode certificate and policy it cannot be labeled production. A formal Release additionally requires clean-checkout inventory, secret/fixture scans, hashes, signing, fresh-host, upgrade, and live PXE evidence; setup never creates a Git tag, pushes, or publishes a release automatically.
+
 If the deployment host no longer needs source edits, use:
 
 ```text
@@ -436,7 +481,7 @@ C:\OSDCloud\HostTools\Open-WebConsole.cmd
 
 ### HostTools Version Checks And Updates
 
-After startup, the Web Console checks the latest formal Winception GitHub Release in the background. It caches the result for 24 hours at `C:\OSDCloud\HostTools\State\updates\release-check.json`. Use the Update control in the upper-right corner to check again manually. Offline, timeout, or GitHub availability failures do not affect the Console or PXE deployment, and the last successful result remains visible.
+After startup, the Web Console checks the latest formal Winception GitHub Release in the background. It caches the result for 24 hours at `C:\OSDCloud\HostTools\State\updates\release-check.json`. Use **Management → Check updates** to check again manually. Offline, timeout, or GitHub availability failures do not affect the Console or PXE deployment, and the last successful result remains visible.
 
 The checker accepts only non-draft, non-prerelease releases. When an update is available, choose **View update** to open its Release notes and follow its manual update instructions. The Console never downloads, installs, overwrites, or restarts anything automatically.
 
@@ -448,7 +493,7 @@ Winception separates control-plane and data-plane services:
 | --- | --- |
 | Web Console | Provides the UI, API, state aggregation, and confirmation-based changes |
 | Runtime Readiness | Checks whether the runtime root has boot, WinPE, iPXE, and support files |
-| Endpoint Sync | Synchronizes the selected service interface, IP, DHCP pool, HTTP base, SMB endpoint, and secrets into live boot files and `boot.wim`; it also updates WinPE's preferred server health probe IP |
+| Endpoint Sync | Synchronizes the selected service interface, IP, DHCP pool, HTTP base, and SMB endpoint into live boot files and `boot.wim`; WinPE obtains credentials through a short-lived `boot-session` envelope instead of embedding secrets; it also updates the preferred server health probe IP |
 | DHCP responder | Provides leases or PXE boot options according to the selected mode |
 | TFTP service | Serves the Microsoft-signed boot files required by the Secure Boot chain |
 | HTTP media service | Serves iPXE script, WinPE boot files, status API, screenshot API, and Torrent control API |
@@ -459,7 +504,7 @@ Winception separates control-plane and data-plane services:
 Normal deployment data flow:
 
 1. A technician selects the service interface plus DHCP and boot modes in the Web Console.
-2. Endpoint Sync publishes live `boot.ipxe`, TFTP boot files, SMB firewall rules, and the WinPE embedded endpoint.
+2. Endpoint Sync publishes live `boot.ipxe`, TFTP boot files, SMB firewall rules, and the WinPE endpoint; the client obtains an encrypted one-time credential envelope through `POST /osdcloud/boot-session` at boot.
 3. A technician prepares OS Image Cache by exporting a source ISO/ESD/WIM into one deployable WIM.
 4. A technician publishes the active deployment profile, producing `selected-os.json` and `selected-profile.json`.
 5. `Run preflight` checks runtime, endpoint, OS image, profile payload, SMB, ports, and service settings.
@@ -501,13 +546,13 @@ Rules:
 
 - Do not write plaintext secrets into the repo, docs, logs, commit messages, or status.
 - API and Web UI only show present/missing/redacted state.
-- Endpoint Sync securely injects required secrets into live `boot.wim` so WinPE can mount SMB and finish Windows setup.
+- Endpoint Sync never injects deployment secrets into live `boot.wim`. WinPE requests a short-lived, single-use `/osdcloud/boot-session` envelope bound to its public key, nonce, boot ID, client MAC, and an active DHCP lease; the host rechecks that lease binding on each session use. Terminal deployment state clears AutoLogon, Unattend credentials, and `ProgramData\OSDCloud\secrets.json`. A cleanup failure withholds `windows-desktop-ready`.
 - When account or password rotation is required, update it through the Web Console Deployment Secrets flow.
 - The Web Console API bypasses token auth on loopback (`localhost` / `127.x` / `::1`). If the Web host binds to a non-loopback address, every `/api/*` endpoint except `/api/auth/status` requires `X-Winception-Token`. The token lives at `C:\OSDCloud\HostTools\State\config\web-console-token.json` and is never written to the repo or returned by API responses.
 
 ### 05. Pre-Deployment Preparation
 
-The Web Console top bar has **Deploy** / **Monitor**. `Deploy` contains the guided setup rail plus runtime/preflight/services/diagnostics/Offline ISO controls, and `Monitor` shows Activity fleet and evidence. On first launch, complete Guided Setup inside `Deploy`:
+The Web Console top bar has **Start deployment** / **Activity**, plus **Management**. The beginner-first home shows one state-derived next action, the selected deployment content, a three-step flow, and a short deployment summary. Advanced Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log controls are grouped under Management; Activity remains the full Fleet workspace. Actions with side effects keep the existing confirmation dialogs, Preflight gates, and DHCP safety rules. On first launch, choose `Complete basic setup` and complete Guided Setup in its closable dialog:
 
 1. Project root: confirm the deployment root; `C:\OSDCloud` is the default option.
 2. Deployment secrets: enter the target Windows local account and SMB account secret.
@@ -519,6 +564,17 @@ The Web Console top bar has **Deploy** / **Monitor**. `Deploy` contains the guid
 8. Start services: a technician explicitly starts services.
 
 Each successful HostTools deployment or reload clears the prior diagnostics summary and ZIP so a new Console does not present an earlier host failure as current. Select `Run diagnostics` to create fresh host evidence; if an existing summary's ZIP is no longer local, Console disables its download and asks you to generate diagnostics again.
+
+### Automated Checks And Isolated Hyper-V Lab
+
+Winception automation is split into two GitHub Actions workflows:
+
+- pull_request runs on self-hosted / windows / winception-lab and performs Node, Web/API, PowerShell parser, npm run check, npm test, and npm run smoke. Checkout and npm cache stay in the runner workspace; the job does not write C:\OSDCloud, run Endpoint Sync, publish profiles, start services, or touch DHCP.
+- A master push runs on self-hosted / windows / hyperv / winception-lab, creates and verifies an allowlisted Release HostTools bundle, installs the empty bundle, explicitly seeds the Development fixture into runner State, and executes four Secure Boot VMs plus one iPXE VM on the fixed Winception-AutoLab Internal switch (192.168.177.0/24, service 192.168.177.1). Success and failure both stop services, power off VMs, restore the Winception-Clean checkpoint, and upload de-secretized evidence.
+
+The dedicated runner needs a one-time bootstrap, five Gen2 VMs/checkpoints, protected local secrets at C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json, and the runner labels. Normal PR/merge jobs are unattended. The runner guard rejects external switches, non-Lab adapters, running/stale VMs, missing checkpoints, foreign DHCP bindings, and service ports owned by non-Lab processes. Initialize-WinceptionLab.ps1 -ValidateOnly validates prerequisites without changing the host.
+
+tools\Invoke-WinceptionLabRegression.ps1 uses the existing Initialize-DeploymentServer.ps1, Web API, server:preflight, Fleet polling, and PowerShell Direct guest evidence. A failed preflight never calls start-all. The iPXE round separately verifies snponly.efi, boot.ipxe, wimboot, the WinPE callback, and windows-desktop-ready. Evidence contains only de-secretized preflight, Fleet, HTTP/TFTP/DHCP logs, bundle manifest, VM version/profile/app-script results. This Lab flow is not proof of production/WAN/LAN DHCP or a physical laptop path and does not publish a release automatically.
 
 #### Files Downloaded on First Deployment and Where They Go
 
@@ -661,7 +717,7 @@ ImageFileDestination.PSDrive.DisplayRoot : \\<service-ip>\OSDCloudiPXE
 OSImageIndex                         : 1
 ```
 
-When Torrent P2P is enabled, the Tracker card shows wave, batch, slot, host ratio, active peers, piece coverage, download/upload rates, and a seed-wait summary. It lists the Base wait, the cumulative Client extension entered with WinPE console `E`, the cumulative Web extension, total wait, remaining time, and deadline. The default seed wait is 15 minutes; the card accepts 0–1440 minutes and affects only WinPE clients that read boot-config afterwards. Each fresh waiting client can be extended by 1–1440 minutes, with a maximum total wait of 1440 minutes after download completion. The WinPE console also accepts `E` to extend and gives a 60-second `E`/Enter decision window after the deadline. Short observation API interruptions do not mean deployment failure; rely on local client progress, SHA-256 verification, and final status. Run Endpoint Sync after a WinPE behavior update so `boot.wim` receives it.
+When Torrent P2P is enabled, the Tracker card shows wave, batch, slot, host ratio, active peers, piece coverage, download/upload rates, and a seed-wait summary. It lists the Base wait, the cumulative Client extension entered with WinPE console `E`, the cumulative Web extension, total wait, remaining time, and deadline. The default seed wait is 15 minutes; the card accepts 0–1440 minutes and affects only WinPE clients that receive boot-session metadata afterwards. Each fresh waiting client can be extended by 1–1440 minutes, with a maximum total wait of 1440 minutes after download completion. The WinPE console also accepts `E` to extend and gives a 60-second `E`/Enter decision window after the deadline. Short observation API interruptions do not mean deployment failure; rely on local client progress, SHA-256 verification, and final status. Run Endpoint Sync after a WinPE behavior update so `boot.wim` is resynchronized.
 
 ### 08. Routine Maintenance And Troubleshooting
 
@@ -674,7 +730,7 @@ Common actions:
 | Client gets no lease | DHCP mode, service state, target network | Confirm DHCP settings and no responder conflict on the target network |
 | Secure Boot chain does not enter WinPE | TFTP log, boot mode, published TFTP files | Rerun Endpoint Sync or republish Secure Boot TFTP staging |
 | iPXE chain does not load the script | boot mode, Secure Boot, DHCP boot URL | Confirm the target computer allows the unsigned iPXE chain |
-| WinPE cannot mount SMB | SMB share, firewall, `pxeinstallPassword`, endpoint | Update secrets or rerun Endpoint Sync |
+| WinPE cannot mount SMB | SMB share, firewall, `pxeinstallPassword`, boot-session, endpoint | Update secrets, verify client lease/identity, and rerun Preflight; run Endpoint Sync only after WinPE endpoint/template changes |
 | OS image does not apply | `selected-os.json`, deployable WIM, SMB path | Export the WIM in OS Image Cache and republish the profile |
 | Need offline ISO media | Deploy `Offline ISO` card, active profile, deployable WIM | Build the ISO on the host, then use the `Output folder` / `ISO file` paths shown in the UI |
 | Profile stale | Deployment Profiles | Set active again, or edit active profile and save |

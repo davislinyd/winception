@@ -10,9 +10,9 @@ test('gateway defaults keep existing configurations on shared LAN', () => {
     topology: 'shared-lan',
     wanInterfaceAlias: '',
     pxeInterfaceAlias: '',
-    switchName: 'Winception-PXE',
-    natName: 'WinceptionNAT',
-    internalSubnet: '192.168.100.0/24',
+    switchName: null,
+    natName: null,
+    internalSubnet: null,
   });
   assert.equal(evaluateNetworkGateway({}, null).ok, true);
 });

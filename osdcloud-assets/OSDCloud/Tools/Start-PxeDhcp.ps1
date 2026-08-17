@@ -1,11 +1,11 @@
 param(
-    [string] $ServerIp = '192.168.77.1',
+    [string] $ServerIp = '',
     [string] $ClientIp = '',
-    [string] $LeaseStartIp = '192.168.77.200',
-    [string] $LeaseEndIp = '192.168.77.250',
-    [string] $SubnetMask = '255.255.255.0',
-    [string] $Router = '192.168.77.1',
-    [string[]] $DnsServers = @('1.1.1.1', '8.8.8.8'),
+    [string] $LeaseStartIp = '',
+    [string] $LeaseEndIp = '',
+    [string] $SubnetMask = '',
+    [string] $Router = '',
+    [string[]] $DnsServers = @(),
     [string] $BootFile = 'ipxeboot/x86_64-sb/snponly.efi',
     [string] $IpxeBootUrl = '',
     [int] $LeaseSeconds = 3600,
@@ -13,6 +13,24 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Assert-PxeDhcpEndpointConfigured {
+    $missing = @()
+    foreach ($entry in @{
+        ServerIp = $ServerIp
+        LeaseStartIp = $LeaseStartIp
+        LeaseEndIp = $LeaseEndIp
+        SubnetMask = $SubnetMask
+        Router = $Router
+    }.GetEnumerator()) {
+        if ([string]::IsNullOrWhiteSpace([string] $entry.Value)) {
+            $missing += $entry.Key
+        }
+    }
+    if ($missing.Count -gt 0) {
+        throw "PXE DHCP endpoint is not configured. Provide: $($missing -join ', '). Complete Guided Setup or endpoint sync before starting DHCP."
+    }
+}
 
 function Write-Log([string] $Message) {
     $line = "$(Get-Date -Format o) $Message"
@@ -28,6 +46,8 @@ if (-not [string]::IsNullOrWhiteSpace($ClientIp)) {
 if ([string]::IsNullOrWhiteSpace($IpxeBootUrl)) {
     $IpxeBootUrl = "http://$ServerIp/osdcloud/boot.ipxe"
 }
+
+Assert-PxeDhcpEndpointConfigured
 
 function ConvertTo-IPv4Bytes([string] $Address) {
     [System.Net.IPAddress]::Parse($Address).GetAddressBytes()

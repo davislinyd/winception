@@ -17,9 +17,9 @@ export function gatewayOptions(config = {}) {
     topology: networkTopology(config),
     wanInterfaceAlias: String(nat.wanInterfaceAlias ?? ''),
     pxeInterfaceAlias: String(nat.pxeInterfaceAlias ?? ''),
-    switchName: String(nat.switchName ?? 'Winception-PXE'),
-    natName: String(nat.natName ?? 'WinceptionNAT'),
-    internalSubnet: String(nat.internalSubnet ?? '192.168.100.0/24'),
+    switchName: nat.switchName ? String(nat.switchName) : null,
+    natName: nat.natName ? String(nat.natName) : null,
+    internalSubnet: nat.internalSubnet ? String(nat.internalSubnet) : null,
   };
 }
 
@@ -37,17 +37,21 @@ function parseGatewayResult(output) {
 
 function commandArgs(config, action, options = {}) {
   const gateway = gatewayOptions(config);
-  return [
+  const args = [
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', gatewayScriptPath(config),
     '-Action', action,
     '-WanInterfaceAlias', options.wanInterfaceAlias ?? gateway.wanInterfaceAlias,
     '-PxeInterfaceAlias', options.pxeInterfaceAlias ?? gateway.pxeInterfaceAlias,
-    '-InternalSubnet', options.internalSubnet ?? gateway.internalSubnet,
-    '-SwitchName', gateway.switchName,
-    '-NatName', gateway.natName,
     '-ConfigPath', config.__savePath ?? config.__localConfigPath ?? config.__configPath ?? '',
     '-StateRoot', stateRootForConfig(config),
   ];
+  const internalSubnet = options.internalSubnet ?? gateway.internalSubnet;
+  if (internalSubnet) {
+    args.push('-InternalSubnet', internalSubnet);
+  }
+  args.push('-SwitchName', gateway.switchName ?? 'Winception-PXE');
+  args.push('-NatName', gateway.natName ?? 'WinceptionNAT');
+  return args;
 }
 
 export async function inspectNetworkGateway(config) {
@@ -63,6 +67,7 @@ export async function inspectNetworkGateway(config) {
 }
 
 export async function prepareNetworkGateway(config, input = {}) {
+  validateGatewayInput(input);
   const result = await runPowerShell(commandArgs(config, 'Prepare', input), {
     onStdout: input.onOutput,
     onStderr: input.onOutput,
@@ -91,12 +96,15 @@ function subnetStart(internalSubnet) {
 export function validateGatewayInput(input = {}) {
   const wanInterfaceAlias = String(input.wanInterfaceAlias ?? '').trim();
   const pxeInterfaceAlias = String(input.pxeInterfaceAlias ?? '').trim();
-  const internalSubnet = String(input.internalSubnet ?? '192.168.100.0/24').trim();
+  const internalSubnet = String(input.internalSubnet ?? '').trim();
   if (!wanInterfaceAlias || !pxeInterfaceAlias) {
     throw new Error('Select both WAN and PXE interfaces.');
   }
   if (wanInterfaceAlias === pxeInterfaceAlias) {
     throw new Error('WAN and PXE interfaces must be different.');
+  }
+  if (!internalSubnet) {
+    throw new Error('internalSubnet is required when preparing a NAT gateway.');
   }
   subnetStart(internalSubnet);
   return { wanInterfaceAlias, pxeInterfaceAlias, internalSubnet };

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "allowedHosts": [
+    "catalog.sf.dl.delivery.mp.microsoft.com",
+    "dl.delivery.mp.microsoft.com",
+    "software.download.prss.microsoft.com"
+  ],
+  "images": []
+}

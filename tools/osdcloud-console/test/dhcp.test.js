@@ -10,6 +10,7 @@ import {
   getDhcpMessageType,
   getRequestedIp,
   isIpxeClient,
+  ipv4ToBytes,
   ipv4ToUInt32,
   normalizeMacAddress,
   uint32ToIPv4,
@@ -39,8 +40,15 @@ function packetWithOptions(options) {
 
 test('converts IPv4 values', () => {
   assert.equal(ipv4ToUInt32('192.168.100.100'), 3232261220);
+  assert.deepEqual(ipv4ToBytes('192.168.100.100'), [192, 168, 100, 100]);
   assert.equal(uint32ToIPv4(3232261220), '192.168.100.100');
   assert.equal(broadcastAddress('192.168.100.100', '255.255.255.0'), '192.168.100.255');
+});
+
+test('rejects malformed IPv4 values instead of silently coercing them', () => {
+  for (const address of ['192.168.100', '192.168.100.1.extra', '192.168.100x.1', '192.168.100.256']) {
+    assert.throws(() => ipv4ToUInt32(address), /Invalid IPv4 address/);
+  }
 });
 
 test('parses DHCP message type, requested IP, and iPXE markers', () => {
@@ -81,6 +89,17 @@ test('allocates requested IPs only inside the lease pool', () => {
   assert.equal(pool.getLease('AA-BB-CC-00-00-01', '192.168.100.202'), '192.168.100.201');
   assert.equal(pool.getLease('AA-BB-CC-00-00-02', '192.168.100.201'), '192.168.100.200');
   assert.equal(pool.getLease('AA-BB-CC-00-00-03', '10.0.0.10'), '192.168.100.202');
+});
+
+test('tracks active DHCP lease identity and expires stale bindings', () => {
+  const pool = new LeasePool('192.168.100.200', '192.168.100.202', [], 60);
+  const mac = 'AA-BB-CC-00-00-01';
+  assert.equal(pool.hasActiveLease('192.168.100.200', mac), false);
+  assert.equal(pool.getLease(mac, '192.168.100.200'), '192.168.100.200');
+  assert.equal(pool.hasActiveLease('192.168.100.200', mac), true);
+  assert.equal(pool.hasActiveLease('192.168.100.200', 'AA-BB-CC-00-00-02'), false);
+  pool.expiresAtByMac.set(mac, Date.now() - 1);
+  assert.equal(pool.hasActiveLease('192.168.100.200', mac), false);
 });
 
 test('normalizes MAC address formats', () => {

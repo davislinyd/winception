@@ -1,11 +1,15 @@
 param(
     [string] $Root = 'C:\OSDCloud\PXE-TFTP',
-    [string] $ListenIp = '192.168.77.1',
+    [string] $ListenIp = '',
     [int] $Port = 69,
     [string] $LogPath = 'C:\OSDCloud\PXE-TFTP\pxe-tftp.log'
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($ListenIp)) {
+    throw 'PXE TFTP endpoint is not configured. Provide -ListenIp through Guided Setup or endpoint sync before starting TFTP.'
+}
 
 function Write-Log([string] $Message) {
     $line = "$(Get-Date -Format o) $Message"

@@ -4,8 +4,8 @@ param(
     [string] $RuntimeCatalogPath,
     [string] $ManifestPath,
     [string] $LiveRoot = 'C:\OSDCloud',
-    [string] $InterfaceAlias = 'LAN',
-    [string] $ServerIp = '192.168.88.1',
+    [string] $InterfaceAlias = '',
+    [string] $ServerIp = '',
     [int] $PrefixLength = 24,
     [string] $ClientGateway,
     [switch] $ConfigureNic,
@@ -33,6 +33,13 @@ $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
 [Console]::InputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
+
+if ([string]::IsNullOrWhiteSpace($InterfaceAlias) -or [string]::IsNullOrWhiteSpace($ServerIp)) {
+    throw 'Deployment endpoint is not configured. Provide -InterfaceAlias and -ServerIp from Guided Setup before initializing the deployment server.'
+}
+if ($PrefixLength -lt 1 -or $PrefixLength -gt 32) {
+    throw "PrefixLength is invalid: $PrefixLength"
+}
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($ManifestPath)) {

@@ -3,6 +3,8 @@ param(
     [string] $WebHost,
     [string] $AppRoot = 'C:\OSDCloud\HostTools\App',
     [string] $StateRoot = 'C:\OSDCloud\HostTools\State',
+    [ValidateSet('Release', 'Development')][string] $Channel = 'Release',
+    [switch] $SeedDevelopmentFixture,
     [switch] $SkipNpmInstall,
     [switch] $SkipSmoke,
     [switch] $NoNodeAutoInstall,
@@ -215,6 +217,8 @@ function Install-HostManagementBundle {
         $AppRoot,
         '-StateRoot',
         $StateRoot,
+        '-Channel',
+        $Channel,
         '-Force'
     )
     if ($DryRun) {
@@ -593,6 +597,27 @@ try {
     }
 
     Install-HostManagementBundle
+
+    if ($SeedDevelopmentFixture) {
+        if ($Channel -ne 'Development') {
+            throw '-SeedDevelopmentFixture requires -Channel Development.'
+        }
+        $seedScriptPath = Join-Path $AppRoot 'tools\Seed-DevelopmentFixture.ps1'
+        if (-not (Test-Path -LiteralPath $seedScriptPath -PathType Leaf)) {
+            throw "Development fixture seed script is not present in the installed bundle: $seedScriptPath"
+        }
+        Invoke-ExternalCommand -FilePath 'powershell.exe' -ArgumentList @(
+            '-NoProfile',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-File',
+            $seedScriptPath,
+            '-SourceRoot',
+            $AppRoot,
+            '-StateRoot',
+            $StateRoot
+        )
+    }
 
     if (-not $SkipNpmInstall) {
         Write-Step 'Installing Web console dependencies'

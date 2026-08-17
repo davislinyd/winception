@@ -8,7 +8,7 @@ import { osImageLabel } from './format.js';
 import { render, renderFleetExpandedState } from './render.js';
 import { confirmPrepareRuntime } from './setup.js';
 import { state } from './state.js';
-import { copyTextWithFeedback, setControlsDisabled, setSetupRailCollapsed } from './ui.js';
+import { copyTextWithFeedback, setConsoleDockCollapsed, setControlsDisabled } from './ui.js';
 
 export function setFleetExpanded(expanded) {
   if (state.fleetExpanded === expanded) {
@@ -20,24 +20,27 @@ export function setFleetExpanded(expanded) {
 
 export function switchToView(viewName) {
   const normalizedView = viewName === 'prepare' || viewName === 'guided' ? 'dashboard' : viewName;
+  const opensSetup = viewName === 'prepare' || viewName === 'guided';
   if (state.currentView === normalizedView) {
-    if (viewName === 'prepare' || viewName === 'guided') {
-      setSetupRailCollapsed(false);
+    if (opensSetup) {
       state.guidedStepCollapsed = false;
+      openDialog(elements.initializationDialog);
       render();
     }
     return;
   }
   state.currentView = normalizedView;
   localStorage.setItem('winception-view', normalizedView);
-  if (viewName === 'prepare' || viewName === 'guided') {
-    setSetupRailCollapsed(false);
+  if (opensSetup) {
     state.guidedStepCollapsed = false;
   }
-  if ((viewName === 'guided' || viewName === 'prepare') && !state.selectedGuidedStepId && state.current?.initialization?.nextStepId) {
+  if (opensSetup && !state.selectedGuidedStepId && state.current?.initialization?.nextStepId) {
     state.selectedGuidedStepId = state.current.initialization.nextStepId;
   }
   render();
+  if (opensSetup) {
+    openDialog(elements.initializationDialog);
+  }
 }
 
 export async function handleProfileDelete(profile) {
@@ -578,12 +581,53 @@ async function handleUpdateCheck() {
 
 export async function handleAction(action, source = null) {
   const services = state.current?.services ?? {};
-  if (action === 'run-evidence') {
+  if (action === 'management') {
+    openDialog(elements.managementDialog);
+  } else if (action === 'management-target') {
+    const targetAction = source?.dataset?.managementTarget;
+    if (!targetAction) {
+      return;
+    }
+    const step = source?.dataset?.managementStep;
+    closeDialog(elements.managementDialog);
+    if (targetAction === 'initialization') {
+      state.selectedGuidedStepId = step || state.current?.initialization?.nextStepId || 'project-root';
+      state.guidedStepCollapsed = false;
+      openDialog(elements.initializationDialog);
+      render();
+    } else if (targetAction === 'logs') {
+      switchToView('dashboard');
+      setConsoleDockCollapsed(false);
+    } else if (targetAction === 'activity' || targetAction === 'fleet') {
+      switchToView('fleet');
+    } else {
+      await handleAction(targetAction, source);
+    }
+  } else if (action === 'beginner-primary') {
+    const targetAction = source?.dataset?.beginnerAction;
+    if (!targetAction || targetAction === 'none') {
+      return;
+    }
+    if (targetAction === 'activity' || targetAction === 'fleet' || targetAction === 'progress') {
+      switchToView('fleet');
+    } else if (targetAction === 'initialization') {
+      state.selectedGuidedStepId = source?.dataset?.beginnerStep || state.current?.initialization?.nextStepId || 'project-root';
+      state.guidedStepCollapsed = false;
+      openDialog(elements.initializationDialog);
+      render();
+    } else {
+      await handleAction(targetAction, source);
+    }
+  } else if (action === 'run-evidence') {
     const runId = source?.dataset?.runId ?? source?.closest?.('[data-run-id]')?.dataset?.runId;
     showValidationEvidence(runId);
   } else if (action === 'update-check') {
     await handleUpdateCheck();
   } else if (action === 'initialization') {
+    if (source?.dataset?.initializationStep) {
+      state.selectedGuidedStepId = source.dataset.initializationStep;
+      state.guidedStepCollapsed = false;
+    }
     openDialog(elements.initializationDialog);
   } else if (action === 'preflight') {
     await mutate('/api/preflight');

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import {
   stateRootForConfig,
@@ -9,6 +10,7 @@ import {
   osTorrentUrl,
   osTorrentManifestName,
 } from './config.js';
+import { ipv4ToUInt32, normalizeMacAddress } from './dhcp.js';
 import { driverPackCacheStage, handleDriverPackCacheRequest } from './driverPackCache.js';
 import { appendLog, formatSyslog } from './logger.js';
 import { buildRunsIndex, isRunTerminal, updateRunSummary } from './runSummary.js';
@@ -24,10 +26,56 @@ function loadSecrets(config) {
     } catch {}
   }
   return {
-    windowsUsername: process.env.OSDCLOUD_WINDOWS_USERNAME || fileSecrets.windowsUsername || 'Administrator',
+    windowsUsername: process.env.OSDCLOUD_WINDOWS_USERNAME || fileSecrets.windowsUsername || '',
     windowsPassword: process.env.OSDCLOUD_WINDOWS_PASSWORD || fileSecrets.windowsPassword || '',
     pxeinstallPassword: process.env.OSDCLOUD_PXEINSTALL_PASSWORD || fileSecrets.pxeinstallPassword || '',
   };
+}
+
+function base64UrlEncode(value) {
+  return Buffer.from(value).toString('base64url');
+}
+
+function base64UrlDecode(value) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/u.test(value)) {
+    throw new Error('Invalid base64url value');
+  }
+  return Buffer.from(value, 'base64url');
+}
+
+function normalizeRemoteIp(value) {
+  const text = String(value ?? '').trim();
+  if (text.startsWith('::ffff:')) {
+    return text.slice('::ffff:'.length);
+  }
+  return text === '::1' ? '127.0.0.1' : text;
+}
+
+function isIpInRange(ip, startIp, endIp) {
+  try {
+    const value = ipv4ToUInt32(ip);
+    return value >= ipv4ToUInt32(startIp) && value <= ipv4ToUInt32(endIp);
+  } catch {
+    return false;
+  }
+}
+
+function safeClientValue(value, label) {
+  const text = String(value ?? '').trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/u.test(text)) {
+    throw new Error(`${label} is invalid`);
+  }
+  return text;
+}
+
+function bootSessionRequired(config) {
+  return config.security?.requireBootSession === true;
+}
+
+function bootSessionTtlMs(config) {
+  const seconds = Number(config.security?.bootSessionTtlSeconds ?? 120);
+  const bounded = Number.isFinite(seconds) ? Math.min(Math.max(seconds, 60), 7_200) : 120;
+  return bounded * 1000;
 }
 
 export function sanitizeName(value) {
@@ -170,15 +218,82 @@ function nextAvailablePath(directory, baseName, extension) {
 }
 
 export class MediaHttpServer extends EventEmitter {
-  constructor(config, torrentCoordinator = null) {
+  constructor(config, torrentCoordinator = null, options = {}) {
     super();
     this.config = config;
     this.torrentCoordinator = torrentCoordinator;
     this.server = null;
+    this.bootSessions = new Map();
+    this.usedBootNonces = new Map();
+    this.bootLeaseValidator = options.bootLeaseValidator ?? null;
   }
 
   setTorrentCoordinator(coordinator) {
     this.torrentCoordinator = coordinator;
+  }
+
+  setBootLeaseValidator(validator) {
+    this.bootLeaseValidator = typeof validator === 'function' ? validator : null;
+  }
+
+  purgeBootSessions(now = Date.now()) {
+    for (const [sessionId, session] of this.bootSessions) {
+      if (session.expiresAt <= now) {
+        this.bootSessions.delete(sessionId);
+      }
+    }
+    for (const [nonce, expiresAt] of this.usedBootNonces) {
+      if (expiresAt <= now) {
+        this.usedBootNonces.delete(nonce);
+      }
+    }
+  }
+
+  revokeBootSession(sessionId) {
+    if (sessionId) {
+      this.bootSessions.delete(sessionId);
+    }
+  }
+
+  sessionTokenFromRequest(req) {
+    const value = req.headers['x-winception-boot-session'];
+    return Array.isArray(value) ? value[0] : String(value ?? '').trim();
+  }
+
+  authorizeBootSession(req, res, remote, metadata = {}) {
+    if (!bootSessionRequired(this.config)) {
+      return null;
+    }
+    this.purgeBootSessions();
+    const token = this.sessionTokenFromRequest(req);
+    const remoteIp = normalizeRemoteIp(req.socket.remoteAddress);
+    const session = [...this.bootSessions.values()].find((candidate) => candidate.token === token);
+    if (!session || session.expiresAt <= Date.now()) {
+      sendJson(res, 401, { ok: false, error: 'A valid boot session is required.' });
+      this.log(`${remote} ${req.method} boot-session 401 invalid-session`);
+      return false;
+    }
+    if (session.remoteIp !== remoteIp) {
+      sendJson(res, 403, { ok: false, error: 'Boot session is bound to a different client.' });
+      this.log(`${remote} ${req.method} boot-session 403 client-mismatch`);
+      return false;
+    }
+    if (this.config.security?.requireLeaseBinding === true
+      && (!this.bootLeaseValidator || !this.bootLeaseValidator(session.remoteIp, session.clientMac))) {
+      sendJson(res, 403, { ok: false, error: 'Boot session is no longer bound to an active DHCP lease.' });
+      return false;
+    }
+    if (metadata.clientId && session.clientId !== sanitizeName(metadata.clientId)) {
+      sendJson(res, 403, { ok: false, error: 'Boot session client identity mismatch.' });
+      this.log(`${remote} ${req.method} boot-session 403 identity-mismatch`);
+      return false;
+    }
+    if (metadata.runId && session.runId && session.runId !== sanitizeName(metadata.runId)) {
+      sendJson(res, 403, { ok: false, error: 'Boot session run identity mismatch.' });
+      this.log(`${remote} ${req.method} boot-session 403 run-mismatch`);
+      return false;
+    }
+    return session;
   }
 
   get running() {
@@ -265,6 +380,127 @@ export class MediaHttpServer extends EventEmitter {
     this.log(`${remote} ${req.method} ${requestUrl.pathname} 204 bytes=0`);
   }
 
+  async handleBootSession(req, res, remote) {
+    if (req.method !== 'POST') {
+      res.writeHead(405, { Allow: 'POST' });
+      res.end();
+      return;
+    }
+
+    let payload;
+    try {
+      const body = await readRequestBody(req, 32 * 1024);
+      payload = body.trim() ? JSON.parse(body) : {};
+    } catch (error) {
+      sendJson(res, 400, { ok: false, error: `Invalid boot session request: ${error.message}` });
+      return;
+    }
+
+    try {
+      const clientPublicKey = payload?.clientPublicKey;
+      if (!clientPublicKey || clientPublicKey.kty !== 'RSA' || !clientPublicKey.n || !clientPublicKey.e) {
+        throw new Error('clientPublicKey must be an RSA JWK');
+      }
+      const publicKey = crypto.createPublicKey({ key: clientPublicKey, format: 'jwk' });
+      if (publicKey.asymmetricKeyType !== 'rsa' || Number(publicKey.asymmetricKeyDetails?.modulusLength ?? 0) < 2048) {
+        throw new Error('clientPublicKey must be a RSA-2048 (or stronger) key');
+      }
+      const nonce = safeClientValue(payload.nonce, 'nonce');
+      const bootId = safeClientValue(payload.bootId, 'bootId');
+      const clientId = safeClientValue(payload.clientId, 'clientId');
+      const clientMac = normalizeMacAddress(payload.clientMac);
+      const runId = safeClientValue(payload.runId, 'runId');
+      const remoteIp = normalizeRemoteIp(req.socket.remoteAddress);
+      const claimedIp = payload.clientIp ? normalizeRemoteIp(payload.clientIp) : remoteIp;
+      if (claimedIp !== remoteIp) {
+        throw new Error('clientIp does not match the network connection');
+      }
+      if (!isIpInRange(remoteIp, this.config.dhcp?.leaseStartIp, this.config.dhcp?.leaseEndIp)) {
+        throw new Error('client is not inside the current DHCP lease range');
+      }
+      if (this.config.security?.requireLeaseBinding === true
+        && (!this.bootLeaseValidator || !this.bootLeaseValidator(remoteIp, clientMac))) {
+        throw new Error('client is not bound to an active DHCP lease');
+      }
+
+      this.purgeBootSessions();
+      if (this.usedBootNonces.has(nonce)) {
+        throw new Error('boot nonce has already been used');
+      }
+      const secrets = loadSecrets(this.config);
+      if (!secrets.pxeinstallPassword || !secrets.windowsUsername || !secrets.windowsPassword) {
+        sendJson(res, 503, { ok: false, error: 'Deployment credentials are not configured on the host.' });
+        return;
+      }
+
+      const now = Date.now();
+      const expiresAt = now + bootSessionTtlMs(this.config);
+      const sessionId = base64UrlEncode(crypto.randomBytes(18));
+      const sessionToken = base64UrlEncode(crypto.randomBytes(32));
+      const serverIp = this.config.host || this.config.serverIp || '127.0.0.1';
+      const share = this.config.smb?.share || '';
+      const shareName = share.split('\\').filter(Boolean).at(-1) || 'OSDCloudiPXE';
+      const secretPayload = {
+        smbUser: 'pxeinstall',
+        smbPassword: secrets.pxeinstallPassword,
+        windowsUsername: secrets.windowsUsername,
+        windowsPassword: secrets.windowsPassword,
+      };
+      const envelopeKey = crypto.randomBytes(32);
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv('aes-256-cbc', envelopeKey, iv);
+      const ciphertext = Buffer.concat([
+        cipher.update(Buffer.from(JSON.stringify(secretPayload), 'utf8')),
+        cipher.final(),
+      ]);
+      const mac = crypto.createHmac('sha256', envelopeKey)
+        .update(Buffer.concat([iv, ciphertext]))
+        .digest();
+      const encryptedKey = crypto.publicEncrypt({
+        key: publicKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha256',
+      }, envelopeKey);
+
+      this.usedBootNonces.set(nonce, expiresAt);
+      this.bootSessions.set(sessionId, {
+        sessionId,
+        token: sessionToken,
+        nonce,
+        bootId,
+        clientId,
+        clientMac,
+        runId: sanitizeName(runId),
+        remoteIp,
+        expiresAt,
+      });
+
+      sendJson(res, 201, {
+        ok: true,
+        version: 1,
+        bootId,
+        sessionId,
+        sessionToken,
+        issuedAt: new Date(now).toISOString(),
+        expiresAt: new Date(expiresAt).toISOString(),
+        server: serverIp,
+        share: `\\\\${serverIp}\\${shareName}`,
+        ...this.torrentBootConfig(serverIp),
+        envelope: {
+          alg: 'RSA-OAEP-SHA256/AES-256-CBC/HMAC-SHA256',
+          encryptedKey: base64UrlEncode(encryptedKey),
+          iv: base64UrlEncode(iv),
+          ciphertext: base64UrlEncode(ciphertext),
+          mac: base64UrlEncode(mac),
+        },
+      });
+      this.log(`${remote} POST /osdcloud/boot-session 201 client=${sanitizeName(clientId)} boot=${sanitizeName(bootId)}`);
+    } catch (error) {
+      sendJson(res, 403, { ok: false, error: error.message });
+      this.log(`${remote} POST /osdcloud/boot-session 403 rejected=${error.message}`);
+    }
+  }
+
   async handleStatus(req, res, remote, requestUrl) {
     const statusRoot = this.config.statusRoot;
     const statusLogPath = path.join(statusRoot, 'progress.jsonl');
@@ -309,6 +545,11 @@ export class MediaHttpServer extends EventEmitter {
       return;
     }
 
+    const bootSession = this.authorizeBootSession(req, res, remote);
+    if (bootSessionRequired(this.config) && !bootSession) {
+      return;
+    }
+
     let payload;
     try {
       const body = await readRequestBody(req);
@@ -319,10 +560,23 @@ export class MediaHttpServer extends EventEmitter {
       return;
     }
 
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      sendJson(res, 400, { error: 'Status payload must be a JSON object.' });
+      this.log(`${remote} POST ${requestUrl.pathname} 400 error=object-payload-required`);
+      return;
+    }
+
+    if (bootSession && !this.authorizeBootSession(req, res, remote, {
+      clientId: payload.clientId,
+      runId: payload.runId,
+    })) {
+      return;
+    }
+
     const event = {
+      ...payload,
       receivedAt: new Date().toISOString(),
       remote,
-      ...payload,
     };
     
     const remoteIp = remote.split(':')[0].replace(/[^0-9.]/g, '');
@@ -364,6 +618,9 @@ export class MediaHttpServer extends EventEmitter {
     fs.writeFileSync(latestStatusPath, `${JSON.stringify(event, null, 2)}\n`, 'utf8');
     fs.writeFileSync(path.join(statusRoot, `${runId}.latest.json`), `${JSON.stringify(event, null, 2)}\n`, 'utf8');
     const runSummary = updateRunSummary(statusRoot, event);
+    if (runSummary.summary?.status === 'completed' || runSummary.summary?.status === 'failed') {
+      this.revokeBootSession(bootSession?.sessionId);
+    }
 
     const logsDir = this.config.paths?.logsDir || path.join(path.dirname(statusRoot), 'logs');
     const runLogDir = path.join(logsDir, 'runs', runId);
@@ -426,6 +683,11 @@ export class MediaHttpServer extends EventEmitter {
       return;
     }
 
+    const bootSession = this.authorizeBootSession(req, res, remote);
+    if (bootSessionRequired(this.config) && !bootSession) {
+      return;
+    }
+
     const contentType = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
     if (contentType !== 'image/png') {
       sendJson(res, 415, { error: 'Only image/png screenshots are accepted.' });
@@ -462,6 +724,10 @@ export class MediaHttpServer extends EventEmitter {
     const clientId = sanitizeName(getMetaValue(req, requestUrl, 'clientId', ['x-osdcloud-client-id', 'x-osdcloud-clientid']));
     const stage = sanitizeName(getMetaValue(req, requestUrl, 'stage', ['x-osdcloud-stage']));
     const source = sanitizeName(getMetaValue(req, requestUrl, 'source', ['x-osdcloud-source']));
+
+    if (bootSession && !this.authorizeBootSession(req, res, remote, { clientId, runId })) {
+      return;
+    }
 
     const statusRoot = this.config.statusRoot;
     const screenshotDir = path.join(statusRoot, 'screenshots', runId);
@@ -505,22 +771,11 @@ export class MediaHttpServer extends EventEmitter {
       return;
     }
 
-    const secrets = loadSecrets(this.config);
-    const serverIp = this.config.host || '127.0.0.1';
-    const share = this.config.smb?.share || '';
-    const shareName = share.split('\\').filter(Boolean).at(-1) || 'OSDCloudiPXE';
-
-    sendJson(res, 200, {
-      ok: true,
-      server: serverIp,
-      share: `\\\\${serverIp}\\${shareName}`,
-      smbUser: 'pxeinstall',
-      smbPassword: secrets.pxeinstallPassword,
-      windowsUsername: secrets.windowsUsername,
-      windowsPassword: secrets.windowsPassword,
-      ...this.torrentBootConfig(serverIp),
+    sendJson(res, 410, {
+      ok: false,
+      error: 'The legacy boot-config endpoint is disabled. Use POST /osdcloud/boot-session with a client public key.',
     });
-    this.log(`${remote} GET ${requestUrl.pathname} 200`);
+    this.log(`${remote} GET ${requestUrl.pathname} 410 legacy-endpoint-disabled`);
   }
 
   async handleTorrentTelemetry(req, res) {
@@ -533,9 +788,20 @@ export class MediaHttpServer extends EventEmitter {
       sendJson(res, 503, { ok: false, error: 'Torrent coordinator unavailable' });
       return;
     }
+    const remote = `${req.socket.remoteAddress ?? ''}:${req.socket.remotePort ?? ''}`;
+    const bootSession = this.authorizeBootSession(req, res, remote);
+    if (bootSessionRequired(this.config) && !bootSession) {
+      return;
+    }
     try {
       const body = await readRequestBody(req, 32 * 1024);
       const payload = body.trim() ? JSON.parse(body) : {};
+      if (bootSession && !this.authorizeBootSession(req, res, remote, {
+        clientId: payload.clientId,
+        runId: payload.runId,
+      })) {
+        return;
+      }
       const inferredIp = String(req.socket.remoteAddress ?? '').replace(/^::ffff:/u, '');
       const result = this.torrentCoordinator.receiveTelemetry(payload, inferredIp);
       sendJson(res, 200, { ok: true, ...result });
@@ -557,6 +823,11 @@ export class MediaHttpServer extends EventEmitter {
     const runId = requestUrl.searchParams.get('runId');
     if (!runId) {
       sendJson(res, 400, { ok: false, error: 'runId is required' });
+      return;
+    }
+    const remote = `${req.socket.remoteAddress ?? ''}:${req.socket.remotePort ?? ''}`;
+    const bootSession = this.authorizeBootSession(req, res, remote, { runId });
+    if (bootSessionRequired(this.config) && !bootSession) {
       return;
     }
     sendJson(res, 200, { ok: true, ...this.torrentCoordinator.getControl(runId) });
@@ -603,7 +874,7 @@ export class MediaHttpServer extends EventEmitter {
         seedMinutes: Number(torrent.seedMinutes ?? 30),
       };
     } catch (error) {
-      this.log(`torrent boot-config unavailable: ${error.message}`);
+      this.log(`torrent boot-session metadata unavailable: ${error.message}`);
       return { torrentEnabled: false };
     }
   }
@@ -716,6 +987,11 @@ export class MediaHttpServer extends EventEmitter {
 
     if (requestUrl.pathname === '/osdcloud/screenshot') {
       await this.handleScreenshot(req, res, remote, requestUrl);
+      return;
+    }
+
+    if (requestUrl.pathname === '/osdcloud/boot-session') {
+      await this.handleBootSession(req, res, remote);
       return;
     }
 

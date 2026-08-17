@@ -61,18 +61,18 @@ test('manual language switch preserves the current reading position', () => {
   assert.doesNotMatch(manual, /window\.scrollTo\(\{ top: 0, behavior: "auto" \}\)/);
 });
 
-test('release metadata is aligned to v1.0.3', () => {
+test('release metadata is aligned to v1.1.0', () => {
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
   const changelog = fs.readFileSync(changelogPath, 'utf8');
   const manual = fs.readFileSync(manualPath, 'utf8');
 
-  assert.equal(packageJson.version, '1.0.3');
-  assert.equal(packageLock.version, '1.0.3');
-  assert.equal(packageLock.packages[''].version, '1.0.3');
-  assert.match(changelog, /## v1\.0\.3 — 2026-07-17/);
-  assert.match(manual, /Operations Manual · v1\.0\.3/);
-  assert.match(manual, /Product documentation for Web v1\.0\.3/);
+  assert.equal(packageJson.version, '1.1.0');
+  assert.equal(packageLock.version, '1.1.0');
+  assert.equal(packageLock.packages[''].version, '1.1.0');
+  assert.match(changelog, /## v1\.1\.0 — 2026-08-18/);
+  assert.match(manual, /Operations Manual · v1\.1\.0/);
+  assert.match(manual, /Product documentation for Web v1\.1\.0/);
 });
 
 test('torrent card renders live wave telemetry and release controls', () => {
@@ -133,23 +133,29 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /class="brand-mark"/);
   assert.match(html, /id="manual-link"[^>]*href="\/manual\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
   assert.match(html, /id="update-check-button"[^>]*data-action="update-check"/);
-  assert.match(html, /id="update-status" role="status">Check updates/);
+  assert.match(html, /id="update-status" role="status">檢查更新/);
   assert.match(html, /id="update-release-link"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
-  assert.match(html, /aria-label="Open deployment manual in a new tab"/);
+  assert.match(html, /aria-label="在新分頁開啟部署操作手冊"/);
   assert.match(html, />menu_book<\/span>/);
-  assert.match(html, /<span class="topbar-manual-label">Manual<\/span>/);
+  assert.match(html, /<span class="topbar-manual-label">使用手冊<\/span>/);
   assert.ok(html.indexOf('id="updated-at"') < html.indexOf('id="manual-link"'));
   assert.ok(html.indexOf('id="manual-link"') < html.indexOf('id="refresh-button"'));
-  // Setup is integrated as a collapsible right rail on the Deploy view (no sidebar chip)
-  assert.match(html, /id="deploy-grid"/);
-  assert.match(html, /id="setup-rail"/);
+  // Beginner home is the default surface; advanced controls live in Management.
+  assert.match(html, /id="beginner-home"/);
+  assert.match(html, /id="beginner-primary-action"[^>]*data-action="beginner-primary"/);
+  assert.equal([...html.matchAll(/data-action="beginner-primary"/g)].length, 1);
+  assert.match(html, /id="management-dialog"/);
+  assert.match(html, /id="management-dialog"[^>]*aria-labelledby="management-title"/);
+  assert.doesNotMatch(html, /<dialog id="management-dialog"[^>]*\bopen\b/);
+  assert.match(html, /id="initialization-dialog"/);
+  assert.match(html, /id="initialization-dialog"[^>]*aria-labelledby="guided-setup-title"/);
   assert.doesNotMatch(html, /id="setup-progress-chip"/);
   assert.doesNotMatch(html, /class="shell-sidebar"/);
   assert.doesNotMatch(html, /id="sidebar"/);
   assert.doesNotMatch(html, /sidebar-step-row/);
-  // Top-bar nav is true workspaces only; Guided setup is controlled by its Deploy rail.
+  // Top-bar nav is the two novice-facing workspaces; guided setup opens as a dialog.
   assert.match(html, /id="tab-dashboard"[\s\S]*id="tab-fleet"/);
-  assert.match(html, />Deploy<\/span>[\s\S]*>Monitor<\/span>/);
+  assert.match(html, />開始部署<\/span>[\s\S]*>部署活動<\/span>/);
   assert.doesNotMatch(html, /id="tab-prepare"/);
   assert.doesNotMatch(html, />Prepare<\/span>/);
   assert.doesNotMatch(html, /id="tab-guided"/);
@@ -162,21 +168,18 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /api\('\/api\/update\/check', \{ method: 'POST' \}\)/);
   assert.doesNotMatch(script, /window\.open\(.*update/);
   assert.match(styles, /@media \(max-width: 1024px\)[\s\S]*\.topbar-manual-label \{ display: none; \}/);
-  // Deploy = dashboard: config summary + status tiles + inline services (no run list/log)
-  assert.match(html, /class="deploy-summary"/);
-  assert.match(html, /class="deploy-summary"[\s\S]*data-action="profiles"[\s\S]*data-action="os-images"[\s\S]*data-action="interfaces"/);
+  // Beginner home: deployment content + one state-derived primary CTA.
+  assert.match(html, /class="beginner-config-card"/);
+  assert.match(html, /class="beginner-config-card"[\s\S]*data-action="profiles"[\s\S]*data-action="os-images"[\s\S]*data-action="interfaces"/);
   assert.match(html, /data-action="profiles" data-operation-allowed="inspect" aria-controls="deployment-profiles-dialog" aria-expanded="false"/);
   assert.match(html, /data-action="os-images" data-operation-allowed="inspect" aria-controls="os-images-dialog" aria-expanded="false"/);
   assert.match(html, /data-action="interfaces" data-operation-allowed="inspect" aria-controls="endpoint-settings-dialog" aria-expanded="false"/);
   assert.match(html, /id="deploy-tooltip" class="deploy-tooltip" role="tooltip" hidden/);
   assert.doesNotMatch(html, /id="summary-action"/);
   assert.doesNotMatch(html, /id="summary-status"/);
-  assert.match(styles, /\.deploy-summary \{[\s\S]*min-height: 64px;/);
-  assert.match(styles, /\.deploy-seg \{[\s\S]*min-height: 62px;[\s\S]*justify-content: center;/);
-  assert.match(styles, /\.deploy-seg\.active \{[\s\S]*box-shadow: inset 0 0 0 2px var\(--accent-tint-border\);/);
-  assert.match(styles, /\.deploy-seg\.active \.deploy-seg-caret \{[\s\S]*transform: rotate\(180deg\);/);
-  assert.match(styles, /\.deploy-summary-compact \{[\s\S]*min-width: 0;/);
-  assert.match(styles, /\.deploy-summary-primary \{[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/);
+  assert.match(styles, /\.beginner-config-card/);
+  assert.match(styles, /\.beginner-next-card/);
+  assert.match(styles, /\.beginner-primary-action/);
   assert.match(styles, /\.deploy-tooltip \{[\s\S]*pointer-events: auto;[\s\S]*position: fixed;[\s\S]*z-index: 80;/);
   assert.match(script, /target\.closest\('\.deploy-seg\[data-deploy-tooltip\]'\)/);
   assert.match(script, /let deployTooltipHideTimer = null/);
@@ -202,13 +205,15 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /id="pipeline-steps"/);
   assert.match(html, /id="live-metrics"/);
   assert.match(html, /id="endpoint-summary"/);
-  assert.match(html, /dashboard-diagnostics-grid grid grid-cols-1 xl:grid-cols-4 gap-sm/);
+  assert.match(html, /class="management-check-grid"/);
   assert.match(html, /id="diagnostics-status-badge"/);
   assert.match(html, /id="diagnostics-run-button"[^>]*data-action="diagnostics-run"/);
   assert.match(html, /id="diagnostics-download-button"[^>]*data-action="diagnostics-download"/);
   assert.match(html, /id="offline-iso-status-badge"/);
   assert.match(html, /id="offline-iso-details"/);
   assert.match(html, /id="offline-iso-create-button"[^>]*data-action="offline-iso-create"/);
+  assert.match(html, /data-management-target="software-test-settings"/);
+  assert.match(html, /data-management-target="logs"/);
   assert.match(html, /id="view-dashboard"/);
   // Fleet view = filter + search + card grid + detail drawer + activity log
   assert.match(html, /id="view-fleet"/);
@@ -431,12 +436,12 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.os-import-table \{\s*min-width: 960px;/);
   assert.match(styles, /\.local-import-grid/);
   assert.match(html, /Endpoint Sync Progress/);
-  assert.match(html, /Runtime Readiness/);
+  assert.match(html, /<h4>Runtime<\/h4>/);
   assert.match(html, /id="runtime-readiness-badge"/);
   assert.match(html, /Driver Cache/);
   assert.match(html, /id="driver-cache-details"/);
   assert.match(html, /data-action="prepare-runtime"/);
-  assert.match(html, /Set up deployment/);
+  assert.match(html, /完成部署準備/);
   assert.match(html, /class="guided-timeline"/);
   assert.match(html, /id="init-progress-fill"/);
   assert.match(html, /id="initialization-dialog"/);
@@ -469,7 +474,10 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /function appendInitializationProjectRootForm\(body, step\)/);
   assert.match(script, /\/api\/project-root/);
   assert.match(script, /state\.initializationRootDraft/);
-  assert.match(script, /initializationSecretsDraft: \{[\s\S]*windowsUsername: DEFAULT_WINDOWS_USERNAME[\s\S]*windowsPassword: ''/);
+  assert.match(script, /state\.current\?\.config\?\.workspace\?\.runtimeRoot/);
+  assert.match(script, /button\.dataset\.initAction = 'save-project-root'/);
+  assert.match(script, /input\.addEventListener\('input'/);
+  assert.match(script, /initializationSecretsDraft: \{[\s\S]*windowsUsername: ''[\s\S]*windowsPassword: ''/);
   assert.match(script, /function captureInitializationSecretsDraft\(\)/);
   assert.match(script, /function clearInitializationSecretsDraft\(\)/);
   assert.match(script, /function initializationDialogBody\(\)/);
@@ -751,7 +759,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.doesNotMatch(styles, /font-family: "Material Symbols Outlined"/);
   assert.match(styles, /--font-body:/);
   assert.match(styles, /--font-mono:/);
-  assert.match(html, />Services</);
+  assert.match(html, /服務控制/);
   assert.doesNotMatch(html, /Quick Actions/);
   assert.doesNotMatch(html, /quick-actions-panel/);
   assert.doesNotMatch(html, /```html/);
@@ -911,8 +919,8 @@ test('web UI makes service cards stateful toggles', () => {
   assert.match(script, /cardAction\.className = `service-card-cta\$\{action === 'dhcp-toggle' && !service\.running \? ' danger' : ''\}`/);
   assert.match(script, /cardAction\.dataset\.icon = service\.running \? 'stop' : 'play_arrow'/);
   assert.match(script, /service-card-action\[data-action\]/);
-  assert.match(styles, /\.deploy-grid \.dash-services-grid \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
-  assert.doesNotMatch(styles, /\.deploy-grid \.dash-services-grid \{\s*grid-template-columns: repeat\(2, 1fr\);/);
+  assert.match(styles, /\.dash-services-grid \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.doesNotMatch(styles, /\.dash-services-grid \{\s*grid-template-columns: repeat\(2, 1fr\);/);
   assert.match(styles, /\.service-card-cta/);
   assert.match(styles, /\.service-card-cta\.danger/);
   assert.match(styles, /\.service-card\[data-service-state="stopped"\] \.service-switch/);
@@ -948,7 +956,7 @@ test('operations buttons use neutral, warning, and danger severity without blue 
   const styles = readWebStyles();
 
   assert.doesNotMatch(html, /quiet-action/);
-  assert.doesNotMatch(html, /primary-action/);
+  assert.match(html, /class="[^"]*beginner-primary-action[^"]*"/);
   assert.doesNotMatch(styles, /button\.quiet-action/);
   assert.doesNotMatch(styles, /button\.primary-action/);
   assert.match(styles, /button \{\s*appearance: none;[\s\S]*font: 500 12px\/16px Inter, sans-serif;/);
@@ -972,13 +980,13 @@ test('web UI keeps local component layer', () => {
   assert.match(styles, /\.preflight-summary-list/);
   assert.match(styles, /-webkit-line-clamp: 2/);
   assert.match(styles, /\.dashboard-diagnostics-grid \{\s*display: grid;[\s\S]*grid-template-columns: minmax\(0, 1fr\);/);
-  // 暖紙墨 shell pins: top bar + full-width content + collapsible setup rail
+  // 暖紙墨 shell pins: top bar + full-width content + beginner home
   assert.match(styles, /\.shell \{\s*display: grid;[\s\S]*grid-template-rows: var\(--topbar-h\) minmax\(0, 1fr\) auto;/);
   assert.match(styles, /\.topbar \{/);
   assert.match(styles, /\.shell-main > \* \{[\s\S]*max-width: none;/);
   assert.match(styles, /--topbar-h:\s+56px/);
-  assert.match(styles, /\.deploy-grid \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) 40%;/);
-  assert.match(styles, /\.deploy-grid\.setup-collapsed \{/);
+  assert.match(styles, /\.beginner-page \{[\s\S]*justify-content: center;/);
+  assert.doesNotMatch(styles, /\.deploy-grid\.setup-collapsed \{/);
   assert.doesNotMatch(styles, /grid-template-areas:\s*"operations endpoint log"/);
   assert.doesNotMatch(styles, /\.preflight-summary-panel \{[\s\S]*max-height: 220px;/);
   assert.doesNotMatch(styles, /#view-dashboard\.active \.operations-panel \{\s*min-height:/);

@@ -65,9 +65,6 @@ function Get-DeploymentServerCandidates {
         Write-Warning "Unable to query network adapter configuration: $($_.Exception.Message)"
     }
 
-    $candidates.Add('192.168.100.1')
-    $candidates.Add('192.168.88.1')
-    $candidates.Add('192.168.77.1')
     return @($candidates | Where-Object {
         -not [string]::IsNullOrWhiteSpace([string] $_) -and [string] $_ -ne '0.0.0.0'
     } | Select-Object -Unique)
@@ -85,7 +82,7 @@ function Test-DeploymentServer {
     }
 }
 
-$server = '192.168.77.1' # Default fallback
+$server = $null
 $serverDetected = $false
 $maxDetectionAttempts = 6
 for ($attempt = 1; $attempt -le $maxDetectionAttempts; $attempt++) {
@@ -110,99 +107,7 @@ for ($attempt = 1; $attempt -le $maxDetectionAttempts; $attempt++) {
 }
 
 if (-not $serverDetected) {
-    Write-Warning "Using fallback deployment server at $server."
-}
-
-# Fetch dynamic boot configuration from the detected server
-$bootConfigUrl = "http://$server/osdcloud/boot-config"
-Write-Host "Fetching dynamic boot configuration from $bootConfigUrl..."
-$bootConfig = $null
-try {
-    $bootConfig = Invoke-RestMethod -Uri $bootConfigUrl -Method Get -DisableKeepAlive -TimeoutSec 5 -ErrorAction Stop
-    Write-Host "Successfully loaded boot configuration from server."
-} catch {
-    Write-Warning "Failed to load dynamic boot configuration from HTTP server: $($_.Exception.Message)"
-}
-
-# Map variables based on boot config, falling back to local/default settings
-if ($bootConfig -and $bootConfig.ok) {
-    $server = $bootConfig.server
-    $share = $bootConfig.share
-    $smbUser = $bootConfig.smbUser
-    $smbPassword = $bootConfig.smbPassword
-    $windowsUsername = $bootConfig.windowsUsername
-    $windowsPassword = $bootConfig.windowsPassword
-
-    # Dynamically write secrets.json to RAM disk so other scripts can read them
-    $ramSecretsPath = Join-Path $PSScriptRoot 'secrets.json'
-    [ordered]@{
-        pxeinstallPassword = $smbPassword
-        windowsUsername = $windowsUsername
-        windowsPassword = $windowsPassword
-    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ramSecretsPath -Encoding UTF8 -Force
-} else {
-    Write-Warning "Using static/fallback variables for deployment."
-    $share = "\\$server\OSDCloudiPXE"
-    $smbUser = "pxeinstall"
-    $smbPassword = ""
-    $windowsUsername = "davis"
-    $windowsPassword = ""
-}
-
-$statusUrl = "http://$server/osdcloud/status"
-$screenshotUrl = "http://$server/osdcloud/screenshot"
-$torrentTelemetryUrl = "http://$server/osdcloud/torrent-telemetry"
-$torrentControlUrl = "http://$server/osdcloud/torrent-control"
-
-
-function Get-DeploymentSecretPathCandidates {
-    $candidates = @()
-    if ($PSScriptRoot) {
-        $candidates += Join-Path $PSScriptRoot 'secrets.json'
-        $candidates += Join-Path $PSScriptRoot 'Config\secrets.json'
-    }
-
-    $candidates += Get-PSDrive -PSProvider FileSystem |
-        Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
-        ForEach-Object {
-            "$($_.Name):\OSDCloud\secrets.json"
-            "$($_.Name):\OSDCloud\Config\secrets.json"
-        }
-
-    $candidates | Where-Object { $_ } | Select-Object -Unique
-}
-
-function Get-DeploymentSecret {
-    param(
-        [Parameter(Mandatory)][string] $JsonName,
-        [Parameter(Mandatory)][string] $EnvironmentName
-    )
-
-    foreach ($scope in @('Process', 'Machine')) {
-        $value = [Environment]::GetEnvironmentVariable($EnvironmentName, $scope)
-        if (-not [string]::IsNullOrWhiteSpace($value)) {
-            return [string] $value
-        }
-    }
-
-    foreach ($candidate in Get-DeploymentSecretPathCandidates) {
-        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
-            continue
-        }
-
-        try {
-            $secrets = Get-Content -LiteralPath $candidate -Raw | ConvertFrom-Json
-            $value = $secrets.$JsonName
-            if (-not [string]::IsNullOrWhiteSpace($value)) {
-                return [string] $value
-            }
-        }
-        catch {
-            Write-Warning "Unable to read deployment secrets from $candidate`: $($_.Exception.Message)"
-        }
-    }
-
-    throw "Missing required deployment secret '$JsonName'. Provide an untracked secrets.json in the OSDCloud runtime or set $EnvironmentName."
+    throw 'No deployment server was discovered from the current DHCP/gateway configuration.'
 }
 
 function Get-DeploymentClientId {
@@ -218,9 +123,157 @@ function Get-DeploymentClientId {
     return $env:COMPUTERNAME
 }
 
+function Get-DeploymentClientMac {
+    try {
+        $adapters = @(Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -ErrorAction Stop | Where-Object { $_.IPEnabled })
+        foreach ($adapter in $adapters) {
+            $mac = ([string] $adapter.MACAddress).Replace(':', '-').ToUpperInvariant()
+            if ($mac -match '^[0-9A-F]{2}(-[0-9A-F]{2}){5}$') {
+                return $mac
+            }
+        }
+    }
+    catch {
+    }
+
+    try {
+        $line = @(& getmac.exe /fo csv /nh 2>$null | Where-Object { $_ -match '[0-9A-F]{2}(-[0-9A-F]{2}){5}' } | Select-Object -First 1)
+        if ($line -and $line[0] -match '([0-9A-F]{2}(?:-[0-9A-F]{2}){5})') {
+            return $matches[1].ToUpperInvariant()
+        }
+    }
+    catch {
+    }
+
+    throw 'Unable to determine the WinPE client MAC address for DHCP lease binding.'
+}
+
 $clientId = Get-DeploymentClientId
+$clientMac = Get-DeploymentClientMac
 $runId = "$(Get-Date -Format 'yyyyMMdd-HHmmss')-$($clientId -replace '[^A-Za-z0-9_.-]', '_')"
 $stopProgressPath = Join-Path $logRoot 'Stop-OSDCloudProgressReporter.txt'
+
+function ConvertTo-Base64Url {
+    param([Parameter(Mandatory)][byte[]] $Bytes)
+    ([Convert]::ToBase64String($Bytes)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+function ConvertFrom-Base64Url {
+    param([Parameter(Mandatory)][string] $Value)
+    $base64 = $Value.Replace('-', '+').Replace('_', '/')
+    switch ($base64.Length % 4) {
+        2 { $base64 += '==' }
+        3 { $base64 += '=' }
+        1 { throw 'Invalid base64url value.' }
+    }
+    [Convert]::FromBase64String($base64)
+}
+
+function Unprotect-BootSecretEnvelope {
+    param(
+        [Parameter(Mandatory)] $Envelope,
+        [Parameter(Mandatory)] $Rsa
+    )
+
+    $encryptedKey = ConvertFrom-Base64Url -Value ([string] $Envelope.encryptedKey)
+    $iv = ConvertFrom-Base64Url -Value ([string] $Envelope.iv)
+    $ciphertext = ConvertFrom-Base64Url -Value ([string] $Envelope.ciphertext)
+    $providedMac = ConvertFrom-Base64Url -Value ([string] $Envelope.mac)
+    $key = $Rsa.Decrypt($encryptedKey, [System.Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
+
+    $hmac = [System.Security.Cryptography.HMACSHA256]::new($key)
+    try {
+        $authData = New-Object byte[] ($iv.Length + $ciphertext.Length)
+        [System.Buffer]::BlockCopy($iv, 0, $authData, 0, $iv.Length)
+        [System.Buffer]::BlockCopy($ciphertext, 0, $authData, $iv.Length, $ciphertext.Length)
+        $computedMac = $hmac.ComputeHash($authData)
+    }
+    finally {
+        $hmac.Dispose()
+    }
+    if ([Convert]::ToBase64String($computedMac) -ne [Convert]::ToBase64String($providedMac)) {
+        throw 'Boot secret envelope authentication failed.'
+    }
+
+    $aes = [System.Security.Cryptography.Aes]::Create()
+    $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC
+    $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7
+    $aes.Key = $key
+    $aes.IV = $iv
+    $plainStream = [System.IO.MemoryStream]::new()
+    $cryptoStream = [System.Security.Cryptography.CryptoStream]::new($plainStream, $aes.CreateDecryptor(), [System.Security.Cryptography.CryptoStreamMode]::Write)
+    try {
+        $cryptoStream.Write($ciphertext, 0, $ciphertext.Length)
+        $cryptoStream.FlushFinalBlock()
+        return [System.Text.Encoding]::UTF8.GetString($plainStream.ToArray()) | ConvertFrom-Json
+    }
+    finally {
+        $cryptoStream.Dispose()
+        $plainStream.Dispose()
+        $aes.Dispose()
+    }
+}
+
+$bootSessionUrl = "http://$server/osdcloud/boot-session"
+Write-Host "Requesting an ephemeral boot session from $server..."
+$rsa = [System.Security.Cryptography.RSA]::Create()
+$rsa.KeySize = 2048
+$publicParameters = $rsa.ExportParameters($false)
+$bootId = [guid]::NewGuid().ToString('N')
+$clientNonceBytes = New-Object byte[] 32
+$random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try {
+    $random.GetBytes($clientNonceBytes)
+}
+finally {
+    $random.Dispose()
+}
+$clientNonce = ConvertTo-Base64Url -Bytes $clientNonceBytes
+$bootRequest = [ordered]@{
+    clientPublicKey = [ordered]@{
+        kty = 'RSA'
+        n = ConvertTo-Base64Url -Bytes $publicParameters.Modulus
+        e = ConvertTo-Base64Url -Bytes $publicParameters.Exponent
+    }
+    nonce = $clientNonce
+    bootId = $bootId
+    clientId = $clientId
+    clientMac = $clientMac
+    runId = $runId
+} | ConvertTo-Json -Depth 8 -Compress
+
+try {
+    $bootConfig = Invoke-RestMethod -Uri $bootSessionUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $bootRequest -TimeoutSec 10 -ErrorAction Stop
+    if (-not $bootConfig.ok -or [string]::IsNullOrWhiteSpace([string] $bootConfig.sessionToken)) {
+        throw 'Host did not issue a boot session.'
+    }
+    $secretEnvelope = Unprotect-BootSecretEnvelope -Envelope $bootConfig.envelope -Rsa $rsa
+    $server = [string] $bootConfig.server
+    $share = [string] $bootConfig.share
+    $smbUser = [string] $secretEnvelope.smbUser
+    $smbPassword = [string] $secretEnvelope.smbPassword
+    $windowsUsername = [string] $secretEnvelope.windowsUsername
+    $windowsPassword = [string] $secretEnvelope.windowsPassword
+    if ([string]::IsNullOrWhiteSpace($smbPassword) -or [string]::IsNullOrWhiteSpace($windowsUsername) -or [string]::IsNullOrWhiteSpace($windowsPassword)) {
+        throw 'Boot session envelope did not contain complete deployment credentials.'
+    }
+    $bootSessionToken = [string] $bootConfig.sessionToken
+    $bootSessionHeaders = @{ 'X-Winception-Boot-Session' = $bootSessionToken }
+    $ramSecretsPath = Join-Path $PSScriptRoot 'secrets.json'
+    [ordered]@{
+        pxeinstallPassword = $smbPassword
+        windowsUsername = $windowsUsername
+        windowsPassword = $windowsPassword
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ramSecretsPath -Encoding UTF8 -Force
+}
+catch {
+    throw "Ephemeral boot session negotiation failed: $($_.Exception.Message)"
+}
+
+$statusUrl = "http://$server/osdcloud/status"
+$screenshotUrl = "http://$server/osdcloud/screenshot"
+$torrentTelemetryUrl = "http://$server/osdcloud/torrent-telemetry"
+$torrentControlUrl = "http://$server/osdcloud/torrent-control"
 
 function Send-DeploymentStatus {
     param(
@@ -245,7 +298,7 @@ function Send-DeploymentStatus {
 
     $json = $payload | ConvertTo-Json -Depth 8 -Compress
     try {
-        Invoke-WebRequest -Uri $statusUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
+        Invoke-WebRequest -Uri $statusUrl -Method Post -Headers $bootSessionHeaders -ContentType 'application/json' -DisableKeepAlive -Body $json -UseBasicParsing -TimeoutSec 5 | Out-Null
         return
     }
     catch {
@@ -254,6 +307,7 @@ function Send-DeploymentStatus {
     try {
         $client = [System.Net.WebClient]::new()
         $client.Headers['Content-Type'] = 'application/json'
+        $client.Headers['X-Winception-Boot-Session'] = $bootSessionToken
         [void] $client.UploadString($statusUrl, 'POST', $json)
     }
     catch {
@@ -327,7 +381,7 @@ function Send-Screenshot {
         $path = Capture-Screenshot -Stage $Stage
         $uri = New-ScreenshotUri -Stage $Stage -Source $Source
         try {
-            Invoke-WebRequest -Uri $uri -Method Post -ContentType 'image/png' -DisableKeepAlive -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
+            Invoke-WebRequest -Uri $uri -Method Post -Headers $bootSessionHeaders -ContentType 'image/png' -DisableKeepAlive -InFile $path -UseBasicParsing -TimeoutSec 10 | Out-Null
             return
         }
         catch {
@@ -336,6 +390,7 @@ function Send-Screenshot {
         $client = [System.Net.WebClient]::new()
         try {
             $client.Headers['Content-Type'] = 'image/png'
+            $client.Headers['X-Winception-Boot-Session'] = $bootSessionToken
             [void] $client.UploadFile($uri, 'POST', $path)
         }
         finally {
@@ -476,6 +531,7 @@ function Save-DeploymentStatusMetadata {
         $metadata = [ordered]@{
             runId = $runId
             clientId = $clientId
+            bootSessionToken = $bootSessionToken
             statusUrl = $statusUrl
             screenshotUrl = $screenshotUrl
             server = $server
@@ -585,7 +641,7 @@ function Send-TorrentTelemetry {
     $lastError = $null
     foreach ($attempt in 1..2) {
         try {
-            return Invoke-RestMethod -Uri $torrentTelemetryUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $body -TimeoutSec 3 -ErrorAction Stop
+            return Invoke-RestMethod -Uri $torrentTelemetryUrl -Method Post -Headers $bootSessionHeaders -ContentType 'application/json' -DisableKeepAlive -Body $body -TimeoutSec 3 -ErrorAction Stop
         }
         catch {
             $lastError = $_
@@ -602,7 +658,7 @@ function Set-TorrentTransferPhase {
     $Context.fallback = $Fallback
     try {
         $temp = "$($Context.contextPath).tmp"
-        $Context | Select-Object runId, clientId, gid, rpcSecret, phase, fallback, telemetryUrl, controlUrl, statePath, stopPath, completedAt, seedDeadline, seedBaseMinutes, seedLocalExtensionMinutes, seedHostExtensionMinutes, maxSeedMinutes |
+        $Context | Select-Object runId, clientId, bootSessionToken, gid, rpcSecret, phase, fallback, telemetryUrl, controlUrl, statePath, stopPath, completedAt, seedDeadline, seedBaseMinutes, seedLocalExtensionMinutes, seedHostExtensionMinutes, maxSeedMinutes |
             ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $temp -Encoding UTF8 -Force
         Move-Item -LiteralPath $temp -Destination $Context.contextPath -Force
     }
@@ -666,7 +722,7 @@ function Wait-TorrentSeedWindow {
     while ($true) {
         if ($Context.process.HasExited) { $reason = 'aria2-exit'; break }
         try {
-            $control = Invoke-RestMethod -Uri "$torrentControlUrl`?runId=$([Uri]::EscapeDataString($runId))" -Method Get -DisableKeepAlive -TimeoutSec 2 -ErrorAction Stop
+            $control = Invoke-RestMethod -Uri "$torrentControlUrl`?runId=$([Uri]::EscapeDataString($runId))" -Method Get -Headers $bootSessionHeaders -DisableKeepAlive -TimeoutSec 2 -ErrorAction Stop
             if ($control.released) { $reason = 'host-release'; break }
             $requestedHostMinutes = if ($control.PSObject.Properties['extensionMinutes']) { [int] $control.extensionMinutes } else { 0 }
             $hostDelta = $requestedHostMinutes - [int] $Context.seedHostExtensionMinutes
@@ -783,7 +839,7 @@ function Invoke-TorrentOsImageDownload {
         return $null
     }
     if ([string]::IsNullOrWhiteSpace([string] $BootConfig.torrentUrl) -or [string]::IsNullOrWhiteSpace([string] $BootConfig.osWimSha256)) {
-        Send-DeploymentStatus -Stage 'torrent-fallback' -Message 'Torrent metadata incomplete in boot-config; using SMB-direct apply.'
+        Send-DeploymentStatus -Stage 'torrent-fallback' -Message 'Torrent metadata incomplete in boot-session response; using SMB-direct apply.'
         return $null
     }
 
@@ -1070,6 +1126,7 @@ function Invoke-TorrentOsImageDownload {
             fallback = $emergencyFallback
             runId = $runId
             clientId = $clientId
+            bootSessionToken = $bootSessionToken
             telemetryUrl = $torrentTelemetryUrl
             controlUrl = $torrentControlUrl
             contextPath = $contextPath
@@ -1116,7 +1173,8 @@ if (Test-Path -LiteralPath $progressReporter -PathType Leaf) {
         '-File', $progressReporter,
         '-StatusUrl', $statusUrl,
         '-RunId', $runId,
-        '-ClientId', $clientId,
+            '-ClientId', $clientId,
+            '-BootSessionToken', $bootSessionToken,
         '-ScreenshotUrl', $screenshotUrl,
         '-TranscriptPath', $logPath,
         '-StopFile', $stopProgressPath,
@@ -1142,11 +1200,8 @@ else {
 Import-Module OSD -Force
 
 cmd.exe /c 'net use Z: /delete /y' | Out-Null
-if ([string]::IsNullOrWhiteSpace($smbPassword)) {
-    $smbPassword = Get-DeploymentSecret -JsonName 'pxeinstallPassword' -EnvironmentName 'OSDCLOUD_PXEINSTALL_PASSWORD'
-}
-if ([string]::IsNullOrWhiteSpace($smbUser)) {
-    $smbUser = 'pxeinstall'
+if ([string]::IsNullOrWhiteSpace($smbPassword) -or [string]::IsNullOrWhiteSpace($smbUser)) {
+    throw 'Boot session did not provide complete SMB credentials.'
 }
 $netUse = & net.exe use Z: $share "/user:$server\$smbUser" $smbPassword /persistent:no 2>&1
 $netUse | ForEach-Object { Write-Host $_ }

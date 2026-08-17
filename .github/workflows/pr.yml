@@ -1,0 +1,100 @@
+name: Winception PR checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winception-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-and-web:
+    name: Source, Web, API and PowerShell checks
+    runs-on: [self-hosted, windows, winception-lab]
+    timeout-minutes: 30
+    env:
+      WINCEPTION_TEST_ROOT: ${{ github.workspace }}
+      NPM_CONFIG_CACHE: ${{ runner.temp }}\winception-npm-cache
+    steps:
+      - name: Checkout PR source
+        uses: actions/checkout@v4
+
+      - name: Assert isolated source checkout
+        shell: powershell
+        run: |
+          $workspace = [IO.Path]::GetFullPath($env:WINCEPTION_TEST_ROOT)
+          if ($workspace.StartsWith('C:\OSDCloud', [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'PR checkout must not be C:\OSDCloud or a child of the live runtime.'
+          }
+          New-Item -ItemType Directory -Path $env:NPM_CONFIG_CACHE -Force | Out-Null
+
+      - name: Use Node 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Install source dependencies
+        shell: powershell
+        run: npm ci --no-audit --no-fund
+
+      - name: Check JavaScript syntax
+        shell: powershell
+        run: |
+          $files = @(git ls-files '*.js')
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to enumerate tracked JavaScript files.' }
+          foreach ($file in $files) {
+            node --check -- $file
+            if ($LASTEXITCODE -ne 0) { throw "node --check failed: $file" }
+          }
+
+      - name: Check PowerShell syntax
+        shell: powershell
+        run: |
+          $files = @(git ls-files '*.ps1')
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to enumerate tracked PowerShell files.' }
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $env:WINCEPTION_TEST_ROOT $file),
+              [ref] $tokens,
+              [ref] $errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              throw ("PowerShell syntax failed: {0} ({1})" -f $file, $errors[0].Message)
+            }
+          }
+
+      - name: Run project checks
+        shell: powershell
+        run: npm run check
+
+      - name: Run unit and integration tests
+        shell: powershell
+        run: npm test
+
+      - name: Run local smoke test
+        shell: powershell
+        run: npm run smoke
+
+      - name: Run Web and Lab automation targeted tests
+        shell: powershell
+        run: node --test tools/osdcloud-console/test/webUi.test.js tools/osdcloud-console/test/beginner.test.js tools/osdcloud-console/test/labAutomation.test.js
+
+      - name: Write PR test summary
+        if: always()
+        shell: powershell
+        run: |
+          $summary = @(
+            '## Winception PR checks'
+            ''
+            '- Source checkout is isolated from C:\OSDCloud'
+            '- Runtime mutation: none'
+            '- Endpoint Sync / Profile publish / DHCP: not executed'
+            '- Services and Hyper-V deployment: not executed'
+          ) -join [Environment]::NewLine
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary

@@ -3,8 +3,14 @@ import { EventEmitter } from 'node:events';
 import { appendLog } from './logger.js';
 
 export function ipv4ToBytes(address) {
-  return address.split('.').map((part) => {
-    const value = Number.parseInt(part, 10);
+  const text = String(address ?? '');
+  const parts = text.split('.');
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/u.test(part))) {
+    throw new Error(`Invalid IPv4 address: ${address}`);
+  }
+
+  return parts.map((part) => {
+    const value = Number(part);
     if (!Number.isInteger(value) || value < 0 || value > 255) {
       throw new Error(`Invalid IPv4 address: ${address}`);
     }
@@ -147,13 +153,15 @@ function pxeVendorOption(serverIp) {
 }
 
 export class LeasePool {
-  constructor(startIp, endIp, reservations = []) {
+  constructor(startIp, endIp, reservations = [], leaseSeconds = 3600) {
     this.start = ipv4ToUInt32(startIp);
     this.end = ipv4ToUInt32(endIp);
     if (this.end < this.start) {
       throw new Error(`LeaseEndIp must be greater than or equal to LeaseStartIp: ${startIp} - ${endIp}`);
     }
     this.byMac = new Map();
+    this.expiresAtByMac = new Map();
+    this.leaseSeconds = Math.max(60, Number(leaseSeconds) || 3600);
     this.reservations = new Map();
     this.reservedIps = new Map();
 
@@ -178,6 +186,7 @@ export class LeasePool {
   }
 
   isLeased(address, requestMac) {
+    this.pruneExpired();
     const normalizedMac = normalizeMacAddress(requestMac);
     if (this.reservedIps.has(address) && this.reservedIps.get(address) !== normalizedMac) {
       return true;
@@ -191,27 +200,55 @@ export class LeasePool {
     return false;
   }
 
+  pruneExpired(now = Date.now()) {
+    for (const [mac, expiresAt] of this.expiresAtByMac.entries()) {
+      if (expiresAt <= now) {
+        this.expiresAtByMac.delete(mac);
+        this.byMac.delete(mac);
+      }
+    }
+  }
+
+  rememberLease(mac, address, now = Date.now()) {
+    this.byMac.set(mac, address);
+    this.expiresAtByMac.set(mac, now + this.leaseSeconds * 1000);
+  }
+
+  hasActiveLease(address, requestMac, now = Date.now()) {
+    this.pruneExpired(now);
+    let normalizedMac;
+    try {
+      normalizedMac = normalizeMacAddress(requestMac);
+    } catch {
+      return false;
+    }
+    return this.byMac.get(normalizedMac) === String(address ?? '').trim()
+      && (this.expiresAtByMac.get(normalizedMac) ?? 0) > now;
+  }
+
   getLease(mac, requestedIp) {
+    this.pruneExpired();
     const normalizedMac = normalizeMacAddress(mac);
     const reservedIp = this.reservations.get(normalizedMac);
     if (reservedIp) {
-      this.byMac.set(normalizedMac, reservedIp);
+      this.rememberLease(normalizedMac, reservedIp);
       return reservedIp;
     }
 
     if (this.byMac.has(normalizedMac)) {
+      this.expiresAtByMac.set(normalizedMac, Date.now() + this.leaseSeconds * 1000);
       return this.byMac.get(normalizedMac);
     }
 
     if (this.hasAddress(requestedIp) && !this.isLeased(requestedIp, normalizedMac)) {
-      this.byMac.set(normalizedMac, requestedIp);
+      this.rememberLease(normalizedMac, requestedIp);
       return requestedIp;
     }
 
     for (let candidate = this.start; candidate <= this.end; candidate += 1) {
       const candidateIp = uint32ToIPv4(candidate >>> 0);
       if (!this.isLeased(candidateIp, normalizedMac)) {
-        this.byMac.set(normalizedMac, candidateIp);
+        this.rememberLease(normalizedMac, candidateIp);
         return candidateIp;
       }
     }
@@ -316,8 +353,12 @@ export class DhcpResponder extends EventEmitter {
       return;
     }
 
-    this.leasePool = new LeasePool(this.config.leaseStartIp, this.config.leaseEndIp, this.config.reservations);
+    this.leasePool = new LeasePool(this.config.leaseStartIp, this.config.leaseEndIp, this.config.reservations, this.config.leaseSeconds);
     this.leasePoolKey = nextKey;
+  }
+
+  hasActiveLease(address, mac) {
+    return Boolean(this.leasePool?.hasActiveLease(address, mac));
   }
 
   async start() {

@@ -52,22 +52,20 @@ function normalizedTrackedText(relativePath) {
 }
 
 test('fresh clone does not commit a preselected Windows image', () => {
-  const config = readTrackedJson('config/osdcloud-console.json');
-  const activeProfileId = config.deploymentProfiles.activeProfile;
-  const profile = readTrackedJson(path.join('config', 'deployment-profiles', `${activeProfileId}.json`));
-  const catalog = readTrackedJson('config/os-image-catalog.json');
+  const config = readJson('config/osdcloud-console.json');
+  const catalog = readJson('config/os-image-catalog.json');
 
   assert.equal(config.osImage.activeImage, null);
+  assert.equal(config.deploymentProfiles.activeProfile, null);
   assert.equal(config.paths.imageNamePattern, undefined);
-  assert.equal(config.smb.imagePath, '');
+  assert.equal(config.smb.imagePath, null);
   assert.ok(Array.isArray(catalog.images));
-  assert.ok(profile.osImage === undefined || typeof profile.osImage === 'string');
   assert.equal(trackedExists('osdcloud-assets/OSDCloud/Media/OSDCloud/OS/selected-os.json'), false);
   assert.equal(trackedExists('osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/selected-profile.json'), false);
 });
 
 test('All in One profile pins English UI, regional format, and input independently from Taipei time zone', () => {
-  const profile = readJson('config/deployment-profiles/IZVZO7PU.json');
+  const profile = readJson('fixtures/development/config/deployment-profiles/IZVZO7PU.json');
   assert.match(profile.osImage, /EN-US/u);
   assert.equal(profile.displayLanguage, 'en-US');
   assert.equal(profile.locale, 'en-US');
@@ -76,9 +74,9 @@ test('All in One profile pins English UI, regional format, and input independent
 });
 
 test('active custom script is mirrored and handed off to deployed Windows', () => {
-  const profile = readJson('config/deployment-profiles/IZVZO7PU.json');
+  const profile = readJson('fixtures/development/config/deployment-profiles/IZVZO7PU.json');
   const scriptEntry = profile.installSequence?.find((entry) => entry.type === 'script' && entry.id === 'SC-J5GF07Y2');
-  const sourceScript = 'Scripts/SC-J5GF07Y2/run.ps1';
+  const sourceScript = 'fixtures/development/Scripts/SC-J5GF07Y2/run.ps1';
   const mirroredScript = 'osdcloud-assets/OSDCloud/Media/OSDCloud/Scripts/SC-J5GF07Y2/run.ps1';
   const shutdownScript = readText('osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1');
   const embeddedShutdownScript = readText('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1');

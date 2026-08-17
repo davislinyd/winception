@@ -1,7 +1,7 @@
 param(
     [string]$VmPrefix = 'winception-client-',
     [int]$StartIndex = 1,
-    [int]$EndIndex = 4,
+    [int]$EndIndex = 3,
     [long]$MemoryStartupBytes = 4GB,
     [switch]$PassThru
 )

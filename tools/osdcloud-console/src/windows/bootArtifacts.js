@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { appRootForConfig, stateRootForConfig } from '../config.js';
+import { appRootForConfig } from '../config.js';
 import { runPowerShell } from './powershell.js';
 import { getFileSha256Sync } from './shared.js';
 
@@ -36,19 +36,6 @@ export const BOOT_WIM_TEMPLATE_SOURCES = [
   ['OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1', ['osdcloud-assets', 'OSDCloud', 'Config', 'Scripts', 'SetupComplete', 'SetupComplete.ps1']],
 ];
 
-export function resolveBootWimSecretSource(config) {
-  const repoRoot = resolveRepoRoot(config);
-  const stateRoot = stateRootForConfig(config);
-  const runtimeRoot = config.paths?.osdCloudRoot || 'C:\\OSDCloud';
-  const candidates = [
-    path.join(stateRoot, 'config', 'osdcloud-secrets.json'),
-    path.join(repoRoot, 'config', 'osdcloud-secrets.json'),
-    path.join(runtimeRoot, 'secrets.json'),
-    path.join(runtimeRoot, 'Config', 'secrets.json'),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate));
-}
-
 export function buildBootWimSyncInputs(config) {
   const repoRoot = resolveRepoRoot(config);
   const serverIp = String(config.adapter?.serverIp ?? '').trim();
@@ -59,17 +46,10 @@ export function buildBootWimSyncInputs(config) {
     },
     secrets: {
       present: false,
+      mode: 'ephemeral-boot-session',
     },
     templates: {},
   };
-
-  const secretSource = resolveBootWimSecretSource(config);
-  if (secretSource) {
-    syncInputs.secrets = {
-      present: true,
-      sha256: getFileSha256Sync(secretSource),
-    };
-  }
 
   for (const [relativePath, parts] of BOOT_WIM_TEMPLATE_SOURCES) {
     const sourcePath = path.join(repoRoot, ...parts);
@@ -93,7 +73,7 @@ export function diffBootWimSyncInputs(expected, actual) {
     mismatches.push('endpoint settings');
   }
   if (JSON.stringify(expected?.secrets ?? null) !== JSON.stringify(actual?.secrets ?? null)) {
-    mismatches.push('deployment secrets');
+    mismatches.push('embedded credential material');
   }
   if (JSON.stringify(expected?.templates ?? null) !== JSON.stringify(actual?.templates ?? null)) {
     mismatches.push('WinPE template files');

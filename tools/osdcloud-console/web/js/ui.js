@@ -253,18 +253,13 @@ export async function copyTextWithFeedback(button, value) {
   }, 1200);
 }
 
-export function setSetupRailCollapsed(collapsed) {
-  state.setupRailCollapsed = collapsed;
-  if (elements.deployGrid) {
-    elements.deployGrid.classList.toggle('setup-collapsed', collapsed);
-  }
-  elements.setupRailCollapse?.setAttribute('aria-expanded', String(!collapsed));
-}
-
 export function setConsoleDockCollapsed(collapsed) {
   state.consoleDockCollapsed = collapsed;
   if (elements.consoleDock) {
     elements.consoleDock.classList.toggle('collapsed', collapsed);
+    if (!collapsed) {
+      elements.consoleDock.classList.remove('console-dock-idle');
+    }
   }
   elements.consoleDockHead?.setAttribute('aria-expanded', String(!collapsed));
   if (!collapsed && elements.logs) {
@@ -297,6 +292,13 @@ export function renderConsoleDock(appState) {
   const operation = appState.operation ?? null;
   const pending = state.initializationPendingAction;
   const running = operation?.running === true || Boolean(pending);
+  const activeTest = appState.softwareTest?.active ?? null;
+  const hasActivity = running
+    || operation?.status === 'failed'
+    || operation?.status === 'completed'
+    || Boolean(operation?.error)
+    || Boolean(activeTest);
+  elements.consoleDock.classList.toggle('console-dock-idle', !hasActivity);
   const label = operation?.label ?? (pending ? 'Starting operation...' : '');
   elements.consoleOpLabel.textContent = label;
   let statusText = 'Idle';
@@ -318,7 +320,6 @@ export function renderConsoleDock(appState) {
     elements.consoleOpError.hidden = !showError;
     elements.consoleOpError.textContent = showError ? operation.error : '';
   }
-  const activeTest = appState.softwareTest?.active ?? null;
   if (elements.consoleSoftwareTestAbort) {
     const abortAvailable = activeTest?.abortAvailable === true;
     elements.consoleSoftwareTestAbort.hidden = !activeTest;

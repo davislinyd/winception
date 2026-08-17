@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "images": [
+    {
+      "id": "WINDOWS-11-25H2-X64-EN-US-RETAIL-26200-6584-EN-US-PRO-RETAIL-6-2",
+      "name": "Windows 11 25H2 x64 en-us Retail 26200.6584",
+      "version": "Windows 11 25H2 x64 en-us Retail 26200.6584",
+      "releaseId": "25H2",
+      "build": "26200.6584",
+      "architecture": "x64",
+      "language": "en-us",
+      "locale": "en-us",
+      "timeZone": "",
+      "edition": "Pro",
+      "editionId": "Professional",
+      "activation": "Retail",
+      "imageIndex": 1,
+      "fileName": "fixture-install.wim",
+      "osFamily": "win11",
+      "size": 0,
+      "sha256": "",
+      "sourceType": "fixture",
+      "sourceFileName": "fixture-install.wim",
+      "sourceContainerType": "wim",
+      "sourceImageIndex": 1
+    }
+  ]
+}

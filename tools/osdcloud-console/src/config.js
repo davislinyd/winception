@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ipv4ToUInt32 } from './dhcp.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..', '..');
@@ -9,6 +10,45 @@ export const defaultAppRoot = repoRoot;
 export const defaultRepoRoot = defaultAppRoot;
 export const defaultConfigPath = path.join(defaultAppRoot, 'config', 'osdcloud-console.json');
 export const defaultLocalConfigPath = path.join(defaultAppRoot, 'config', 'osdcloud-console.local.json');
+
+export function deploymentEndpointMissing(config = {}) {
+  const proxyMode = (config.dhcp?.dhcpMode ?? 'server') === 'proxy';
+  const required = [
+    ['adapter', 'interfaceAlias'],
+    ['adapter', 'serverIp'],
+    ['adapter', 'prefixLength'],
+    ['dhcp', 'listenIp'],
+    ['dhcp', 'bootFile'],
+    ['dhcp', 'ipxeBootUrl'],
+    ['tftp', 'root'],
+    ['tftp', 'listenIp'],
+    ['http', 'root'],
+    ['http', 'host'],
+    ['http', 'statusRoot'],
+    ['smb', 'share'],
+  ];
+  if (!proxyMode) {
+    required.splice(4, 0,
+      ['dhcp', 'leaseStartIp'],
+      ['dhcp', 'leaseEndIp'],
+      ['dhcp', 'subnetMask'],
+      ['dhcp', 'router']);
+  }
+  return required
+    .filter(([section, key]) => config?.[section]?.[key] === undefined
+      || config?.[section]?.[key] === null
+      || config?.[section]?.[key] === '')
+    .map(([section, key]) => `${section}.${key}`);
+}
+
+export function isDeploymentEndpointConfigured(config = {}) {
+  return deploymentEndpointMissing(config).length === 0;
+}
+
+export function isUnconfiguredInitialization(config = {}) {
+  return config.initialization?.status === 'unconfigured'
+    || config.initialization?.allowUnconfigured === true;
+}
 
 function splitLocalConfigPath(configPath) {
   const parsed = path.parse(configPath);
@@ -93,6 +133,7 @@ function publicConfig(config) {
 }
 
 export function saveConfig(config, configPath = config.__savePath || config.__configPath || defaultConfigPath) {
+  validateConfig(config);
   const resolved = path.resolve(configPath);
   fs.mkdirSync(path.dirname(resolved), { recursive: true });
   fs.writeFileSync(resolved, `${JSON.stringify(publicConfig(config), null, 2)}\n`, 'utf8');
@@ -109,6 +150,7 @@ export function saveConfig(config, configPath = config.__savePath || config.__co
 export function mediaHttpServerConfig(config) {
   return {
     ...config.http,
+    security: config.security,
     driverPackCache: config.driverPackCache,
     smb: config.smb,
     torrent: torrentServerConfig(config),
@@ -116,12 +158,12 @@ export function mediaHttpServerConfig(config) {
     // Forward the resolved state root so the media server's loadSecrets() reads
     // the live deployment secrets (e.g. the auto-generated pxeinstallPassword)
     // instead of falling back to defaultAppRoot and serving stale committed
-    // secrets via /osdcloud/boot-config.
+    // secrets via the ephemeral /osdcloud/boot-session envelope.
     paths: { stateRoot: stateRootForConfig(config) },
   };
 }
 
-// Sidecar manifest written next to the OS WIM so cheap consumers (the boot-config
+// Sidecar manifest written next to the OS WIM so cheap consumers (the boot-session
 // endpoint) can advertise torrent details without re-hashing the multi-GB image.
 export const osTorrentManifestName = 'os-torrent.json';
 
@@ -173,6 +215,7 @@ export function torrentServerConfig(config = {}) {
     seedMinutes: Number(torrent.seedMinutes ?? defaultTorrentConfig.seedMinutes),
     stateRoot: stateRootForConfig(config),
     osCacheRoot: config.osImage?.cacheRoot ?? null,
+    security: config.security,
     aria2cPath,
     logPath: config.http?.logPath ?? null,
     seederLogPath: torrent.seederLogPath ?? path.join(liveRoot, 'logs', 'torrent-seeder.log'),
@@ -187,6 +230,18 @@ function isPathInside(parent, candidate) {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
+export function hostToolsRootForConfig(config = {}) {
+  const appRoot = appRootForConfig(config);
+  const appParent = path.dirname(appRoot);
+  if (
+    path.basename(appRoot).toLowerCase() === 'app'
+    && path.basename(appParent).toLowerCase() === 'hosttools'
+  ) {
+    return appParent;
+  }
+  return null;
+}
+
 export function runtimeRootForConfig(config = {}) {
   return path.resolve(config.runtimeArtifacts?.liveRoot ?? config.paths?.osdCloudRoot ?? 'C:\\OSDCloud');
 }
@@ -194,26 +249,34 @@ export function runtimeRootForConfig(config = {}) {
 export function workspaceInfo(config = {}) {
   const appRoot = appRootForConfig(config);
   const stateRoot = stateRootForConfig(config);
+  const hostToolsRoot = hostToolsRootForConfig(config);
   const runtimeRoot = runtimeRootForConfig(config);
   return {
     appRoot,
     repoRoot: appRoot,
     stateRoot,
+    hostToolsRoot,
     runtimeRoot,
     configPath: config.__configPath,
     localConfigPath: config.__localConfigPath,
     runtimeInsideRepo: isPathInside(appRoot, runtimeRoot),
+    runtimeInsideHostTools: hostToolsRoot ? isPathInside(hostToolsRoot, runtimeRoot) : false,
   };
 }
 
-function assertRuntimeRootAllowed(config, runtimeRoot) {
+export function assertRuntimeRootAllowed(config, runtimeRoot) {
   const appRoot = appRootForConfig(config);
-  const resolved = path.resolve(String(runtimeRoot ?? '').trim());
-  if (!path.isAbsolute(resolved)) {
+  const raw = String(runtimeRoot ?? '').trim();
+  if (!raw || !path.isAbsolute(raw)) {
     throw new Error(`Project root must be an absolute path: ${runtimeRoot}`);
   }
+  const resolved = path.resolve(raw);
   if (isPathInside(appRoot, resolved)) {
     throw new Error(`Project root must not be inside the host management bundle: ${resolved}`);
+  }
+  const hostToolsRoot = hostToolsRootForConfig(config);
+  if (hostToolsRoot && isPathInside(hostToolsRoot, resolved)) {
+    throw new Error(`Project root must not be inside the host management bundle or HostTools directory: ${resolved}`);
   }
   return resolved;
 }
@@ -261,16 +324,6 @@ function smbShareName(config) {
   const share = String(config.smb?.share ?? '');
   const match = /^\\\\[^\\]+\\([^\\]+)$/u.exec(share);
   return match?.[1] || config.smb?.shareName || 'OSDCloudiPXE';
-}
-
-function ipv4ToUInt32(address) {
-  return String(address).split('.').reduce((value, part) => {
-    const byte = Number.parseInt(part, 10);
-    if (!Number.isInteger(byte) || byte < 0 || byte > 255) {
-      throw new Error(`Invalid IPv4 address: ${address}`);
-    }
-    return ((value << 8) | byte) >>> 0;
-  }, 0);
 }
 
 function uint32ToIPv4(value) {
@@ -415,15 +468,21 @@ export function applyServiceEndpoint(config, choice, options = {}) {
 }
 
 export function validateConfig(config) {
+  config.adapter ??= {};
+  config.dhcp ??= {};
+  config.tftp ??= {};
+  config.http ??= {};
+  config.paths ??= {};
+  config.smb ??= {};
   config.network ??= {};
   config.network.topology ??= 'shared-lan';
   if (!['shared-lan', 'dual-nic-nat'].includes(config.network.topology)) {
     throw new Error(`Invalid network.topology: ${config.network.topology}. Expected shared-lan or dual-nic-nat.`);
   }
   config.network.nat ??= {};
-  config.network.nat.switchName ??= 'Winception-PXE';
-  config.network.nat.natName ??= 'WinceptionNAT';
-  config.network.nat.internalSubnet ??= '192.168.100.0/24';
+  config.network.nat.switchName ??= null;
+  config.network.nat.natName ??= null;
+  config.network.nat.internalSubnet ??= null;
   if (config.network.topology === 'dual-nic-nat') {
     if (!config.network.nat.wanInterfaceAlias || !config.network.nat.pxeInterfaceAlias) {
       throw new Error('dual-nic-nat requires network.nat.wanInterfaceAlias and network.nat.pxeInterfaceAlias.');
@@ -437,7 +496,8 @@ export function validateConfig(config) {
   }
 
   const isProxyMode = (config.dhcp?.dhcpMode ?? 'server') === 'proxy';
-  const required = [
+  const unconfigured = isUnconfiguredInitialization(config) && !isDeploymentEndpointConfigured(config);
+  const required = unconfigured ? [] : [
     ['adapter', 'interfaceAlias'],
     ['adapter', 'serverIp'],
     ['dhcp', 'listenIp'],
@@ -468,13 +528,45 @@ export function validateConfig(config) {
     throw new Error(`Missing required config values: ${missing.join(', ')}`);
   }
 
-  if (!Array.isArray(config.paths.expectedHttpFiles) || config.paths.expectedHttpFiles.length === 0) {
+  const ipv4Fields = unconfigured ? [] : [
+    ['adapter.serverIp', config.adapter.serverIp],
+    ['dhcp.listenIp', config.dhcp.listenIp],
+    ['http.host', config.http.host],
+    ...(config.tftp.listenIp ? [['tftp.listenIp', config.tftp.listenIp]] : []),
+    ...(!isProxyMode ? [
+      ['dhcp.subnetMask', config.dhcp.subnetMask],
+      ['dhcp.router', config.dhcp.router],
+      ['dhcp.leaseStartIp', config.dhcp.leaseStartIp],
+      ['dhcp.leaseEndIp', config.dhcp.leaseEndIp],
+    ] : []),
+  ];
+  for (const [field, value] of ipv4Fields) {
+    try {
+      ipv4ToUInt32(value);
+    } catch {
+      throw new Error(`Invalid IPv4 address for ${field}: ${value}`);
+    }
+  }
+
+  if (config.adapter.prefixLength !== undefined) {
+    prefixLengthToMask(config.adapter.prefixLength);
+  }
+
+  if (!unconfigured && !isProxyMode) {
+    const leaseStart = ipv4ToUInt32(config.dhcp.leaseStartIp);
+    const leaseEnd = ipv4ToUInt32(config.dhcp.leaseEndIp);
+    if (leaseEnd < leaseStart) {
+      throw new Error(`DHCP leaseEndIp must be greater than or equal to leaseStartIp: ${config.dhcp.leaseStartIp} - ${config.dhcp.leaseEndIp}`);
+    }
+  }
+
+  if (!unconfigured && (!Array.isArray(config.paths.expectedHttpFiles) || config.paths.expectedHttpFiles.length === 0)) {
     throw new Error('paths.expectedHttpFiles must be a non-empty array');
   }
 
   // Optional for back-compat: configs written before the secureboot mode existed
   // omit both keys and default to secureboot/bootmgfw.efi in code.
-  if (config.dhcp.bootMode !== undefined && !['secureboot', 'ipxe'].includes(config.dhcp.bootMode)) {
+  if (config.dhcp.bootMode !== undefined && config.dhcp.bootMode !== null && config.dhcp.bootMode !== '' && !['secureboot', 'ipxe'].includes(config.dhcp.bootMode)) {
     throw new Error(`Invalid dhcp.bootMode: ${config.dhcp.bootMode}. Expected secureboot or ipxe.`);
   }
 
@@ -521,7 +613,7 @@ export function validateConfig(config) {
   }
   config.torrent.seedMinutes = seedMinutes;
 
-  if (config.dhcp.reservations !== undefined) {
+  if (!unconfigured && config.dhcp.reservations !== undefined) {
     if (!Array.isArray(config.dhcp.reservations)) {
       throw new Error('dhcp.reservations must be an array when provided');
     }

@@ -191,6 +191,32 @@ function makeController(root, overrides = {}) {
   };
 }
 
+test('project root update honors the request and validates before stopping services', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-project-root-'));
+  try {
+    const { controller, config, services } = makeController(root);
+    const customRoot = path.join(root, 'runtime');
+    config.paths.repoRoot = path.join(root, 'source');
+    await controller.updateProjectRoot({ runtimeRoot: customRoot });
+    assert.equal(config.paths.osdCloudRoot, customRoot);
+    assert.equal(services.dhcp.stops, 1);
+    assert.equal(services.tftp.stops, 1);
+    assert.equal(services.http.stops, 1);
+
+    const invalid = makeController(root);
+    invalid.config.paths.repoRoot = path.join(root, 'source');
+    await assert.rejects(
+      () => invalid.controller.updateProjectRoot({ runtimeRoot: 'relative-runtime-root' }),
+      (error) => error.statusCode === 400 && /absolute path/.test(error.message),
+    );
+    assert.equal(invalid.services.dhcp.stops, 0);
+    assert.equal(invalid.services.tftp.stops, 0);
+    assert.equal(invalid.services.http.stops, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('state reads do not create live status roots', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-readonly-'));
   try {

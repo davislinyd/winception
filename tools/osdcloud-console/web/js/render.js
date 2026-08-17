@@ -2,6 +2,7 @@ import { renderBootMode, renderDashboardTiles, renderDiagnosticsSummary, renderD
 import { $, elements } from './dom.js';
 import { renderFleetCards } from './fleet.js';
 import { endpointLabel, localTime } from './format.js';
+import { renderBeginnerHome } from './beginner.js';
 import { renderInitialization } from './setup.js';
 import { state } from './state.js';
 import { hydrateActionIcons, renderConsoleDock, setControlsDisabled } from './ui.js';
@@ -71,6 +72,7 @@ export function render() {
   elements.endpointLine.textContent = endpointLabel(appState.config);
   elements.updatedAt.textContent = `Updated ${localTime(appState.generatedAt)}`;
   renderWarningBanner(appState);
+  renderBeginnerHome(appState);
   renderOperation(appState);
   renderEndpointSummary(appState);
   renderRuntimeReadiness(appState);

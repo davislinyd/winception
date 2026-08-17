@@ -8,7 +8,7 @@ import { showOperationError } from './errorDialog.js';
 import { renderFleetCards } from './fleet.js';
 import { render } from './render.js';
 import { state } from './state.js';
-import { copyConsoleLog, hydrateActionIcons, hydrateStaticIcons, setConsoleDockCollapsed, setSetupRailCollapsed } from './ui.js';
+import { copyConsoleLog, hydrateActionIcons, hydrateStaticIcons, setConsoleDockCollapsed } from './ui.js';
 
 hydrateStaticIcons();
 hydrateActionIcons();
@@ -375,8 +375,7 @@ elements.consoleDockCopy?.addEventListener('click', (event) => {
   copyConsoleLog(elements.consoleDockCopy).catch(showOperationError);
 });
 
-// Header workspace switcher (Deploy / Monitor). Guided setup stays inside the
-// Deploy rail and is opened/collapsed by the rail controls.
+// Header workspace switcher (開始部署 / 部署活動). Advanced controls live in Management.
 if (elements.tabDashboard) {
   elements.tabDashboard.addEventListener('click', () => switchToView('dashboard'));
   if (elements.tabFleet) {
@@ -423,10 +422,9 @@ if (elements.initializationSteps) {
   });
 }
 
-// Guided-setup rail: the chevron collapses it (maximizing Deploy); the
-// collapsed strip re-expands it.
-elements.setupRailCollapse?.addEventListener('click', () => setSetupRailCollapsed(true));
-elements.setupRailStrip?.addEventListener('click', () => setSetupRailCollapsed(false));
+elements.managementDialog?.addEventListener('close', () => {
+  elements.managementOpenButton?.focus();
+});
 
 async function boot() {
   await loadAuthStatus();

@@ -6,7 +6,7 @@ param(
     [int] $PrefixLength = 24,
     [string] $DefaultGateway,
     [string] $SmbShareName = 'OSDCloudiPXE',
-    [string] $SmbFirewallRuleName = 'PXE-Lab SMB Inbound',
+    [string] $SmbFirewallRuleName = 'Winception PXE SMB Inbound',
     [string] $ImageNamePattern,
     [string] $SmbRemoteSubnet,
     [switch] $SkipSmbFirewall,
@@ -100,10 +100,6 @@ function Get-BootWimSyncInputs {
         [Parameter(Mandatory)]
         [string] $RepoRoot,
         [Parameter(Mandatory)]
-        [string] $StateRoot,
-        [Parameter(Mandatory)]
-        [string] $IpxeLab,
-        [Parameter(Mandatory)]
         [string] $ServerIp
     )
 
@@ -115,16 +111,9 @@ function Get-BootWimSyncInputs {
         }
         secrets = [ordered]@{
             present = $false
+            mode    = 'ephemeral-boot-session'
         }
         templates = [ordered]@{}
-    }
-
-    $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $RepoRoot -StateRoot $StateRoot -IpxeLab $IpxeLab
-    if ($deploymentSecretSource) {
-        $syncInputs.secrets = [ordered]@{
-            present = $true
-            sha256  = (Get-Sha256Hash -LiteralPath $deploymentSecretSource)
-        }
     }
 
     foreach ($entry in (Get-BootWimTemplateEntries -RepoRoot $RepoRoot)) {
@@ -399,20 +388,20 @@ function Set-AutoexecEndpoint {
 function Set-SetupCompleteEndpoint {
     param([string] $Path)
 
-    $statusUrl = "http://$ServerIp/osdcloud/status"
-    $matchedUpper = Set-RegexInFile `
-        -Path $Path `
-        -Pattern "(?m)^\`$DefaultStatusUrl\s*=\s*'[^']*'\s*$" `
-        -Replacement "`$DefaultStatusUrl = '$statusUrl'" `
-        -Optional
-    $matchedLower = Set-RegexInFile `
-        -Path $Path `
-        -Pattern "(?m)^\`$defaultStatusUrl\s*=\s*'[^']*'\s*$" `
-        -Replacement "`$defaultStatusUrl = '$statusUrl'" `
-        -Optional
-
-    if (-not $matchedUpper -and -not $matchedLower) {
-        throw "No SetupComplete status URL replacement matched in $Path"
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Required endpoint file not found: $Path"
+    }
+    $content = [System.IO.File]::ReadAllText($Path)
+    $matched = $false
+    foreach ($name in @('DefaultStatusUrl', 'defaultStatusUrl')) {
+        $matched = (Set-RegexInFile `
+            -Path $Path `
+            -Pattern "(?m)^\`$$name\s*=\s*'[^']*'\s*$" `
+            -Replacement "`$$name = ''" `
+            -Optional) -or $matched
+    }
+    if (-not $matched -and $content -notmatch "statusUrl\s*=\s*''") {
+        throw "SetupComplete must receive statusUrl from the ephemeral deployment session: $Path"
     }
 }
 
@@ -422,7 +411,8 @@ function Set-StartOsdCloudEndpoint {
     Set-RegexInFile `
         -Path $Path `
         -Pattern "(?m)^\`$server\s*=\s*'[^']*'(\s*#.*)?$" `
-        -Replacement "`$server = '$ServerIp'`$1" | Out-Null
+        -Replacement "`$server = `$null`$1" `
+        -Optional | Out-Null
 }
 
 function Set-ProgressReporterEndpoint {
@@ -431,7 +421,8 @@ function Set-ProgressReporterEndpoint {
     Set-RegexInFile `
         -Path $Path `
         -Pattern "\[string\]\s*\`$StatusUrl\s*=\s*'[^']*'" `
-        -Replacement "[string] `$StatusUrl = 'http://$ServerIp/osdcloud/status'" | Out-Null
+        -Replacement "[string] `$StatusUrl = ''" `
+        -Optional | Out-Null
 }
 
 function Set-LegacyHelperDefaults {
@@ -480,8 +471,8 @@ function Set-LegacyHelperDefaults {
         -Optional | Out-Null
     Set-RegexInFile `
         -Path (Join-Path $IpxeLab 'Tools\Serve-OsdCloudMedia.ps1') `
-        -Pattern 'http://[^/:]+:8088/' `
-        -Replacement "http://${ServerIp}:8088/" `
+        -Pattern "(?m)^\s*\[string\]\s*\`$Prefix\s*=\s*'[^']*'" `
+        -Replacement "    [string] \`$Prefix = 'http://${ServerIp}:8088/'" `
         -Optional | Out-Null
 }
 
@@ -626,28 +617,6 @@ function Restore-BootWimSourceIfMissing {
     return $true
 }
 
-function Get-DeploymentSecretSource {
-    param(
-        [Parameter(Mandatory)]
-        [string] $RepoRoot,
-        [Parameter(Mandatory)]
-        [string] $StateRoot,
-        [Parameter(Mandatory)]
-        [string] $IpxeLab
-    )
-
-    $candidates = @(
-        (Join-Path $StateRoot 'config\osdcloud-secrets.json'),
-        (Join-Path $RepoRoot 'config\osdcloud-secrets.json'),
-        (Join-Path $IpxeLab 'secrets.json'),
-        (Join-Path $IpxeLab 'Config\secrets.json')
-    )
-
-    $candidates |
-        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
-        Select-Object -First 1
-}
-
 function Set-SmbFirewallEndpoint {
     param(
         [Parameter(Mandatory)]
@@ -691,7 +660,6 @@ if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     }
 }
 $ConfigPath = (Resolve-Path -LiteralPath $ConfigPath).Path
-$stateRoot = Split-Path -Parent (Split-Path -Parent $ConfigPath)
 $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
 if ([string]::IsNullOrWhiteSpace($InterfaceAlias)) {
@@ -809,7 +777,7 @@ if ($CommitWinPe) {
         Write-Host "Skipped redundant boot.wim mount/commit as it is already customized."
         # Repair installs that were customized before sync markers existed: ensure the
         # marker matches the currently published image so preflight can confirm it.
-        $syncInputs = Get-BootWimSyncInputs -RepoRoot $repoRoot -StateRoot $stateRoot -IpxeLab $ipxeLab -ServerIp $ServerIp
+        $syncInputs = Get-BootWimSyncInputs -RepoRoot $repoRoot -ServerIp $ServerIp
         $syncInputsJson = ConvertTo-CanonicalJson -InputObject $syncInputs
         $syncInputsHash = Get-Sha256Text -Text $syncInputsJson
         $marker = Read-BootWimSyncMarker -PublishedBootWim $publishedBootWim
@@ -878,14 +846,12 @@ if ($CommitWinPe) {
             Copy-WinPePowerShellModule -Name 'OSD' -MountDir $mountDir
             Copy-WinPePowerShellModule -Name 'OSDCloud' -MountDir $mountDir
 
-            $deploymentSecretSource = Get-DeploymentSecretSource -RepoRoot $repoRoot -StateRoot $stateRoot -IpxeLab $ipxeLab
-            if ($deploymentSecretSource) {
-                Copy-Item -LiteralPath $deploymentSecretSource -Destination (Join-Path $mountDir 'OSDCloud\secrets.json') -Force
-                Write-Host "Injected local deployment secrets into boot.wim from $deploymentSecretSource"
+            $embeddedSecretsPath = Join-Path $mountDir 'OSDCloud\secrets.json'
+            if (Test-Path -LiteralPath $embeddedSecretsPath -PathType Leaf) {
+                Remove-Item -LiteralPath $embeddedSecretsPath -Force
+                Write-Host 'Removed legacy embedded deployment secrets from boot.wim.'
             }
-            else {
-                Write-Warning "No local deployment secrets found. Create C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json before deployment so WinPE can map SMB and configure autologon."
-            }
+            Write-Host 'Boot WIM uses the ephemeral boot-session credential envelope; no deployment secrets are embedded.'
 
             Set-StartOsdCloudEndpoint -Path (Join-Path $mountDir 'OSDCloud\Start-OSDCloud-iPXE.ps1')
             Set-ProgressReporterEndpoint -Path (Join-Path $mountDir 'OSDCloud\Report-OSDCloudProgress.ps1')
@@ -917,7 +883,7 @@ if ($CommitWinPe) {
             Copy-Item -LiteralPath $bootWim -Destination $publishedBootWim -Force
             $publishedHash = Get-Sha256Hash -LiteralPath $publishedBootWim
         }
-        $syncInputs = Get-BootWimSyncInputs -RepoRoot $repoRoot -StateRoot $stateRoot -IpxeLab $ipxeLab -ServerIp $ServerIp
+        $syncInputs = Get-BootWimSyncInputs -RepoRoot $repoRoot -ServerIp $ServerIp
         Write-BootWimSyncMarker -PublishedBootWim $publishedBootWim -Hash $publishedHash -SyncInputs $syncInputs
         Write-Host "Updated boot.wim embedded endpoint files and verified published boot.wim"
     }

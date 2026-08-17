@@ -1,12 +1,12 @@
 [CmdletBinding()]
 param(
-    [string] $InterfaceAlias = 'LAN',
-    [string] $ServerIp = '192.168.88.1',
+    [string] $InterfaceAlias = '',
+    [string] $ServerIp = '',
     [int] $PrefixLength = 24,
     [string] $DefaultGateway = '',
     [int] $InterfaceMetric = 500,
-    [string] $SmbFirewallRuleName = 'PXE-Lab SMB Inbound',
-    [string] $RemoteSubnet = '192.168.88.0/24'
+    [string] $SmbFirewallRuleName = 'Winception PXE SMB Inbound',
+    [string] $RemoteSubnet = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,6 +14,24 @@ $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
 [Console]::InputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
+
+if ([string]::IsNullOrWhiteSpace($InterfaceAlias) -or [string]::IsNullOrWhiteSpace($ServerIp)) {
+    throw 'PXE NIC endpoint is not configured. Provide -InterfaceAlias and -ServerIp from Guided Setup before changing NIC settings.'
+}
+if ($PrefixLength -lt 1 -or $PrefixLength -gt 32) {
+    throw "PrefixLength is invalid: $PrefixLength"
+}
+
+if ([string]::IsNullOrWhiteSpace($RemoteSubnet)) {
+    $ipBytes = [System.Net.IPAddress]::Parse($ServerIp).GetAddressBytes()
+    if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($ipBytes) }
+    $ipValue = [BitConverter]::ToUInt32($ipBytes, 0)
+    $maskValue = [uint32] ([uint64] 0xffffffff -shl (32 - $PrefixLength))
+    $networkValue = [uint32] ($ipValue -band $maskValue)
+    $networkBytes = [BitConverter]::GetBytes($networkValue)
+    if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($networkBytes) }
+    $RemoteSubnet = "{0}/{1}" -f ([System.Net.IPAddress]::new($networkBytes)), $PrefixLength
+}
 
 $adapter = Get-NetAdapter -Name $InterfaceAlias -ErrorAction Stop
 if ($adapter.Status -eq 'Disabled') {

@@ -1,10 +1,14 @@
 param(
     [string] $Root = 'C:\OSDCloud\Media',
-    [string] $Prefix = 'http://192.168.77.1:8088/',
+    [string] $Prefix = '',
     [string] $LogPath = 'C:\OSDCloud\PXE-HttpRoot\host-http.log'
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($Prefix)) {
+    throw 'OSDCloud media HTTP endpoint is not configured. Provide -Prefix through Guided Setup or endpoint sync before starting the media server.'
+}
 
 function Write-AccessLog([string] $Message) {
     "$(Get-Date -Format o) $Message" | Add-Content -LiteralPath $LogPath -Encoding ASCII

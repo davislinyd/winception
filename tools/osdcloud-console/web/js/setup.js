@@ -6,8 +6,8 @@ import { $, elements } from './dom.js';
 import { showOperationError } from './errorDialog.js';
 import { text } from './format.js';
 import { render } from './render.js';
-import { DEFAULT_WINDOWS_USERNAME, RESERVED_WINDOWS_USERNAMES, state } from './state.js';
-import { makeIcon, setControlsDisabled, setSetupRailCollapsed } from './ui.js';
+import { RESERVED_WINDOWS_USERNAMES, state } from './state.js';
+import { makeIcon, setControlsDisabled } from './ui.js';
 
 export function initializationActionLabel(action) {
   const labels = {
@@ -201,7 +201,7 @@ export function captureInitializationSecretsDraft() {
 }
 
 export function clearInitializationSecretsDraft() {
-  state.initializationSecretsDraft.windowsUsername = DEFAULT_WINDOWS_USERNAME;
+  state.initializationSecretsDraft.windowsUsername = '';
   state.initializationSecretsDraft.windowsPassword = '';
 }
 
@@ -303,7 +303,10 @@ export function appendInitializationSecretsEditButton(body) {
 }
 
 export function appendInitializationProjectRootForm(body, step) {
-  state.initializationRootDraft = 'C:\\OSDCloud';
+  const initialRoot = state.initializationRootDraft
+    || state.current?.config?.workspace?.runtimeRoot
+    || 'C:\\OSDCloud';
+  state.initializationRootDraft = initialRoot;
   const form = document.createElement('div');
   form.className = 'initialization-secrets-form';
   const label = document.createElement('label');
@@ -311,15 +314,26 @@ export function appendInitializationProjectRootForm(body, step) {
   const input = document.createElement('input');
   input.id = 'init-project-root';
   input.type = 'text';
-  input.value = 'C:\\OSDCloud';
+  input.value = initialRoot;
   input.placeholder = 'C:\\OSDCloud';
-  input.readOnly = true;
-  input.disabled = true;
+  input.autocomplete = 'off';
+  input.addEventListener('input', () => {
+    state.initializationRootDraft = input.value;
+  });
   label.append(input);
   const status = document.createElement('span');
   status.className = 'initialization-secrets-status';
-  status.textContent = 'Project root is locked to C:\\OSDCloud for deployment stability.';
-  form.append(label, status);
+  status.textContent = 'Use an absolute path outside the Git clone and HostTools.';
+  const actions = document.createElement('div');
+  actions.className = 'initialization-secrets-actions';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'warning';
+  button.dataset.initAction = 'save-project-root';
+  button.dataset.icon = 'save';
+  button.textContent = 'Save project root';
+  actions.append(button);
+  form.append(label, status, actions);
   body.append(form);
 }
 
@@ -496,10 +510,6 @@ export function renderInitialization(appState) {
   if (elements.initProgressText) {
     elements.initProgressText.textContent = `${doneSteps} of ${totalSteps} complete · ${progressPercent}%`;
   }
-  if (elements.setupRailStripCount) {
-    elements.setupRailStripCount.textContent = `${doneSteps}/${totalSteps}`;
-  }
-
   // Dependency staleness: steps whose completed output needs re-running
   const staleSteps = computeStepStaleness(appState);
 
@@ -671,12 +681,12 @@ export function renderInitialization(appState) {
     elements.initializationNext.disabled = initializationBusy;
   }
 
-  if (!deploymentLive && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
+  if (!initialized && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
     state.initializationAutoOpened = true;
     if (!localStorage.getItem('winception-view')) {
       switchToView('dashboard');
     }
-    setSetupRailCollapsed(false);
+    openDialog(elements.initializationDialog);
   }
   restoreInitializationDialogScrollPosition(dialogScrollPosition);
   restoreInitializationTextControlFocus(focusedTextControl);
@@ -712,7 +722,7 @@ export async function saveInitializationSecrets() {
     state.selectedRunId = payload.state?.selectedRunId ?? state.selectedRunId;
     state.initializationSecretsEditing = false;
     clearInitializationSecretsDraft();
-    if (controls.windowsUsername) controls.windowsUsername.value = DEFAULT_WINDOWS_USERNAME;
+    if (controls.windowsUsername) controls.windowsUsername.value = '';
     if (controls.windowsPassword) controls.windowsPassword.value = '';
     render();
   } catch (error) {
@@ -810,7 +820,7 @@ export async function handleInitializationAction(action, source = null) {
   if (resolvedAction === 'edit-secrets') {
     state.initializationSecretsEditing = true;
     state.initializationSecretsDraft.windowsUsername = state.current?.initialization?.secrets?.windowsUsername
-      ?? DEFAULT_WINDOWS_USERNAME;
+      ?? '';
     state.initializationSecretsDraft.windowsPassword = '';
     render();
     initializationSecretsControls().windowsPassword?.focus();

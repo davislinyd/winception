@@ -40,6 +40,14 @@ function makeCatalog(root, body) {
 function createSetupSourceFixture(root) {
   fs.mkdirSync(path.join(root, 'tools', 'osdcloud-console', 'src'), { recursive: true });
   fs.mkdirSync(path.join(root, 'tools', 'osdcloud-console', 'web'), { recursive: true });
+  for (const relativePath of [
+    'osdcloud-assets/OSDCloud/Config',
+    'osdcloud-assets/OSDCloud/WinPE',
+    'osdcloud-assets/OSDCloud/Tools',
+    'osdcloud-assets/OSDCloud/Media/OSDCloud/Apps',
+  ]) {
+    fs.mkdirSync(path.join(root, relativePath), { recursive: true });
+  }
   fs.mkdirSync(path.join(root, 'config', 'deployment-profiles'), { recursive: true });
   fs.mkdirSync(path.join(root, 'osdcloud-assets'), { recursive: true });
   fs.mkdirSync(path.join(root, 'Softwares'), { recursive: true });
@@ -908,7 +916,8 @@ test('endpoint sync restores missing live endpoint templates from repo mirror', 
   assert.match(script, /Config\\Scripts\\SetupComplete\\SetupComplete\.ps1/);
   assert.match(script, /osdcloud-assets\\OSDCloud/);
   assert.match(script, /State\\config\\osdcloud-console\.json/);
-  assert.match(script, /State\\config\\osdcloud-secrets\.json/);
+  assert.match(script, /ephemeral-boot-session/);
+  assert.doesNotMatch(script, /State\\config\\osdcloud-secrets\.json/);
 });
 
 test('endpoint sync restores missing source boot.wim from published HTTP copy', () => {
@@ -946,6 +955,9 @@ test('endpoint sync injects deployment Config scripts from the bundle, not the m
   // The injection must not read these scripts from the mutable live ($ipxeLab) tree.
   assert.doesNotMatch(mountInjection, /\$ipxeLab 'Config\\Scripts\\SetupComplete\\SetupComplete\.ps1'/);
   assert.doesNotMatch(mountInjection, /\$ipxeLab 'Config\\Scripts\\Shutdown\\Invoke-OobeCustomization\.ps1'/);
+  assert.match(mountInjection, /Removed legacy embedded deployment secrets/);
+  assert.match(mountInjection, /no deployment secrets are embedded/);
+  assert.doesNotMatch(mountInjection, /Copy-Item -LiteralPath \$deploymentSecretSource/);
 });
 
 test('SetupComplete defers client sequence to a SYSTEM startup task and gates desktop-ready', () => {

@@ -9,6 +9,14 @@ Read this file when selecting verification for subsystem-specific changes.
 - `npm run smoke` must pass before handoff; it uses temporary roots/test ports and must not touch the live LAN or live `C:\OSDCloud`.
 - A live deployment remains the final hardware validation when host-console networking, endpoint sync, WinPE, SetupComplete, or deployment behavior changes.
 
+## Unattended PR And Hyper-V Lab
+
+- PR validation runs on the labelled self-hosted Windows runner and is source-only: enumerate tracked JavaScript with node --check, parse tracked PowerShell with the Windows PowerShell parser, then run npm run check, npm test, npm run smoke, and the targeted Web/Lab contract tests. Do not run server:preflight, Endpoint Sync, profile publish, service controls, or DHCP from the PR workflow.
+- A push to master runs only on the dedicated hyperv/winception-lab runner. The guard must validate the Internal Winception-AutoLab switch, vEthernet adapter 192.168.177.1/24, DHCP pool 192.168.177.200-250, four Secure Boot Gen2 VMs, one Secure Boot-off iPXE VM, fixed 4 GiB memory, powered-off state, and Winception-Clean checkpoints.
+- The merge workflow validates the runner-local base VHDX/runtime/OS image/driver cache manifest before service start. A missing or stale cache may invoke the existing restore/download flow once; a remaining mismatch fails before DHCP. The HostTools bundle is limited to tracked allowlisted files and records length plus SHA-256 for every file.
+- The acceptance matrix is four Secure Boot VMs started in one batch followed by one dedicated iPXE VM. Each round requires API Fleet status completed at windows-desktop-ready and PowerShell Direct evidence for desktop marker, Explorer, no OOBE, Windows version, profile ID, and install sequence result. iPXE additionally requires snponly.efi, boot.ipxe, wimboot, and the WinPE callback.
+- Preflight failure, stale/running VM, missing checkpoint, foreign port/DHCP binding, cache mismatch, or PowerShell Direct timeout is a fail-closed job failure. No automatic retry is allowed. The finally path stops known Lab services, stops/restores all target VMs, clears temporary operation/status state, and preserves only redacted evidence. Workflow concurrency prevents two Lab runs from mutating the same runner.
+
 ## Web Console
 
 - Web layout or visual changes must run `npm run check`, relevant Web UI tests such as `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/` when appropriate.

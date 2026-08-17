@@ -51,7 +51,7 @@ export function renderOperation(appState) {
   const operation = appState.operation;
   elements.operationBadge.className = 'badge neutral';
   if (!operation) {
-    elements.operationBadge.textContent = 'Idle';
+    elements.operationBadge.textContent = '閒置';
     return;
   }
   elements.operationBadge.textContent = operation.running ? operation.label : `${operation.status}: ${operation.label}`;
@@ -1310,7 +1310,7 @@ export function renderDriverPackCache(appState) {
 export function roleForInterface(item) {
   const alias = String(item.interfaceAlias ?? '').toLowerCase();
   const ip = String(item.ipAddress ?? '');
-  if (alias === 'lan' || ip.startsWith('192.168.88.')) {
+  if (alias === 'lan') {
     return 'physical-client path';
   }
   if (alias === 'wan') {
@@ -1981,7 +1981,11 @@ export async function handleNetworkPrepare() {
     severity: 'warning',
   });
   if (ok) {
-    await mutate('/api/network/prepare', { wanInterfaceAlias, pxeInterfaceAlias, internalSubnet: '192.168.100.0/24' });
+    const internalSubnet = window.prompt('Enter the isolated NAT subnet in CIDR form (for example, 192.168.177.0/24):', '')?.trim();
+    if (!internalSubnet) {
+      return;
+    }
+    await mutate('/api/network/prepare', { wanInterfaceAlias, pxeInterfaceAlias, internalSubnet });
   }
 }
 
@@ -2346,7 +2350,7 @@ export function renderWarningBanner(appState) {
     elements.warningBannerText.textContent = customizationCheck.detail || 'WinPE boot.wim has not been customized yet. Please run Endpoint Sync.';
   } else if (syncCheck && syncCheck.ok === false) {
     elements.warningBanner.classList.remove('hidden');
-    elements.warningBannerText.textContent = syncCheck.detail || 'Configuration or secrets changes are pending. Please run Endpoint Sync to apply updates.';
+    elements.warningBannerText.textContent = syncCheck.detail || 'WinPE configuration changes are pending. Please run Endpoint Sync to apply updates.';
   } else {
     elements.warningBanner.classList.add('hidden');
   }
