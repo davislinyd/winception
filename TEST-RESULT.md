@@ -2,16 +2,20 @@
 
 ## v1.1.0 商品化候選驗證（2026-08-18 current run）
 
-本次候選已實作 Release 零預載／Development fixture 雙軌、State-preserving upgrade/migration、短效 boot-session credential envelope 與 auto-logon cleanup gate。`node --check`、PowerShell parser、`npm run check`、`npm run smoke`、`git diff --check`、商業化／安裝遷移／Windows credential／Lab contract 測試與 Web/API/UI targeted tests 已通過。另修正 HostTools 安裝器誤排除產品手冊 PNG，以及兩份 PXE SetupComplete 換行不一致問題。
+本次候選已實作 Release 零預載／Development fixture 雙軌、State-preserving upgrade/migration、短效 boot-session credential envelope 與 auto-logon cleanup gate。另修正 HostTools 安裝器誤排除產品手冊 PNG、兩份 PXE SetupComplete 換行不一致問題，以及 Development bundle verifier 誤拒合法 fixture tree 的 channel 判斷。
 
-完整 `npm test` 在排除目前 Codex runtime 注入的不完整 PackageManagement 路徑後通過：438 PASS、3 SKIP、0 FAIL。可重複的 runner 前置設定如下：
+最後一輪 clean checkout 使用本地候選 commit `2d18561889c6de1257f2ccc5ce0b4df6347a25c4`：`node --check`、PowerShell parser、`npm ci --no-audit --no-fund`、`npm run check`、完整測試、`npm run smoke` 與 `git diff --check` 全部通過；完整 `npm test` 為 439 PASS、3 SKIP、0 FAIL，並新增 Release 空白狀態不可啟動服務的回歸測試。
+
+Release bundle 驗證通過 145 個 manifest artifacts，`channel=Release`、`dataPolicy=zero-preload`、`fixturePresence=false`；ZIP SHA-256 為 `5a1099162d93cbc84db2334dd120288606a5f2e953b93a6b1534c25d2a3a5baa`。Development bundle 驗證通過 153 個 artifacts，`dataPolicy=development-fixture`、`fixturePresence=true`，且 fixture 只能由明確 seed 指令載入。Release ZIP 解壓、fresh App/State install 與 fresh-state `serverPreflight` 均通過：`unconfigured`、active profile/image 為 null、profiles 為空，preflight 以 exit code 1 阻擋未設定 endpoint。
+
+完整 `npm test` 在排除目前 Codex runtime 注入的不完整 PackageManagement 路徑後通過：439 PASS、3 SKIP、0 FAIL。可重複的 runner 前置設定如下：
 
 ```powershell
 $env:PSModulePath = (($env:PSModulePath -split ';') | Where-Object { $_ -and ($_ -notmatch 'codex-primary-runtime') }) -join ';'
 npm test
 ```
 
-這是目前執行環境的 runner 隔離條件，不是產品 runtime 修補。`Initialize-WinceptionLab.ps1 -ValidateOnly` 仍因目前 PowerShell 非 elevated 而停止；2026-08-18 尚未重新執行隔離 AutoLab 或實體 UEFI IPv4 PXE，因此本候選尚未達正式 Release gate；下方既有部署紀錄均為歷史 evidence。
+這是目前執行環境的 runner 隔離條件，不是產品 runtime 修補。Hyper-V 商品化驗收在 Computer Use 觀察 Hyper-V Manager 後，因目前 PowerShell 未提升權限而停止於 `Initialize-WinceptionLab.ps1 -ValidateOnly` 前；本輪沒有建立 AutoLab、修改 VM/switch、停止 ICS/Docker 或啟動 DHCP/TFTP/HTTP/Torrent。2026-08-18 尚未重新執行隔離 AutoLab 或實體 UEFI IPv4 PXE，因此本候選尚未達正式 Release gate；下方既有部署紀錄均為歷史 evidence。
 
 Authoritative evidence and no-AI operator runbook for a completed from-zero deployment setup test.
 

@@ -13,6 +13,7 @@
 - 移除產品預設 Windows 帳號、固定 PXE/Lab endpoint 與 plaintext `/osdcloud/boot-config` credential response。WinPE 改以 DHCP lease-bound、短效、單次使用的 RSA/AES boot session envelope 取得部署 secrets；terminal deployment 後清除 auto-logon secrets。
 - HostTools production allowlist now retains product manual assets while excluding evidence/media payloads, and the source/staged SetupComplete scripts are byte-identical for PXE and USB paths.
 - 版本 metadata、bundle manifest、allowlist、fixture/secret exclusion 與 installation/security tests 已同步到 v1.1.0。正式 Release 仍須在專用 Windows runner、隔離 AutoLab 與實體 PXE laptop 完成重新驗證，並取得核准簽章。
+- Development bundle verification now permits the explicitly requested fixture tree only on the Development channel; Release remains fixture-free. Empty Release service-start fail-closed behavior now has a dedicated regression test.
 
 ## v1.0.3 — 2026-07-17
 
