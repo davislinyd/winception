@@ -6,7 +6,7 @@
 
 最後一輪 clean checkout 使用本地候選 commit `2d18561889c6de1257f2ccc5ce0b4df6347a25c4`：`node --check`、PowerShell parser、`npm ci --no-audit --no-fund`、`npm run check`、完整測試、`npm run smoke` 與 `git diff --check` 全部通過；完整 `npm test` 為 439 PASS、3 SKIP、0 FAIL，並新增 Release 空白狀態不可啟動服務的回歸測試。
 
-Release bundle 驗證通過 145 個 manifest artifacts，`channel=Release`、`dataPolicy=zero-preload`、`fixturePresence=false`；ZIP SHA-256 為 `5a1099162d93cbc84db2334dd120288606a5f2e953b93a6b1534c25d2a3a5baa`。Development bundle 驗證通過 153 個 artifacts，`dataPolicy=development-fixture`、`fixturePresence=true`，且 fixture 只能由明確 seed 指令載入。Release ZIP 解壓、fresh App/State install 與 fresh-state `serverPreflight` 均通過：`unconfigured`、active profile/image 為 null、profiles 為空，preflight 以 exit code 1 阻擋未設定 endpoint。
+Release bundle 驗證通過 145 個 manifest artifacts，`channel=Release`、`dataPolicy=zero-preload`、`fixturePresence=false`；unsigned RC 的 ZIP、SHA-256 checksum 與 metadata 均在 Git 外部產生，並以該 clean checkout 的 commit/version 寫入 manifest。Development bundle 驗證通過 153 個 artifacts，`dataPolicy=development-fixture`、`fixturePresence=true`，且 fixture 只能由明確 seed 指令載入。Release ZIP 解壓、fresh App/State install 與 fresh-state `serverPreflight` 均通過：`unconfigured`、active profile/image 為 null、profiles 為空，preflight 以 exit code 1 阻擋未設定 endpoint。
 
 完整 `npm test` 在排除目前 Codex runtime 注入的不完整 PackageManagement 路徑後通過：439 PASS、3 SKIP、0 FAIL。可重複的 runner 前置設定如下：
 
