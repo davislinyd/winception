@@ -472,6 +472,27 @@ test('initialization state guides first deployment through preflight and service
   }
 });
 
+test('Release zero-preload state blocks service start before touching deployment services', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-release-empty-'));
+  try {
+    const { controller, services } = makeController(root);
+    controller.config.product = { channel: 'release', dataPolicy: 'zero-preload' };
+    controller.config.initialization = { status: 'unconfigured', failClosed: true };
+    controller.config.adapter.serverIp = null;
+    await assert.rejects(
+      () => controller.startAll(),
+      (error) => error.statusCode === 412
+        && error.publicError?.code === 'deployment_not_ready'
+        && /endpoint is not configured/i.test(error.message),
+    );
+    assert.equal(services.dhcp.starts, 0);
+    assert.equal(services.tftp.starts, 0);
+    assert.equal(services.http.starts, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('preflight warnings do not block deployment readiness or the Start services step', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-pf-warn-'));
   try {
