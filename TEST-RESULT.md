@@ -1,5 +1,15 @@
 # Deployment Test Result
 
+## v1.1.0 候選修補（2026-09-11 source-only）
+
+在 2026-08-18 候選之上補了出貨前該修的 source/docs，沒有建立 AutoLab、沒有停現有 vSwitch VM、沒有啟動 DHCP/TFTP/HTTP/Torrent：
+
+- Desktop-ready reporter 的 `Clear-AutoLogonSecrets` 改與 SetupComplete 相同的 `{ ok, failures }` 結果，並在 cleanup 失敗時扣住 `windows-desktop-ready`。
+- AutoLab example VM 改為 `winception-autolab-01..04` 與 `winception-autolab-ipxe-01`，不再徵用歷史 `winception-client-01..04`。
+- CHANGELOG 把已在候選內的 beginner 工作台、AutoLab CI、project-root validation 從 Unreleased 移入 v1.1.0；`debugging-todo.md` 改寫為「首次登入不要自動登入」仍屬 v1.1.0 之後。
+
+本輪仍未重跑隔離 AutoLab 或實體 UEFI IPv4 PXE，因此尚未達正式 Release gate。
+
 ## v1.1.0 商品化候選驗證（2026-08-18 current run）
 
 本次候選已實作 Release 零預載／Development fixture 雙軌、State-preserving upgrade/migration、短效 boot-session credential envelope 與 auto-logon cleanup gate。另修正 HostTools 安裝器誤排除產品手冊 PNG、兩份 PXE SetupComplete 換行不一致問題，以及 Development bundle verifier 誤拒合法 fixture tree 的 channel 判斷。

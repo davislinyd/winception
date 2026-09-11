@@ -74,6 +74,16 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
 - Do not silently change Windows NIC IP settings.
 
+## Unattended Lab Automation
+
+- `.github/workflows/pr.yml` is source-only: it may run Node, Web/API, PowerShell, check, test, and smoke commands in the checkout workspace, but must not write `C:\OSDCloud`, run Endpoint Sync, publish profiles, start services, or mutate DHCP.
+- `.github/workflows/lab-deploy.yml` is limited to a dedicated runner labelled `self-hosted, windows, hyperv, winception-lab`. Its only deployment network is the Internal Winception-AutoLab switch on `192.168.177.0/24`; production, WAN, daily LAN, and physical PXE paths are never valid targets.
+- AutoLab VMs are `winception-autolab-01..04` (Secure Boot On) and `winception-autolab-ipxe-01` (Secure Boot Off). Do not reuse historical `winception-client-01..04` vSwitch regression VMs.
+- Treat `Initialize-WinceptionLab.ps1 -ValidateOnly` as the read-only prerequisite check. The non-validate bootstrap is a one-time operation and must verify the exact adapter, five powered-off Gen2 VMs, Winception-Clean checkpoints, Secure Boot roles, and no foreign DHCP binding before changes.
+- `Export-HostToolsBundle.ps1` may copy only tracked allowlisted source files and must emit SHA-256 manifest records. Never include secrets, `.ai`, runtime state, logs, screenshots, WIM/ISO/VHD artifacts, or untracked files.
+- `Invoke-WinceptionLabRegression.ps1` must keep the existing API wire shape and safety gates: preflight must pass before start-all, no automatic retry, Fleet and PowerShell Direct are both required, and finally cleanup must stop known Lab services, stop/restore target VMs, restore environment state, and preserve only redacted evidence.
+- Never use the Lab workflow as evidence that production DHCP, a WAN/LAN endpoint, or a physical laptop is ready. A failed guard must exit before service start and must not repair a foreign network automatically.
+
 ## Documentation
 
 When behavior changes, update the relevant docs in the same workflow:

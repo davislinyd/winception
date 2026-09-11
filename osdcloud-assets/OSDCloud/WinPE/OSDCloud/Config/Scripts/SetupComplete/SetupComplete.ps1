@@ -912,7 +912,7 @@ function Send-Status {
 }
 
 function Clear-AutoLogonSecrets {
-    $ok = $true
+    $failures = [System.Collections.Generic.List[string]]::new()
     $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
     foreach ($name in @('AutoAdminLogon', 'ForceAutoLogon', 'DefaultPassword', 'DefaultUserName', 'DefaultDomainName', 'AutoLogonCount')) {
         try {
@@ -920,11 +920,11 @@ function Clear-AutoLogonSecrets {
                 Remove-ItemProperty -LiteralPath $winlogon -Name $name -Force -ErrorAction Stop
             }
             if ((Get-ItemProperty -LiteralPath $winlogon -Name $name -ErrorAction SilentlyContinue).PSObject.Properties[$name]) {
-                $ok = $false
+                $failures.Add("registry:$name")
             }
         }
         catch {
-            $ok = $false
+            $failures.Add("registry:$name")
         }
     }
     foreach ($path in @(
@@ -935,27 +935,42 @@ function Clear-AutoLogonSecrets {
         'C:\ProgramData\OSDCloud\secrets.json'
     )) {
         try {
-            Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
-            if (Test-Path -LiteralPath $path -PathType Leaf) { $ok = $false }
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+                Remove-Item -LiteralPath $path -Force -ErrorAction Stop
+            }
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+                $failures.Add("file:$path")
+            }
         }
-        catch { $ok = $false }
+        catch {
+            $failures.Add("file:$path")
+        }
     }
     try {
-        if ($metadata.PSObject.Properties['bootSessionToken']) {
-            $metadata.PSObject.Properties.Remove('bootSessionToken')
-            $metadata | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $metadataPath -Encoding UTF8 -Force
+        foreach ($name in @('OSDCLOUD_WINDOWS_USERNAME', 'OSDCLOUD_WINDOWS_PASSWORD', 'OSDCLOUD_PXEINSTALL_PASSWORD')) {
+            [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+        }
+        $currentMetadata = Get-Metadata
+        if ($currentMetadata.PSObject.Properties['bootSessionToken']) {
+            $currentMetadata.PSObject.Properties.Remove('bootSessionToken')
+            [System.IO.File]::WriteAllText($metadataPath, ($currentMetadata | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))
+            $script:metadata = $currentMetadata
+            $script:bootSessionToken = ''
         }
     }
-    catch { $ok = $false }
-    if ($ok) {
-        Remove-Item -LiteralPath 'C:\ProgramData\OSDCloud\auto-logon-cleanup.failed' -Force -ErrorAction SilentlyContinue
-        'cleanup completed' | Set-Content -LiteralPath 'C:\ProgramData\OSDCloud\auto-logon-cleanup.ok' -Encoding ASCII -Force
+    catch {
+        $failures.Add('metadata')
     }
-    else {
-        Remove-Item -LiteralPath 'C:\ProgramData\OSDCloud\auto-logon-cleanup.ok' -Force -ErrorAction SilentlyContinue
-        'cleanup failed' | Set-Content -LiteralPath 'C:\ProgramData\OSDCloud\auto-logon-cleanup.failed' -Encoding ASCII -Force
+    $failureMarker = 'C:\ProgramData\OSDCloud\auto-logon-cleanup.failed'
+    $successMarker = 'C:\ProgramData\OSDCloud\auto-logon-cleanup.ok'
+    if ($failures.Count -gt 0) {
+        Remove-Item -LiteralPath $successMarker -Force -ErrorAction SilentlyContinue
+        [System.IO.File]::WriteAllText($failureMarker, "cleanup failed: $($failures -join ',')`r`n", [System.Text.UTF8Encoding]::new($false))
+        return [pscustomobject]@{ ok = $false; failures = @($failures) }
     }
-    return $ok
+    Remove-Item -LiteralPath $failureMarker -Force -ErrorAction SilentlyContinue
+    [System.IO.File]::WriteAllText($successMarker, "cleanup completed $(Get-Date -Format o)`r`n", [System.Text.UTF8Encoding]::new($false))
+    [pscustomobject]@{ ok = $true; failures = @() }
 }
 
 function Test-TargetUserIdentity {
@@ -1125,7 +1140,7 @@ try {
         $progressStatus = Get-ProgressStatus
         if ($progressStatus -eq 'failed') {
             $cleanup = Clear-AutoLogonSecrets
-            if (-not $cleanup) {
+            if (-not $cleanup.ok) {
                 [void] (Send-Status -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed after client finalization failure.' -Extra @{ securityFailure = $true })
             }
             Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
@@ -1138,7 +1153,7 @@ try {
         $facts = Get-DesktopReadyFacts
         if ($facts.explorerRunning -and $facts.interactiveUserIsTarget -and $facts.desktopReadyFile -and @($facts.oobeProcesses).Count -eq 0) {
             $cleanup = Clear-AutoLogonSecrets
-            if (-not $cleanup) {
+            if (-not $cleanup.ok) {
                 [void] (Send-Status -Stage 'windows-auto-logon-cleanup-failed' -Message 'Auto-logon cleanup failed; desktop-ready is withheld.' -Extra @{ securityFailure = $true; facts = $facts })
                 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
                 break
@@ -1155,7 +1170,7 @@ try {
 
     if (-not $desktopReadyReported -and $timeoutTimer.Elapsed.TotalSeconds -ge $timeoutSeconds) {
         $cleanup = Clear-AutoLogonSecrets
-        if ($cleanup) {
+        if ($cleanup.ok) {
             [void] (Send-Status -Stage 'windows-desktop-timeout' -Message 'Timed out waiting for Explorer and desktop marker or status upload.' -Extra (Get-DesktopReadyFacts))
         }
         else {

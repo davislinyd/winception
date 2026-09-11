@@ -37,9 +37,17 @@ test('Lab example config is isolated, complete, and secret-free', () => {
     leaseEndIp: '192.168.177.250',
     router: '192.168.177.1',
   });
-  assert.equal(config.secureBootVms.length, 4);
-  assert.equal(config.ipxeVm, 'winception-client-ipxe-01');
+  assert.deepEqual(config.secureBootVms, [
+    'winception-autolab-01',
+    'winception-autolab-02',
+    'winception-autolab-03',
+    'winception-autolab-04',
+  ]);
+  assert.equal(config.ipxeVm, 'winception-autolab-ipxe-01');
   assert.equal(new Set([...config.secureBootVms, config.ipxeVm]).size, 5);
+  for (const name of [...config.secureBootVms, config.ipxeVm]) {
+    assert.equal(name.startsWith('winception-client-'), false, 'AutoLab VMs must not reuse historical vSwitch client names');
+  }
   assert.equal(config.checkpointName, 'Winception-Clean');
   assert.equal(config.cache.requiredPaths.length, 5);
   assert.doesNotMatch(JSON.stringify(config), /windowsPassword|pxeinstallPassword|OSDCLOUD_WINDOWS_PASSWORD/);

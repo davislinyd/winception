@@ -15,12 +15,12 @@
   "stateRoot": "C:\\OSDCloud\\HostTools\\State",
   "checkpointName": "Winception-Clean",
   "secureBootVms": [
-    "winception-client-01",
-    "winception-client-02",
-    "winception-client-03",
-    "winception-client-04"
+    "winception-autolab-01",
+    "winception-autolab-02",
+    "winception-autolab-03",
+    "winception-autolab-04"
   ],
-  "ipxeVm": "winception-client-ipxe-01",
+  "ipxeVm": "winception-autolab-ipxe-01",
   "baseVhdxPath": "C:\\OSDCloud\\HostTools\\State\\lab\\base\\Winception-Client.vhdx",
   "evidenceRoot": "C:\\OSDCloud\\HostTools\\State\\lab\\evidence",
   "secretReference": "WinceptionLabDeployment",

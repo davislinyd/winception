@@ -2,12 +2,13 @@
 
 ## Unreleased
 
+## v1.1.0 — 2026-08-18
+
 - Web Console now defaults to a Traditional-Chinese beginner-first workspace with one state-derived next action. Advanced deployment content, network/service controls, runtime checks, diagnostics, Offline ISO, Software Test, and System Log are grouped under Management; Activity retains the complete Fleet workspace. Existing confirmations, Preflight gates, and DHCP safety rules are unchanged.
 - Added unattended GitHub Actions PR checks and a concurrency-locked isolated Hyper-V Lab regression. The Lab exports a tracked, hashed HostTools bundle, guards the Internal AutoLab switch and five clean-checkpoint VMs, runs four Secure Boot plus one iPXE PXE rounds with Fleet and PowerShell Direct evidence, and always attempts de-secretized cleanup artifacts without touching production DHCP.
 - Project root setup now honors the selected absolute path, rejects Git clone and HostTools locations before stopping services, validates IPv4/config boundaries before persistence, and preserves server-authoritative status metadata.
-
-## v1.1.0 — 2026-08-18
-
+- AutoLab example VMs are now `winception-autolab-01..04` and `winception-autolab-ipxe-01`, so the isolated Lab path no longer reuses historical `winception-client-01..04` vSwitch regression names.
+- Desktop-ready reporter auto-logon cleanup now returns the same `{ ok, failures }` result as SetupComplete, clears process secret environment variables, and withholds `windows-desktop-ready` when cleanup fails.
 - 商品化安裝流程改為 Release / Development 雙軌：Release HostTools ZIP 僅含產品程式、空 catalog、空 profile root 與 runtime metadata；Development fixture 必須由明確的 seed 指令載入，fresh Release install 不會自動植入示範資料。
 - Release 第一次啟動允許 Web Console 在未設定 endpoint、secrets、OS image 與 profile 時顯示 Guided Setup；Preflight、Publish、PXE 與 deployment services 會 fail-closed。Upgrade 會備份並保留 HostTools State，schema migration 失敗可使用 State restore helper 復原。
 - 移除產品預設 Windows 帳號、固定 PXE/Lab endpoint 與 plaintext `/osdcloud/boot-config` credential response。WinPE 改以 DHCP lease-bound、短效、單次使用的 RSA/AES boot session envelope 取得部署 secrets；terminal deployment 後清除 auto-logon secrets。

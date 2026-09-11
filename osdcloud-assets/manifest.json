@@ -24,9 +24,9 @@
       "source": "C:\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 42515,
-      "lastWriteTimeUtc": "2026-06-20T02:27:30.2951640Z",
-      "sha256": "F5AD1BCADE66C2C556805701A4CBD7B405E44250DF74811E99BC1C5466F230BF"
+      "length": 61061,
+      "lastWriteTimeUtc": "2026-09-11T13:18:12.4476284Z",
+      "sha256": "7282DF4F0D1F47F044EEBB3E8A3A98B652B4C1E9F7B6D82684CF7E0C990C05CA"
     },
     {
       "source": "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\7zip\\install.ps1",
@@ -168,9 +168,9 @@
       "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 42515,
-      "lastWriteTimeUtc": "2026-06-20T02:27:30.2951640Z",
-      "sha256": "F5AD1BCADE66C2C556805701A4CBD7B405E44250DF74811E99BC1C5466F230BF"
+      "length": 61061,
+      "lastWriteTimeUtc": "2026-09-11T13:18:12.4476284Z",
+      "sha256": "7282DF4F0D1F47F044EEBB3E8A3A98B652B4C1E9F7B6D82684CF7E0C990C05CA"
     },
     {
       "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Report-OSDCloudProgress.ps1",

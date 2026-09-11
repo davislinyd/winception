@@ -217,6 +217,11 @@ test('release PXE path never embeds long-lived secrets and gates desktop-ready o
   }
   assert.match(setupComplete, /C:\\ProgramData\\OSDCloud\\secrets\.json/u);
   assert.match(setupComplete, /windows-auto-logon-cleanup-failed/u);
+  assert.equal((setupComplete.match(/function Clear-AutoLogonSecrets/gu) || []).length, 2);
+  assert.doesNotMatch(setupComplete, /if \(-not \$cleanup\)/u);
+  assert.match(setupComplete, /if \(-not \$cleanup\.ok\)/u);
+  assert.match(setupComplete, /if \(\$cleanup\.ok\)/u);
+  assert.match(setupComplete, /OSDCLOUD_WINDOWS_PASSWORD/u);
   const desktopReadyIndex = setupComplete.indexOf("Send-Status -Stage 'windows-desktop-ready'");
   const cleanupIndex = setupComplete.lastIndexOf('Clear-AutoLogonSecrets', desktopReadyIndex);
   assert.ok(cleanupIndex >= 0 && desktopReadyIndex > cleanupIndex, 'SetupComplete must perform cleanup before desktop-ready reporting');
