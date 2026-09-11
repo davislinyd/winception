@@ -216,6 +216,8 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /try \{/);
   assert.match(script, /finally \{/);
   assert.match(script, /\/api\/preflight/);
+  assert.match(script, /function Get-ConsoleTimeoutSec/);
+  assert.match(script, /TimeoutSec \(Get-ConsoleTimeoutSec\)/);
   assert.match(script, /\/api\/services\/start-all/);
   assert.match(script, /server:preflight failed; DHCP will not be started/);
   assert.match(script, /IsManagementOS/);

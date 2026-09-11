@@ -671,18 +671,33 @@ function Ensure-WebConsole {
     }
 }
 
+function Get-ConsoleTimeoutSec {
+    param([int] $FallbackSeconds = 30)
+
+    try {
+        $minutes = [int] $script:Config.timeouts.preflightMinutes
+        if ($minutes -gt 0) {
+            return [Math]::Max(60, $minutes * 60)
+        }
+    }
+    catch {
+    }
+    $FallbackSeconds
+}
+
 function Invoke-ConsoleJson {
     param(
         [Parameter(Mandatory)][ValidateSet('GET', 'POST')][string] $Method,
         [Parameter(Mandatory)][string] $Path,
-        $Body
+        $Body,
+        [int] $TimeoutSec = 30
     )
 
     try {
         $parameters = @{
             Uri = "$($script:WebBaseUri)$Path"
             Method = $Method
-            TimeoutSec = 30
+            TimeoutSec = $TimeoutSec
             ErrorAction = 'Stop'
         }
         if ($Method -eq 'POST') {
@@ -696,7 +711,7 @@ function Invoke-ConsoleJson {
         $response
     }
     catch {
-        throw "Web Console request failed: $Method $Path"
+        throw "Web Console request failed: $Method $Path : $($_.Exception.Message)"
     }
 }
 
@@ -733,7 +748,7 @@ function Assert-ConsoleEndpoint {
 }
 
 function Set-ConsoleEndpoint {
-    $response = Invoke-ConsoleJson -Method POST -Path '/api/endpoint' -Body @{
+    $response = Invoke-ConsoleJson -Method POST -Path '/api/endpoint' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{
         interfaceAlias = [string] $script:Config.serviceInterfaceAlias
         ipAddress = [string] $script:Config.serviceIp
         prefixLength = [int] $script:Config.prefixLength
@@ -790,7 +805,7 @@ function Publish-ActiveProfile {
     param([Parameter(Mandatory)] $State)
 
     $profileId = Get-ActiveProfileId -State $State
-    $response = Invoke-ConsoleJson -Method POST -Path '/api/profile' -Body @{ profileId = $profileId }
+    $response = Invoke-ConsoleJson -Method POST -Path '/api/profile' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{ profileId = $profileId }
     if ([string] $response.result.profile.id -ne $profileId) {
         throw "Web Console published an unexpected profile: $profileId"
     }
@@ -834,7 +849,7 @@ function Invoke-ServerPreflight {
 }
 
 function Invoke-ApiPreflight {
-    $response = Invoke-ConsoleJson -Method POST -Path '/api/preflight' -Body @{}
+    $response = Invoke-ConsoleJson -Method POST -Path '/api/preflight' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{}
     $checks = @($response.result)
     $failures = @($checks | Where-Object { $_.ok -ne $true })
     Write-Evidence -Name 'api-preflight.json' -Value $checks | Out-Null
@@ -855,7 +870,7 @@ function Start-LabServices {
     if (-not $script:PreflightPassed) {
         throw 'Internal guard refused to start services before preflight passed.'
     }
-    $response = Invoke-ConsoleJson -Method POST -Path '/api/services/start-all' -Body @{}
+    $response = Invoke-ConsoleJson -Method POST -Path '/api/services/start-all' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{}
     $services = $response.state.services
     if ($services.http.running -ne $true -or $services.tftp.running -ne $true -or $services.dhcp.running -ne $true) {
         throw 'One or more deployment services did not start.'

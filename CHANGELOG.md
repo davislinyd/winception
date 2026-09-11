@@ -16,6 +16,7 @@
 - Lab Web Console URL construction no longer assigns `$host`, which is a read-only PowerShell automatic variable.
 - After a Lab cache refresh, the cache manifest is rewritten for stale hashes as well as a missing file, so Initialize-DeploymentServer changing `boot.wim` does not fail closed.
 - Lab now drives the Web Console onto the AutoLab endpoint instead of requiring the installed console to already be bound to `192.168.177.1`.
+- Lab Web API calls for endpoint, profile, preflight, and start-all now use the preflight timeout (default 15 minutes) instead of a 30-second REST timeout that aborted in-progress boot.wim sync.
 - Desktop-ready reporter auto-logon cleanup now returns the same `{ ok, failures }` result as SetupComplete, clears process secret environment variables, and withholds `windows-desktop-ready` when cleanup fails.
 - 商品化安裝流程改為 Release / Development 雙軌：Release HostTools ZIP 僅含產品程式、空 catalog、空 profile root 與 runtime metadata；Development fixture 必須由明確的 seed 指令載入，fresh Release install 不會自動植入示範資料。
 - Release 第一次啟動允許 Web Console 在未設定 endpoint、secrets、OS image 與 profile 時顯示 Guided Setup；Preflight、Publish、PXE 與 deployment services 會 fail-closed。Upgrade 會備份並保留 HostTools State，schema migration 失敗可使用 State restore helper 復原。
