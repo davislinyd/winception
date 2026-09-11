@@ -191,6 +191,8 @@ test('boot-session uses an ephemeral bound envelope and revokes terminal session
 test('release PXE path never embeds long-lived secrets and gates desktop-ready on cleanup', () => {
   const endpointSync = fs.readFileSync(path.resolve('tools/Set-OsdCloudIpxeEndpoint.ps1'), 'utf8');
   const startScript = fs.readFileSync(path.resolve('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1'), 'utf8');
+  assert.match(startScript, /New-Object System\.Security\.Cryptography\.RSACryptoServiceProvider\(2048\)/);
+  assert.doesNotMatch(startScript, /\$rsa\.KeySize\s*=/);
   const setupPaths = [
     path.resolve('osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1'),
     path.resolve('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1'),

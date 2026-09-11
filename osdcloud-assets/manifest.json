@@ -192,9 +192,9 @@
       "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Start-OSDCloud-iPXE.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1",
-      "length": 51126,
-      "lastWriteTimeUtc": "2026-06-19T15:58:33.0005457Z",
-      "sha256": "C343EE2DCB1242CD1F3D3D784758A052234FB23F06C89D5804AE9732780358B3"
+      "length": 62712,
+      "lastWriteTimeUtc": "2026-09-11T15:01:03.7434948Z",
+      "sha256": "11F32023C63D87065745FA8E4B08C8152A2AD4236CF19518303B94594F4DAC7F"
     }
   ],
   "excludedArtifacts": [

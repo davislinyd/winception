@@ -216,8 +216,10 @@ function Unprotect-BootSecretEnvelope {
 
 $bootSessionUrl = "http://$server/osdcloud/boot-session"
 Write-Host "Requesting an ephemeral boot session from $server..."
-$rsa = [System.Security.Cryptography.RSA]::Create()
-$rsa.KeySize = 2048
+$rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider(2048)
+if ($rsa.KeySize -lt 2048) {
+    throw "WinPE RSA key size is $($rsa.KeySize); 2048-bit or stronger is required."
+}
 $publicParameters = $rsa.ExportParameters($false)
 $bootId = [guid]::NewGuid().ToString('N')
 $clientNonceBytes = New-Object byte[] 32
