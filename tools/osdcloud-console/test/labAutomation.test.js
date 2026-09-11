@@ -229,6 +229,14 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
     script.indexOf('Invoke-ServerPreflight') < script.indexOf('Start-LabServices'),
     'server preflight must appear before the service start gate',
   );
+  const afterStart = script.indexOf("Save-ConsoleStateEvidence -Name 'state-after-start.json'");
+  const setEndpoint = script.indexOf('$state = Set-ConsoleEndpoint', afterStart);
+  assert.ok(afterStart >= 0 && setEndpoint > afterStart, 'Lab must start the console then set the AutoLab endpoint');
+  assert.equal(
+    script.slice(afterStart, setEndpoint).includes('Assert-ConsoleEndpoint'),
+    false,
+    'Lab must not require the console to already be on AutoLab before Set-ConsoleEndpoint',
+  );
   assert.match(script, /New-PSSession -VMName/);
   assert.match(script, /windows-desktop-ready/);
   assert.match(script, /Restore-VMSnapshot/);

@@ -1307,7 +1307,6 @@ try {
     Ensure-LabCache | Out-Null
     Ensure-WebConsole
     $state = Save-ConsoleStateEvidence -Name 'state-after-start.json'
-    Assert-ConsoleEndpoint -State $state
     $state = Set-ConsoleEndpoint
     $state = Publish-ActiveProfile -State $state
     $profileId = Get-ActiveProfileId -State $state
