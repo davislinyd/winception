@@ -6,6 +6,7 @@
 
 - Desktop-ready reporter 的 `Clear-AutoLogonSecrets` 改與 SetupComplete 相同的 `{ ok, failures }` 結果，並在 cleanup 失敗時扣住 `windows-desktop-ready`。
 - AutoLab example VM 改為 `winception-autolab-01..04` 與 `winception-autolab-ipxe-01`，不再徵用歷史 `winception-client-01..04`。
+- `Initialize-WinceptionLab.ps1` 建立 Internal switch 時不再帶 `-AllowManagementOS`（該參數只適用於 external switch）。
 - CHANGELOG 把已在候選內的 beginner 工作台、AutoLab CI、project-root validation 從 Unreleased 移入 v1.1.0；`debugging-todo.md` 改寫為「首次登入不要自動登入」仍屬 v1.1.0 之後。
 
 本輪仍未重跑隔離 AutoLab 或實體 UEFI IPv4 PXE，因此尚未達正式 Release gate。

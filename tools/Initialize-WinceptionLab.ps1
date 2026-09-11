@@ -99,7 +99,7 @@ function Ensure-LabSwitch {
             throw "Lab switch is missing: $Name"
         }
         Write-Host "Creating isolated Internal Hyper-V switch '$Name'."
-        New-VMSwitch -Name $Name -SwitchType Internal -AllowManagementOS $true | Out-Null
+        New-VMSwitch -Name $Name -SwitchType Internal | Out-Null
         $switch = Get-VMSwitch -Name $Name -ErrorAction Stop
     }
     if ([string] $switch.SwitchType -ne 'Internal') {

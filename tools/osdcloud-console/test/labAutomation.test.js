@@ -199,6 +199,8 @@ test('HostTools exporter emits verifiable hashes and excludes untracked secrets'
 test('Lab bootstrap is ValidateOnly-capable and fails closed on network and VM drift', () => {
   const script = read('tools/Initialize-WinceptionLab.ps1');
   assert.match(script, /ValidateOnly/);
+  assert.match(script, /New-VMSwitch -Name \$Name -SwitchType Internal/);
+  assert.doesNotMatch(script, /SwitchType Internal -AllowManagementOS/);
   assert.match(script, /SwitchType.*Internal/);
   assert.match(script, /default gateway/);
   assert.match(script, /Generation 2/);
