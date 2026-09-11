@@ -155,6 +155,12 @@ export function mediaHttpServerConfig(config) {
     smb: config.smb,
     torrent: torrentServerConfig(config),
     osCacheRoot: config.osImage?.cacheRoot ?? null,
+    dhcp: {
+      listenIp: config.dhcp?.listenIp ?? null,
+      leaseStartIp: config.dhcp?.leaseStartIp ?? null,
+      leaseEndIp: config.dhcp?.leaseEndIp ?? null,
+    },
+    serverIp: config.adapter?.serverIp ?? config.http?.host ?? null,
     // Forward the resolved state root so the media server's loadSecrets() reads
     // the live deployment secrets (e.g. the auto-generated pxeinstallPassword)
     // instead of falling back to defaultAppRoot and serving stale committed

@@ -161,6 +161,24 @@ test('mediaHttpServerConfig forwards boot-session security policy', () => {
   assert.deepEqual(mediaHttpServerConfig(config).security, config.security);
 });
 
+test('mediaHttpServerConfig forwards DHCP lease range for boot-session binding', () => {
+  const config = {
+    adapter: { serverIp: '192.168.177.1' },
+    http: { host: '192.168.177.1', port: 80 },
+    dhcp: {
+      listenIp: '192.168.177.1',
+      leaseStartIp: '192.168.177.200',
+      leaseEndIp: '192.168.177.250',
+    },
+  };
+
+  const httpConfig = mediaHttpServerConfig(config);
+  assert.equal(httpConfig.dhcp.leaseStartIp, '192.168.177.200');
+  assert.equal(httpConfig.dhcp.leaseEndIp, '192.168.177.250');
+  assert.equal(httpConfig.dhcp.listenIp, '192.168.177.1');
+  assert.equal(httpConfig.serverIp, '192.168.177.1');
+});
+
 test('applies selectable project root outside the Git clone', () => {
   const config = {
     paths: {

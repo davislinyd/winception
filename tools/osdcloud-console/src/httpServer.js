@@ -416,7 +416,9 @@ export class MediaHttpServer extends EventEmitter {
         throw new Error('clientIp does not match the network connection');
       }
       if (!isIpInRange(remoteIp, this.config.dhcp?.leaseStartIp, this.config.dhcp?.leaseEndIp)) {
-        throw new Error('client is not inside the current DHCP lease range');
+        throw new Error(
+          `client is not inside the current DHCP lease range (${this.config.dhcp?.leaseStartIp ?? 'unset'}-${this.config.dhcp?.leaseEndIp ?? 'unset'}, client=${remoteIp})`,
+        );
       }
       if (this.config.security?.requireLeaseBinding === true
         && (!this.bootLeaseValidator || !this.bootLeaseValidator(remoteIp, clientMac))) {
