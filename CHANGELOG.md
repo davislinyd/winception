@@ -9,6 +9,7 @@
 - Project root setup now honors the selected absolute path, rejects Git clone and HostTools locations before stopping services, validates IPv4/config boundaries before persistence, and preserves server-authoritative status metadata.
 - AutoLab example VMs are now `winception-autolab-01..04` and `winception-autolab-ipxe-01`, so the isolated Lab path no longer reuses historical `winception-client-01..04` vSwitch regression names.
 - AutoLab bootstrap creates the Internal `Winception-AutoLab` switch without `-AllowManagementOS`, which Hyper-V only accepts on external switches.
+- AutoLab VM creation waits until `Winception-Clean` is visible before returning, so ValidateOnly cannot race a still-writing checkpoint.
 - Desktop-ready reporter auto-logon cleanup now returns the same `{ ok, failures }` result as SetupComplete, clears process secret environment variables, and withholds `windows-desktop-ready` when cleanup fails.
 - 商品化安裝流程改為 Release / Development 雙軌：Release HostTools ZIP 僅含產品程式、空 catalog、空 profile root 與 runtime metadata；Development fixture 必須由明確的 seed 指令載入，fresh Release install 不會自動植入示範資料。
 - Release 第一次啟動允許 Web Console 在未設定 endpoint、secrets、OS image 與 profile 時顯示 Guided Setup；Preflight、Publish、PXE 與 deployment services 會 fail-closed。Upgrade 會備份並保留 HostTools State，schema migration 失敗可使用 State restore helper 復原。

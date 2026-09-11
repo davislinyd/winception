@@ -221,6 +221,15 @@ function Ensure-LabVm {
             throw "$VmName is missing checkpoint '$CheckpointName'."
         }
         Checkpoint-VM -Name $VmName -SnapshotName $CheckpointName | Out-Null
+        $deadline = (Get-Date).AddSeconds(30)
+        do {
+            $checkpoint = Get-VMSnapshot -VMName $VmName -Name $CheckpointName -ErrorAction SilentlyContinue
+            if ($checkpoint) { break }
+            Start-Sleep -Milliseconds 200
+        } while ((Get-Date) -lt $deadline)
+        if (-not $checkpoint) {
+            throw "$VmName failed to create checkpoint '$CheckpointName'."
+        }
     }
 
     [pscustomobject]@{

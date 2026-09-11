@@ -206,6 +206,7 @@ test('Lab bootstrap is ValidateOnly-capable and fails closed on network and VM d
   assert.match(script, /Generation 2/);
   assert.match(script, /4GB/);
   assert.match(script, /Checkpoint-VM/);
+  assert.match(script, /failed to create checkpoint/);
   assert.match(script, /EnableSecureBoot On/);
   assert.match(script, /EnableSecureBoot Off/);
 });
