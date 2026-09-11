@@ -193,6 +193,7 @@ test('release PXE path never embeds long-lived secrets and gates desktop-ready o
   const startScript = fs.readFileSync(path.resolve('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1'), 'utf8');
   assert.match(startScript, /New-Object System\.Security\.Cryptography\.RSACng\(2048\)/);
   assert.match(startScript, /RSAEncryptionPadding\]::OaepSHA256/);
+  assert.match(startScript, /,\s*\[Convert\]::FromBase64String/);
   assert.doesNotMatch(startScript, /RSACryptoServiceProvider/);
   assert.doesNotMatch(startScript, /\$rsa\.KeySize\s*=/);
   const setupPaths = [

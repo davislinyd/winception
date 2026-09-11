@@ -166,7 +166,9 @@ function ConvertFrom-Base64Url {
         3 { $base64 += '=' }
         1 { throw 'Invalid base64url value.' }
     }
-    [Convert]::FromBase64String($base64)
+    # Unary comma keeps the byte[] intact. PowerShell otherwise unrolls it
+    # into boxed objects and Buffer.BlockCopy rejects the result.
+    , [Convert]::FromBase64String($base64)
 }
 
 function Unprotect-BootSecretEnvelope {
@@ -175,11 +177,11 @@ function Unprotect-BootSecretEnvelope {
         [Parameter(Mandatory)] $Rsa
     )
 
-    $encryptedKey = ConvertFrom-Base64Url -Value ([string] $Envelope.encryptedKey)
-    $iv = ConvertFrom-Base64Url -Value ([string] $Envelope.iv)
-    $ciphertext = ConvertFrom-Base64Url -Value ([string] $Envelope.ciphertext)
-    $providedMac = ConvertFrom-Base64Url -Value ([string] $Envelope.mac)
-    $key = $Rsa.Decrypt($encryptedKey, [System.Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
+    $encryptedKey = [byte[]] (ConvertFrom-Base64Url -Value ([string] $Envelope.encryptedKey))
+    $iv = [byte[]] (ConvertFrom-Base64Url -Value ([string] $Envelope.iv))
+    $ciphertext = [byte[]] (ConvertFrom-Base64Url -Value ([string] $Envelope.ciphertext))
+    $providedMac = [byte[]] (ConvertFrom-Base64Url -Value ([string] $Envelope.mac))
+    $key = [byte[]] $Rsa.Decrypt($encryptedKey, [System.Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
 
     $hmac = [System.Security.Cryptography.HMACSHA256]::new($key)
     try {
