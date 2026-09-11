@@ -218,6 +218,8 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /\/api\/preflight/);
   assert.match(script, /\/api\/services\/start-all/);
   assert.match(script, /server:preflight failed; DHCP will not be started/);
+  assert.match(script, /IsManagementOS/);
+  assert.match(script, /Unexpected VM is connected to isolated Lab switch/);
   assert.ok(
     script.indexOf('Invoke-ServerPreflight') < script.indexOf('Start-LabServices'),
     'server preflight must appear before the service start gate',

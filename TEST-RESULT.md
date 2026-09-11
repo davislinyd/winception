@@ -9,7 +9,7 @@
 - `Initialize-WinceptionLab.ps1` 建立 Internal switch 時不再帶 `-AllowManagementOS`（該參數只適用於 external switch）。
 - CHANGELOG 把已在候選內的 beginner 工作台、AutoLab CI、project-root validation 從 Unreleased 移入 v1.1.0；`debugging-todo.md` 改寫為「首次登入不要自動登入」仍屬 v1.1.0 之後。
 
-2026-09-11 本機已建立空白 Dynamic base VHDX，並完成一次 AutoLab bootstrap（Internal `Winception-AutoLab` / `192.168.177.1/24`、五台 `winception-autolab-*` Off、`Winception-Clean`）。`Initialize-WinceptionLab.ps1 -ValidateOnly` 通過。Lab 服務 port 檢查改為只把 Lab service IP 與 `0.0.0.0` 視為佔用；Default Switch ICS 的 UDP/67 不再阻擋。沒有啟動 DHCP/TFTP/HTTP/Torrent，也沒有改接歷史 `winception-client-01..04`。尚未跑 `Invoke-WinceptionLabRegression.ps1` 或實體 UEFI IPv4 PXE，因此尚未達正式 Release gate。
+2026-09-11 本機已建立空白 Dynamic base VHDX，並完成一次 AutoLab bootstrap（Internal `Winception-AutoLab` / `192.168.177.1/24`、五台 `winception-autolab-*` Off、`Winception-Clean`）。`Initialize-WinceptionLab.ps1 -ValidateOnly` 通過。Lab 服務 port 檢查改為只把 Lab service IP 與 `0.0.0.0` 視為佔用；Default Switch ICS 的 UDP/67 不再阻擋。Internal switch 的 management OS adapter 不再被當成不明 VM。沒有啟動 DHCP/TFTP/HTTP/Torrent，也沒有改接歷史 `winception-client-01..04`。尚未跑 `Invoke-WinceptionLabRegression.ps1` 或實體 UEFI IPv4 PXE，因此尚未達正式 Release gate。
 
 ## v1.1.0 商品化候選驗證（2026-08-18 current run）
 

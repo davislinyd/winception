@@ -380,7 +380,9 @@ function Assert-LabRunnerGuard {
         throw 'Lab adapter has a default gateway; refusing to touch a routed network.'
     }
 
-    $labAdapters = @(Get-VMNetworkAdapter -All | Where-Object { [string] $_.SwitchName -eq $switchName })
+    $labAdapters = @(Get-VMNetworkAdapter -All | Where-Object {
+        [string] $_.SwitchName -eq $switchName -and -not [bool] $_.IsManagementOS
+    })
     $unexpectedAdapters = @($labAdapters | Where-Object { [string] $_.VMName -notin $allVms })
     if ($unexpectedAdapters.Count -gt 0) {
         throw "Unexpected VM is connected to isolated Lab switch: $($unexpectedAdapters[0].VMName)"
