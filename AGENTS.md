@@ -82,6 +82,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - Treat `Initialize-WinceptionLab.ps1 -ValidateOnly` as the read-only prerequisite check. The non-validate bootstrap is a one-time operation and must verify the exact adapter, five powered-off Gen2 VMs, Winception-Clean checkpoints, Secure Boot roles, and no foreign DHCP binding before changes.
 - `Export-HostToolsBundle.ps1` may copy only tracked allowlisted source files and must emit SHA-256 manifest records. Never include secrets, `.ai`, runtime state, logs, screenshots, WIM/ISO/VHD artifacts, or untracked files.
 - `Invoke-WinceptionLabRegression.ps1` must keep the existing API wire shape and safety gates: preflight must pass before start-all, no automatic retry, Fleet and PowerShell Direct are both required, and finally cleanup must stop known Lab services, stop/restore target VMs, restore environment state, and preserve only redacted evidence.
+- Lab port occupancy is scoped to the Lab service IP and wildcard `0.0.0.0`/`::` binds. ICS or DHCP on another adapter, including Hyper-V Default Switch UDP/67, is not a Lab occupancy and must not be stopped to make the guard pass.
 - Never use the Lab workflow as evidence that production DHCP, a WAN/LAN endpoint, or a physical laptop is ready. A failed guard must exit before service start and must not repair a foreign network automatically.
 
 ## Documentation

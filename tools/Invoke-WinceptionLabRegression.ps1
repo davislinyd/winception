@@ -461,7 +461,29 @@ function Get-LabPorts {
     @($ports.ToArray())
 }
 
+function Test-LabPortBindingConflicts {
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string] $LocalAddress,
+        [Parameter(Mandatory)][string] $ServiceIp
+    )
+
+    if ([string]::IsNullOrWhiteSpace($LocalAddress)) {
+        return $true
+    }
+    if ($LocalAddress -eq $ServiceIp) {
+        return $true
+    }
+    if ($LocalAddress -in @('0.0.0.0', '::', '::0')) {
+        return $true
+    }
+    if ($LocalAddress -eq ('::ffff:{0}' -f $ServiceIp)) {
+        return $true
+    }
+    $false
+}
+
 function Assert-LabPortsFree {
+    $serviceIp = [string] $script:Config.serviceIp
     $occupied = New-Object System.Collections.Generic.List[object]
     foreach ($entry in Get-LabPorts) {
         if ($entry.protocol -eq 'TCP') {
@@ -471,16 +493,22 @@ function Assert-LabPortsFree {
             $connections = @(Get-NetUDPEndpoint -LocalPort ([int] $entry.port) -ErrorAction SilentlyContinue)
         }
         foreach ($connection in $connections) {
+            $localAddress = [string] $connection.LocalAddress
+            if (-not (Test-LabPortBindingConflicts -LocalAddress $localAddress -ServiceIp $serviceIp)) {
+                continue
+            }
             $occupied.Add([ordered]@{
                 protocol = $entry.protocol
                 port = [int] $entry.port
                 label = $entry.label
+                localAddress = $localAddress
                 owningProcess = [int] $connection.OwningProcess
             })
         }
     }
     if ($occupied.Count -gt 0) {
-        throw "A Lab service port is already occupied: $($occupied[0].protocol)/$($occupied[0].port) PID=$($occupied[0].owningProcess)"
+        $first = $occupied[0]
+        throw "A Lab service port is already occupied: $($first.protocol)/$($first.port) $($first.localAddress) PID=$($first.owningProcess)"
     }
 }
 

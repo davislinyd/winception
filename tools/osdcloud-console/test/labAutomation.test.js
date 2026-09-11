@@ -230,6 +230,37 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /Stop-Process -Id/);
   assert.match(script, /Global\\Winception-AutoLab/);
   assert.match(script, /cache.*allowNetworkRefresh/s);
+  assert.match(script, /function Test-LabPortBindingConflicts/);
+  assert.match(script, /0\.0\.0\.0/);
+  assert.match(script, /::ffff:/);
+  assert.match(script, /A Lab service port is already occupied/);
+});
+
+test('Lab port occupancy ignores ICS on another adapter and treats wildcard binds as conflicts', () => {
+  const commonPath = path.join(root, 'tools', 'lib', 'Common.ps1').replaceAll("'", "''");
+  const scriptPath = path.join(root, 'tools', 'Invoke-WinceptionLabRegression.ps1').replaceAll("'", "''");
+  const command = [
+    "$common = '" + commonPath + "'",
+    '. $common',
+    "$script = '" + scriptPath + "'",
+    '$tokens = $null',
+    '$errors = $null',
+    '$ast = [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors)',
+    'if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Output $_.Message }; exit 1 }',
+    '$fn = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq \'Test-LabPortBindingConflicts\' }, $true)',
+    'if (-not $fn) { Write-Output \'missing Test-LabPortBindingConflicts\'; exit 1 }',
+    'Invoke-Expression $fn.Extent.Text',
+    'if (-not (Test-LabPortBindingConflicts -LocalAddress \'192.168.177.1\' -ServiceIp \'192.168.177.1\')) { Write-Output \'service-ip should conflict\'; exit 1 }',
+    'if (-not (Test-LabPortBindingConflicts -LocalAddress \'0.0.0.0\' -ServiceIp \'192.168.177.1\')) { Write-Output \'wildcard should conflict\'; exit 1 }',
+    'if (-not (Test-LabPortBindingConflicts -LocalAddress \'::ffff:192.168.177.1\' -ServiceIp \'192.168.177.1\')) { Write-Output \'mapped ipv6 should conflict\'; exit 1 }',
+    'if (Test-LabPortBindingConflicts -LocalAddress \'172.25.144.1\' -ServiceIp \'192.168.177.1\') { Write-Output \'ICS address must not conflict\'; exit 1 }',
+    'exit 0',
+  ].join('; ');
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', command], {
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
 test('Workflows use the dedicated runner and keep PRs non-mutating', () => {
