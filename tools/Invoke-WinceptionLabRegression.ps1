@@ -170,9 +170,11 @@ function Assert-LabConfig {
 function Get-SecretStorePath {
     $configured = [string] (Get-OptionalProperty -Object $script:Config -Name 'secretStorePath')
     if ([string]::IsNullOrWhiteSpace($configured)) {
-        return Join-Path $script:StateRoot 'config\osdcloud-secrets.json'
+        $configured = Join-Path $script:StateRoot 'config\osdcloud-secrets.json'
     }
-    Assert-PathOutside -Path $configured -Roots @($script:RepoRoot, $script:AppRoot, $script:RuntimeRoot) -Label 'secret store path'
+    $full = Get-FullPath $configured
+    Assert-PathOutside -Path $full -Roots @($script:RepoRoot, $script:AppRoot) -Label 'secret store path' | Out-Null
+    Assert-ChildPath -Root $script:StateRoot -Path $full -Label 'secret store path'
 }
 
 function Assert-SecretStoreAcl {
