@@ -220,6 +220,8 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /server:preflight failed; DHCP will not be started/);
   assert.match(script, /IsManagementOS/);
   assert.match(script, /function Get-SecretStorePath/);
+  assert.match(script, /\$webHost = \[string\] \$script:Config\.web\.host/);
+  assert.doesNotMatch(script, /\$host = \[string\] \$script:Config\.web\.host/);
   assert.doesNotMatch(script, /secret store path'\)[\s\S]*RuntimeRoot/s);
   assert.match(script, /Assert-ChildPath -Root \$script:StateRoot -Path \$full -Label 'secret store path'/);
   assert.match(script, /Unexpected VM is connected to isolated Lab switch/);

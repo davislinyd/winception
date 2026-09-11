@@ -631,9 +631,9 @@ function Invoke-ExternalPowerShell {
 }
 
 function Get-WebBaseUri {
-    $host = [string] $script:Config.web.host
+    $webHost = [string] $script:Config.web.host
     $port = [int] $script:Config.web.port
-    "http://{0}:{1}" -f $host, $port
+    "http://{0}:{1}" -f $webHost, $port
 }
 
 function Test-WebConsoleHealthy {

@@ -13,6 +13,7 @@
 - Lab port occupancy now matches the DHCP bind: only the Lab service IP and wildcard `0.0.0.0`/`::` conflict. ICS on Hyper-V Default Switch UDP/67 is ignored and must not be stopped.
 - Lab runner guard ignores the Internal switch management OS adapter, which has no VM name and is required for `vEthernet (Winception-AutoLab)`.
 - Lab secrets must live under HostTools State and stay out of the Git clone and App; they are allowed under `C:\OSDCloud\HostTools\State` even though that path is inside the runtime root.
+- Lab Web Console URL construction no longer assigns `$host`, which is a read-only PowerShell automatic variable.
 - Desktop-ready reporter auto-logon cleanup now returns the same `{ ok, failures }` result as SetupComplete, clears process secret environment variables, and withholds `windows-desktop-ready` when cleanup fails.
 - 商品化安裝流程改為 Release / Development 雙軌：Release HostTools ZIP 僅含產品程式、空 catalog、空 profile root 與 runtime metadata；Development fixture 必須由明確的 seed 指令載入，fresh Release install 不會自動植入示範資料。
 - Release 第一次啟動允許 Web Console 在未設定 endpoint、secrets、OS image 與 profile 時顯示 Guided Setup；Preflight、Publish、PXE 與 deployment services 會 fail-closed。Upgrade 會備份並保留 HostTools State，schema migration 失敗可使用 State restore helper 復原。
