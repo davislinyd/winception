@@ -19,6 +19,7 @@
 - Lab Web API calls for endpoint, profile, preflight, and start-all now use the preflight timeout (default 15 minutes) instead of a 30-second REST timeout that aborted in-progress boot.wim sync.
 - WinPE boot-session RSA keys are created with `RSACryptoServiceProvider(2048)`. Assigning `$rsa.KeySize` is read-only on WinPE and produced a sub-2048 key that the host rejected with HTTP 403.
 - Media HTTP boot-session now receives the live DHCP lease range. Without it, every AutoLab client at `192.168.177.200-250` was rejected as outside the lease range.
+- WinPE decrypts the boot-session envelope with `RSACng` and OAEP-SHA256. `RSACryptoServiceProvider` cannot use that padding and failed after the host issued HTTP 201.
 - Desktop-ready reporter auto-logon cleanup now returns the same `{ ok, failures }` result as SetupComplete, clears process secret environment variables, and withholds `windows-desktop-ready` when cleanup fails.
 - 商品化安裝流程改為 Release / Development 雙軌：Release HostTools ZIP 僅含產品程式、空 catalog、空 profile root 與 runtime metadata；Development fixture 必須由明確的 seed 指令載入，fresh Release install 不會自動植入示範資料。
 - Release 第一次啟動允許 Web Console 在未設定 endpoint、secrets、OS image 與 profile 時顯示 Guided Setup；Preflight、Publish、PXE 與 deployment services 會 fail-closed。Upgrade 會備份並保留 HostTools State，schema migration 失敗可使用 State restore helper 復原。
