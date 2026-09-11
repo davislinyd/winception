@@ -604,7 +604,7 @@ function Ensure-LabCache {
         }
         Invoke-CacheRefresh
         $status = Test-CacheManifest -ManifestPath $manifestPath
-        if (-not $status.valid -and $status.reason -eq 'manifest_missing') {
+        if (-not $status.valid) {
             Write-CacheManifest -ManifestPath $manifestPath | Out-Null
             $status = Test-CacheManifest -ManifestPath $manifestPath
         }
@@ -1334,6 +1334,7 @@ catch {
     $errorRecord = [ordered]@{
         ok = $false
         error = 'Winception Lab regression failed.'
+        detail = [string] $_.Exception.Message
         stage = $_.InvocationInfo.ScriptLineNumber
         cleanupErrors = @($script:CleanupErrors.ToArray())
         evidenceRoot = $script:EvidenceRoot

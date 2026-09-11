@@ -237,6 +237,7 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /Stop-Process -Id/);
   assert.match(script, /Global\\Winception-AutoLab/);
   assert.match(script, /cache.*allowNetworkRefresh/s);
+  assert.doesNotMatch(script, /reason -eq 'manifest_missing'/);
   assert.match(script, /function Test-LabPortBindingConflicts/);
   assert.match(script, /0\.0\.0\.0/);
   assert.match(script, /::ffff:/);
