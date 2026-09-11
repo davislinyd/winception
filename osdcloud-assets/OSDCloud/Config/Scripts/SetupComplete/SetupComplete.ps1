@@ -389,7 +389,18 @@ function Get-JsonFileObject {
     }
 
     try {
-        return Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            $reader = New-Object System.IO.StreamReader($stream, [System.Text.UTF8Encoding]::new($false), $true)
+            $raw = $reader.ReadToEnd()
+        }
+        finally {
+            $stream.Dispose()
+        }
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            return $null
+        }
+        return $raw | ConvertFrom-Json -ErrorAction Stop
     }
     catch {
         return $null
@@ -801,7 +812,18 @@ function Get-ProgressStatus {
         return 'pending'
     }
     try {
-        $progress = Get-Content -LiteralPath $progressPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $stream = [System.IO.File]::Open($progressPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            $reader = New-Object System.IO.StreamReader($stream, [System.Text.UTF8Encoding]::new($false), $true)
+            $raw = $reader.ReadToEnd()
+        }
+        finally {
+            $stream.Dispose()
+        }
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            return 'pending'
+        }
+        $progress = $raw | ConvertFrom-Json -ErrorAction Stop
         return [string] $progress.status
     }
     catch {
@@ -955,7 +977,6 @@ function Clear-AutoLogonSecrets {
             $currentMetadata.PSObject.Properties.Remove('bootSessionToken')
             [System.IO.File]::WriteAllText($metadataPath, ($currentMetadata | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))
             $script:metadata = $currentMetadata
-            $script:bootSessionToken = ''
         }
     }
     catch {
@@ -1159,6 +1180,7 @@ try {
                 break
             }
             if (Send-Status -Stage 'windows-desktop-ready' -Message 'Windows desktop is ready for TARGET_USER_PLACEHOLDER.' -Percent 100 -Extra $facts) {
+                $script:bootSessionToken = ''
                 $desktopReadyReported = $true
                 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
                 break
@@ -1363,6 +1385,13 @@ try {
     New-ItemProperty -Path $Winlogon -Name DefaultPassword -PropertyType String -Value $PlainPassword -Force | Out-Null
     New-ItemProperty -Path $Winlogon -Name DefaultDomainName -PropertyType String -Value $env:COMPUTERNAME -Force | Out-Null
     New-ItemProperty -Path $Winlogon -Name AutoLogonCount -PropertyType DWord -Value 5 -Force | Out-Null
+    $systemPolicy = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+    New-Item -Path $systemPolicy -Force | Out-Null
+    New-ItemProperty -Path $systemPolicy -Name DisableCAD -PropertyType DWord -Value 1 -Force | Out-Null
+    New-ItemProperty -Path $systemPolicy -Name DontDisplayLastUserName -PropertyType DWord -Value 0 -Force | Out-Null
+    $oobePolicy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE'
+    New-Item -Path $oobePolicy -Force | Out-Null
+    New-ItemProperty -Path $oobePolicy -Name DisablePrivacyExperience -PropertyType DWord -Value 1 -Force | Out-Null
 
     $LogonUI = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI'
     if (Test-Path $LogonUI) {

@@ -222,6 +222,11 @@ test('release PXE path never embeds long-lived secrets and gates desktop-ready o
   }
   assert.match(setupComplete, /C:\\ProgramData\\OSDCloud\\secrets\.json/u);
   assert.match(setupComplete, /windows-auto-logon-cleanup-failed/u);
+  assert.match(setupComplete, /FileShare\]::ReadWrite/);
+  assert.match(setupComplete, /DisableCAD/);
+  const desktopReadySend = setupComplete.indexOf("Send-Status -Stage 'windows-desktop-ready'");
+  const tokenClearAfterReady = setupComplete.indexOf('$script:bootSessionToken = \'\'', desktopReadySend);
+  assert.ok(desktopReadySend >= 0 && tokenClearAfterReady > desktopReadySend, 'in-memory boot session token must survive cleanup until desktop-ready is posted');
   assert.equal((setupComplete.match(/function Clear-AutoLogonSecrets/gu) || []).length, 2);
   assert.doesNotMatch(setupComplete, /if \(-not \$cleanup\)/u);
   assert.match(setupComplete, /if \(-not \$cleanup\.ok\)/u);
