@@ -57,10 +57,10 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ .topbar 56px  狂草「W」+ Winception · 開始部署/部署活動 · 管理 │
+│ .topbar 56px  Winception · 開始部署/部署活動 · 引導|控制台 │
 ├────────────────────────────────────────────────────────────┤
 │ .shell-main(scroll)  內容滿版,左右 5% gutters             │
-│   #view-dashboard = 新手工作台（單一下一步 + 狀態摘要） │
+│   #view-dashboard = 引導首頁 或 #console-board             │
 │   #view-fleet                                              │
 ├────────────────────────────────────────────────────────────┤
 │ #console-dock(橫跨內容欄底,可收合)                         │
@@ -71,10 +71,10 @@ Fallback `Georgia, serif` keeps headings legible if the CDN is unreachable.
   100vh。頂部列 / 內容欄 / 主控台 dock 垂直堆疊。
 - 頂部列 `--surface-container-low` 底 + 底部 hairline;品牌為 狂草毛筆「W」墨色
   SVG(`feTurbulence`+位移濾鏡)+ Source Serif「Winception」字標;nav 僅
-  開始部署 / 部署活動，技術控制集中在 Management(active = 亮底 + 底部 2px 陶土紅 inset)。
+  開始部署 / 部署活動，密度以 `引導` / `控制台` 切換(active = 亮底 + 底部 2px 陶土紅 inset)。
 - 內容滿版、左右 5% gutters,不再限寬置中(`--content-max` 已停用)。
-- 首頁以 `.beginner-home` 顯示目前部署內容、單一下一步、三階段流程與簡短概況；
-  `.management-dialog` 集中進階設定，Guided Setup 使用可關閉 dialog。
+- 引導模式以 `.beginner-home` 顯示目前部署內容、單一下一步、四階段流程、PXE 開機說明與簡短概況；
+  控制台模式以 `#console-board` 顯示服務、檢查、Endpoint 與工具。Guided Setup 使用可關閉 dialog。
 - `@media (max-width: 1024px)`: 首頁維持單欄、Management 與 Setup dialog 收窄，頂部列縮邊距。
 - z-index: topbar 20 / dock 25 / `.fleet-backdrop` 40 / `.client-fleet-panel` 45 /
   fallback dialog 60。

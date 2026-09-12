@@ -29,17 +29,37 @@ function renderFlowStep(element, status, detail) {
 
 function renderBlockers(model) {
   if (!elements.beginnerBlockerSummary) return;
-  const names = model.blockers.map((check) => check?.name).filter(Boolean).slice(0, 3);
-  if (!names.length) {
+  const blockers = model.blockers.filter((check) => check?.name);
+  if (!blockers.length) {
     elements.beginnerBlockerSummary.hidden = true;
-    elements.beginnerBlockerSummary.textContent = '';
+    elements.beginnerBlockerSummary.replaceChildren();
     return;
   }
-  const suffix = model.blockers.length > names.length ? `，另有 ${model.blockers.length - names.length} 項` : '';
   elements.beginnerBlockerSummary.hidden = false;
-  elements.beginnerBlockerSummary.textContent = `需要處理：${names.join('、')}${suffix}`;
+  const cards = blockers.slice(0, 3).map((check) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'beginner-blocker-card';
+    button.dataset.action = 'initialization';
+    button.dataset.initializationStep = 'preflight';
+    const title = document.createElement('strong');
+    title.textContent = check.name;
+    button.append(title);
+    if (check.detail) {
+      const detail = document.createElement('span');
+      detail.textContent = check.detail;
+      button.append(detail);
+    }
+    return button;
+  });
+  if (blockers.length > 3) {
+    const extra = document.createElement('p');
+    extra.className = 'beginner-blocker-more';
+    extra.textContent = `另有 ${blockers.length - 3} 項需要處理`;
+    cards.push(extra);
+  }
+  elements.beginnerBlockerSummary.replaceChildren(...cards);
 }
-
 
 /**
  * Render the beginner-first home surface without changing server state.
@@ -54,21 +74,54 @@ export function renderBeginnerHome(appState) {
   elements.beginnerOverallBadge.className = `status-pill ${model.status}`;
   elements.beginnerNextTitle.textContent = model.title;
   elements.beginnerNextDetail.textContent = model.detail;
+  if (elements.beginnerWhy) {
+    elements.beginnerWhy.textContent = model.why;
+    elements.beginnerWhy.hidden = !model.why;
+  }
+  if (elements.beginnerNextHint) {
+    elements.beginnerNextHint.textContent = model.nextHint;
+    elements.beginnerNextHint.hidden = !model.nextHint;
+  }
   elements.beginnerPrimaryAction.textContent = model.primaryLabel;
   elements.beginnerPrimaryAction.dataset.beginnerAction = model.primaryAction;
   elements.beginnerPrimaryAction.dataset.beginnerStep = model.step ?? '';
   elements.beginnerPrimaryAction.disabled = model.phase === 'loading';
-  elements.beginnerSecondaryAction.textContent = model.phase === 'setup' ? '開啟部署設定' : '查看完整檢查清單';
-  elements.beginnerSecondaryAction.dataset.initializationStep = model.step ?? '';
+
+  if (model.phase === 'setup') {
+    elements.beginnerSecondaryAction.textContent = '開啟逐步設定';
+    elements.beginnerSecondaryAction.dataset.action = 'initialization';
+    elements.beginnerSecondaryAction.dataset.initializationStep = model.step ?? '';
+    delete elements.beginnerSecondaryAction.dataset.operatorMode;
+  } else if (model.pxeReady) {
+    elements.beginnerSecondaryAction.textContent = '切換到控制台';
+    elements.beginnerSecondaryAction.dataset.action = 'operator-mode';
+    elements.beginnerSecondaryAction.dataset.operatorMode = 'console';
+    delete elements.beginnerSecondaryAction.dataset.initializationStep;
+  } else {
+    elements.beginnerSecondaryAction.textContent = '這一步在做什麼';
+    elements.beginnerSecondaryAction.dataset.action = 'initialization';
+    elements.beginnerSecondaryAction.dataset.initializationStep = model.step ?? '';
+    delete elements.beginnerSecondaryAction.dataset.operatorMode;
+  }
   renderBlockers(model);
 
+  if (elements.beginnerPxeCard) {
+    elements.beginnerPxeCard.hidden = !model.pxeReady;
+  }
+
   const flowById = {
+    setup: elements.beginnerStepSetup,
     content: elements.beginnerStepContent,
     environment: elements.beginnerStepEnvironment,
     services: elements.beginnerStepServices,
   };
   for (const step of model.steps) {
-    renderFlowStep(flowById[step.id], step.status, step.detail);
+    const node = flowById[step.id];
+    renderFlowStep(node, step.status, step.detail);
+    if (node) {
+      node.dataset.beginnerAction = step.action;
+      node.dataset.beginnerStep = model.step ?? '';
+    }
   }
 
   if (elements.beginnerSummaryItems) {

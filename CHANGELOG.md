@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Web Console now has a persistent **引導 / 控制台** operator-mode toggle. Guided mode is a Traditional-Chinese task page with one next action, a four-stage flow, blocker cards, and PXE boot instructions when services are ready. Console mode is a dense in-page ops board for services, torrent, runtime, preflight, diagnostics, endpoint, catalogs, Offline ISO, and Software Test. The Management dialog is retired as the working surface. Confirmations, Preflight gates, and DHCP safety rules are unchanged.
+
 ## v1.1.0 — 2026-08-18
 
 - Web Console now defaults to a Traditional-Chinese beginner-first workspace with one state-derived next action. Advanced deployment content, network/service controls, runtime checks, diagnostics, Offline ISO, Software Test, and System Log are grouped under Management; Activity retains the complete Fleet workspace. Existing confirmations, Preflight gates, and DHCP safety rules are unchanged.

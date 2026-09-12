@@ -2428,13 +2428,10 @@ export function renderStatusStrip(appState) {
   setStrip(elements.ssRuntime, runtimeReady ? 'Ready' : 'Not ready', runtimeReady ? 'ok' : 'warn');
 
   const pf = appState.preflight;
-  let pfText = 'Not run';
-  let pfTone = 'neutral';
-  if (pf?.summary?.blocking > 0 || pf?.status === 'blocked') { pfText = 'Blocked'; pfTone = 'err'; }
-  else if (pf?.status === 'ready' || pf?.ok === true) { pfText = 'Ready'; pfTone = 'ok'; }
-  else if (pf?.status === 'review' || (pf?.summary?.warnings ?? 0) > 0) { pfText = 'Review'; pfTone = 'warn'; }
-  else if (pf?.ranAt || pf?.checks?.length) { pfText = 'Ready'; pfTone = 'ok'; }
-  setStrip(elements.ssPreflight, pfText, pfTone);
+  const checks = Array.isArray(pf) ? pf : (Array.isArray(pf?.checks) ? pf.checks : []);
+  const [pfLabel, pfStatus] = preflightStatus(checks);
+  const pfTone = pfStatus === 'fail' ? 'err' : pfStatus === 'working' ? 'warn' : pfStatus;
+  setStrip(elements.ssPreflight, pfLabel, pfTone);
 
   const running = ['http', 'tftp', 'dhcp'].filter((n) => appState.services?.[n]?.running).length;
   setStrip(elements.ssServices, `${running} / 3 running`, running === 3 ? 'ok' : running === 0 ? 'neutral' : 'warn');

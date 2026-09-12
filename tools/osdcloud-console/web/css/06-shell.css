@@ -156,6 +156,30 @@ body { overflow: hidden; background: var(--paper); }
 }
 .topbar-management-button:hover { background: var(--surface-container); border-color: var(--accent-tint-border); }
 .topbar-management-button .material-symbols-outlined { font-size: 17px; }
+.operator-mode-toggle {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface-container);
+}
+.operator-mode-button {
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  font: 600 12px/1 Inter, sans-serif;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+.operator-mode-button:hover { color: var(--ink); }
+.operator-mode-button[aria-checked="true"] {
+  background: var(--surface-bright);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
 .update-control { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .update-check-button {
   display: inline-flex; align-items: center; gap: 5px; min-width: 0;
@@ -195,7 +219,7 @@ body { overflow: hidden; background: var(--paper); }
 @media (max-width: 720px) {
   .topbar-navlink span:not(.material-symbols-outlined),
   .topbar-status .updated-chip { display: none; }
-  .update-status { display: none; }
+  .update-status, #update-status { display: none; }
 }
 @media (max-width: 720px) {
   .topbar { gap: 8px; padding: 0 8px; }

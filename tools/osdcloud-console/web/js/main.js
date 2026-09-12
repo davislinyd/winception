@@ -8,10 +8,12 @@ import { showOperationError } from './errorDialog.js';
 import { renderFleetCards } from './fleet.js';
 import { render } from './render.js';
 import { state } from './state.js';
+import { applyOperatorMode, readStoredOperatorMode } from './operatorMode.js';
 import { copyConsoleLog, hydrateActionIcons, hydrateStaticIcons, setConsoleDockCollapsed } from './ui.js';
 
 hydrateStaticIcons();
 hydrateActionIcons();
+applyOperatorMode(readStoredOperatorMode(), { persist: false, applyDockDefault: true });
 
 let deployTooltipTarget = null;
 let deployTooltipHideTimer = null;
@@ -357,6 +359,7 @@ if (elements.consoleDockHead) {
     if (event.target instanceof Element && event.target.closest('#console-dock-copy')) {
       return;
     }
+    state.consoleDockUserToggled = true;
     setConsoleDockCollapsed(!state.consoleDockCollapsed);
   });
   elements.consoleDockHead.addEventListener('keydown', (event) => {
@@ -367,6 +370,7 @@ if (elements.consoleDockHead) {
       return;
     }
     event.preventDefault();
+    state.consoleDockUserToggled = true;
     setConsoleDockCollapsed(!state.consoleDockCollapsed);
   });
 }
@@ -421,10 +425,6 @@ if (elements.initializationSteps) {
     }
   });
 }
-
-elements.managementDialog?.addEventListener('close', () => {
-  elements.managementOpenButton?.focus();
-});
 
 async function boot() {
   await loadAuthStatus();

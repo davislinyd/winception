@@ -16,9 +16,9 @@ Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在�
 - 透過 DHCP、TFTP、HTTP、SMB 與 Torrent P2P 提供 Windows 11 部署資料。
 - 支援 Secure Boot boot mode 與 iPXE fallback boot mode。
 - 以 deployment profile 控制 OS image、display language、regional format、input language、time zone、client software 與 custom scripts。
-- 首頁預設為繁體中文「新手工作台」：只顯示目前部署內容、狀態、單一下一步與簡短部署概況；進階能力集中在「管理」入口。
+- 首頁預設為繁體中文「引導」模式：只顯示目前部署內容、狀態、單一下一步、四個階段與簡短部署概況；頂部可切換到「控制台」模式查看全部主機控制項。
 - 透過 Client Fleet、Activity、Validation Evidence 與 System Log 追蹤每台電腦的部署狀態。
-- `部署活動` 保留 Fleet 的搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions；`管理` 入口集中 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。
+- `部署活動` 保留 Fleet 的搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions；`控制台` 模式集中 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。
 - 在 Web Console 版本號旁自動檢查正式 GitHub Release；只提示可用更新與 Release 指引，不會下載、覆寫或重啟服務。
 
 適用對象：
@@ -27,7 +27,7 @@ Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在�
 - 在現場啟動 PXE 服務並部署 Windows 11 電腦的操作人員。
 - 需要判斷部署是否完成、失敗原因與可採取動作的支援人員。
 
-完整圖解手冊可開啟 [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)，安裝後也可在 Web Console 的 **管理** 入口用 **使用手冊** 開啟 `/manual/`。
+完整圖解手冊可開啟 [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)，安裝後也可在 Web Console 頂部用 **使用手冊** 開啟 `/manual/`。
 
 ### 02. 部署主機安裝
 
@@ -96,7 +96,7 @@ C:\OSDCloud\HostTools\Open-WebConsole.cmd
 
 ### HostTools 版本檢查與更新
 
-Web Console 啟動後會在背景查詢 Winception 的最新正式 GitHub Release，結果快取 24 小時於 `C:\OSDCloud\HostTools\State\updates\release-check.json`。請從 **管理** 入口的「檢查更新」手動重新檢查；離線、逾時或 GitHub 無法使用時，Console 與 PXE 部署會照常運作，並保留上次成功確認的結果。
+Web Console 啟動後會在背景查詢 Winception 的最新正式 GitHub Release，結果快取 24 小時於 `C:\OSDCloud\HostTools\State\updates\release-check.json`。請從頂部的「檢查更新」手動重新檢查；離線、逾時或 GitHub 無法使用時，Console 與 PXE 部署會照常運作，並保留上次成功確認的結果。
 
 此功能只檢查非 draft、非 prerelease 的正式版本。發現新版本時，按 **View update** 開啟 Release notes，再依該 Release 的手動更新指引執行；Console 不會自動下載、安裝、覆寫或重啟任何服務。
 
@@ -167,7 +167,7 @@ C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json
 
 ### 05. 部署前準備
 
-Web Console 的頂部工作區是 **開始部署** / **部署活動**，右上角是 **管理**。首頁是新手工作台：依目前 state 只提供一個下一步按鈕，順序會在基本設定、部署內容、Runtime、Preflight、服務與部署活動之間切換。所有有副作用的動作仍沿用既有確認視窗、Preflight 門檻與 DHCP 安全規則；需要調整技術設定或取得證據時，再從 **管理** 進入 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。**部署活動** 則保留完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions。第一次開啟 Web Console 時，按首頁的 `完成基本設定`，在可關閉的 Guided Setup dialog 內完成：
+Web Console 的頂部工作區是 **開始部署** / **部署活動**，並可用 **引導 / 控制台** 切換密度。第一次造訪預設為引導模式：依目前 state 只提供一個下一步按鈕，順序會在基本設定、選擇 Windows、檢查主機、啟動服務與查看電腦進度之間切換。所有有副作用的動作仍沿用既有確認視窗、Preflight 門檻與 DHCP 安全規則。需要調整技術設定或取得證據時，切換到 **控制台** 即可看到 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。**部署活動** 則保留完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions。第一次開啟 Web Console 時，按首頁的 `完成基本設定`，在可關閉的 Guided Setup dialog 內完成：
 
 1. Project root：確認 deployment root，預設可用 `C:\OSDCloud`。
 2. Deployment secrets：輸入目標 Windows local account 與 SMB account secret。
@@ -402,7 +402,7 @@ Core capabilities:
 - Supports Secure Boot boot mode and an iPXE fallback boot mode.
 - Uses deployment profiles to control OS image, display language, regional format, input language, time zone, client software, and custom scripts.
 - Tracks each computer through Client Fleet, Activity, Validation Evidence, and System Log.
-- Uses a Traditional-Chinese beginner-first home: one state-derived next action, deployment content, a three-step flow, and a short deployment summary. Advanced Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log controls live under Management.
+- Uses a Traditional-Chinese Guided home by default: one state-derived next action, a four-stage flow, and a short deployment summary. A top-bar **Guided / Console** toggle switches to a dense ops board for Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log.
 - Keeps Activity as the full Fleet workspace with search, filters, Evidence, Archive, Delete, and bulk actions.
 - Checks formal GitHub Releases beside the Web Console version and only presents an available update plus its Release guidance; it never downloads, overwrites, or restarts services.
 
@@ -412,7 +412,7 @@ Intended users:
 - Operators who start PXE services and deploy Windows 11 computers onsite.
 - Support staff who need to determine completion, failure cause, and next action.
 
-Open the illustrated bilingual manual at [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html). After installation, the Web Console also exposes it through **Management → Manual** at `/manual/`.
+Open the illustrated bilingual manual at [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html). After installation, the Web Console also exposes it through the top-bar **Manual** link at `/manual/`.
 
 ### 02. Deployment Host Installation
 
@@ -481,7 +481,7 @@ C:\OSDCloud\HostTools\Open-WebConsole.cmd
 
 ### HostTools Version Checks And Updates
 
-After startup, the Web Console checks the latest formal Winception GitHub Release in the background. It caches the result for 24 hours at `C:\OSDCloud\HostTools\State\updates\release-check.json`. Use **Management → Check updates** to check again manually. Offline, timeout, or GitHub availability failures do not affect the Console or PXE deployment, and the last successful result remains visible.
+After startup, the Web Console checks the latest formal Winception GitHub Release in the background. It caches the result for 24 hours at `C:\OSDCloud\HostTools\State\updates\release-check.json`. Use the top-bar **Check updates** control to check again manually. Offline, timeout, or GitHub availability failures do not affect the Console or PXE deployment, and the last successful result remains visible.
 
 The checker accepts only non-draft, non-prerelease releases. When an update is available, choose **View update** to open its Release notes and follow its manual update instructions. The Console never downloads, installs, overwrites, or restarts anything automatically.
 
@@ -552,7 +552,7 @@ Rules:
 
 ### 05. Pre-Deployment Preparation
 
-The Web Console top bar has **Start deployment** / **Activity**, plus **Management**. The beginner-first home shows one state-derived next action, the selected deployment content, a three-step flow, and a short deployment summary. Advanced Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log controls are grouped under Management; Activity remains the full Fleet workspace. Actions with side effects keep the existing confirmation dialogs, Preflight gates, and DHCP safety rules. On first launch, choose `Complete basic setup` and complete Guided Setup in its closable dialog:
+The Web Console top bar has **Start deployment** / **Activity**, plus a **Guided / Console** density toggle. First visit defaults to Guided: one state-derived next action, the selected deployment content, a four-stage flow, and a short deployment summary. Console mode is the in-page ops board for Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log. Activity remains the full Fleet workspace. Actions with side effects keep the existing confirmation dialogs, Preflight gates, and DHCP safety rules. On first launch, choose `Complete basic setup` and complete Guided Setup in its closable dialog:
 
 1. Project root: confirm the deployment root; `C:\OSDCloud` is the default option.
 2. Deployment secrets: enter the target Windows local account and SMB account secret.

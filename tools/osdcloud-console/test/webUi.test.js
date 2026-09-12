@@ -140,13 +140,19 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /<span class="topbar-manual-label">使用手冊<\/span>/);
   assert.ok(html.indexOf('id="updated-at"') < html.indexOf('id="manual-link"'));
   assert.ok(html.indexOf('id="manual-link"') < html.indexOf('id="refresh-button"'));
-  // Beginner home is the default surface; advanced controls live in Management.
+  // Dual-mode shell: guided home is default; console board replaces Management.
+  assert.match(html, /data-operator-mode="guided"/);
+  assert.match(html, /id="operator-mode-toggle"/);
+  assert.match(html, /id="operator-mode-guided"[^>]*data-action="operator-mode"[^>]*data-operator-mode="guided"/);
+  assert.match(html, /id="operator-mode-console"[^>]*data-action="operator-mode"[^>]*data-operator-mode="console"/);
   assert.match(html, /id="beginner-home"/);
   assert.match(html, /id="beginner-primary-action"[^>]*data-action="beginner-primary"/);
   assert.equal([...html.matchAll(/data-action="beginner-primary"/g)].length, 1);
-  assert.match(html, /id="management-dialog"/);
-  assert.match(html, /id="management-dialog"[^>]*aria-labelledby="management-title"/);
-  assert.doesNotMatch(html, /<dialog id="management-dialog"[^>]*\bopen\b/);
+  assert.match(html, /id="console-board"/);
+  assert.match(html, /id="console-board"[^>]*\bhidden\b/);
+  assert.doesNotMatch(html, /id="management-dialog"/);
+  assert.match(script, /winception-operator-mode/);
+  assert.match(script, /function applyOperatorMode\(/);
   assert.match(html, /id="initialization-dialog"/);
   assert.match(html, /id="initialization-dialog"[^>]*aria-labelledby="guided-setup-title"/);
   assert.doesNotMatch(html, /id="setup-progress-chip"/);

@@ -20,6 +20,9 @@ instead of reading a multi-thousand-line monolith. Grep the symbol, open the lis
 | Dialog open/close/backdrop + every `show*Dialog` builder | `web/js/dialogs.js` |
 | **Deploy** (dashboard): services, tiles, preflight, runtime readiness, OS/profile/interface/payload/sync/validation render | `web/js/deploy.js` |
 | Deploy diagnostics panel/button builder | `web/js/deploy/diagnostics.js` |
+| Operator mode (`引導` / `控制台`) persistence and DOM show/hide | `web/js/operatorMode.js` |
+| Guided home model (next action, four stages, PXE-ready copy) | `web/js/beginnerModel.js` |
+| Guided home renderer | `web/js/beginner.js` |
 | **Setup** (guided init): steps, secrets form, project-root form, init handlers | `web/js/setup.js` |
 | **Activity** (fleet): cards, detail, search/filter, `STALE_DONE_STAGES` | `web/js/fleet.js` |
 | Action dispatch (`handleAction`) + async button handlers, `switchToView` | `web/js/actions.js` |

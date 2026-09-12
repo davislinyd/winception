@@ -44,18 +44,22 @@ test('beginner home asks for basic setup first', () => {
   assert.equal(model.phase, 'setup');
   assert.equal(model.primaryAction, 'initialization');
   assert.equal(model.primaryLabel, '完成基本設定');
+  assert.match(model.why, /第一次使用/);
+  assert.equal(model.pxeReady, false);
+  assert.equal(model.steps[0].id, 'setup');
+  assert.equal(model.steps[0].status, 'current');
 });
 
 test('beginner home points to missing deployment content', () => {
   const profileMissing = buildBeginnerHomeModel(makeState({ profile: { activeProfile: null } }));
   assert.equal(profileMissing.phase, 'content');
   assert.equal(profileMissing.primaryAction, 'profiles');
-  assert.equal(profileMissing.primaryLabel, '選擇部署內容');
+  assert.equal(profileMissing.primaryLabel, '選擇要安裝的內容');
 
   const imageMissing = buildBeginnerHomeModel(makeState({ osImage: { activeImage: { cached: false } } }));
   assert.equal(imageMissing.phase, 'content');
   assert.equal(imageMissing.primaryAction, 'os-images');
-  assert.equal(imageMissing.primaryLabel, '選擇部署內容');
+  assert.equal(imageMissing.primaryLabel, '選擇要安裝的內容');
 });
 
 test('beginner home prepares runtime before preflight', () => {
@@ -63,7 +67,7 @@ test('beginner home prepares runtime before preflight', () => {
 
   assert.equal(model.phase, 'runtime');
   assert.equal(model.primaryAction, 'prepare-runtime');
-  assert.equal(model.primaryLabel, '準備執行環境');
+  assert.equal(model.primaryLabel, '準備部署檔案');
 });
 
 test('beginner home distinguishes preflight not run, ready, and failed', () => {
@@ -97,12 +101,16 @@ test('beginner home shows service progress and ready activity', () => {
   }));
   assert.equal(partial.phase, 'services');
   assert.equal(partial.primaryAction, 'all-services-toggle');
+  assert.equal(partial.primaryLabel, '啟動網路開機服務');
   assert.equal(partial.services.running, 1);
 
   const ready = buildBeginnerHomeModel(makeState());
   assert.equal(ready.phase, 'activity');
   assert.equal(ready.primaryAction, 'fleet');
-  assert.equal(ready.primaryLabel, '查看部署活動');
+  assert.equal(ready.primaryLabel, '查看電腦進度');
+  assert.equal(ready.pxeReady, true);
+  assert.match(ready.why, /PXE/);
+  assert.equal(ready.steps.map((step) => step.id).join(','), 'setup,content,environment,services');
 });
 
 test('beginner home prioritizes operation progress and handles an empty fleet', () => {

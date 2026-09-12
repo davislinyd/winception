@@ -401,14 +401,14 @@ cd '&lt;repo-root&gt;'
             <tr><td><code>&lt;deployment-root&gt;</code></td><td>Web 選定的 deployment runtime。</td><td>product workflows。</td></tr>
           </tbody></table></div>
           <div class="callout"><strong>不要直接修改 runtime root</strong>部署行為要先在 source 修正，再透過 publish、reload、Endpoint Sync 或 profile publish 更新 runtime。</div>
-          <div class="callout"><strong>HostTools 更新檢查</strong>Web Console 啟動後會背景查詢最新正式 GitHub Release，並把安全的版本、日期與 Release 連結快取 24 小時於 <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>。請從右上角 <em>管理</em> 入口的「檢查更新」手動重查；離線或 GitHub 無法使用不影響 Console 或部署。它只顯示正式版，不下載、安裝、覆寫或重啟任何服務；有新版時開啟 <em>查看更新</em>，再依 Release 指引手動更新。</div>
+          <div class="callout"><strong>HostTools 更新檢查</strong>Web Console 啟動後會背景查詢最新正式 GitHub Release，並把安全的版本、日期與 Release 連結快取 24 小時於 <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>。請從頂部的「檢查更新」手動重查；離線或 GitHub 無法使用不影響 Console 或部署。它只顯示正式版，不下載、安裝、覆寫或重啟任何服務；有新版時開啟 <em>查看更新</em>，再依 Release 指引手動更新。</div>
         </section>
 
         <section id="readiness">
           <p class="section-kicker">05 · Preparation</p>
           <h2>部署前準備</h2>
-          <p>目前 Web Console 首頁預設為繁體中文「新手工作台」：頂部工作區是 <strong>開始部署</strong> 與 <strong>部署活動</strong>，右上角的 <strong>管理</strong> 集中進階功能。首頁會依 state 只顯示一個下一步，並以「部署內容 → 環境檢查 → 啟動服務」呈現流程；服務、Endpoint Sync、Profile publish、Offline ISO 與其他有副作用的操作仍沿用既有確認視窗與安全門檻。</p>
-          <div class="callout"><strong>新手操作方式</strong>先看「下一步」卡片的主按鈕。若需要調整 Profile、OS Image、Endpoint、Boot Mode、DHCP Mode、NAT、Diagnostics、Software Test 或 System Log，開啟 <strong>管理</strong>；完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions 位於 <strong>部署活動</strong>。</div>
+          <p>目前 Web Console 首頁預設為繁體中文「引導」模式：頂部工作區是 <strong>開始部署</strong> 與 <strong>部署活動</strong>，並可用 <strong>引導 / 控制台</strong> 切換密度。引導模式會依 state 只顯示一個下一步，並以「主機設定 → 選擇 Windows → 檢查主機 → 啟動服務」呈現流程；服務、Endpoint Sync、Profile publish、Offline ISO 與其他有副作用的操作仍沿用既有確認視窗與安全門檻。</p>
+          <div class="callout"><strong>操作方式</strong>現場人員先看「下一步」卡片的主按鈕。若需要調整 Profile、OS Image、Endpoint、Boot Mode、DHCP Mode、NAT、Diagnostics、Software Test 或 System Log，切換到 <strong>控制台</strong>；完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions 位於 <strong>部署活動</strong>。</div>
           <ol>
             <li>確認 deployment project root；可輸入自訂絕對路徑，但不得位於 Git clone 或 <code>HostTools</code> 內。</li>
             <li>儲存 deployment secrets。</li>
@@ -619,14 +619,14 @@ cd '&lt;repo-root&gt;'
             <tr><td><code>&lt;deployment-root&gt;</code></td><td>Web-selected deployment runtime.</td><td>product workflows.</td></tr>
           </tbody></table></div>
           <div class="callout"><strong>Do not directly edit the runtime root</strong>Fix deployment behavior in source first, then update runtime through publish, reload, Endpoint Sync, or profile publish.</div>
-          <div class="callout"><strong>HostTools update checks</strong>After startup, the Web Console checks the latest formal GitHub Release in the background and caches only its safe version, date, and Release link for 24 hours at <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>. Use <em>Management → Check updates</em> to check again. Offline or GitHub availability failures do not affect the Console or deployment. It shows formal releases only and never downloads, installs, overwrites, or restarts anything; when available, open <em>View update</em> and follow the Release guidance manually.</div>
+          <div class="callout"><strong>HostTools update checks</strong>After startup, the Web Console checks the latest formal GitHub Release in the background and caches only its safe version, date, and Release link for 24 hours at <code>C:\OSDCloud\HostTools\State\updates\release-check.json</code>. Use the top-bar <em>Check updates</em> control to check again. Offline or GitHub availability failures do not affect the Console or deployment. It shows formal releases only and never downloads, installs, overwrites, or restarts anything; when available, open <em>View update</em> and follow the Release guidance manually.</div>
         </section>
 
         <section id="en-readiness">
           <p class="section-kicker">05 · Preparation</p>
           <h2>Pre-Deployment Preparation</h2>
-          <p>The Web Console now opens on a Traditional-Chinese beginner-first home. The top bar has <strong>Start deployment</strong> and <strong>Activity</strong>, while <strong>Management</strong> groups advanced controls. The home derives one next action from current state and presents the path as deployment content → environment checks → services. Existing confirmation dialogs, Preflight gates, and DHCP safety rules remain in force for side-effecting actions.</p>
-          <div class="callout"><strong>Beginner workflow</strong>Follow the primary button in the Next step card. Open <strong>Management</strong> for Profiles, OS Image, Endpoint, Boot Mode, DHCP Mode, NAT, Diagnostics, Software Test, and System Log. Use <strong>Activity</strong> for the complete Fleet search, filters, Evidence, Archive, Delete, and bulk actions.</div>
+          <p>The Web Console opens on Traditional-Chinese <strong>Guided</strong> mode. The top bar has <strong>Start deployment</strong> and <strong>Activity</strong>, plus a <strong>Guided / Console</strong> density toggle. Guided derives one next action from current state and presents the path as host setup → choose Windows → check the host → start services. Existing confirmation dialogs, Preflight gates, and DHCP safety rules remain in force for side-effecting actions.</p>
+          <div class="callout"><strong>Operator workflow</strong>Follow the primary button in the Next step card. Switch to <strong>Console</strong> for Profiles, OS Image, Endpoint, Boot Mode, DHCP Mode, NAT, Diagnostics, Software Test, and System Log. Use <strong>Activity</strong> for the complete Fleet search, filters, Evidence, Archive, Delete, and bulk actions.</div>
           <ol>
             <li>Confirm the deployment project root; custom values are allowed when they are absolute paths outside the Git clone and <code>HostTools</code>.</li>
             <li>Save deployment secrets.</li>

@@ -8,6 +8,7 @@ import { osImageLabel } from './format.js';
 import { render, renderFleetExpandedState } from './render.js';
 import { confirmPrepareRuntime } from './setup.js';
 import { state } from './state.js';
+import { applyOperatorMode } from './operatorMode.js';
 import { copyTextWithFeedback, setConsoleDockCollapsed, setControlsDisabled } from './ui.js';
 
 export function setFleetExpanded(expanded) {
@@ -581,8 +582,21 @@ async function handleUpdateCheck() {
 
 export async function handleAction(action, source = null) {
   const services = state.current?.services ?? {};
-  if (action === 'management') {
-    openDialog(elements.managementDialog);
+  if (action === 'operator-mode') {
+    applyOperatorMode(source?.dataset?.operatorMode, { applyDockDefault: true });
+    switchToView('dashboard');
+  } else if (action === 'console-jump') {
+    applyOperatorMode('console', { applyDockDefault: false });
+    switchToView('dashboard');
+    const targetId = source?.dataset?.consoleJump;
+    if (targetId) {
+      window.requestAnimationFrame(() => {
+        document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  } else if (action === 'management') {
+    applyOperatorMode('console', { applyDockDefault: true });
+    switchToView('dashboard');
   } else if (action === 'management-target') {
     const targetAction = source?.dataset?.managementTarget;
     if (!targetAction) {
@@ -596,6 +610,8 @@ export async function handleAction(action, source = null) {
       openDialog(elements.initializationDialog);
       render();
     } else if (targetAction === 'logs') {
+      applyOperatorMode('console', { applyDockDefault: false });
+      state.consoleDockUserToggled = true;
       switchToView('dashboard');
       setConsoleDockCollapsed(false);
     } else if (targetAction === 'activity' || targetAction === 'fleet') {
@@ -603,7 +619,7 @@ export async function handleAction(action, source = null) {
     } else {
       await handleAction(targetAction, source);
     }
-  } else if (action === 'beginner-primary') {
+  } else if (action === 'beginner-primary' || action === 'beginner-stage') {
     const targetAction = source?.dataset?.beginnerAction;
     if (!targetAction || targetAction === 'none') {
       return;

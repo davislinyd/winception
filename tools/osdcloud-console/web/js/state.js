@@ -50,6 +50,8 @@ export const state = {
     windowsPassword: '',
   },
   currentView: null,
+  operatorMode: 'guided',
+  consoleDockUserToggled: false,
   selectedGuidedStepId: null,
   guidedStepCollapsed: false,
   fleetFilter: 'all',
