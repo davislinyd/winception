@@ -7,6 +7,8 @@ $ErrorActionPreference = 'Stop'
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = $Utf8NoBom
 
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
 $SourceRoot = Split-Path -Parent $PSScriptRoot
 $HostToolsRoot = Split-Path -Parent $AppRoot
 $StateRoot = Join-Path $HostToolsRoot 'State'
@@ -155,6 +157,25 @@ function Stop-WebConsoleFallback {
     }
 }
 
+function Assert-StateCanBeBackedUp {
+    $secretsPath = Join-Path $StateRoot 'config\osdcloud-secrets.json'
+    if (-not (Test-Path -LiteralPath $secretsPath -PathType Leaf)) {
+        return
+    }
+    try {
+        $stream = [System.IO.File]::Open(
+            $secretsPath,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::ReadWrite
+        )
+        $stream.Dispose()
+    }
+    catch {
+        throw "Cannot read HostTools State secrets for backup. osdcloud-secrets.json is ACL-protected; run Reload-Console.ps1 from an elevated PowerShell session. $($_.Exception.Message)"
+    }
+}
+
 function Clear-DiagnosticsState {
     $stateRoot = [System.IO.Path]::GetFullPath((Join-Path $HostToolsRoot 'State'))
     $diagnosticsRoot = [System.IO.Path]::GetFullPath((Join-Path $stateRoot 'diagnostics'))
@@ -166,6 +187,11 @@ function Clear-DiagnosticsState {
         Remove-Item -LiteralPath $diagnosticsRoot -Recurse -Force
     }
 }
+
+if (-not (Test-IsAdministrator)) {
+    throw 'Reload-Console.ps1 must run from an elevated PowerShell session. HostTools State includes ACL-protected osdcloud-secrets.json, which a standard session cannot back up.'
+}
+Assert-StateCanBeBackedUp
 
 Write-Host "Stopping active Web Console..."
 if ((Request-TrayStop) -and (Wait-TrayStop)) {
@@ -192,6 +218,23 @@ if ($LASTEXITCODE -ne 0) {
     throw "HostTools App reload failed with exit code $LASTEXITCODE"
 }
 Clear-DiagnosticsState
+
+Write-Host "Installing Web console dependencies..."
+$npmCmd = Join-Path $env:ProgramFiles 'nodejs\npm.cmd'
+if (-not (Test-Path -LiteralPath $npmCmd -PathType Leaf)) {
+    $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if (-not $npmCommand) {
+        $npmCommand = Get-Command npm -ErrorAction SilentlyContinue
+    }
+    if (-not $npmCommand) {
+        throw 'npm is not available. Install Node.js LTS, then rerun Reload-Console.ps1 from an elevated PowerShell session.'
+    }
+    $npmCmd = $npmCommand.Source
+}
+$npmInstall = Start-Process -FilePath $npmCmd -ArgumentList @('install') -WorkingDirectory $AppRoot -Wait -PassThru -NoNewWindow
+if ($npmInstall.ExitCode -ne 0) {
+    throw "npm install failed with exit code $($npmInstall.ExitCode) in $AppRoot"
+}
 
 Write-Host "Starting Web Console..."
 Start-Process -FilePath "powershell.exe" -ArgumentList @(

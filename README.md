@@ -135,7 +135,7 @@ Winception 使用三個不同責任邊界：
 | 路徑 | 用途 | 管理方式 |
 | --- | --- | --- |
 | `<repo-root>` | Source、docs、config defaults、scripts | 由 Git 管理 |
-| `C:\OSDCloud\HostTools\App` | 已安裝的 Web Console 與 helper scripts | 由 setup/reload 安裝 |
+| `C:\OSDCloud\HostTools\App` | 已安裝的 Web Console 與 helper scripts | 由 setup/reload 安裝；reload 必須從系統管理員 PowerShell 執行 |
 | `C:\OSDCloud\HostTools\State` | 本機 overlay、secrets、staging、host-only state | 由 Web Console 與 helper scripts 管理 |
 | `<deployment-root>` | Web 選定的部署 runtime，預設 `C:\OSDCloud` | 由 product workflow 產生與更新 |
 
@@ -520,7 +520,7 @@ Winception uses three responsibility boundaries:
 | Path | Purpose | Managed by |
 | --- | --- | --- |
 | `<repo-root>` | Source, docs, config defaults, scripts | Git |
-| `C:\OSDCloud\HostTools\App` | Installed Web Console and helper scripts | setup/reload |
+| `C:\OSDCloud\HostTools\App` | Installed Web Console and helper scripts | setup/reload; reload must run from elevated PowerShell |
 | `C:\OSDCloud\HostTools\State` | Local overlay, secrets, staging, host-only state | Web Console and helper scripts |
 | `<deployment-root>` | Web-selected deployment runtime, defaulting to `C:\OSDCloud` | product workflows |
 

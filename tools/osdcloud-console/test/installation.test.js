@@ -133,6 +133,8 @@ test('Development fixture loading is explicit and selects a fixture profile and 
 test('installer ordering backs up State before app replacement and never seeds Development fixtures implicitly', () => {
   const script = fs.readFileSync(path.join(repoRoot, 'tools', 'Install-HostManagementBundle.ps1'), 'utf8');
   assert.ok(script.indexOf('$stateBackupPath = Backup-StateRoot') < script.indexOf('Remove-Item -LiteralPath $safeAppRoot'), 'State backup must precede forced App replacement');
+  assert.match(script, /Unable to backup HostTools State/);
+  assert.match(script, /Run the installer from an elevated PowerShell session/);
   assert.ok(script.indexOf('Invoke-StateMigration') < script.indexOf('Clear-DiagnosticsState'), 'migration must complete before diagnostics cleanup');
   assert.doesNotMatch(script, /Seed-DevelopmentFixture\.ps1.*&/s, 'Release installer must not call Development seed implicitly');
   assert.match(fs.readFileSync(path.join(repoRoot, 'tools', 'Setup-DeploymentServer.ps1'), 'utf8'), /SeedDevelopmentFixture/);

@@ -204,7 +204,18 @@ function Backup-StateRoot {
     Write-Host "backup $Path -> $backupPath"
     if (-not $DryRun) {
         Ensure-Directory -Path $backupRoot
-        Copy-Item -LiteralPath $Path -Destination $backupPath -Recurse -Force
+        try {
+            Copy-Item -LiteralPath $Path -Destination $backupPath -Recurse -Force
+        }
+        catch {
+            $denied = $_.Exception -is [System.UnauthorizedAccessException] -or
+                $_.Exception.InnerException -is [System.UnauthorizedAccessException] -or
+                [string] $_.FullyQualifiedErrorId -like '*UnauthorizedAccess*'
+            if ($denied) {
+                throw "Unable to backup HostTools State to $backupPath because a protected file could not be copied. Run the installer from an elevated PowerShell session. $($_.Exception.Message)"
+            }
+            throw
+        }
     }
     $backupPath
 }

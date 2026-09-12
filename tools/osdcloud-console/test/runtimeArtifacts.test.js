@@ -819,6 +819,12 @@ test('Web console tray prefers checked-in Web logo icon with host fallback', () 
 
 test('reload stops the Web console tray gracefully before process fallback', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Reload-Console.ps1'), 'utf8');
+  assert.match(script, /Test-IsAdministrator/);
+  assert.match(script, /function Assert-StateCanBeBackedUp/);
+  assert.match(script, /must run from an elevated PowerShell session/);
+  assert.ok(script.indexOf('Assert-StateCanBeBackedUp') < script.indexOf('Stopping active Web Console'), 'State backup readability must be checked before stopping the Web console');
+  assert.ok(script.indexOf('HostTools App reload failed') < script.indexOf('Installing Web console dependencies'), 'npm install must run after a successful HostTools App copy');
+  assert.match(script, /npm install failed with exit code/);
   assert.match(script, /function Request-TrayStop/);
   assert.match(script, /function Wait-TrayStop/);
   assert.match(script, /function Wait-WebPortClosed/);

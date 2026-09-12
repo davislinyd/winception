@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `Reload-Console.ps1` now requires an elevated PowerShell session and proves `osdcloud-secrets.json` is readable before it stops the Web console. State backup failures caused by the ACL-protected secrets file now explain that elevation is required instead of stopping the console first. After replacing HostTools App, reload runs `npm install` in the App root so `node_modules` is restored before the console starts.
 - Web Console now has a persistent **引導 / 控制台** operator-mode toggle. Guided mode is a Traditional-Chinese task page with one next action, a four-stage flow, blocker cards, and PXE boot instructions when services are ready. Console mode is a dense in-page ops board for services, torrent, runtime, preflight, diagnostics, endpoint, catalogs, Offline ISO, and Software Test. The Management dialog is retired as the working surface. Confirmations, Preflight gates, and DHCP safety rules are unchanged.
 
 ## v1.1.0 — 2026-08-18
