@@ -1160,7 +1160,9 @@ test('WinPE deployment script uses a lab-scoped selected OS manifest helper', ()
   );
 
   assert.match(script, /function Get-LabSelectedOsManifest/);
-  assert.match(script, /\$SelectedOs = Get-LabSelectedOsManifest -OsRoot \$osRoot/);
+  assert.match(script, /OS root path is empty; SMB drive was not mapped/);
+  assert.match(script, /SMB map to Z: failed/);
+  assert.match(script, /\$SelectedOs = Get-LabSelectedOsManifest -OsRoot \$selectedOsRoot/);
   assert.match(script, /selected-os\.json did not produce a usable OS selection/);
   assert.doesNotMatch(script, /function Get-SelectedOsManifest/);
 });

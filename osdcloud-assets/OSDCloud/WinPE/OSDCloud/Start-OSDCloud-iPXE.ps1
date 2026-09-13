@@ -432,7 +432,13 @@ function Get-LabSelectedOsManifest {
         [string] $OsRoot
     )
 
+    if ([string]::IsNullOrWhiteSpace($OsRoot)) {
+        throw 'OS root path is empty; SMB drive was not mapped.'
+    }
     $manifestPath = Join-Path $OsRoot 'selected-os.json'
+    if ([string]::IsNullOrWhiteSpace($manifestPath)) {
+        throw "Unable to build selected-os.json path from OS root: $OsRoot"
+    }
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
         try {
             $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
@@ -1209,13 +1215,16 @@ if ([string]::IsNullOrWhiteSpace($smbPassword) -or [string]::IsNullOrWhiteSpace(
 }
 $netUse = & net.exe use Z: $share "/user:$server\$smbUser" $smbPassword /persistent:no 2>&1
 $netUse | ForEach-Object { Write-Host $_ }
-
-
-$osRoot = 'Z:\OSDCloud\OS'
-$SelectedOs = Get-LabSelectedOsManifest -OsRoot $osRoot
-if (-not $SelectedOs -or [string]::IsNullOrWhiteSpace([string] $SelectedOs.fileName) -or -not $SelectedOs.imageIndex) {
-    throw "selected-os.json did not produce a usable OS selection from $osRoot"
+if (-not (Test-Path -LiteralPath 'Z:\')) {
+    throw ("SMB map to Z: failed for share {0} on {1}. net use: {2}" -f $share, $server, (($netUse | Out-String).Trim()))
 }
+
+$selectedOsRoot = 'Z:\OSDCloud\OS'
+$SelectedOs = Get-LabSelectedOsManifest -OsRoot $selectedOsRoot
+if (-not $SelectedOs -or [string]::IsNullOrWhiteSpace([string] $SelectedOs.fileName) -or -not $SelectedOs.imageIndex) {
+    throw "selected-os.json did not produce a usable OS selection from $selectedOsRoot"
+}
+$osRoot = $selectedOsRoot
 
 # Apply independent profile international settings from selected-profile.json.
 # displayLanguage is kept separate from the WIM language metadata and is validated

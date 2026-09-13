@@ -259,6 +259,10 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   );
   assert.match(script, /New-PSSession -VMName/);
   assert.match(script, /windows-desktop-ready/);
+  assert.match(script, /function Test-ClientTerminalFailureText/);
+  assert.match(script, /PXE-HttpRoot\\status\\latest.json/);
+  assert.match(script, /selected-os\\.json did not produce/);
+  assert.match(script, /SMB map to Z: failed/);
   assert.match(script, /Restore-VMSnapshot/);
   assert.match(script, /function Set-LabVmTpmEnabled/);
   assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$Tpm/);

@@ -1228,6 +1228,40 @@ function Assert-GuestEvidence {
     }
 }
 
+function Get-LatestClientStatusText {
+    $latestPath = Join-Path $script:RuntimeRoot 'PXE-HttpRoot\status\latest.json'
+    if (-not (Test-Path -LiteralPath $latestPath -PathType Leaf)) {
+        return ''
+    }
+    try {
+        $latest = Get-Content -LiteralPath $latestPath -Raw | ConvertFrom-Json
+        $parts = New-Object System.Collections.Generic.List[string]
+        foreach ($name in @('stage', 'message')) {
+            $value = [string] (Get-OptionalProperty -Object $latest -Name $name)
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                $parts.Add($value)
+            }
+        }
+        $tail = Get-OptionalProperty -Object $latest -Name 'logTail'
+        if ($tail) {
+            $parts.Add((@($tail) -join "`n"))
+        }
+        return ($parts -join "`n")
+    }
+    catch {
+        return ''
+    }
+}
+
+function Test-ClientTerminalFailureText {
+    param([string] $Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $false
+    }
+    $Text -match '(?i)selected-os\.json did not produce|usable OS selection|TerminatingError\(|ParameterArgumentValidationErrorNullNotAllowed|SMB map to Z: failed|OS root path is empty|selected-os\.json not found|Boot session did not provide'
+}
+
 function Wait-FleetCompletion {
     param(
         [Parameter(Mandatory)][string[]] $VmNames,
@@ -1236,6 +1270,10 @@ function Wait-FleetCompletion {
 
     $deadline = [DateTimeOffset]::Now.AddMinutes($TimeoutMinutes)
     do {
+        $clientText = Get-LatestClientStatusText
+        if (Test-ClientTerminalFailureText -Text $clientText) {
+            throw "Client reported a terminal WinPE failure: $($clientText.Substring(0, [Math]::Min(300, $clientText.Length)))"
+        }
         $state = Get-ConsoleState
         $runs = @($state.fleet.runs | Where-Object {
             [string] $_.status -in @('running', 'completed', 'failed', 'stale', 'windows-running', 'awaiting-windows')
@@ -1244,6 +1282,10 @@ function Wait-FleetCompletion {
         $failures = @($relevant | Where-Object { [string] $_.status -in @('failed', 'stale') })
         if ($failures.Count -gt 0) {
             throw "Fleet reported failure: $($failures[0].runId)"
+        }
+        $runText = @($relevant | ForEach-Object { [string] $_.latestMessage }) -join "`n"
+        if (Test-ClientTerminalFailureText -Text $runText) {
+            throw "Fleet latest message is a terminal WinPE failure: $($runText.Substring(0, [Math]::Min(300, $runText.Length)))"
         }
         $ready = @($relevant | Where-Object {
             [string] $_.status -eq 'completed' -and [string] $_.latestStage -eq 'windows-desktop-ready'
