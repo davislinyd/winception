@@ -11,7 +11,20 @@
 - Fleet run `20260913-004530-9115-1512-6263-2753-5174-0981-98`：`status=completed`、`latestStage=windows-desktop-ready`、100%、`Windows desktop is ready for LabAdmin`。約 00:45–01:00 +08（Fleet `elapsedSeconds=268` 不含映像套用）。
 - Apps/script：Chrome、7-Zip、desktop script、Notepad++ 皆 `succeeded`，SetupComplete exit `0`。
 - PowerShell Direct：`Confirm-SecureBootUEFI=True`；TPM Present/Ready/Enabled/Activated；Explorer running；`C:\Users\LabAdmin\Desktop\OSDCloud-Desktop-Ready.txt`；OOBE 程序未見；Windows 11 25H2 build 26200 Professional。
-- 證據收集後已將 VM 還原 `Winception-Clean`。Hyper-V checkpoint 不含 TPM；Lab 還原依該輪 `-SecureBoot` / `-Tpm` 重套韌體（預設 SB VM 為 TPM On）。這仍不能當成實體筆電或生產 DHCP 證據。Secure Boot On + TPM Off、iPXE Secure Boot Off + TPM On 的 live 角落輪次尚未寫入本表。
+- 證據收集後已將 VM 還原 `Winception-Clean`。Hyper-V checkpoint 不含 TPM；Lab 還原依該輪 `-SecureBoot` / `-Tpm` 重套韌體（預設 SB VM 為 TPM On）。這仍不能當成實體筆電或生產 DHCP 證據。
+
+## AutoLab firmware corners 綠燈（2026-09-13）
+
+`Invoke-WinceptionLabRegression.ps1 -Mode FirmwareCorners` on Internal `192.168.177.1` only. Host `/api/boot-mode` stayed `secureboot` then `ipxe`. Default Switch ICS UDP/67 was not stopped.
+
+| Round | Host chain | Client SB | Client TPM | Fleet | Guest |
+| --- | --- | --- | --- | --- | --- |
+| `secureboot-tpm-off` `winception-autolab-01` | `secureboot` / `bootmgfw.efi` | On | Off | `20260913-121119-...` `windows-desktop-ready` 100% `elapsedSeconds=321` | `Confirm-SecureBootUEFI=True`; TPM Present/Ready/Enabled/Activated all false; Explorer; desktop marker; 25H2 26200 |
+| `ipxe-tpm-on` `winception-autolab-ipxe-01` | `ipxe` / `snponly.efi` | Off | On | `20260913-123029-...` `windows-desktop-ready` 100% `elapsedSeconds=318` | `Confirm-SecureBootUEFI=False`; TPM Present/Ready/Enabled/Activated; Explorer; desktop marker; 25H2 26200 |
+
+Apps/script on both rounds: Chrome, 7-Zip, desktop script, Notepad++ `succeeded`. Cleanup restored resting firmware: `01..04` Secure Boot On + TPM On, iPXE Secure Boot Off + TPM Off. This is not physical-laptop or production DHCP evidence.
+
+Earlier the same day, two FirmwareCorners attempts failed before green: WinPE `selected-os.json` / `net use Z:` **System error 86** because clone-run `Restore-DeploymentArtifacts` reset `pxeinstall` from the wrong secrets file, and Lab waited the full timeout while Fleet stayed `running`. Fixed by passing HostTools State into cache restore, not hashing generated `boot.wim`/`boot.ipxe`, and failing closed on `latest.json` terminal WinPE text.
 
 ## v1.1.0 候選修補（2026-09-11 source-only）
 
@@ -54,6 +67,8 @@ Authoritative evidence and no-AI operator runbook for a completed from-zero depl
 | secureboot mode — Dell physical laptop (Latitude), Secure Boot ON | ✔ Deployed to `windows-desktop-ready` | 2026-06-12 |
 | secureboot mode — Hyper-V Gen2 (`MicrosoftWindows` SB template, `winception-client-sb-01`), Secure Boot ON | ✔ Deployed to `windows-desktop-ready` | 2026-06-12 |
 | secureboot mode — Hyper-V Gen2 AutoLab (`winception-autolab-01`), Secure Boot ON + TPM ON | ✔ Deployed to `windows-desktop-ready`; guest `Confirm-SecureBootUEFI=True`, TPM Present/Ready/Enabled/Activated | 2026-09-13 |
+| secureboot mode — Hyper-V Gen2 AutoLab (`winception-autolab-01`), Secure Boot ON + TPM OFF | ✔ `FirmwareCorners` `windows-desktop-ready`; guest SB True, TPM all false | 2026-09-13 |
+| ipxe mode — Hyper-V Gen2 AutoLab (`winception-autolab-ipxe-01`), Secure Boot OFF + TPM ON | ✔ `FirmwareCorners` `windows-desktop-ready`; guest SB False, TPM Present/Ready/Enabled/Activated | 2026-09-13 |
 | secureboot mode — two concurrent Hyper-V clients, striped Torrent P2P offload | ✔ Both clients uploaded while incomplete and reached `windows-desktop-ready` | 2026-06-19 |
 | secureboot mode — four concurrent Hyper-V clients, two consecutive rounds | ✔ 8/8 reached `windows-desktop-ready`; every app/script sequence completed 4/4 with exit code 0 | 2026-06-20 |
 | USB/ISO offline installer — Hyper-V Gen2 ISO boot, Secure Boot ON, no NIC | ✔ Rebuilt ISO deployed offline to `windows-desktop-ready` | 2026-06-24 |
