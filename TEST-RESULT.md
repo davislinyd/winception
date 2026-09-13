@@ -1,5 +1,14 @@
 # Deployment Test Result
 
+2026-09-14 00:14 +08 — Mode All e (source `71fee78`) green on Internal AutoLab `192.168.177.1`. Four rounds / seven deployments all reached `windows-desktop-ready` with profile `IZVZO7PU`, four succeeded install steps (Chrome, 7-Zip, desktop script, Notepad++), Explorer, desktop marker, no OOBE, `windowsFamily=Windows 11` build `26200` / `25H2`. Registry `productName` remained `Windows 10 Pro` and was accepted by build. Cleanup restored resting firmware and stopped services; host `bootMode=secureboot`. This is AutoLab evidence, not physical-laptop or production DHCP proof. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913e` and `result.json`.
+
+| Round | Host | Client SB | Client TPM | Fleet elapsed | Guest |
+| --- | --- | --- | --- | --- | --- |
+| `secureboot-tpm-on` `01..04` | `secureboot` | On | On | 495–503 s | Confirm-SecureBootUEFI true; TPM Present/Ready/Enabled/Activated; hostFirmware MicrosoftWindows On + TPM On |
+| `ipxe-tpm-off` `ipxe-01` | `ipxe` | Off | Off | 326 s | Confirm-SecureBootUEFI false; TPM all false; host SB Off + TPM Off |
+| `secureboot-tpm-off` `01` | `secureboot` | On | Off | 324 s | Confirm-SecureBootUEFI true; TPM all false; host SB On + TPM Off |
+| `ipxe-tpm-on` `ipxe-01` | `ipxe` | Off | On | 328 s | Confirm-SecureBootUEFI false; TPM Present/Ready/Enabled/Activated; host SB Off + TPM On |
+
 2026-09-13 21:11 +08 — Mode All d (source `b04c6e8`) first Secure Boot On + TPM On round reached 4/4 `windows-desktop-ready` (profile `IZVZO7PU`, four succeeded install steps, Explorer, no OOBE, build `26200` / `25H2`). Cleanup then failed on all four checkpoint restores: StrictMode `BootType` missing on a `Get-VMFirmware.BootOrder` entry. Guest `productName` was `Windows 10 Pro` while build/displayVersion were Windows 11 25H2; that registry value is stale and is not a Windows 10 result. Source now guards BootOrder property existence, records round `hostFirmware`, and fail-closes Windows 11 on `CurrentBuild` >= 22000. Five VMs Off and deployment services stopped. Fresh Mode All after reload is still required. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913d`.
 
 2026-09-13 20:27 +08 — Mode All c (source b68f554) cancelled after active guest checks found autolab-02 progress failed while Fleet showed setupcomplete-finished. Chrome succeeded; File.Replace of deployment-progress.json failed because another process held the file, leaving runner_error and no sequence summary. Three other clients reached desktop-ready, not a complete Mode All pass. Source/App/WinPE marker fingerprints matched before boot; WinPE network preparation completed on all four. Five VMs Off and deployment services stopped after cancellation. Bounded sharing-violation retry and fail-closed finalizer verification require a fresh full regression.

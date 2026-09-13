@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Lab firmware restore inspects BootOrder property existence before reading `BootType` or `Device.Id`, so a transient or malformed Hyper-V boot entry after checkpoint restore cannot fail cleanup under StrictMode. Round evidence now includes a separate `hostFirmware` object. Guest Windows 11 acceptance uses `CurrentBuild` >= 22000; registry `ProductName` may still say Windows 10 Pro on a 25H2 image.
+- Lab firmware restore inspects BootOrder property existence before reading `BootType` or `Device.Id`, so a transient or malformed Hyper-V boot entry after checkpoint restore cannot fail cleanup under StrictMode. Round evidence now includes a separate `hostFirmware` object. Guest Windows 11 acceptance uses `CurrentBuild` >= 22000; registry `ProductName` may still say Windows 10 Pro on a 25H2 image. 2026-09-14 Mode All on Internal AutoLab completed four rounds / seven deployments to `windows-desktop-ready` with matching guest firmware pairs and successful cleanup.
 
 - Client progress JSON replacement retries only Windows sharing/lock violations for at most two seconds. Finalization fails closed on absent/failed progress or missing sequence summary instead of reporting installer success when Windows PowerShell loses ExitCode.
 
