@@ -26,6 +26,110 @@ function parsePowerShell(relativePath) {
   assert.equal(result.status, 0, relativePath + ': ' + result.stdout + '\n' + result.stderr);
 }
 
+function runLabPowerShell(functionNames, command) {
+  const scriptPath = path.join(root, 'tools', 'Invoke-WinceptionLabRegression.ps1').replaceAll("'", "''");
+  const setup = `
+    $ErrorActionPreference = 'Stop'
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+    Set-StrictMode -Version Latest
+    $tokens = $null; $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile('${scriptPath}', [ref]$tokens, [ref]$errors)
+    $names = @(${functionNames.map((name) => "'" + name + "'").join(',')})
+    foreach ($definition in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false) | Where-Object Name -in $names) {
+      Invoke-Expression $definition.Extent.Text
+    }
+  `;
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', setup + command], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 15000,
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  return result.stdout;
+}
+
+test('Lab guest evidence persists host firmware and requires the published guest profile', () => {
+  const output = runLabPowerShell(['Get-GuestEvidence', 'Assert-GuestEvidence'], `
+    function New-PSSession { [CmdletBinding()] param($VmName, $Credential) [pscustomobject]@{ vm = $VmName } }
+    function Remove-PSSession { [CmdletBinding()] param($Session) }
+    function Invoke-Command { param($Session, $ArgumentList, $ScriptBlock) & $ScriptBlock @ArgumentList }
+    function Test-Path { param($LiteralPath) $true }
+    function Get-Content {
+      param($LiteralPath, [switch]$Raw)
+      switch -Wildcard ($LiteralPath) {
+        '*DeploymentStatus.json' { '{"runId":"test-run","status":"completed"}' }
+        '*deployment-progress.json' { '{"status":"succeeded","completedSteps":[]}' }
+        '*selected-profile.json' { '{"profileId":"test-profile"}' }
+        default { throw 'Unexpected guest path.' }
+      }
+    }
+    function Get-ItemProperty { [CmdletBinding()] param($Path) [pscustomobject]@{ DisplayVersion='25H2'; CurrentBuild='26200'; ProductName='Windows 11' } }
+    function Get-Process { [CmdletBinding()] param($Name) if ($Name -contains 'explorer') { [pscustomobject]@{ ProcessName='explorer' } } }
+    function Confirm-SecureBootUEFI { $true }
+    function Get-Tpm { [pscustomobject]@{ TpmPresent=$true; TpmReady=$true; TpmEnabled=$true; TpmActivated=$true } }
+    function Get-VMFirmware { param($VMName) [pscustomobject]@{ SecureBoot='On'; SecureBootTemplate='MicrosoftWindows' } }
+    function Get-VMSecurity { [CmdletBinding()] param($VMName) [pscustomobject]@{ TpmEnabled=$true } }
+    $script:Config = @{ timeouts=@{ guestMinutes=1 } }
+    $script:Secrets = @{ windowsUsername='test-user' }
+    $credential = [pscredential]::new('test-user', [System.Security.SecureString]::new())
+    $evidence = Get-GuestEvidence -VmName 'test-vm' -Credential $credential
+    $json = $evidence | ConvertTo-Json -Depth 6
+    $persisted = $json | ConvertFrom-Json
+    Assert-GuestEvidence -Evidence $persisted -ExpectedProfileId 'test-profile' -ExpectedSecureBoot $true -ExpectedTpm $true
+    foreach ($badProfile in @('', 'wrong-profile')) {
+      $persisted.profileId = $badProfile
+      $rejected = $false
+      try { Assert-GuestEvidence -Evidence $persisted -ExpectedProfileId 'test-profile' -ExpectedSecureBoot $true -ExpectedTpm $true }
+      catch { if ($_.Exception.Message -notlike '*profile*') { throw }; $rejected = $true }
+      if (-not $rejected) { throw 'Missing or mismatched guest profile was accepted.' }
+    }
+    $json
+  `);
+  const evidence = JSON.parse(output);
+  assert.equal(evidence.profileId, 'test-profile');
+  assert.equal(evidence.hostSecureBoot, 'On');
+  assert.equal(evidence.hostSecureBootTemplate, 'MicrosoftWindows');
+  assert.equal(evidence.hostTpmEnabled, true);
+});
+
+test('Lab round fails when checkpoint cleanup fails', () => {
+  runLabPowerShell(['Invoke-LabRound'], `
+    function Restore-LabCheckpoint { param($VmNames, $RoundFirmware) if ($null -eq $RoundFirmware) { throw 'Synthetic checkpoint cleanup failure.' } }
+    function Set-ConsoleMode { param($BootMode) }
+    function Set-ConsoleEndpoint { }
+    function Set-ConsoleDhcpServerMode { }
+    function Invoke-ServerPreflight { @{ ok=$true } }
+    function Invoke-ApiPreflight { @{ ok=$true } }
+    function Clear-DeploymentStatus { }
+    function Start-LabServices { }
+    function Stop-LabServices { $script:stopped=$true }
+    function Start-LabVms { param($VmNames) }
+    function Wait-FleetCompletion { param($VmNames, $TimeoutMinutes) [pscustomobject]@{ runId='test-run' } }
+    function Get-GuestEvidence { param($VmName, $Credential) [pscustomobject]@{ runId='test-run' } }
+    function Assert-GuestEvidence { param($Evidence, $ExpectedProfileId, $ExpectedSecureBoot, $ExpectedTpm) }
+    function Write-Evidence { param($Name, $Value) }
+    $script:Config = @{ timeouts=@{ deploymentMinutes=1 } }
+    $script:CleanupErrors = New-Object System.Collections.Generic.List[string]
+    $script:stopped = $false
+    $credential = [pscredential]::new('test-user', [System.Security.SecureString]::new())
+    $rejected = $false
+    try { Invoke-LabRound -RoundId 'test-round' -BootMode 'secureboot' -VmNames @('test-vm') -SecureBoot $true -Tpm $true -Credential $credential -ProfileId 'test-profile' | Out-Null }
+    catch { if ($_.Exception.Message -ne 'Synthetic checkpoint cleanup failure.') { throw }; $rejected=$true }
+    if (-not $rejected -or -not $script:stopped) { throw 'Round cleanup failure did not fail closed after service stop.' }
+  `);
+});
+
+test('Lab firmware keeps an already-first network boot device after checkpoint restore', () => {
+  runLabPowerShell(['Set-VmFirmwareMode'], `
+    function Set-VMFirmware { [CmdletBinding()] param($VmName, $EnableSecureBoot, $SecureBootTemplate, $VM, $FirstBootDevice) if ($FirstBootDevice) { throw 'Redundant boot-device update.' } }
+    function Set-LabVmTpmEnabled { param($VmName, $Enabled) }
+    function Get-VMFirmware { [CmdletBinding()] param($VmName) [pscustomobject]@{ BootOrder=@([pscustomobject]@{ BootType='Network' }) } }
+    function Get-VM { [CmdletBinding()] param($Name) throw 'Network is already first.' }
+    Set-VmFirmwareMode -VmName 'test-vm' -SecureBoot $true -Tpm $true
+  `);
+});
+
 test('Lab example config is isolated, complete, and secret-free', () => {
   const config = JSON.parse(read('config/lab-regression.example.json'));
   assert.equal(config.switchName, 'Winception-AutoLab');

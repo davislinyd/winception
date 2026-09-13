@@ -1019,8 +1019,13 @@ function Set-VmFirmwareMode {
         Set-VMFirmware -VMName $VmName -EnableSecureBoot Off
     }
     Set-LabVmTpmEnabled -VmName $VmName -Enabled $Tpm
-    $adapter = Get-VMNetworkAdapter -VMName $VmName | Select-Object -First 1
-    Set-VMFirmware -VMName $VmName -FirstBootDevice $adapter
+    $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
+    $bootOrder = @($firmware.BootOrder)
+    if ($bootOrder.Count -eq 0 -or [string] $bootOrder[0].BootType -ne 'Network') {
+        $vm = Get-VM -Name $VmName -ErrorAction Stop
+        $adapter = Get-VMNetworkAdapter -VM $vm -ErrorAction Stop | Select-Object -First 1
+        Set-VMFirmware -VM $vm -FirstBootDevice $adapter -ErrorAction Stop
+    }
 }
 
 function Restore-LabCheckpoint {
@@ -1096,11 +1101,15 @@ function Get-GuestEvidence {
                 param([string] $TargetUser)
                 $statusPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
                 $progressPath = 'C:\ProgramData\OSDCloud\deployment-progress.json'
+                $profilePath = 'C:\ProgramData\OSDCloud\Apps\selected-profile.json'
                 $status = if (Test-Path -LiteralPath $statusPath) {
                     Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
                 } else { $null }
                 $progress = if (Test-Path -LiteralPath $progressPath) {
                     Get-Content -LiteralPath $progressPath -Raw | ConvertFrom-Json
+                } else { $null }
+                $profile = if (Test-Path -LiteralPath $profilePath) {
+                    Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
                 } else { $null }
                 $currentVersion = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue
                 $desktopPath = Join-Path "C:\Users\$TargetUser\Desktop" 'OSDCloud-Desktop-Ready.txt'
@@ -1159,7 +1168,7 @@ function Get-GuestEvidence {
                     displayVersion = [string] $currentVersion.DisplayVersion
                     currentBuild = [string] $currentVersion.CurrentBuild
                     productName = [string] $currentVersion.ProductName
-                    profileId = [string] (Get-RemoteValue -Value $status -Names @('profileId', 'selectedProfileId') -Default (Get-RemoteValue -Value $progress -Names @('profileId', 'selectedProfileId') -Default ''))
+                    profileId = [string] (Get-RemoteValue -Value $status -Names @('profileId', 'selectedProfileId') -Default (Get-RemoteValue -Value $progress -Names @('profileId', 'selectedProfileId') -Default (Get-RemoteValue -Value $profile -Names @('profileId') -Default '')))
                     installSteps = $steps
                     progressStatus = [string] (Get-RemoteValue -Value $progress -Names @('status') -Default '')
                     confirmSecureBootUEFI = $confirmSecureBootUEFI
@@ -1177,6 +1186,7 @@ function Get-GuestEvidence {
                 ([string] $result.stage -eq 'windows-desktop-ready' -or [string] $result.status -eq 'completed' -or [string] $result.progressStatus -eq 'completed' -or [string] $result.progressStatus -eq 'succeeded')) {
                 $firmware = Get-VMFirmware -VMName $VmName
                 $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+                $result = [pscustomobject] $result
                 $result | Add-Member -NotePropertyName hostSecureBoot -NotePropertyValue ([string] $firmware.SecureBoot) -Force
                 $result | Add-Member -NotePropertyName hostSecureBootTemplate -NotePropertyValue ([string] $firmware.SecureBootTemplate) -Force
                 $result | Add-Member -NotePropertyName hostTpmEnabled -NotePropertyValue ([bool] $security.TpmEnabled) -Force
@@ -1208,7 +1218,6 @@ function Assert-GuestEvidence {
         throw "Guest evidence is missing Windows version data: $($Evidence.computerName)"
     }
     if (-not [string]::IsNullOrWhiteSpace($ExpectedProfileId) -and
-        -not [string]::IsNullOrWhiteSpace([string] $Evidence.profileId) -and
         [string] $Evidence.profileId -ne $ExpectedProfileId) {
         throw "Guest profile evidence mismatch: $($Evidence.computerName)"
     }
@@ -1400,7 +1409,7 @@ function Invoke-LabRound {
     }
     finally {
         Stop-LabServices
-        try { Restore-LabCheckpoint -VmNames $VmNames } catch { $script:CleanupErrors.Add("round VM cleanup failed: $RoundId") | Out-Null }
+        Restore-LabCheckpoint -VmNames $VmNames
         $script:PreflightPassed = $false
     }
 }
@@ -1560,6 +1569,10 @@ try {
         $firmwareRoles = Get-LabFirmwareConfig
         $rounds.Add((Invoke-LabRound -RoundId 'secureboot-tpm-off' -BootMode 'secureboot' -VmNames @([string] $firmwareRoles.secureBootTpmOff) -SecureBoot $true -Tpm $false -Credential $credential -ProfileId $profileId))
         $rounds.Add((Invoke-LabRound -RoundId 'ipxe-tpm-on' -BootMode 'ipxe' -VmNames @([string] $firmwareRoles.ipxeTpmOn) -SecureBoot $false -Tpm $true -Credential $credential -ProfileId $profileId))
+    }
+    Invoke-LabCleanup
+    if ($script:CleanupErrors.Count -gt 0) {
+        throw "Lab cleanup failed: $($script:CleanupErrors -join '; ')"
     }
     $result = [ordered]@{
         ok = $true

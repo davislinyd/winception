@@ -86,6 +86,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - `Invoke-WinceptionLabRegression.ps1` must keep the existing API wire shape and safety gates: preflight must pass before start-all, no automatic retry, Fleet and PowerShell Direct are both required, and finally cleanup must stop known Lab services, stop/restore target VMs, restore environment state, and preserve only redacted evidence. Lab `appRoot` is `C:\OSDCloud\HostTools\App`. Initialize/Restore/endpoint sync must use HostTools State for `osdcloud-console.json` and `osdcloud-secrets.json`; they must not write the Git clone `config\osdcloud-console.json` or read clone secrets as the live store. Cache hash checks are limited to `cache.requiredPaths`.
 - Lab port occupancy is scoped to the Lab service IP and wildcard `0.0.0.0`/`::` binds. ICS or DHCP on another adapter, including Hyper-V Default Switch UDP/67, is not a Lab occupancy and must not be stopped to make the guard pass.
 - Never use the Lab workflow as evidence that production DHCP, a WAN/LAN endpoint, or a physical laptop is ready. A failed guard must exit before service start and must not repair a foreign network automatically.
+- Lab success requires successful cleanup and a non-empty matching published guest profile ID; persisted evidence must retain host Secure Boot/template/TPM fields. Keep an already-first Network boot entry after checkpoint restore.
 
 ## Documentation
 

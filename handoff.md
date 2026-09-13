@@ -1,5 +1,9 @@
 # Agent handoff — 2026-09-13
 
+## Active continuation — Mode All repair
+
+The user authorized Mode All, source repairs, and reruns until green; actively inspect deployment status. The first run started 18:15 +08. Four Secure Boot + TPM On clients reached desktop-ready and all four install steps succeeded. It is not a completed Mode All result: round cleanup swallowed Hyper-V ObjectNotFound when redundantly setting an already-first Network boot entry; guest profile ID was empty and persisted host firmware fields were missing. Source fixes and behavioral tests are in progress; stop/clean the old runner, then rerun full Mode All after source checks and commit. Do not push. Physical PXE remains separate and open. Older ahead counts below are stale; use live Git.
+
 Read this after `AGENTS.md` startup checks. It is the continuation brief for the 2026-09-12/13 work on Web operator modes, HostTools reload, and AutoLab Secure Boot × TPM. Do not treat it as live production truth; re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
 
 Chinese summary: 本機 `master` 比 origin 超前 10 個 commit，**不要 push**（會觸發 `lab-deploy.yml`）。AutoLab 四格客戶端韌體裡，SB+TPM On、SB+TPM Off、iPXE SB Off+TPM Off、iPXE SB Off+TPM On 都有到過 `windows-desktop-ready`。沒跑過一次完整 `Mode All`。實體筆電 PXE 未測。`/api/boot-mode` 只有 `secureboot`/`ipxe`，沒有 TPM 開關（TPM 是客戶端韌體，主機改不了筆電）。

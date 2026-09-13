@@ -1,5 +1,13 @@
 # Deployment Test Result
 
+## Mode All 整合驗證修復中（2026-09-13）
+
+18:15 +08 啟動本機 `Mode All`（Internal AutoLab `192.168.177.0/24`）。首輪四台 Secure Boot On + TPM On 全數到 `windows-desktop-ready`，Chrome、7-Zip、desktop script、Notepad++ 均 succeeded。尚不能宣告 Mode All 綠燈。
+
+主動檢查發現 checkpoint restore 後再次設定 `FirstBootDevice` 偶發 Hyper-V `ObjectNotFound`，round cleanup 中途退出並留下後續 VM。既有 runner 吞掉此錯誤；guest profile ID 為空仍被接受，且 host firmware 的 Add-Member 欄位在 dictionary JSON 中遺失。
+
+Source 已改為保留既有 Network-first boot entry、cleanup fail-closed、成功清理後才輸出綠燈；guest 讀取已發布的 `Apps\selected-profile.json`、強制匹配 profile ID 並以 PSCustomObject 保存 host 韌體欄位。Lab behavioral/contract tests 12/12 通過；18:54 +08 Windows PowerShell 執行 npm test：444 passed、3 skipped、0 failed，check 與 smoke 通過。原 Codex shell 的 bundled PackageManagement/fullclr module path 曾導致四個 setup tests 失敗；正確 Windows PowerShell 環境重跑全數通過。修正版本完整 Mode All 待重新執行。本段僅為 AutoLab 證據，非實體筆電驗證。
+
 ## Secure Boot + TPM Hyper-V PXE 綠燈（2026-09-13）
 
 本機 AutoLab Internal `vEthernet (Winception-AutoLab)` / `192.168.177.1`，`dhcp.bootMode=secureboot`。先前 PXE 失敗是因為 live boot mode 停在 `ipxe`（Secure Boot 會拒收 `snponly.efi`），且 `winception-autolab-01` 的 Secure Boot 範本是 `MicrosoftUEFICertificateAuthority` 而不是 `MicrosoftWindows`。
