@@ -614,7 +614,15 @@ function Invoke-CacheRefresh {
         throw "Cache refresh script is missing: $restoreScript"
     }
     Write-Host 'Cache manifest is missing or stale; invoking the existing runtime restore flow once.'
-    Invoke-ExternalPowerShell -ScriptPath $restoreScript -Arguments @('-LiveRoot', $script:RuntimeRoot, '-SkipPrerequisiteCheck')
+    $stateConfigPath = Join-Path $script:StateRoot 'config\osdcloud-console.json'
+    $restoreArgs = @(
+        '-LiveRoot', $script:RuntimeRoot,
+        '-SkipPrerequisiteCheck'
+    )
+    if (Test-Path -LiteralPath $stateConfigPath -PathType Leaf) {
+        $restoreArgs += @('-ConfigPath', $stateConfigPath)
+    }
+    Invoke-ExternalPowerShell -ScriptPath $restoreScript -Arguments $restoreArgs
 }
 
 function Ensure-LabCache {
@@ -1259,7 +1267,7 @@ function Test-ClientTerminalFailureText {
     if ([string]::IsNullOrWhiteSpace($Text)) {
         return $false
     }
-    $Text -match '(?i)selected-os\.json did not produce|usable OS selection|TerminatingError\(|ParameterArgumentValidationErrorNullNotAllowed|SMB map to Z: failed|OS root path is empty|selected-os\.json not found|Boot session did not provide'
+    $Text -match '(?i)selected-os\.json did not produce|usable OS selection|TerminatingError\(|ParameterArgumentValidationErrorNullNotAllowed|SMB map to Z: failed|OS root path is empty|selected-os\.json not found|Boot session did not provide|System error 86'
 }
 
 function Wait-FleetCompletion {

@@ -58,8 +58,6 @@
     "allowNetworkRefresh": true,
     "requiredPaths": [
       {"kind":"base-vhdx","path":"C:\\OSDCloud\\HostTools\\State\\lab\\base\\Winception-Client.vhdx"},
-      {"kind":"runtime","path":"C:\\OSDCloud\\Media\\sources\\boot.wim"},
-      {"kind":"runtime","path":"C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\boot.ipxe"},
       {"kind":"runtime","path":"C:\\OSDCloud\\PXE-HttpRoot\\osdcloud\\wimboot"},
       {"kind":"runtime","path":"C:\\OSDCloud\\PXE-TFTP\\ipxeboot\\x86_64-sb\\snponly.efi"}
     ]

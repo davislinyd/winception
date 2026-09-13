@@ -53,7 +53,9 @@ test('Lab example config is isolated, complete, and secret-free', () => {
     assert.equal(name.startsWith('winception-client-'), false, 'AutoLab VMs must not reuse historical vSwitch client names');
   }
   assert.equal(config.checkpointName, 'Winception-Clean');
-  assert.equal(config.cache.requiredPaths.length, 5);
+  assert.equal(config.cache.requiredPaths.length, 3);
+  assert.equal(config.cache.requiredPaths.some((entry) => String(entry.path).includes('boot.wim')), false);
+  assert.equal(config.cache.requiredPaths.some((entry) => String(entry.path).includes('boot.ipxe')), false);
   assert.doesNotMatch(JSON.stringify(config), /windowsPassword|pxeinstallPassword|OSDCLOUD_WINDOWS_PASSWORD/);
 });
 
@@ -263,6 +265,8 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /PXE-HttpRoot\\status\\latest.json/);
   assert.match(script, /selected-os\\.json did not produce/);
   assert.match(script, /SMB map to Z: failed/);
+  assert.match(script, /System error 86/);
+  assert.match(script, /-ConfigPath', \$stateConfigPath/);
   assert.match(script, /Restore-VMSnapshot/);
   assert.match(script, /function Set-LabVmTpmEnabled/);
   assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$Tpm/);
