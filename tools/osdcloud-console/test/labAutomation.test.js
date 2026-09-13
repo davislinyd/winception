@@ -52,6 +52,8 @@ test('Lab example config is isolated, complete, and secret-free', () => {
   for (const name of [...config.secureBootVms, config.ipxeVm]) {
     assert.equal(name.startsWith('winception-client-'), false, 'AutoLab VMs must not reuse historical vSwitch client names');
   }
+  assert.equal(config.appRoot, 'C:\\OSDCloud\\HostTools\\App');
+  assert.equal(config.stateRoot, 'C:\\OSDCloud\\HostTools\\State');
   assert.equal(config.checkpointName, 'Winception-Clean');
   assert.equal(config.cache.requiredPaths.length, 3);
   assert.equal(config.cache.requiredPaths.some((entry) => String(entry.path).includes('boot.wim')), false);
@@ -267,6 +269,12 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /SMB map to Z: failed/);
   assert.match(script, /System error 86/);
   assert.match(script, /-ConfigPath', \$stateConfigPath/);
+  assert.match(script, /Get-RequiredProperty -Object \$Config -Name 'appRoot'/);
+  assert.match(script, /Assert-PathOutside -Path \$script:AppRoot -Roots @\(\$script:RepoRoot\) -Label 'app root'/);
+  assert.match(script, /-StateRoot', \$script:StateRoot/);
+  assert.match(script, /Join-Path \$script:RepoRoot 'tools\\Initialize-DeploymentServer\.ps1'/);
+  assert.match(script, /Join-Path \$script:RepoRoot 'tools\\Restore-DeploymentArtifacts\.ps1'/);
+  assert.match(script, /if \(\$path -notin \$requiredFull\)/);
   assert.match(script, /Restore-VMSnapshot/);
   assert.match(script, /function Set-LabVmTpmEnabled/);
   assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$Tpm/);

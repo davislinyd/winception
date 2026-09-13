@@ -651,12 +651,16 @@ function Set-SmbFirewallEndpoint {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $installedStateConfigPath = Join-Path (Split-Path -Parent $repoRoot) 'State\config\osdcloud-console.json'
+$productStateConfigPath = 'C:\OSDCloud\HostTools\State\config\osdcloud-console.json'
 if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     if (Test-Path -LiteralPath $installedStateConfigPath -PathType Leaf) {
         $ConfigPath = $installedStateConfigPath
     }
+    elseif (Test-Path -LiteralPath $productStateConfigPath -PathType Leaf) {
+        $ConfigPath = $productStateConfigPath
+    }
     else {
-        $ConfigPath = Join-Path $repoRoot 'config\osdcloud-console.json'
+        throw "HostTools State web config is missing. Refusing to write the Git clone config. Looked at $installedStateConfigPath"
     }
 }
 $ConfigPath = (Resolve-Path -LiteralPath $ConfigPath).Path

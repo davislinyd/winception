@@ -21,8 +21,8 @@ $OutputEncoding = $Utf8NoBom
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$HostToolsRoot = Split-Path -Parent $RepoRoot
-$InstalledStateConfigPath = Join-Path $HostToolsRoot 'State\config\osdcloud-console.json'
+$InstalledStateConfigPath = Join-Path $LiveRoot 'HostTools\State\config\osdcloud-console.json'
+$AppSiblingStateConfigPath = Join-Path (Split-Path -Parent $RepoRoot) 'State\config\osdcloud-console.json'
 if ([string]::IsNullOrWhiteSpace($CatalogPath)) {
     $CatalogPath = Join-Path $RepoRoot 'config\runtime-artifacts.json'
 }
@@ -30,8 +30,11 @@ if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     if (Test-Path -LiteralPath $InstalledStateConfigPath -PathType Leaf) {
         $ConfigPath = $InstalledStateConfigPath
     }
+    elseif (Test-Path -LiteralPath $AppSiblingStateConfigPath -PathType Leaf) {
+        $ConfigPath = $AppSiblingStateConfigPath
+    }
     else {
-        $ConfigPath = Join-Path $RepoRoot 'config\osdcloud-console.json'
+        throw "HostTools State web config is missing. Refusing to use the Git clone config. Looked at $InstalledStateConfigPath"
     }
 }
 
@@ -896,18 +899,16 @@ function Get-ConfiguredSmbShareName {
 }
 
 function Get-DeploymentSecrets {
+    $envPxe = [Environment]::GetEnvironmentVariable('OSDCLOUD_PXEINSTALL_PASSWORD')
     $candidates = @(
         (Join-Path $StateRoot 'config\osdcloud-secrets.json'),
-        (Join-Path $RepoRoot 'config\osdcloud-secrets.json'),
-        (Join-Path $LiveRoot 'secrets.json'),
-        (Join-Path $LiveRoot 'Config\secrets.json')
+        (Join-Path $LiveRoot 'HostTools\State\config\osdcloud-secrets.json')
     )
     foreach ($candidate in $candidates) {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) {
             return Get-Content -Raw -LiteralPath $candidate | ConvertFrom-Json
         }
     }
-    $envPxe = [Environment]::GetEnvironmentVariable('OSDCLOUD_PXEINSTALL_PASSWORD')
     if (-not [string]::IsNullOrWhiteSpace($envPxe)) {
         return [pscustomobject]@{ pxeinstallPassword = $envPxe }
     }

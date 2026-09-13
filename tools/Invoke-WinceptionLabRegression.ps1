@@ -106,6 +106,7 @@ function Assert-LabConfig {
     $interfaceAlias = [string] (Get-RequiredProperty -Object $Config -Name 'serviceInterfaceAlias')
     $serviceIp = [string] (Get-RequiredProperty -Object $Config -Name 'serviceIp')
     $runtimeRoot = [string] (Get-RequiredProperty -Object $Config -Name 'runtimeRoot')
+    $appRoot = [string] (Get-RequiredProperty -Object $Config -Name 'appRoot')
     $stateRoot = [string] (Get-RequiredProperty -Object $Config -Name 'stateRoot')
     $evidenceRoot = [string] (Get-RequiredProperty -Object $Config -Name 'evidenceRoot')
     Assert-Ipv4 -Address $serviceIp
@@ -177,14 +178,16 @@ function Assert-LabConfig {
         throw 'Invoke-WinceptionLabRegression.ps1 requires an elevated PowerShell session.'
     }
 
+    $script:AppRoot = Get-FullPath $appRoot
     $script:StateRoot = Get-FullPath $stateRoot
     $script:RuntimeRoot = Get-FullPath $runtimeRoot
     $script:EvidenceRoot = Assert-ChildPath -Root $script:StateRoot -Path $evidenceRoot -Label 'evidence root'
     if ($script:RuntimeRoot -eq $script:StateRoot -or $script:RuntimeRoot.StartsWith("$($script:StateRoot)\", [System.StringComparison]::OrdinalIgnoreCase)) {
         throw 'Runtime root must be outside HostTools State.'
     }
+    Assert-PathOutside -Path $script:AppRoot -Roots @($script:RepoRoot) -Label 'app root' | Out-Null
     Assert-PathOutside -Path $script:StateRoot -Roots @($script:RepoRoot) -Label 'state root' | Out-Null
-    Assert-PathOutside -Path $script:RuntimeRoot -Roots @($script:RepoRoot, $script:AppRoot) -Label 'runtime root' | Out-Null
+    Assert-PathOutside -Path $script:RuntimeRoot -Roots @($script:RepoRoot) -Label 'runtime root' | Out-Null
 }
 
 function Get-SecretStorePath {
@@ -579,8 +582,12 @@ function Test-CacheManifest {
                 return [pscustomobject]@{ valid = $false; reason = "manifest_missing:$requiredPath"; records = $records }
             }
         }
+        $requiredFull = @($script:Config.cache.requiredPaths | ForEach-Object { Get-FullPath ([string] $_.path) })
         foreach ($record in $records) {
             $path = Get-FullPath ([string] $record.path)
+            if ($path -notin $requiredFull) {
+                continue
+            }
             $item = Get-Item -LiteralPath $path -ErrorAction Stop
             if ([int64] $item.Length -ne [int64] $record.length -or (Get-Sha256Hash -LiteralPath $path) -ne ([string] $record.sha256).ToUpperInvariant()) {
                 return [pscustomobject]@{ valid = $false; reason = "hash_mismatch:$path"; records = $records }
@@ -609,7 +616,7 @@ function Write-CacheManifest {
 }
 
 function Invoke-CacheRefresh {
-    $restoreScript = Join-Path $script:AppRoot 'tools\Restore-DeploymentArtifacts.ps1'
+    $restoreScript = Join-Path $script:RepoRoot 'tools\Restore-DeploymentArtifacts.ps1'
     if (-not (Test-Path -LiteralPath $restoreScript -PathType Leaf)) {
         throw "Cache refresh script is missing: $restoreScript"
     }
@@ -1522,8 +1529,9 @@ try {
         exit 0
     }
 
-    Invoke-ExternalPowerShell -ScriptPath (Join-Path $script:AppRoot 'tools\Initialize-DeploymentServer.ps1') -Arguments @(
+    Invoke-ExternalPowerShell -ScriptPath (Join-Path $script:RepoRoot 'tools\Initialize-DeploymentServer.ps1') -Arguments @(
         '-LiveRoot', $script:RuntimeRoot,
+        '-StateRoot', $script:StateRoot,
         '-InterfaceAlias', [string] $script:Config.serviceInterfaceAlias,
         '-ServerIp', [string] $script:Config.serviceIp,
         '-PrefixLength', [string] $script:Config.prefixLength,

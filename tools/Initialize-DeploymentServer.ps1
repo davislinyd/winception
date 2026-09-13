@@ -23,7 +23,8 @@ param(
     [string] $SmbShareName = 'OSDCloudiPXE',
     [string] $SmbUserName = 'pxeinstall',
     [string] $SmbDomain = '',
-    [switch] $SkipUserCreation
+    [switch] $SkipUserCreation,
+    [string] $StateRoot = ''
 )
 
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
@@ -281,6 +282,10 @@ function Get-RepoOnlyRestoreArgs {
     if ($SkipPrerequisiteCheck) {
         $restoreArgs += '-SkipPrerequisiteCheck'
     }
+    $stateConfigPath = Join-Path $script:DeploymentStateRoot 'config\osdcloud-console.json'
+    if (Test-Path -LiteralPath $stateConfigPath -PathType Leaf) {
+        $restoreArgs += @('-ConfigPath', $stateConfigPath)
+    }
     $restoreArgs
 }
 
@@ -312,9 +317,9 @@ function Get-DeploymentSecretValue {
         return $envValue
     }
 
-    $secretPath = Join-Path $RepoRoot 'config\osdcloud-secrets.json'
+    $secretPath = Join-Path $script:DeploymentStateRoot 'config\osdcloud-secrets.json'
     if (-not (Test-Path -LiteralPath $secretPath -PathType Leaf)) {
-        throw "Missing local deployment secrets: $secretPath. Create it from config\osdcloud-secrets.example.json or set $EnvironmentName."
+        throw "Missing HostTools State deployment secrets: $secretPath. Save secrets in C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json or set $EnvironmentName. The Git clone is not a secret store."
     }
 
     $secret = Get-Content -Raw -LiteralPath $secretPath | ConvertFrom-Json
@@ -423,6 +428,10 @@ try {
     }
 
     $liveRootFull = Get-FullPath $LiveRoot
+    if ([string]::IsNullOrWhiteSpace($StateRoot)) {
+        $StateRoot = Join-Path $liveRootFull 'HostTools\State'
+    }
+    $script:DeploymentStateRoot = Get-FullPath $StateRoot
     if ($liveRootFull -ne 'C:\OSDCloud' -and -not $SkipEndpointSync) {
         throw "-LiveRoot outside C:\OSDCloud is only supported with -SkipEndpointSync."
     }
@@ -486,8 +495,12 @@ try {
         Repair-EndpointRuntimeIfMissing
 
         Write-Step "Syncing deployment endpoint"
+        $stateConfigPath = Join-Path $script:DeploymentStateRoot 'config\osdcloud-console.json'
+        if (-not (Test-Path -LiteralPath $stateConfigPath -PathType Leaf)) {
+            throw "HostTools State web config is missing: $stateConfigPath. Refusing to write the Git clone config."
+        }
         Invoke-PowerShellScript -ScriptPath (Join-Path $RepoRoot 'tools\Set-OsdCloudIpxeEndpoint.ps1') -ArgumentList @(
-            '-ConfigPath', (Join-Path $RepoRoot 'config\osdcloud-console.json'),
+            '-ConfigPath', $stateConfigPath,
             '-InterfaceAlias', $InterfaceAlias,
             '-ServerIp', $ServerIp,
             '-PrefixLength', [string] $PrefixLength,

@@ -701,6 +701,9 @@ test('runtime restore uses the base Web config path while preserving local overl
   assert.match(script, /InstalledStateConfigPath/);
   assert.match(script, /State\\config\\osdcloud-console\.json/);
   assert.match(script, /State\\config\\osdcloud-secrets\.json/);
+  assert.match(script, /HostTools\\State\\config\\osdcloud-console\.json/);
+  assert.match(script, /Refusing to use the Git clone config/);
+  assert.doesNotMatch(script, /Join-Path \$RepoRoot 'config\\osdcloud-secrets\.json'/);
   assert.match(script, /--config[\s\S]*\$ConfigPath/);
   assert.doesNotMatch(script, /\$catalog\.software/);
   assert.match(windows, /function resolveBaseConfigPath/);
@@ -1306,6 +1309,12 @@ test('deployment bootstrap prepares host SMB share from local secrets', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Initialize-DeploymentServer.ps1'), 'utf8');
   assert.match(script, /Ensure-DeploymentSmbShare/);
   assert.match(script, /OSDCLOUD_PXEINSTALL_PASSWORD/);
+  assert.match(script, /HostTools\\State\\config\\osdcloud-secrets\.json/);
+  assert.match(script, /The Git clone is not a secret store/);
+  assert.match(script, /Refusing to write the Git clone config/);
+  assert.match(script, /\[string\] \$StateRoot/);
+  assert.doesNotMatch(script, /Join-Path \$RepoRoot 'config\\osdcloud-secrets\.json'/);
+  assert.doesNotMatch(script, /Join-Path \$RepoRoot 'config\\osdcloud-console\.json'/);
   assert.match(script, /New-LocalUser/);
   assert.match(script, /New-SmbShare/);
   assert.match(script, /Get-SmbShareAccess/);
