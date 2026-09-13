@@ -2,6 +2,8 @@
 
 ## Active continuation — Mode All repair
 
+Update 19:09 +08: first fixed rerun (mode-all-20260913b) has autolab-01 stalled between successful torrent metadata GET and networking telemetry; three peers download/apply normally. Source adds 15-second CIM/native firewall command bounds and step reporting, plus behavioral tests and synced template metadata. After checks/commit, cancel the old rerun and use a fresh complete Mode All. User authorization persists until green; actively inspect per-client status and VM screens on anomalies.
+
 The user authorized Mode All, source repairs, and reruns until green; actively inspect deployment status. The first run started 18:15 +08. Four Secure Boot + TPM On clients reached desktop-ready and all four install steps succeeded. It is not a completed Mode All result: round cleanup swallowed Hyper-V ObjectNotFound when redundantly setting an already-first Network boot entry; guest profile ID was empty and persisted host firmware fields were missing. Source fixes and behavioral tests are in progress; stop/clean the old runner, then rerun full Mode All after source checks and commit. Do not push. Physical PXE remains separate and open. Older ahead counts below are stale; use live Git.
 
 Read this after `AGENTS.md` startup checks. It is the continuation brief for the 2026-09-12/13 work on Web operator modes, HostTools reload, and AutoLab Secure Boot × TPM. Do not treat it as live production truth; re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- WinPE torrent networking reports each preparation step and bounds CIM discovery and wpeutil/netsh commands to 15 seconds, so a stalled network/firewall command cannot block image deployment indefinitely. Lab checkpoint cleanup errors retain their reason for diagnosis.
 - Lab green is emitted only after cleanup succeeds; a round checkpoint cleanup failure stops the run. Restore keeps an already-first Network boot entry to avoid stale Hyper-V adapter references. Guest evidence reads the published guest profile, rejects an empty/mismatched profile ID, and serializes host Secure Boot/template/TPM fields.
 - Lab/bootstrap secrets and endpoint config stay in HostTools State. `Initialize-DeploymentServer.ps1` reads `C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json` (or env), never the Git clone. Endpoint sync writes State `osdcloud-console.json`, not `config\osdcloud-console.json` in the clone. Restore refuses a missing State web config instead of falling back to the clone. Lab `appRoot` is the installed HostTools App; Initialize/Restore still run from the merge-source clone with `-StateRoot`.
 - Lab cache validation hashes only `cache.requiredPaths`. Extra records left in an old manifest (generated `boot.wim` / `boot.ipxe`) are ignored so a stale hash cannot force another restore.

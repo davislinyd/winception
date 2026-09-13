@@ -1212,6 +1212,29 @@ test('WinPE deployment script maximizes the visible console for deployment reada
   assert.match(script, /Ensure-ConsoleMaximized/);
 });
 
+test('WinPE torrent network commands time out and retain native exit/output', () => {
+  const templatePath = path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1').replaceAll("'", "''");
+  const command = `
+    $ErrorActionPreference='Stop'
+    [Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false)
+    $tokens=$null; $errors=$null
+    $ast=[System.Management.Automation.Language.Parser]::ParseFile('${templatePath}',[ref]$tokens,[ref]$errors)
+    $definition=$ast.FindAll({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-TorrentNetworkCommand'},$false)[0]
+    Invoke-Expression $definition.Extent.Text
+    function Send-DeploymentStatus { param($Stage,$Message) $script:reported=$Stage }
+    $native=Invoke-TorrentNetworkCommand -FilePath 'powershell.exe' -Arguments '-NoProfile -Command "Write-Output test-output; exit 7"' -TimeoutSeconds 5
+    if($native.exitCode -ne 7 -or $native.output -notmatch 'test-output'){throw 'Native result was lost.'}
+    $clock=[System.Diagnostics.Stopwatch]::StartNew()
+    $timeout=Invoke-TorrentNetworkCommand -FilePath 'powershell.exe' -Arguments '-NoProfile -Command "Start-Sleep -Seconds 30"' -TimeoutSeconds 1
+    if($timeout.exitCode -ne -1 -or $timeout.output -notmatch 'Timed out' -or $clock.Elapsed.TotalSeconds -gt 8 -or $script:reported -ne 'torrent-firewall'){throw 'Hung command did not return a bounded reported timeout.'}
+  `;
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-Command', command], {
+    encoding: 'utf8', windowsHide: true, timeout: 15000,
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
 test('WinPE torrent download shows local progress and active peers through loopback-only aria2 RPC', () => {
   const script = fs.readFileSync(
     path.join(process.cwd(), 'osdcloud-assets', 'OSDCloud', 'WinPE', 'OSDCloud', 'Start-OSDCloud-iPXE.ps1'),
@@ -1227,7 +1250,8 @@ test('WinPE torrent download shows local progress and active peers through loopb
   assert.match(script, /--gid=\$aria2Gid/);
   assert.match(script, /aria2\.tellStatus/);
   assert.match(script, /aria2\.getPeers/);
-  assert.match(script, /wpeutil DisableFirewall/);
+  assert.match(script, /Invoke-TorrentNetworkCommand -FilePath 'wpeutil\.exe' -Arguments 'DisableFirewall'/);
+  assert.match(script, /Win32_NetworkAdapterConfiguration -OperationTimeoutSec 15/);
   assert.match(script, /--bt-enable-lpd=true/);
   assert.match(script, /--enable-peer-exchange=true/);
   assert.match(script, /--bt-tracker-interval=5/);

@@ -184,6 +184,8 @@ Web Console 的頂部工作區是 **開始部署** / **部署活動**，並可�
 
 Lab 綠燈須包含 guest 上已發布的 profile ID、主機與客戶端韌體證據與成功清理；checkpoint 還原失敗即測試失敗。
 
+WinPE Torrent 網路準備逐步回報進度；CIM 與防火牆命令最多執行 15 秒，失敗會保留診斷並繼續其他準備方式。
+
 Winception 的自動化分成兩條 GitHub Actions 流程：
 
 - pull_request 使用 self-hosted / windows / winception-lab runner，只執行 Node、Web/API、PowerShell parser、npm run check、npm test 與 npm run smoke。Checkout 與 npm cache 留在 runner workspace，不會寫入 C:\OSDCloud，也不會執行 Endpoint Sync、profile publish、服務啟停或 DHCP。
@@ -577,6 +579,8 @@ Winception automation is split into two GitHub Actions workflows:
 - A master push runs on self-hosted / windows / hyperv / winception-lab, creates and verifies an allowlisted Release HostTools bundle, installs the empty bundle, explicitly seeds the Development fixture into runner State, and executes `winception-autolab-01..04` plus `winception-autolab-ipxe-01` on the fixed Winception-AutoLab Internal switch (192.168.177.0/24, service 192.168.177.1). Default firmware is four Secure Boot On + TPM On VMs and one iPXE Secure Boot Off + TPM Off VM; `Mode All` also proves Secure Boot On + TPM Off and iPXE Secure Boot Off + TPM On. Those names must not reuse historical `winception-client-01..04`. Success and failure both stop services, power off VMs, restore the Winception-Clean checkpoint, and upload de-secretized evidence. `Winception-Clean` does not keep Hyper-V TPM; Lab restore reapplies `-SecureBoot` and `-Tpm` per round.
 
 Lab green requires the published guest profile ID, host/guest firmware evidence, and successful cleanup. A checkpoint restore failure fails the test.
+
+WinPE reports each torrent networking preparation step. CIM discovery and firewall commands have a 15-second limit; failures retain diagnostics while other preparation methods continue.
 
 The dedicated runner needs a one-time bootstrap, five Gen2 VMs/checkpoints, protected local secrets at C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json, and the runner labels. Normal PR/merge jobs are unattended. The runner guard rejects external switches, non-Lab adapters, running/stale VMs, missing checkpoints, Windows DHCP Server bindings off the Lab adapter, and Lab ports already bound on the Lab service IP or 0.0.0.0. ICS or DHCP on another adapter, including Default Switch UDP/67, is not Lab occupancy. Initialize-WinceptionLab.ps1 -ValidateOnly validates prerequisites without changing the host, including default firmware (TPM On for Secure Boot VMs, TPM Off for iPXE).
 

@@ -28,6 +28,7 @@ Read this file when selecting verification for subsystem-specific changes.
 
 ## Torrent Transport
 
+- WinPE network preparation must report its current step and bound CIM discovery plus native firewall commands. Verify native output/exit preservation and termination of a synthetic hung command without running firewall mutations on the host.
 - Tracker/seeder changes must test local tracker announce, compact peer list, host seeder registration, stopped peer removal, stale peer cleanup, and `TorrentDistributionCoordinator` compatibility.
 - Because torrent transport changes affect deployment data movement, do not claim PXE deployment path readiness from unit tests alone. Final confidence requires torrent integration tests plus at least one live PXE regression round.
 

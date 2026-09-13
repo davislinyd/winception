@@ -1467,7 +1467,7 @@ function Invoke-LabCleanup {
         }
     }
     catch {
-        $script:CleanupErrors.Add('VM checkpoint cleanup failed.') | Out-Null
+        $script:CleanupErrors.Add("VM checkpoint cleanup failed: $($_.Exception.Message)") | Out-Null
     }
     try { Restore-SecretEnvironment } catch { $script:CleanupErrors.Add('secret environment cleanup failed.') | Out-Null }
     Release-LabLock

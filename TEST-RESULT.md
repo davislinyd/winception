@@ -2,6 +2,8 @@
 
 ## Mode All 整合驗證修復中（2026-09-13）
 
+18:57 +08 以 source fix 重跑 Mode All（evidence `State\lab\evidence\mode-all-20260913b`）。四台成功載入 WinPE，但 autolab-01 在取得 Torrent metadata（19:03:22 HTTP 200）後、網路準備回報前停住；其餘三台正常下載並套用。WinPE 畫面與 callback 交叉確認停點，未等待 60 分鐘 timeout。Source 已加入 CIM / wpeutil / netsh 15 秒限制與逐步回報；限時與 native exit/output behavioral tests 通過，19:11 +08 Windows PowerShell 的 npm test、check、smoke exit 0。完整修正版 Mode All 仍待執行。
+
 18:15 +08 啟動本機 `Mode All`（Internal AutoLab `192.168.177.0/24`）。首輪四台 Secure Boot On + TPM On 全數到 `windows-desktop-ready`，Chrome、7-Zip、desktop script、Notepad++ 均 succeeded。尚不能宣告 Mode All 綠燈。
 
 主動檢查發現 checkpoint restore 後再次設定 `FirstBootDevice` 偶發 Hyper-V `ObjectNotFound`，round cleanup 中途退出並留下後續 VM。既有 runner 吞掉此錯誤；guest profile ID 為空仍被接受，且 host firmware 的 Add-Member 欄位在 dictionary JSON 中遺失。

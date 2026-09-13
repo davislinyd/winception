@@ -677,6 +677,30 @@ function Set-TorrentTransferPhase {
     }
 }
 
+function Invoke-TorrentNetworkCommand {
+    param([string] $FilePath, [string] $Arguments, [int] $TimeoutSeconds = 15)
+
+    Send-DeploymentStatus -Stage 'torrent-firewall' -Message "Running $FilePath $Arguments."
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo.FileName = $FilePath
+    $process.StartInfo.Arguments = $Arguments
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.CreateNoWindow = $true
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+    try {
+        [void] $process.Start()
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            $process.Kill()
+            return [pscustomobject]@{ exitCode = -1; output = "Timed out after $TimeoutSeconds seconds." }
+        }
+        [pscustomobject]@{ exitCode = $process.ExitCode; output = ($stdout.GetAwaiter().GetResult() + $stderr.GetAwaiter().GetResult()) }
+    }
+    finally { $process.Dispose() }
+}
+
 function Stop-TorrentTransfer {
     param([object] $Context)
     if (-not $Context) { return }
@@ -892,9 +916,10 @@ function Invoke-TorrentOsImageDownload {
         # method, add an explicit allow rule, then report the resulting state so
         # the host can confirm inbound is actually open.
         $clientIPv4 = $null
+        Send-DeploymentStatus -Stage 'torrent-firewall' -Message 'Discovering client torrent network address.'
         try {
             $serverPrefix = $server -replace '\.\d+$', '.'
-            $clientIPv4 = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration |
+            $clientIPv4 = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -OperationTimeoutSec 15 |
                 Where-Object { $_.IPEnabled } |
                 ForEach-Object { $_.IPAddress } |
                 Where-Object { $_ -match '^\d{1,3}(?:\.\d{1,3}){3}$' -and $_.StartsWith($serverPrefix) -and $_ -ne $server } |
@@ -904,28 +929,29 @@ function Invoke-TorrentOsImageDownload {
 
         $fwReport = @()
         try {
-            $fwOutput = & wpeutil DisableFirewall 2>&1
-            $fwReport += "wpeutil=$LASTEXITCODE"
-            if ($LASTEXITCODE -ne 0 -and $fwOutput) { $fwReport += "wpeutil-output=$($fwOutput -join ' ')" }
+            $fwResult = Invoke-TorrentNetworkCommand -FilePath 'wpeutil.exe' -Arguments 'DisableFirewall'
+            $fwReport += "wpeutil=$($fwResult.exitCode)"
+            if ($fwResult.exitCode -ne 0 -and $fwResult.output) { $fwReport += "wpeutil-output=$($fwResult.output)" }
         } catch { $fwReport += "wpeutil-err=$($_.Exception.Message)" }
         try {
-            $null = & netsh advfirewall set allprofiles state off 2>&1
-            $fwReport += "advfirewall=$LASTEXITCODE"
+            $fwResult = Invoke-TorrentNetworkCommand -FilePath 'netsh.exe' -Arguments 'advfirewall set allprofiles state off'
+            $fwReport += "advfirewall=$($fwResult.exitCode)"
         } catch { $fwReport += "advfirewall-err=$($_.Exception.Message)" }
         try {
-            $null = & netsh advfirewall firewall add rule name='aria2-in' dir=in action=allow protocol=TCP localport=7001-7254 2>&1
-            $fwReport += "rule=$LASTEXITCODE"
+            $fwResult = Invoke-TorrentNetworkCommand -FilePath 'netsh.exe' -Arguments 'advfirewall firewall add rule name=aria2-in dir=in action=allow protocol=TCP localport=7001-7254'
+            $fwReport += "rule=$($fwResult.exitCode)"
         } catch { $fwReport += "rule-err=$($_.Exception.Message)" }
         try {
-            $null = & netsh firewall set opmode mode=disable 2>&1
-            $fwReport += "legacy=$LASTEXITCODE"
+            $fwResult = Invoke-TorrentNetworkCommand -FilePath 'netsh.exe' -Arguments 'firewall set opmode mode=disable'
+            $fwReport += "legacy=$($fwResult.exitCode)"
         } catch { $fwReport += "legacy-err=$($_.Exception.Message)" }
         try {
             $svc = Get-Service -Name MpsSvc -ErrorAction SilentlyContinue
             $fwReport += "MpsSvc=$(if ($svc) { $svc.Status } else { 'absent' })"
         } catch {}
         try {
-            $state = (& netsh advfirewall show allprofiles state 2>&1 | Where-Object { $_ -match 'State|ON|OFF' }) -join ' '
+            $fwResult = Invoke-TorrentNetworkCommand -FilePath 'netsh.exe' -Arguments 'advfirewall show allprofiles state'
+            $state = ($fwResult.output -split '\r?\n' | Where-Object { $_ -match 'State|ON|OFF' }) -join ' '
             if ($state) { $fwReport += "state: $state" }
         } catch {}
         $clientEndpoint = if ($clientIPv4) { $clientIPv4 } else { 'unknown' }
