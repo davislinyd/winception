@@ -140,6 +140,30 @@ function Ensure-LabAdapter {
     $adapter
 }
 
+function Set-LabVmTpmEnabled {
+    # Winception-Clean does not keep Hyper-V TPM; re-enable after firmware apply.
+    param(
+        [Parameter(Mandatory)][string] $VmName,
+        [Parameter(Mandatory)][bool] $Enabled
+    )
+
+    if (-not $Enabled) {
+        return
+    }
+
+    $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+    if (-not [bool] $security.TpmEnabled) {
+        if (-not [bool] $security.KpsAvailable) {
+            Set-VMKeyProtector -VMName $VmName -NewLocalKeyProtector -ErrorAction Stop
+        }
+        Enable-VMTPM -VMName $VmName -ErrorAction Stop
+        $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+    }
+    if (-not [bool] $security.TpmEnabled) {
+        throw "$VmName TPM is off; Secure Boot Lab VMs must have TPM enabled after firmware apply."
+    }
+}
+
 function Ensure-LabVm {
     param(
         [Parameter(Mandatory)][string] $VmName,
@@ -205,6 +229,7 @@ function Ensure-LabVm {
         else {
             Set-VMFirmware -VMName $VmName -EnableSecureBoot Off
         }
+        Set-LabVmTpmEnabled -VmName $VmName -Enabled $SecureBoot
         Set-VMFirmware -VMName $VmName -FirstBootDevice $networkAdapters[0]
     }
     else {
@@ -212,6 +237,12 @@ function Ensure-LabVm {
         $expected = if ($SecureBoot) { 'On' } else { 'Off' }
         if ([string] $firmware.SecureBoot -ne $expected) {
             throw "$VmName Secure Boot is $($firmware.SecureBoot), expected $expected."
+        }
+        if ($SecureBoot) {
+            $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+            if (-not [bool] $security.TpmEnabled) {
+                throw "$VmName TPM is off; Secure Boot Lab VMs must have TPM enabled. Winception-Clean restore drops Hyper-V TPM."
+            }
         }
     }
 
@@ -235,6 +266,7 @@ function Ensure-LabVm {
     [pscustomobject]@{
         name = $VmName
         secureBoot = $SecureBoot
+        tpmEnabled = [bool] (Get-VMSecurity -VMName $VmName -ErrorAction Stop).TpmEnabled
         checkpoint = $CheckpointName
         state = [string] (Get-VM -Name $VmName).State
     }
@@ -244,6 +276,9 @@ Assert-CommandAvailable -Name 'Get-VMSwitch'
 Assert-CommandAvailable -Name 'Get-VM'
 Assert-CommandAvailable -Name 'Get-VMSnapshot'
 Assert-CommandAvailable -Name 'Get-VMMemory'
+Assert-CommandAvailable -Name 'Get-VMSecurity'
+Assert-CommandAvailable -Name 'Set-VMKeyProtector'
+Assert-CommandAvailable -Name 'Enable-VMTPM'
 $config = Read-LabConfig -Path $ConfigPath
 Assert-LabConfig -Config $config
 if (-not (Test-IsAdministrator)) {

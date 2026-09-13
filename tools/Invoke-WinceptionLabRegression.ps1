@@ -419,11 +419,13 @@ function Assert-LabRunnerGuard {
         if ($expectedSecureBoot -eq 'On' -and [string] $firmware.SecureBootTemplate -ne 'MicrosoftWindows') {
             throw "$vmName must use the MicrosoftWindows Secure Boot template."
         }
+        $security = Get-VMSecurity -VMName $vmName -ErrorAction Stop
         $vmResults.Add([ordered]@{
             name = $vmName
             generation = [int] $vm.Generation
             state = [string] $vm.State
             secureBoot = [string] $firmware.SecureBoot
+            tpmEnabled = [bool] $security.TpmEnabled
             checkpoint = [string] $script:Config.checkpointName
         })
     }
@@ -911,6 +913,30 @@ function Stop-LabServices {
     }
 }
 
+function Set-LabVmTpmEnabled {
+    # Winception-Clean does not keep Hyper-V TPM; re-enable after firmware apply.
+    param(
+        [Parameter(Mandatory)][string] $VmName,
+        [Parameter(Mandatory)][bool] $Enabled
+    )
+
+    if (-not $Enabled) {
+        return
+    }
+
+    $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+    if (-not [bool] $security.TpmEnabled) {
+        if (-not [bool] $security.KpsAvailable) {
+            Set-VMKeyProtector -VMName $VmName -NewLocalKeyProtector -ErrorAction Stop
+        }
+        Enable-VMTPM -VMName $VmName -ErrorAction Stop
+        $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+    }
+    if (-not [bool] $security.TpmEnabled) {
+        throw "$VmName TPM is off; Secure Boot Lab VMs must have TPM enabled after firmware apply."
+    }
+}
+
 function Set-VmFirmwareMode {
     param(
         [Parameter(Mandatory)][string] $VmName,
@@ -923,6 +949,7 @@ function Set-VmFirmwareMode {
     else {
         Set-VMFirmware -VMName $VmName -EnableSecureBoot Off
     }
+    Set-LabVmTpmEnabled -VmName $VmName -Enabled $SecureBoot
     $adapter = Get-VMNetworkAdapter -VMName $VmName | Select-Object -First 1
     Set-VMFirmware -VMName $VmName -FirstBootDevice $adapter
 }
@@ -1021,6 +1048,26 @@ function Get-GuestEvidence {
                         }
                     })
                 }
+                $confirmSecureBootUEFI = $false
+                try {
+                    $confirmSecureBootUEFI = [bool] (Confirm-SecureBootUEFI)
+                }
+                catch {
+                    $confirmSecureBootUEFI = $false
+                }
+                $tpmPresent = $false
+                $tpmReady = $false
+                $tpmEnabled = $false
+                $tpmActivated = $false
+                try {
+                    $tpm = Get-Tpm
+                    $tpmPresent = [bool] $tpm.TpmPresent
+                    $tpmReady = [bool] $tpm.TpmReady
+                    $tpmEnabled = [bool] $tpm.TpmEnabled
+                    $tpmActivated = [bool] $tpm.TpmActivated
+                }
+                catch {
+                }
                 [ordered]@{
                     computerName = $env:COMPUTERNAME
                     clientId = [string] (Get-RemoteValue -Value $status -Names @('clientId', 'computerName') -Default $env:COMPUTERNAME)
@@ -1038,6 +1085,11 @@ function Get-GuestEvidence {
                     profileId = [string] (Get-RemoteValue -Value $status -Names @('profileId', 'selectedProfileId') -Default (Get-RemoteValue -Value $progress -Names @('profileId', 'selectedProfileId') -Default ''))
                     installSteps = $steps
                     progressStatus = [string] (Get-RemoteValue -Value $progress -Names @('status') -Default '')
+                    confirmSecureBootUEFI = $confirmSecureBootUEFI
+                    tpmPresent = $tpmPresent
+                    tpmReady = $tpmReady
+                    tpmEnabled = $tpmEnabled
+                    tpmActivated = $tpmActivated
                 }
                 }
             }
@@ -1046,6 +1098,11 @@ function Get-GuestEvidence {
             }
             if ($result -and $result.desktopReadyFile -and $result.explorerRunning -and $result.oobeProcesses.Count -eq 0 -and
                 ([string] $result.stage -eq 'windows-desktop-ready' -or [string] $result.status -eq 'completed' -or [string] $result.progressStatus -eq 'completed' -or [string] $result.progressStatus -eq 'succeeded')) {
+                $firmware = Get-VMFirmware -VMName $VmName
+                $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+                $result | Add-Member -NotePropertyName hostSecureBoot -NotePropertyValue ([string] $firmware.SecureBoot) -Force
+                $result | Add-Member -NotePropertyName hostSecureBootTemplate -NotePropertyValue ([string] $firmware.SecureBootTemplate) -Force
+                $result | Add-Member -NotePropertyName hostTpmEnabled -NotePropertyValue ([bool] $security.TpmEnabled) -Force
                 return $result
             }
             Start-Sleep -Seconds 5
@@ -1062,7 +1119,8 @@ function Get-GuestEvidence {
 function Assert-GuestEvidence {
     param(
         [Parameter(Mandatory)] $Evidence,
-        [Parameter(Mandatory)][string] $ExpectedProfileId
+        [Parameter(Mandatory)][string] $ExpectedProfileId,
+        [switch] $RequireSecureBootTpm
     )
 
     if (-not $Evidence.desktopReadyFile -or -not $Evidence.explorerRunning -or @($Evidence.oobeProcesses).Count -gt 0) {
@@ -1075,6 +1133,20 @@ function Assert-GuestEvidence {
         -not [string]::IsNullOrWhiteSpace([string] $Evidence.profileId) -and
         [string] $Evidence.profileId -ne $ExpectedProfileId) {
         throw "Guest profile evidence mismatch: $($Evidence.computerName)"
+    }
+    if ($RequireSecureBootTpm) {
+        if (-not [bool] $Evidence.confirmSecureBootUEFI) {
+            throw "Guest Secure Boot is off: $($Evidence.computerName)"
+        }
+        if (-not [bool] $Evidence.tpmPresent -or -not [bool] $Evidence.tpmReady -or -not [bool] $Evidence.tpmEnabled -or -not [bool] $Evidence.tpmActivated) {
+            throw "Guest TPM is not Present/Ready/Enabled/Activated: $($Evidence.computerName)"
+        }
+        if ([string] $Evidence.hostSecureBoot -ne 'On' -or [string] $Evidence.hostSecureBootTemplate -ne 'MicrosoftWindows') {
+            throw "Host Secure Boot firmware is not MicrosoftWindows On: $($Evidence.computerName)"
+        }
+        if (-not [bool] $Evidence.hostTpmEnabled) {
+            throw "Host Hyper-V TPM is off: $($Evidence.computerName)"
+        }
     }
 }
 
@@ -1157,7 +1229,7 @@ function Invoke-LabRound {
         $guest = New-Object System.Collections.Generic.List[object]
         foreach ($vmName in $VmNames) {
             $result = Get-GuestEvidence -VmName $vmName -Credential $Credential
-            Assert-GuestEvidence -Evidence $result -ExpectedProfileId $ProfileId
+            Assert-GuestEvidence -Evidence $result -ExpectedProfileId $ProfileId -RequireSecureBootTpm:($BootMode -eq 'secureboot')
             $guest.Add($result)
         }
         $fleetRunIds = @($fleet | ForEach-Object { [string] $_.runId })
@@ -1266,6 +1338,9 @@ try {
     Assert-CommandAvailable -Name 'Get-VMSnapshot'
     Assert-CommandAvailable -Name 'Get-VMFirmware'
     Assert-CommandAvailable -Name 'Get-VMMemory'
+    Assert-CommandAvailable -Name 'Get-VMSecurity'
+    Assert-CommandAvailable -Name 'Set-VMKeyProtector'
+    Assert-CommandAvailable -Name 'Enable-VMTPM'
     Assert-CommandAvailable -Name 'New-PSSession'
 
     if ([string]::IsNullOrWhiteSpace($ConfigPath)) {

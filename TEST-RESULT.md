@@ -1,5 +1,18 @@
 # Deployment Test Result
 
+## Secure Boot + TPM Hyper-V PXE 綠燈（2026-09-13）
+
+本機 AutoLab Internal `vEthernet (Winception-AutoLab)` / `192.168.177.1`，`dhcp.bootMode=secureboot`。先前 PXE 失敗是因為 live boot mode 停在 `ipxe`（Secure Boot 會拒收 `snponly.efi`），且 `winception-autolab-01` 的 Secure Boot 範本是 `MicrosoftUEFICertificateAuthority` 而不是 `MicrosoftWindows`。
+
+修正後單台 `winception-autolab-01`（Gen2、Secure Boot On、template `MicrosoftWindows`、TPM On）從 UEFI IPv4 PXE 送到 `windows-desktop-ready`：
+
+- DHCP：`ACK 192.168.177.201` `boot=bootmgfw.efi`。
+- TFTP：`SENT bootmgfw.efi`（2,772,912 bytes）、`BCD`、`boot.sdi`、`SENT boot.wim`（733,536,617 bytes）到 `192.168.177.201`。`SiPolicy.p7b` 等 MISS 為正常探測。
+- Fleet run `20260913-004530-9115-1512-6263-2753-5174-0981-98`：`status=completed`、`latestStage=windows-desktop-ready`、100%、`Windows desktop is ready for LabAdmin`。約 00:45–01:00 +08（Fleet `elapsedSeconds=268` 不含映像套用）。
+- Apps/script：Chrome、7-Zip、desktop script、Notepad++ 皆 `succeeded`，SetupComplete exit `0`。
+- PowerShell Direct：`Confirm-SecureBootUEFI=True`；TPM Present/Ready/Enabled/Activated；Explorer running；`C:\Users\LabAdmin\Desktop\OSDCloud-Desktop-Ready.txt`；OOBE 程序未見；Windows 11 25H2 build 26200 Professional。
+- 證據收集後已將 VM 還原 `Winception-Clean`。Hyper-V checkpoint 不含 TPM；Lab 腳本現在會在還原後對 Secure Boot VM 自動 `Enable-VMTPM`。這仍不能當成實體筆電或生產 DHCP 證據。
+
 ## v1.1.0 候選修補（2026-09-11 source-only）
 
 在 2026-08-18 候選之上補了出貨前該修的 source/docs，沒有建立 AutoLab、沒有停現有 vSwitch VM、沒有啟動 DHCP/TFTP/HTTP/Torrent：
@@ -32,7 +45,7 @@ Authoritative evidence and no-AI operator runbook for a completed from-zero depl
 
 **Date validated**: 2026-06-24
 **Boot mode**: `secureboot` (default) — Microsoft-signed `bootmgfw.efi` → network BCD → TFTP windowed `boot.wim` → WinPE
-**Hardware validated**: Dell physical laptop (Latitude series); Hyper-V Gen2 with Secure Boot ON
+**Hardware validated**: Dell physical laptop (Latitude series); Hyper-V Gen2 with Secure Boot ON and TPM ON (AutoLab)
 
 ## Validated Paths
 
@@ -40,6 +53,7 @@ Authoritative evidence and no-AI operator runbook for a completed from-zero depl
 | --- | --- | --- |
 | secureboot mode — Dell physical laptop (Latitude), Secure Boot ON | ✔ Deployed to `windows-desktop-ready` | 2026-06-12 |
 | secureboot mode — Hyper-V Gen2 (`MicrosoftWindows` SB template, `winception-client-sb-01`), Secure Boot ON | ✔ Deployed to `windows-desktop-ready` | 2026-06-12 |
+| secureboot mode — Hyper-V Gen2 AutoLab (`winception-autolab-01`), Secure Boot ON + TPM ON | ✔ Deployed to `windows-desktop-ready`; guest `Confirm-SecureBootUEFI=True`, TPM Present/Ready/Enabled/Activated | 2026-09-13 |
 | secureboot mode — two concurrent Hyper-V clients, striped Torrent P2P offload | ✔ Both clients uploaded while incomplete and reached `windows-desktop-ready` | 2026-06-19 |
 | secureboot mode — four concurrent Hyper-V clients, two consecutive rounds | ✔ 8/8 reached `windows-desktop-ready`; every app/script sequence completed 4/4 with exit code 0 | 2026-06-20 |
 | USB/ISO offline installer — Hyper-V Gen2 ISO boot, Secure Boot ON, no NIC | ✔ Rebuilt ISO deployed offline to `windows-desktop-ready` | 2026-06-24 |
@@ -109,11 +123,11 @@ PR pull requests run only in an isolated checkout with Node 24.x, npm ci, JavaSc
 
 After a master push, the dedicated Windows self-hosted Hyper-V runner:
 
-1. Acquires the Winception-AutoLab concurrency lock and validates the exact Internal switch, vEthernet adapter, isolated subnet, DHCP binding, five powered-off Gen2 VMs, Secure Boot roles, fixed memory, and Winception-Clean checkpoints.
+1. Acquires the Winception-AutoLab concurrency lock and validates the exact Internal switch, vEthernet adapter, isolated subnet, DHCP binding, five powered-off Gen2 VMs, Secure Boot roles, TPM on Secure Boot VMs after restore, fixed memory, and Winception-Clean checkpoints.
 2. Exports a commit/versioned tracked HostTools bundle with per-file length and SHA-256 manifest; secrets, runtime state, generated media, logs, screenshots, .ai, and untracked files are excluded.
 3. Installs the bundle in HostTools App, runs npm ci, restores/prepares the product-managed runtime through existing helpers, synchronizes endpoint/profile/OS image through existing APIs, and runs server:preflight.
-4. Runs four Secure Boot VMs in parallel, then one dedicated Secure Boot-off iPXE VM. Each run needs Fleet status completed at windows-desktop-ready plus PowerShell Direct evidence for desktop marker, Explorer, OOBE, Windows version, profile, and app/script sequence. iPXE also needs snponly.efi, boot.ipxe, wimboot, and callback evidence.
-5. Stops known Lab services, powers off VMs, restores checkpoints, clears temporary status/operation state, and uploads only redacted evidence on both success and failure. There is no automatic retry.
+4. Runs four Secure Boot VMs in parallel, then one dedicated Secure Boot-off iPXE VM. Each run needs Fleet status completed at windows-desktop-ready plus PowerShell Direct evidence for desktop marker, Explorer, OOBE, Windows version, profile, and app/script sequence. Secure Boot rounds also need guest Confirm-SecureBootUEFI and TPM Present/Ready/Enabled/Activated. iPXE also needs snponly.efi, boot.ipxe, wimboot, and callback evidence.
+5. Stops known Lab services, powers off VMs, restores checkpoints, re-enables TPM on Secure Boot VMs (Winception-Clean drops Hyper-V TPM), clears temporary status/operation state, and uploads only redacted evidence on both success and failure. There is no automatic retry.
 
 Required failure tests include preflight blocking without DHCP start, stale/running VM, missing checkpoint, foreign switch/adapter/DHCP binding, occupied port, invalid cache hash, PowerShell Direct timeout, cleanup failure, Ctrl+C, job cancellation, and concurrency collision. A passing isolated Lab run is not production/WAN/LAN DHCP or physical-laptop evidence.
 

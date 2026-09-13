@@ -209,6 +209,15 @@ test('Lab bootstrap is ValidateOnly-capable and fails closed on network and VM d
   assert.match(script, /failed to create checkpoint/);
   assert.match(script, /EnableSecureBoot On/);
   assert.match(script, /EnableSecureBoot Off/);
+  assert.match(script, /function Set-LabVmTpmEnabled/);
+  assert.match(script, /Set-VMKeyProtector -VMName \$VmName -NewLocalKeyProtector/);
+  assert.match(script, /Enable-VMTPM -VMName \$VmName/);
+  assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$SecureBoot/);
+  assert.match(script, /Secure Boot Lab VMs must have TPM enabled/);
+  const tpmFn = script.indexOf('function Set-LabVmTpmEnabled');
+  const earlyReturn = script.indexOf('if (-not $Enabled)', tpmFn);
+  const enableTpm = script.indexOf('Enable-VMTPM -VMName $VmName', tpmFn);
+  assert.ok(tpmFn >= 0 && earlyReturn > tpmFn && enableTpm > earlyReturn, 'TPM enable must skip when Enabled is false');
 });
 
 test('Lab regression gates DHCP behind preflight and always cleans known resources', () => {
@@ -242,6 +251,19 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /New-PSSession -VMName/);
   assert.match(script, /windows-desktop-ready/);
   assert.match(script, /Restore-VMSnapshot/);
+  assert.match(script, /function Set-LabVmTpmEnabled/);
+  assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$SecureBoot/);
+  assert.match(script, /Enable-VMTPM -VMName \$VmName/);
+  assert.match(script, /Set-VMKeyProtector -VMName \$VmName -NewLocalKeyProtector/);
+  assert.match(script, /Confirm-SecureBootUEFI/);
+  assert.match(script, /Get-Tpm/);
+  assert.match(script, /RequireSecureBootTpm:\(\$BootMode -eq 'secureboot'\)/);
+  const restoreAt = script.indexOf('function Restore-LabCheckpoint');
+  const firmwareAfterRestore = script.indexOf('Set-VmFirmwareMode -VmName $vmName -SecureBoot $isSecureBoot', restoreAt);
+  assert.ok(restoreAt >= 0 && firmwareAfterRestore > restoreAt, 'checkpoint restore must re-apply firmware and TPM');
+  const firmwareFn = script.indexOf('function Set-VmFirmwareMode');
+  const tpmAfterFirmware = script.indexOf('Set-LabVmTpmEnabled -VmName $VmName -Enabled $SecureBoot', firmwareFn);
+  assert.ok(firmwareFn >= 0 && tpmAfterFirmware > firmwareFn && tpmAfterFirmware < restoreAt, 'Secure Boot firmware apply must re-enable TPM');
   assert.match(script, /PowerShell\.Exiting/);
   assert.match(script, /Stop-KnownLabProcesses/);
   assert.match(script, /Stop-Process -Id/);
