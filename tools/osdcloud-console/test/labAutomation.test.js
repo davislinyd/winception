@@ -215,7 +215,9 @@ test('Lab bootstrap is ValidateOnly-capable and fails closed on network and VM d
   assert.match(script, /EnableSecureBoot Off/);
   assert.match(script, /function Set-LabVmTpmEnabled/);
   assert.match(script, /Set-VMKeyProtector -VMName \$VmName -NewLocalKeyProtector/);
+  assert.match(script, /Get-VMKeyProtector -VMName \$VmName/);
   assert.match(script, /Enable-VMTPM -VMName \$VmName/);
+  assert.doesNotMatch(script, /\$security\.KpsAvailable/);
   assert.match(script, /Disable-VMTPM -VMName \$VmName/);
   assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$Tpm/);
   assert.match(script, /SecureBoot \$true -Tpm \$true/);
@@ -262,6 +264,8 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /Enable-VMTPM -VMName \$VmName/);
   assert.match(script, /Disable-VMTPM -VMName \$VmName/);
   assert.match(script, /Set-VMKeyProtector -VMName \$VmName -NewLocalKeyProtector/);
+  assert.match(script, /Get-VMKeyProtector -VMName \$VmName/);
+  assert.doesNotMatch(script, /\$security\.KpsAvailable/);
   assert.match(script, /Confirm-SecureBootUEFI/);
   assert.match(script, /Get-Tpm/);
   assert.match(script, /ExpectedSecureBoot \$SecureBoot/);

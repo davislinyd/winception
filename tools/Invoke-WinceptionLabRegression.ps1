@@ -953,25 +953,35 @@ function Set-LabVmTpmEnabled {
     )
 
     $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+    $tpmOn = $false
+    $tpmProp = $security.PSObject.Properties['TpmEnabled']
+    if ($tpmProp -and $null -ne $tpmProp.Value) {
+        $tpmOn = [bool] $tpmProp.Value
+    }
     if ($Enabled) {
-        if (-not [bool] $security.TpmEnabled) {
-            if (-not [bool] $security.KpsAvailable) {
+        if (-not $tpmOn) {
+            $protectors = @(Get-VMKeyProtector -VMName $VmName -ErrorAction SilentlyContinue)
+            if ($protectors.Count -eq 0) {
                 Set-VMKeyProtector -VMName $VmName -NewLocalKeyProtector -ErrorAction Stop
             }
             Enable-VMTPM -VMName $VmName -ErrorAction Stop
             $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+            $tpmProp = $security.PSObject.Properties['TpmEnabled']
+            $tpmOn = $tpmProp -and $null -ne $tpmProp.Value -and [bool] $tpmProp.Value
         }
-        if (-not [bool] $security.TpmEnabled) {
+        if (-not $tpmOn) {
             throw "$VmName TPM is off; expected TPM on after firmware apply."
         }
         return
     }
 
-    if ([bool] $security.TpmEnabled) {
+    if ($tpmOn) {
         Disable-VMTPM -VMName $VmName -ErrorAction Stop
         $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+        $tpmProp = $security.PSObject.Properties['TpmEnabled']
+        $tpmOn = $tpmProp -and $null -ne $tpmProp.Value -and [bool] $tpmProp.Value
     }
-    if ([bool] $security.TpmEnabled) {
+    if ($tpmOn) {
         throw "$VmName TPM is on; expected TPM off after firmware apply."
     }
 }
@@ -1413,6 +1423,7 @@ try {
     Assert-CommandAvailable -Name 'Get-VMMemory'
     Assert-CommandAvailable -Name 'Get-VMSecurity'
     Assert-CommandAvailable -Name 'Set-VMKeyProtector'
+    Assert-CommandAvailable -Name 'Get-VMKeyProtector'
     Assert-CommandAvailable -Name 'Enable-VMTPM'
     Assert-CommandAvailable -Name 'Disable-VMTPM'
     Assert-CommandAvailable -Name 'New-PSSession'
