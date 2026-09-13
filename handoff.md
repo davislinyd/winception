@@ -2,15 +2,17 @@
 
 ## Active continuation — Mode All repair
 
-Mode All c (b68f554) started 19:48 +08 after five real restores, formal reload, template fingerprint sync and ValidateOnly passed. Three clients reached desktop-ready; autolab-02 failed at 20:17 after Chrome succeeded: progress File.Replace hit a sharing violation, no sequence summary was written, and a null installer ExitCode was incorrectly treated as success. Guest evidence was captured before cancelling at 20:27. Five VMs are Off and deployment services stopped. Source repair adds bounded sharing-only retries and fail-closed installer progress verification; validate, commit, reload and run a fresh complete All. Do not count partial c as acceptance.
+Mode All d (commit `b04c6e8`) ran after the bounded progress-lock/finalizer repair, formal reload, published WinPE hash sync, and ValidateOnly all passed. The first Secure Boot On + TPM On round deployed all four VMs to `windows-desktop-ready`; each guest had profile `IZVZO7PU`, four succeeded install steps, Explorer, no OOBE, Windows build `26200` / `25H2`, and matching guest Secure Boot/TPM. The run still failed during cleanup: all four checkpoint restores reported `在此物件上找不到屬性 'BootType'` and the round did not save host firmware evidence as a separate object. The likely source defect is strict property access while reading a transient/malformed `Get-VMFirmware.BootOrder` entry after snapshot restore; inspect and normalize property existence before reading `BootType` (do not weaken ACLs). Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913d\round-secureboot-tpm-on.json` and `result.json`. Five VMs are now Off, deployment services are stopped, host boot mode is `secureboot`, and ICS/Default Switch was not touched. This is not a green Mode All result.
+
+The d-round guest records report `productName` as `Windows 10 Pro` while build/displayVersion are `26200`/`25H2`; treat this as an additional acceptance-data discrepancy to explain or fail closed before claiming the required Windows 11 result.
 
 Run b was cancelled at 19:14 +08 after autolab-01 stalled between torrent metadata and networking telemetry. Cleanup still failed at FirstBootDevice and left autolab-04 Running. The remaining VM has now been stopped; all five are Off. VMMS also logged VHDX Access denied, but current ACLs already contain VM/SYSTEM grants and no denies; do not assume causation or loosen State ACLs. Source now separates all stops from per-VM restore, aggregates failures, waits for stable matching firmware Network sources, and verifies restored roles. Lab behavioral tests 14/14 pass; full checks, commit, live cleanup, formal reload, and a fresh complete Mode All remain required.
 
-The user explicitly approved the repair plan and Mode All until green with active per-client inspection. Commits 81b01c7 and 4cd44fb fix guest profile/firmware evidence and bound WinPE network commands. The first run reached desktop-ready 4/4 but is not acceptable evidence because profile/host fields were incomplete and cleanup failed. Source/App/published WinPE hashes differ until a formal reload and endpoint sync. No direct runtime edits, push, release, rebuild, or global ACL repair. Physical PXE remains separate.
+The user explicitly approved the repair plan and Mode All until green with active per-client inspection. Commits 81b01c7 and 4cd44fb fix guest profile/firmware evidence and bound WinPE network commands; b04c6e8 fixes progress-file sharing races and finalizer fail-closed behavior. Source/App/published WinPE template hash was verified as `8129E5E2A656B4AE9998B0A8FCE94F28F32D6B8F05DE0AAE1F98867B340E4377` before d. No direct runtime edits, push, release, rebuild, or global ACL repair. Physical PXE remains separate.
 
 Read this after `AGENTS.md` startup checks. It is the continuation brief for the 2026-09-12/13 work on Web operator modes, HostTools reload, and AutoLab Secure Boot × TPM. Do not treat it as live production truth; re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
 
-Chinese summary: 本機 `master` 相對已記錄 origin/master 超前 13 個 commit（本輪提交後增加），**不要 push**。五台目前全 Off、部署服務停止；完整修正版 Mode All 尚未通過。需先驗證清理，再正式 reload 與 Endpoint Sync，然後新 evidence 目錄跑 4 輪 / 7 部署。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。實體 PXE 不在本輪驗收內。
+Chinese summary: 本機 `master` 相對 `origin/master` 超前 15 個 commit，最新修復 commit 為 `b04c6e8`，**不要 push**。Mode All d 的四台首輪 guest 部署成功，但 cleanup 因 `BootType` property error 失敗；五台目前全 Off、部署服務停止，完整 4 輪 / 7 部署仍未通過。下一步先修復並測試 firmware BootOrder property guard，再用新 evidence 目錄正式 reload、Endpoint Sync、ValidateOnly，重跑四輪。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。實體 PXE 不在本輪驗收內。
 
 ## Workspace
 
@@ -20,12 +22,14 @@ Chinese summary: 本機 `master` 相對已記錄 origin/master 超前 13 個 com
 | Installed Web console | `C:\OSDCloud\HostTools\App` — live `:8080` |
 | Host-only state | `C:\OSDCloud\HostTools\State` |
 | Runtime | `C:\OSDCloud` (never patch by hand) |
-| Branch | `master`, ahead 13 before the current repair commit; use live Git, preserve untracked `.ai/` |
+| Branch | `master`, ahead 15; latest repair commit `b04c6e8`; preserve untracked `.ai/` |
 | Product version | `1.1.0` on origin; local commits are unreleased |
 
 Unpushed commits, newest first:
 
 ```text
+b04c6e8 fix: bound client progress lock retries and reject incomplete finalization
+b68f554 fix: restore all Lab VMs using current firmware boot sources
 4cd44fb fix: bound WinPE torrent network preparation commands
 81b01c7 fix: fail Lab green on cleanup and incomplete guest evidence
 8d45223 docs: add agent continuation handoff for firmware matrix work
