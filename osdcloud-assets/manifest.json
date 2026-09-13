@@ -24,9 +24,9 @@
       "source": "C:\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 62511,
+      "length": 63002,
       "lastWriteTimeUtc": "2026-09-11T16:24:19.6511334Z",
-      "sha256": "1F82C9BBC155A41CD92C9F39B0213581A3A3F9DDC2B1201966523BC9137A3E5D"
+      "sha256": "8129E5E2A656B4AE9998B0A8FCE94F28F32D6B8F05DE0AAE1F98867B340E4377"
     },
     {
       "source": "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\7zip\\install.ps1",
@@ -48,9 +48,9 @@
       "source": "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\Install-Apps.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/OSDCloud/Media/OSDCloud/Apps/Install-Apps.ps1",
-      "length": 28311,
+      "length": 37156,
       "lastWriteTimeUtc": "2026-06-20T02:27:30.2997032Z",
-      "sha256": "96CEB27EA9572C114D72981E8BAB14CBCCBA3D22CFDE3529401FEFA727C177BB"
+      "sha256": "98A105635885D2B6D0E99DBA75E370C9A3D30A1710A9170FBC1514D4B31875E2"
     },
     {
       "source": "C:\\OSDCloud\\Media\\OSDCloud\\Apps\\Show-DeploymentProgress.ps1",
@@ -168,9 +168,9 @@
       "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/SetupComplete/SetupComplete.ps1",
-      "length": 62511,
+      "length": 63002,
       "lastWriteTimeUtc": "2026-09-11T16:24:19.6511334Z",
-      "sha256": "1F82C9BBC155A41CD92C9F39B0213581A3A3F9DDC2B1201966523BC9137A3E5D"
+      "sha256": "8129E5E2A656B4AE9998B0A8FCE94F28F32D6B8F05DE0AAE1F98867B340E4377"
     },
     {
       "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Report-OSDCloudProgress.ps1",

@@ -560,7 +560,7 @@ function Invoke-ClientAppInstallers {
         $summaryObj = Get-JsonFileObject -Path $sequenceSummaryPath
         $appExitCode = if ($null -ne $summaryObj -and
                            $summaryObj.PSObject.Properties['failedStep'] -and
-                           $null -ne $summaryObj.failedStep) { 1 } else { 0 }
+                           $null -eq $summaryObj.failedStep) { 0 } else { 1 }
     }
 
     $result = [ordered]@{
@@ -597,7 +597,7 @@ function Invoke-ClientAppInstallers {
         throw $timeoutMessage
     }
 
-    if ($appExitCode -ne 0) {
+    if ($appExitCode -ne 0 -or -not $installerProgress -or [string] $installerProgress.status -ne 'succeeded') {
         $message = if ($result.stepStatus -eq 'timed_out') {
             "Client application installer timed out at step $($result.stepIndex) ($($result.stepType):$($result.stepId))."
         }
@@ -629,7 +629,17 @@ function Write-JsonFileAtomic {
     try {
         [System.IO.File]::WriteAllText($temporaryPath, ($Value | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))
         if (Test-Path -LiteralPath $Path -PathType Leaf) {
-            [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
+            for ($attempt = 0; ; $attempt++) {
+                try {
+                    [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
+                    break
+                }
+                catch {
+                    $exception = $_.Exception.GetBaseException()
+                    if (($exception.HResult -band 0xffff) -notin @(32, 33) -or $attempt -ge 19) { throw }
+                    Start-Sleep -Milliseconds 100
+                }
+            }
         }
         else {
             [System.IO.File]::Move($temporaryPath, $Path)

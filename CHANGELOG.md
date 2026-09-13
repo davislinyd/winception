@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Client progress JSON replacement retries only Windows sharing/lock violations for at most two seconds. Finalization fails closed on absent/failed progress or missing sequence summary instead of reporting installer success when Windows PowerShell loses ExitCode.
+
 - Lab checkpoint cleanup stops all target VMs before restore, continues later VMs after a failure, and stays fail-closed. Firmware restore waits for a stable matching Network boot source, uses the firmware source instead of a raw adapter, verifies the resting role, and preserves targeted failure diagnostics.
 
 - WinPE torrent networking reports each preparation step and bounds CIM discovery and wpeutil/netsh commands to 15 seconds, so a stalled network/firewall command cannot block image deployment indefinitely. Lab checkpoint cleanup errors retain their reason for diagnosis.

@@ -1,5 +1,7 @@
 # Deployment Test Result
 
+2026-09-13 20:27 +08 — Mode All c (source b68f554) cancelled after active guest checks found autolab-02 progress failed while Fleet showed setupcomplete-finished. Chrome succeeded; File.Replace of deployment-progress.json failed because another process held the file, leaving runner_error and no sequence summary. Three other clients reached desktop-ready, not a complete Mode All pass. Source/App/WinPE marker fingerprints matched before boot; WinPE network preparation completed on all four. Five VMs Off and deployment services stopped after cancellation. Bounded sharing-violation retry and fail-closed finalizer verification require a fresh full regression.
+
 ## Mode All 整合驗證修復中（2026-09-13）
 
 19:40 +08 唯讀檢查確認 run b 已停止，部署服務皆停止，但 autolab-04 仍 Running；其餘四台 Off。還原的 `Set-VMFirmware -FirstBootDevice` 仍報 ObjectNotFound。VMMS 同時報 Lab VHDX `0x80070005`；目前 VHDX 非唯讀、無 deny ACL，已有 VM/SYSTEM 權限，因果關係未證實。新版 WinPE template 尚未同步到 App 或 boot.wim。後續已單獨停止 autolab-04，五台全 Off；source 清理分離 stop/restore，逐台彙總失敗，等待穩定且 adapter 匹配的 Network firmware source 並讀回角色。新增 behavioral tests 後 Lab tests 14/14 通過；完整 npm test 為 447 passed、3 skipped、0 failed。實際修正版清理與完整 Mode All 待驗證。

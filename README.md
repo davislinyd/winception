@@ -184,6 +184,8 @@ Web Console 的頂部工作區是 **開始部署** / **部署活動**，並可�
 
 Lab 綠燈須包含 guest 上已發布的 profile ID、主機與客戶端韌體證據與成功清理；checkpoint 還原失敗即測試失敗。
 
+客戶端 progress JSON 僅對短暫檔案 sharing/lock violation 做限時重試；finalizer 不得將缺少摘要或失敗的 progress 判定為安裝成功。
+
 Lab 清理會先停止全部目標 VM，再逐台還原；單台失敗仍處理後續 VM，最後彙總錯誤。還原後確認 Network firmware source 與目前 adapter 匹配，並讀回 Secure Boot／TPM。若清理失敗，先解決錯誤，不要放寬整個 HostTools State 權限或直接重跑部署。
 
 WinPE Torrent 網路準備逐步回報進度；CIM 與防火牆命令最多執行 15 秒，失敗會保留診斷並繼續其他準備方式。
@@ -581,6 +583,8 @@ Winception automation is split into two GitHub Actions workflows:
 - A master push runs on self-hosted / windows / hyperv / winception-lab, creates and verifies an allowlisted Release HostTools bundle, installs the empty bundle, explicitly seeds the Development fixture into runner State, and executes `winception-autolab-01..04` plus `winception-autolab-ipxe-01` on the fixed Winception-AutoLab Internal switch (192.168.177.0/24, service 192.168.177.1). Default firmware is four Secure Boot On + TPM On VMs and one iPXE Secure Boot Off + TPM Off VM; `Mode All` also proves Secure Boot On + TPM Off and iPXE Secure Boot Off + TPM On. Those names must not reuse historical `winception-client-01..04`. Success and failure both stop services, power off VMs, restore the Winception-Clean checkpoint, and upload de-secretized evidence. `Winception-Clean` does not keep Hyper-V TPM; Lab restore reapplies `-SecureBoot` and `-Tpm` per round.
 
 Lab green requires the published guest profile ID, host/guest firmware evidence, and successful cleanup. A checkpoint restore failure fails the test.
+
+Client progress JSON retries only transient sharing/lock violations with a fixed limit. Missing summaries or failed progress must not be accepted as installer success.
 
 Lab cleanup stops all target VMs before restoring checkpoints, attempts later VMs after a failure, and aggregates errors. Restore checks the current-adapter firmware Network source and reads back Secure Boot/TPM. Resolve cleanup errors before rerunning; never loosen the entire HostTools State ACL.
 
