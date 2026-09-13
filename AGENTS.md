@@ -87,6 +87,7 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - Lab port occupancy is scoped to the Lab service IP and wildcard `0.0.0.0`/`::` binds. ICS or DHCP on another adapter, including Hyper-V Default Switch UDP/67, is not a Lab occupancy and must not be stopped to make the guard pass.
 - Never use the Lab workflow as evidence that production DHCP, a WAN/LAN endpoint, or a physical laptop is ready. A failed guard must exit before service start and must not repair a foreign network automatically.
 - Lab success requires successful cleanup and a non-empty matching published guest profile ID; persisted evidence must retain host Secure Boot/template/TPM fields. Keep an already-first Network boot entry after checkpoint restore.
+- Stop all target VMs before restoring any checkpoint. Restore failures must not skip later VMs. Wait for a stable current-adapter Network firmware source, preserve an already-first entry, and verify the restored Secure Boot/TPM role. Never loosen State ACLs to bypass a Lab failure.
 
 ## Documentation
 

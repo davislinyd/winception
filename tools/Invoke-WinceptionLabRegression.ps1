@@ -1022,10 +1022,14 @@ function Set-VmFirmwareMode {
     $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
     $bootOrder = @($firmware.BootOrder)
     if ($bootOrder.Count -eq 0 -or [string] $bootOrder[0].BootType -ne 'Network') {
-        $vm = Get-VM -Name $VmName -ErrorAction Stop
-        $adapter = Get-VMNetworkAdapter -VM $vm -ErrorAction Stop | Select-Object -First 1
-        Set-VMFirmware -VM $vm -FirstBootDevice $adapter -ErrorAction Stop
+        $networkSource = $bootOrder | Where-Object { [string] $_.BootType -eq 'Network' } | Select-Object -First 1
+        if (-not $networkSource) { throw "$VmName has no Network firmware boot source." }
+        $adapter = Get-VMNetworkAdapter -VMName $VmName -ErrorAction Stop | Select-Object -First 1
+        if ([string] $networkSource.Device.Id -ne [string] $adapter.Id) { throw "$VmName firmware Network source does not match its current adapter." }
+        Set-VMFirmware -VMName $VmName -FirstBootDevice $networkSource -ErrorAction Stop
     }
+    $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
+    if ([string] $firmware.BootOrder[0].BootType -ne 'Network') { throw "$VmName is not Network-first after firmware apply." }
 }
 
 function Restore-LabCheckpoint {
@@ -1034,20 +1038,62 @@ function Restore-LabCheckpoint {
         $RoundFirmware = $null
     )
 
+    $failures = New-Object System.Collections.Generic.List[string]
     foreach ($vmName in $VmNames) {
-        $vm = Get-VM -Name $vmName -ErrorAction Stop
-        if ([string] $vm.State -ne 'Off') {
-            Stop-VM -Name $vmName -TurnOff -Force -Confirm:$false -ErrorAction Stop | Out-Null
-        }
-        Restore-VMSnapshot -VMName $vmName -Name ([string] $script:Config.checkpointName) -Confirm:$false -ErrorAction Stop
-        $secureBoot = $vmName -in @($script:Config.secureBootVms)
-        $tpm = $secureBoot
-        if ($null -ne $RoundFirmware) {
-            $secureBoot = [bool] $RoundFirmware.secureBoot
-            $tpm = [bool] $RoundFirmware.tpm
-        }
-        Set-VmFirmwareMode -VmName $vmName -SecureBoot $secureBoot -Tpm $tpm
+        try {
+            $vm = Get-VM -Name $vmName -ErrorAction Stop
+            if ([string] $vm.State -ne 'Off') {
+                Stop-VM -Name $vmName -TurnOff -Force -Confirm:$false -ErrorAction Stop | Out-Null
+            }
+        } catch { $failures.Add("$vmName stop failed: $($_.Exception.Message)") }
     }
+    foreach ($vmName in $VmNames) {
+        try {
+            $startedAt = Get-Date
+            if ([string] (Get-VM -Name $vmName -ErrorAction Stop).State -ne 'Off') { throw 'VM is not Off.' }
+            Restore-VMSnapshot -VMName $vmName -Name ([string] $script:Config.checkpointName) -Confirm:$false -ErrorAction Stop
+            $settled = $false
+            $previousSource = ''
+            for ($attempt = 0; $attempt -lt 15; $attempt++) {
+                $vm = Get-VM -Name $vmName -ErrorAction Stop
+                $firmware = Get-VMFirmware -VMName $vmName -ErrorAction Stop
+                $adapter = Get-VMNetworkAdapter -VMName $vmName -ErrorAction Stop | Select-Object -First 1
+                $network = $firmware.BootOrder | Where-Object { [string] $_.BootType -eq 'Network' } | Select-Object -First 1
+                if ($network -and [string] $vm.State -eq 'Off' -and [string] $network.Device.Id -eq [string] $adapter.Id) {
+                    if ($previousSource -eq [string] $adapter.Id) { $settled = $true; break }
+                    $previousSource = [string] $adapter.Id
+                } else { $previousSource = '' }
+                Start-Sleep -Seconds 1
+            }
+            if (-not $settled) { throw 'Network firmware source did not settle within 15 seconds.' }
+            $secureBoot = $vmName -in @($script:Config.secureBootVms)
+            $tpm = $secureBoot
+            if ($null -ne $RoundFirmware) {
+                $secureBoot = [bool] $RoundFirmware.secureBoot
+                $tpm = [bool] $RoundFirmware.tpm
+            }
+            Set-VmFirmwareMode -VmName $vmName -SecureBoot $secureBoot -Tpm $tpm
+            $firmware = Get-VMFirmware -VMName $vmName -ErrorAction Stop
+            $expectedSecureBoot = if ($secureBoot) { 'On' } else { 'Off' }
+            if ([string] $firmware.SecureBoot -ne $expectedSecureBoot -or [bool] (Get-VMSecurity -VMName $vmName -ErrorAction Stop).TpmEnabled -ne $tpm) { throw 'Restored firmware does not match its expected role.' }
+        } catch {
+            $failureMessage = [string] $_.Exception.Message
+            $failures.Add("$vmName restore failed: $failureMessage")
+            try {
+                if (Get-Command Write-Evidence -ErrorAction SilentlyContinue) {
+                    Write-Evidence -Name ("restore-failed-$vmName.json") -Value @{
+                        vmName = $vmName
+                        error = $failureMessage
+                        stage = 'checkpoint-restore-and-firmware'
+                        bootOrder = @(Get-VMFirmware -VMName $vmName | Select-Object -ExpandProperty BootOrder | Select-Object BootType,Description,@{Name='deviceId';Expression={ if ($_.Device) { [string] $_.Device.Id } }})
+                        adapterIds = @(Get-VMNetworkAdapter -VMName $vmName | Select-Object -ExpandProperty Id)
+                        vmms = @(Get-WinEvent -FilterHashtable @{ LogName='Microsoft-Windows-Hyper-V-VMMS-Admin'; StartTime=$startedAt } -ErrorAction SilentlyContinue | Where-Object { $_.Message -like "*$vmName*" } | Select-Object TimeCreated,Id,Message)
+                    } | Out-Null
+                }
+            } catch {}
+        }
+    }
+    if ($failures.Count) { throw ($failures -join '; ') }
 }
 
 function Start-LabVms {

@@ -2,13 +2,13 @@
 
 ## Active continuation — Mode All repair
 
-Update 19:09 +08: first fixed rerun (mode-all-20260913b) has autolab-01 stalled between successful torrent metadata GET and networking telemetry; three peers download/apply normally. Source adds 15-second CIM/native firewall command bounds and step reporting, plus behavioral tests and synced template metadata. After checks/commit, cancel the old rerun and use a fresh complete Mode All. User authorization persists until green; actively inspect per-client status and VM screens on anomalies.
+Run b was cancelled at 19:14 +08 after autolab-01 stalled between torrent metadata and networking telemetry. Cleanup still failed at FirstBootDevice and left autolab-04 Running. The remaining VM has now been stopped; all five are Off. VMMS also logged VHDX Access denied, but current ACLs already contain VM/SYSTEM grants and no denies; do not assume causation or loosen State ACLs. Source now separates all stops from per-VM restore, aggregates failures, waits for stable matching firmware Network sources, and verifies restored roles. Lab behavioral tests 14/14 pass; full checks, commit, live cleanup, formal reload, and a fresh complete Mode All remain required.
 
-The user authorized Mode All, source repairs, and reruns until green; actively inspect deployment status. The first run started 18:15 +08. Four Secure Boot + TPM On clients reached desktop-ready and all four install steps succeeded. It is not a completed Mode All result: round cleanup swallowed Hyper-V ObjectNotFound when redundantly setting an already-first Network boot entry; guest profile ID was empty and persisted host firmware fields were missing. Source fixes and behavioral tests are in progress; stop/clean the old runner, then rerun full Mode All after source checks and commit. Do not push. Physical PXE remains separate and open. Older ahead counts below are stale; use live Git.
+The user explicitly approved the repair plan and Mode All until green with active per-client inspection. Commits 81b01c7 and 4cd44fb fix guest profile/firmware evidence and bound WinPE network commands. The first run reached desktop-ready 4/4 but is not acceptable evidence because profile/host fields were incomplete and cleanup failed. Source/App/published WinPE hashes differ until a formal reload and endpoint sync. No direct runtime edits, push, release, rebuild, or global ACL repair. Physical PXE remains separate.
 
 Read this after `AGENTS.md` startup checks. It is the continuation brief for the 2026-09-12/13 work on Web operator modes, HostTools reload, and AutoLab Secure Boot × TPM. Do not treat it as live production truth; re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
 
-Chinese summary: 本機 `master` 比 origin 超前 10 個 commit，**不要 push**（會觸發 `lab-deploy.yml`）。AutoLab 四格客戶端韌體裡，SB+TPM On、SB+TPM Off、iPXE SB Off+TPM Off、iPXE SB Off+TPM On 都有到過 `windows-desktop-ready`。沒跑過一次完整 `Mode All`。實體筆電 PXE 未測。`/api/boot-mode` 只有 `secureboot`/`ipxe`，沒有 TPM 開關（TPM 是客戶端韌體，主機改不了筆電）。
+Chinese summary: 本機 `master` 相對已記錄 origin/master 超前 13 個 commit（本輪提交後增加），**不要 push**。五台目前全 Off、部署服務停止；完整修正版 Mode All 尚未通過。需先驗證清理，再正式 reload 與 Endpoint Sync，然後新 evidence 目錄跑 4 輪 / 7 部署。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。實體 PXE 不在本輪驗收內。
 
 ## Workspace
 
@@ -18,12 +18,15 @@ Chinese summary: 本機 `master` 比 origin 超前 10 個 commit，**不要 push
 | Installed Web console | `C:\OSDCloud\HostTools\App` — live `:8080` |
 | Host-only state | `C:\OSDCloud\HostTools\State` |
 | Runtime | `C:\OSDCloud` (never patch by hand) |
-| Branch | `master`, **ahead of `origin/master` by 10**, worktree clean except untracked `.ai/` |
+| Branch | `master`, ahead 13 before the current repair commit; use live Git, preserve untracked `.ai/` |
 | Product version | `1.1.0` on origin; local commits are unreleased |
 
 Unpushed commits, newest first:
 
 ```text
+4cd44fb fix: bound WinPE torrent network preparation commands
+81b01c7 fix: fail Lab green on cleanup and incomplete guest evidence
+8d45223 docs: add agent continuation handoff for firmware matrix work
 7e11247 fix: keep Lab secrets and endpoint config in HostTools State
 8746d99 docs: record AutoLab Secure Boot x TPM firmware-corner green lights
 1da7e71 fix: keep Lab cache restore on HostTools secrets, skip hashing generated boot files
@@ -97,7 +100,7 @@ After FirmwareCorners cleanup on 2026-09-13 ~12:47 +08:
 ## Open work (priority)
 
 1. **Do not push** until the user asks.
-2. Optional source-only: none required for the 2×2 contract after `7e11247`.
+2. Finish current cleanup-source checks/commit, verify all five restore, formally reload App and sync WinPE fingerprints.
 3. **One `Mode All` job** on Internal AutoLab only — four SB+TPM On in parallel, iPXE both off, then both corners — if the user wants a single-run contract. Wall clock is longer; stay on `192.168.177.0/24`; timeout 180 minutes in `lab-deploy.yml`.
 4. **Physical UEFI IPv4 PXE** on the Web-selected live endpoint. VM green is not physical evidence. Confirm LAN DHCP is disabled for the test window before starting DHCP.
 5. Optional later: signed `bootmgfw.efi` + client Secure Boot **Off** to desktop-ready (WinPE-only evidence exists from 2026-06-12).

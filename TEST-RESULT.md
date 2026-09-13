@@ -2,6 +2,8 @@
 
 ## Mode All 整合驗證修復中（2026-09-13）
 
+19:40 +08 唯讀檢查確認 run b 已停止，部署服務皆停止，但 autolab-04 仍 Running；其餘四台 Off。還原的 `Set-VMFirmware -FirstBootDevice` 仍報 ObjectNotFound。VMMS 同時報 Lab VHDX `0x80070005`；目前 VHDX 非唯讀、無 deny ACL，已有 VM/SYSTEM 權限，因果關係未證實。新版 WinPE template 尚未同步到 App 或 boot.wim。後續已單獨停止 autolab-04，五台全 Off；source 清理分離 stop/restore，逐台彙總失敗，等待穩定且 adapter 匹配的 Network firmware source 並讀回角色。新增 behavioral tests 後 Lab tests 14/14 通過；完整 npm test 為 447 passed、3 skipped、0 failed。實際修正版清理與完整 Mode All 待驗證。
+
 18:57 +08 以 source fix 重跑 Mode All（evidence `State\lab\evidence\mode-all-20260913b`）。四台成功載入 WinPE，但 autolab-01 在取得 Torrent metadata（19:03:22 HTTP 200）後、網路準備回報前停住；其餘三台正常下載並套用。WinPE 畫面與 callback 交叉確認停點，未等待 60 分鐘 timeout。Source 已加入 CIM / wpeutil / netsh 15 秒限制與逐步回報；限時與 native exit/output behavioral tests 通過，19:11 +08 Windows PowerShell 的 npm test、check、smoke exit 0。完整修正版 Mode All 仍待執行。
 
 18:15 +08 啟動本機 `Mode All`（Internal AutoLab `192.168.177.0/24`）。首輪四台 Secure Boot On + TPM On 全數到 `windows-desktop-ready`，Chrome、7-Zip、desktop script、Notepad++ 均 succeeded。尚不能宣告 Mode All 綠燈。

@@ -130,6 +130,43 @@ test('Lab firmware keeps an already-first network boot device after checkpoint r
   `);
 });
 
+test('Lab firmware moves a matching firmware Network source first, not a raw adapter', () => {
+  runLabPowerShell(['Set-VmFirmwareMode'], `
+    $script:source=[pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id='current-adapter' } }
+    $script:moved=$false
+    function Get-VMFirmware { [CmdletBinding()] param($VmName) if ($script:moved) { $order=@($script:source) } else { $order=@([pscustomobject]@{ BootType='File' },$script:source) }; [pscustomobject]@{ BootOrder=$order } }
+    function Get-VMNetworkAdapter { [CmdletBinding()] param($VmName) [pscustomobject]@{ Id='current-adapter' } }
+    function Set-LabVmTpmEnabled { param($VmName,$Enabled) }
+    function Set-VMFirmware { [CmdletBinding()] param($VmName,$EnableSecureBoot,$SecureBootTemplate,$FirstBootDevice) if ($FirstBootDevice) { if (-not [object]::ReferenceEquals($FirstBootDevice,$script:source)) { throw 'Raw adapter or stale source used.' }; $script:moved=$true } }
+    Set-VmFirmwareMode -VmName 'test-vm' -SecureBoot $true -Tpm $true
+    if (-not $script:moved) { throw 'Network source was not moved.' }
+    $script:moved=$false
+    $script:source.Device.Id='stale-adapter'
+    $rejected=$false
+    try { Set-VmFirmwareMode -VmName 'test-vm' -SecureBoot $true -Tpm $true } catch { if ($_.Exception.Message -notlike '*match*') { throw }; $rejected=$true }
+    if (-not $rejected -or $script:moved) { throw 'Mismatched source was accepted.' }
+  `);
+});
+
+test('Lab restore stops all VMs first, waits for firmware, and continues after a restore failure', () => {
+  runLabPowerShell(['Restore-LabCheckpoint'], `
+    $script:Config=@{ checkpointName='clean'; secureBootVms=@('vm1','vm2','vm3') }
+    $script:states=@{ vm1='Running'; vm2='Running'; vm3='Running' }
+    $script:reads=@{}; $script:restored=@(); $script:applied=@(); $script:sleeps=0
+    function Get-VM { [CmdletBinding()] param($Name) [pscustomobject]@{ State=$script:states[$Name] } }
+    function Stop-VM { [CmdletBinding(SupportsShouldProcess)] param($Name,[switch]$TurnOff,[switch]$Force) $script:states[$Name]='Off' }
+    function Restore-VMSnapshot { [CmdletBinding(SupportsShouldProcess)] param($VmName,$Name) if (@($script:states.Values | Where-Object { $_ -ne 'Off' }).Count) { throw 'Restore started before all stops.' }; $script:restored+=$VmName; $script:reads[$VmName]=0; if ($VmName -eq 'vm2') { throw 'Synthetic restore failure.' } }
+    function Get-VMFirmware { [CmdletBinding()] param($VmName) $script:reads[$VmName]++; $order=@(); if ($script:reads[$VmName] -gt 1) { $order=@([pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id="net-$VmName" } }) }; [pscustomobject]@{ BootOrder=$order; SecureBoot='On' } }
+    function Get-VMNetworkAdapter { [CmdletBinding()] param($VmName) [pscustomobject]@{ Id="net-$VmName" } }
+    function Get-VMSecurity { [CmdletBinding()] param($VmName) [pscustomobject]@{ TpmEnabled=$true } }
+    function Set-VmFirmwareMode { param($VmName,$SecureBoot,$Tpm) $script:applied+=$VmName }
+    function Start-Sleep { param($Seconds) $script:sleeps++ }
+    $rejected=$false
+    try { Restore-LabCheckpoint -VmNames @('vm1','vm2','vm3') } catch { if ($_.Exception.Message -notlike '*vm2*restore failed*Synthetic restore failure*') { throw }; $rejected=$true }
+    if (-not $rejected -or ($script:restored -join ',') -ne 'vm1,vm2,vm3' -or ($script:applied -join ',') -ne 'vm1,vm3' -or $script:sleeps -lt 4) { throw 'Restore did not settle/continue/fail closed.' }
+  `);
+});
+
 test('Lab example config is isolated, complete, and secret-free', () => {
   const config = JSON.parse(read('config/lab-regression.example.json'));
   assert.equal(config.switchName, 'Winception-AutoLab');
