@@ -8,6 +8,7 @@ Read this file when a task touches documentation updates, Git file selection, ge
 - `TEST-RESULT.md` is the detailed evidence-oriented 0-to-1 deployment record and no-AI operator runbook.
 - `docs\agent-reference\...` contains conditional task references that agents should read only when relevant.
 - `README.md` is the concise bilingual product technician guide.
+- `handoff.md` is the current AI-agent continuation brief (Git state, live host snapshot, open work). It is not the technician product guide.
 - `CHANGELOG.md` is the concise history of tracked product/documentation changes when the workflow calls for it.
 
 When behavior changes, update the relevant docs in the same workflow:

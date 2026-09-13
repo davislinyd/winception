@@ -11,6 +11,7 @@ At the start of any new session or context switch in this repository:
 2. If inside a Git repository, run `git status --short --branch` and `git remote -v`.
 3. If `.ai/status.json` exists, inspect it together with live Git state. If it does not exist, report that no status file exists and do not create one during a read-only status check.
 4. Immediately alert the user if `.ai/status.json` is outdated compared to current working tree state, branch/upstream state, remote state, or recent commits.
+5. If `handoff.md` exists at the repository root, read it before continuing development or Lab/PXE work. It is the current session continuation brief and may be newer than `.ai/status.json`.
 
 
 ## Reference Files
@@ -22,6 +23,7 @@ Read these files only when the task touches the relevant area:
 - Runtime Readiness, Prepare runtime, endpoint sync, Web console, service controls, OS Image Cache, deployment profile publish, WinPE, SetupComplete, or desktop-ready behavior: `docs/agent-reference/runtime-web-console.md`.
 - Choosing verification for Web, OS image, profile/software/custom script, driver pack, multi-client, WinPE/SetupComplete, or other subsystem changes: `docs/agent-reference/validation-scenarios.md`.
 - Documentation updates, Git file selection, generated artifact handling, handoff, push, or deployment-clone workflow questions: `docs/agent-reference/repo-workflow.md`.
+- Current development continuation (what is done, live host snapshot, open work, paid-for pitfalls): `handoff.md`.
 - Completed 0-to-1 deployment setup evidence, restored-VM rebuild steps, or no-AI operator runbook questions: `TEST-RESULT.md`.
 - Product technician instructions: `README.md`.
 
