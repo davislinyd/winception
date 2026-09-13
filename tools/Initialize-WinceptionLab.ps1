@@ -155,8 +155,12 @@ function Set-LabVmTpmEnabled {
     }
     if ($Enabled) {
         if (-not $tpmOn) {
-            $protectors = @(Get-VMKeyProtector -VMName $VmName -ErrorAction SilentlyContinue)
-            if ($protectors.Count -eq 0) {
+            $protector = Get-VMKeyProtector -VMName $VmName -ErrorAction SilentlyContinue
+            $protectorLength = 0
+            if ($protector -is [byte[]]) {
+                $protectorLength = $protector.Length
+            }
+            if ($protectorLength -lt 32) {
                 Set-VMKeyProtector -VMName $VmName -NewLocalKeyProtector -ErrorAction Stop
             }
             Enable-VMTPM -VMName $VmName -ErrorAction Stop
