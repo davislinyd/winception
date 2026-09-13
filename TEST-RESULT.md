@@ -11,7 +11,7 @@
 - Fleet run `20260913-004530-9115-1512-6263-2753-5174-0981-98`：`status=completed`、`latestStage=windows-desktop-ready`、100%、`Windows desktop is ready for LabAdmin`。約 00:45–01:00 +08（Fleet `elapsedSeconds=268` 不含映像套用）。
 - Apps/script：Chrome、7-Zip、desktop script、Notepad++ 皆 `succeeded`，SetupComplete exit `0`。
 - PowerShell Direct：`Confirm-SecureBootUEFI=True`；TPM Present/Ready/Enabled/Activated；Explorer running；`C:\Users\LabAdmin\Desktop\OSDCloud-Desktop-Ready.txt`；OOBE 程序未見；Windows 11 25H2 build 26200 Professional。
-- 證據收集後已將 VM 還原 `Winception-Clean`。Hyper-V checkpoint 不含 TPM；Lab 腳本現在會在還原後對 Secure Boot VM 自動 `Enable-VMTPM`。這仍不能當成實體筆電或生產 DHCP 證據。
+- 證據收集後已將 VM 還原 `Winception-Clean`。Hyper-V checkpoint 不含 TPM；Lab 還原依該輪 `-SecureBoot` / `-Tpm` 重套韌體（預設 SB VM 為 TPM On）。這仍不能當成實體筆電或生產 DHCP 證據。Secure Boot On + TPM Off、iPXE Secure Boot Off + TPM On 的 live 角落輪次尚未寫入本表。
 
 ## v1.1.0 候選修補（2026-09-11 source-only）
 
@@ -123,11 +123,11 @@ PR pull requests run only in an isolated checkout with Node 24.x, npm ci, JavaSc
 
 After a master push, the dedicated Windows self-hosted Hyper-V runner:
 
-1. Acquires the Winception-AutoLab concurrency lock and validates the exact Internal switch, vEthernet adapter, isolated subnet, DHCP binding, five powered-off Gen2 VMs, Secure Boot roles, TPM on Secure Boot VMs after restore, fixed memory, and Winception-Clean checkpoints.
+1. Acquires the Winception-AutoLab concurrency lock and validates the exact Internal switch, vEthernet adapter, isolated subnet, DHCP binding, five powered-off Gen2 VMs, default Secure Boot/TPM roles, fixed memory, and Winception-Clean checkpoints.
 2. Exports a commit/versioned tracked HostTools bundle with per-file length and SHA-256 manifest; secrets, runtime state, generated media, logs, screenshots, .ai, and untracked files are excluded.
 3. Installs the bundle in HostTools App, runs npm ci, restores/prepares the product-managed runtime through existing helpers, synchronizes endpoint/profile/OS image through existing APIs, and runs server:preflight.
-4. Runs four Secure Boot VMs in parallel, then one dedicated Secure Boot-off iPXE VM. Each run needs Fleet status completed at windows-desktop-ready plus PowerShell Direct evidence for desktop marker, Explorer, OOBE, Windows version, profile, and app/script sequence. Secure Boot rounds also need guest Confirm-SecureBootUEFI and TPM Present/Ready/Enabled/Activated. iPXE also needs snponly.efi, boot.ipxe, wimboot, and callback evidence.
-5. Stops known Lab services, powers off VMs, restores checkpoints, re-enables TPM on Secure Boot VMs (Winception-Clean drops Hyper-V TPM), clears temporary status/operation state, and uploads only redacted evidence on both success and failure. There is no automatic retry.
+4. Runs four Secure Boot + TPM On VMs in parallel, then iPXE Secure Boot Off + TPM Off, then firmware corners (Secure Boot On + TPM Off, iPXE Secure Boot Off + TPM On). Each run needs Fleet status completed at windows-desktop-ready plus PowerShell Direct evidence for desktop marker, Explorer, OOBE, Windows version, profile, app/script sequence, and the expected Secure Boot/TPM pair. iPXE also needs snponly.efi, boot.ipxe, wimboot, and callback evidence.
+5. Stops known Lab services, powers off VMs, restores checkpoints, reapplies `-SecureBoot`/`-Tpm` for the resting firmware (Winception-Clean drops Hyper-V TPM), clears temporary status/operation state, and uploads only redacted evidence on both success and failure. There is no automatic retry.
 
 Required failure tests include preflight blocking without DHCP start, stale/running VM, missing checkpoint, foreign switch/adapter/DHCP binding, occupied port, invalid cache hash, PowerShell Direct timeout, cleanup failure, Ctrl+C, job cancellation, and concurrency collision. A passing isolated Lab run is not production/WAN/LAN DHCP or physical-laptop evidence.
 

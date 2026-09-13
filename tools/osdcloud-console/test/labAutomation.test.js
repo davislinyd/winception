@@ -44,6 +44,10 @@ test('Lab example config is isolated, complete, and secret-free', () => {
     'winception-autolab-04',
   ]);
   assert.equal(config.ipxeVm, 'winception-autolab-ipxe-01');
+  assert.deepEqual(config.firmware.secureBootTpmOn, config.secureBootVms);
+  assert.equal(config.firmware.secureBootTpmOff, 'winception-autolab-01');
+  assert.equal(config.firmware.ipxeTpmOff, 'winception-autolab-ipxe-01');
+  assert.equal(config.firmware.ipxeTpmOn, 'winception-autolab-ipxe-01');
   assert.equal(new Set([...config.secureBootVms, config.ipxeVm]).size, 5);
   for (const name of [...config.secureBootVms, config.ipxeVm]) {
     assert.equal(name.startsWith('winception-client-'), false, 'AutoLab VMs must not reuse historical vSwitch client names');
@@ -212,12 +216,14 @@ test('Lab bootstrap is ValidateOnly-capable and fails closed on network and VM d
   assert.match(script, /function Set-LabVmTpmEnabled/);
   assert.match(script, /Set-VMKeyProtector -VMName \$VmName -NewLocalKeyProtector/);
   assert.match(script, /Enable-VMTPM -VMName \$VmName/);
-  assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$SecureBoot/);
-  assert.match(script, /Secure Boot Lab VMs must have TPM enabled/);
+  assert.match(script, /Disable-VMTPM -VMName \$VmName/);
+  assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$Tpm/);
+  assert.match(script, /SecureBoot \$true -Tpm \$true/);
+  assert.match(script, /SecureBoot \$false -Tpm \$false/);
   const tpmFn = script.indexOf('function Set-LabVmTpmEnabled');
-  const earlyReturn = script.indexOf('if (-not $Enabled)', tpmFn);
   const enableTpm = script.indexOf('Enable-VMTPM -VMName $VmName', tpmFn);
-  assert.ok(tpmFn >= 0 && earlyReturn > tpmFn && enableTpm > earlyReturn, 'TPM enable must skip when Enabled is false');
+  const disableTpm = script.indexOf('Disable-VMTPM -VMName $VmName', tpmFn);
+  assert.ok(tpmFn >= 0 && enableTpm > tpmFn && disableTpm > enableTpm, 'TPM disable must be the Enabled=false path');
 });
 
 test('Lab regression gates DHCP behind preflight and always cleans known resources', () => {
@@ -252,18 +258,25 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /windows-desktop-ready/);
   assert.match(script, /Restore-VMSnapshot/);
   assert.match(script, /function Set-LabVmTpmEnabled/);
-  assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$SecureBoot/);
+  assert.match(script, /Set-LabVmTpmEnabled -VmName \$VmName -Enabled \$Tpm/);
   assert.match(script, /Enable-VMTPM -VMName \$VmName/);
+  assert.match(script, /Disable-VMTPM -VMName \$VmName/);
   assert.match(script, /Set-VMKeyProtector -VMName \$VmName -NewLocalKeyProtector/);
   assert.match(script, /Confirm-SecureBootUEFI/);
   assert.match(script, /Get-Tpm/);
-  assert.match(script, /RequireSecureBootTpm:\(\$BootMode -eq 'secureboot'\)/);
+  assert.match(script, /ExpectedSecureBoot \$SecureBoot/);
+  assert.match(script, /ExpectedTpm \$Tpm/);
+  assert.match(script, /FirmwareCorners/);
+  assert.match(script, /secureboot-tpm-off/);
+  assert.match(script, /ipxe-tpm-on/);
+  assert.match(script, /function Get-LabFirmwareConfig/);
   const restoreAt = script.indexOf('function Restore-LabCheckpoint');
-  const firmwareAfterRestore = script.indexOf('Set-VmFirmwareMode -VmName $vmName -SecureBoot $isSecureBoot', restoreAt);
-  assert.ok(restoreAt >= 0 && firmwareAfterRestore > restoreAt, 'checkpoint restore must re-apply firmware and TPM');
+  const firmwareAfterRestore = script.indexOf('Set-VmFirmwareMode -VmName $vmName -SecureBoot $secureBoot -Tpm $tpm', restoreAt);
+  assert.ok(restoreAt >= 0 && firmwareAfterRestore > restoreAt, 'checkpoint restore must re-apply firmware and TPM independently');
   const firmwareFn = script.indexOf('function Set-VmFirmwareMode');
-  const tpmAfterFirmware = script.indexOf('Set-LabVmTpmEnabled -VmName $VmName -Enabled $SecureBoot', firmwareFn);
-  assert.ok(firmwareFn >= 0 && tpmAfterFirmware > firmwareFn && tpmAfterFirmware < restoreAt, 'Secure Boot firmware apply must re-enable TPM');
+  const tpmAfterFirmware = script.indexOf('Set-LabVmTpmEnabled -VmName $VmName -Enabled $Tpm', firmwareFn);
+  assert.ok(firmwareFn >= 0 && tpmAfterFirmware > firmwareFn && tpmAfterFirmware < restoreAt, 'firmware apply must set TPM from -Tpm, not from Secure Boot');
+  assert.match(script, /\[Parameter\(Mandatory\)\]\[bool\] \$Tpm/);
   assert.match(script, /PowerShell\.Exiting/);
   assert.match(script, /Stop-KnownLabProcesses/);
   assert.match(script, /Stop-Process -Id/);
@@ -325,6 +338,7 @@ test('Workflows use the dedicated runner and keep PRs non-mutating', () => {
   assert.match(lab, /Seed-DevelopmentFixture\.ps1/);
   assert.match(lab, /-ActiveProfileId IZVZO7PU/);
   assert.match(lab, /Invoke-WinceptionLabRegression\.ps1/);
+  assert.match(lab, /GITHUB_WORKSPACE.*Invoke-WinceptionLabRegression/s);
   assert.match(lab, /actions\/upload-artifact@v4/);
   assert.match(lab, /if: always\(\)/);
 

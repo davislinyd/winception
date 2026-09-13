@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $ConfigPath,
-    [ValidateSet('All', 'SecureBoot', 'Ipxe')]
+    [ValidateSet('All', 'SecureBoot', 'Ipxe', 'FirmwareCorners')]
     [string] $Mode = 'All',
     [switch] $ValidateOnly
 )
@@ -144,6 +144,26 @@ function Assert-LabConfig {
     }
     if (@($allVms | Sort-Object -Unique).Count -ne 5) {
         throw 'Lab VM names must be unique.'
+    }
+    $firmware = Get-OptionalProperty -Object $Config -Name 'firmware'
+    if ($null -ne $firmware) {
+        $sbTpmOn = @((Get-OptionalProperty -Object $firmware -Name 'secureBootTpmOn'))
+        $unknownSb = @($sbTpmOn | Where-Object { $_ -and $_ -notin $secureBootVms })
+        if ($unknownSb.Count -gt 0) {
+            throw 'firmware.secureBootTpmOn contains a VM that is not a Secure Boot Lab VM.'
+        }
+        $sbTpmOff = [string] (Get-OptionalProperty -Object $firmware -Name 'secureBootTpmOff')
+        if ($sbTpmOff -and $sbTpmOff -notin $secureBootVms) {
+            throw 'firmware.secureBootTpmOff must be one of the Secure Boot Lab VMs.'
+        }
+        $ipxeTpmOff = [string] (Get-OptionalProperty -Object $firmware -Name 'ipxeTpmOff')
+        if ($ipxeTpmOff -and $ipxeTpmOff -ne [string] $Config.ipxeVm) {
+            throw 'firmware.ipxeTpmOff must be the iPXE Lab VM.'
+        }
+        $ipxeTpmOn = [string] (Get-OptionalProperty -Object $firmware -Name 'ipxeTpmOn')
+        if ($ipxeTpmOn -and $ipxeTpmOn -ne [string] $Config.ipxeVm) {
+            throw 'firmware.ipxeTpmOn must be the iPXE Lab VM.'
+        }
     }
     $checkpoint = [string] (Get-RequiredProperty -Object $Config -Name 'checkpointName')
     if ($checkpoint -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._-]{1,99}$') {
@@ -913,34 +933,54 @@ function Stop-LabServices {
     }
 }
 
+function Get-LabFirmwareConfig {
+    $firmware = Get-OptionalProperty -Object $script:Config -Name 'firmware'
+    $secureBootVms = @($script:Config.secureBootVms)
+    $ipxeVm = [string] $script:Config.ipxeVm
+    [pscustomobject]@{
+        secureBootTpmOn = if ($firmware -and (Get-OptionalProperty -Object $firmware -Name 'secureBootTpmOn')) { @($firmware.secureBootTpmOn) } else { $secureBootVms }
+        secureBootTpmOff = if ($firmware -and (Get-OptionalProperty -Object $firmware -Name 'secureBootTpmOff')) { [string] $firmware.secureBootTpmOff } else { [string] $secureBootVms[0] }
+        ipxeTpmOff = if ($firmware -and (Get-OptionalProperty -Object $firmware -Name 'ipxeTpmOff')) { [string] $firmware.ipxeTpmOff } else { $ipxeVm }
+        ipxeTpmOn = if ($firmware -and (Get-OptionalProperty -Object $firmware -Name 'ipxeTpmOn')) { [string] $firmware.ipxeTpmOn } else { $ipxeVm }
+    }
+}
+
 function Set-LabVmTpmEnabled {
-    # Winception-Clean does not keep Hyper-V TPM; re-enable after firmware apply.
+    # Winception-Clean does not keep Hyper-V TPM; apply the requested TPM state after firmware.
     param(
         [Parameter(Mandatory)][string] $VmName,
         [Parameter(Mandatory)][bool] $Enabled
     )
 
-    if (-not $Enabled) {
+    $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+    if ($Enabled) {
+        if (-not [bool] $security.TpmEnabled) {
+            if (-not [bool] $security.KpsAvailable) {
+                Set-VMKeyProtector -VMName $VmName -NewLocalKeyProtector -ErrorAction Stop
+            }
+            Enable-VMTPM -VMName $VmName -ErrorAction Stop
+            $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
+        }
+        if (-not [bool] $security.TpmEnabled) {
+            throw "$VmName TPM is off; expected TPM on after firmware apply."
+        }
         return
     }
 
-    $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
-    if (-not [bool] $security.TpmEnabled) {
-        if (-not [bool] $security.KpsAvailable) {
-            Set-VMKeyProtector -VMName $VmName -NewLocalKeyProtector -ErrorAction Stop
-        }
-        Enable-VMTPM -VMName $VmName -ErrorAction Stop
+    if ([bool] $security.TpmEnabled) {
+        Disable-VMTPM -VMName $VmName -ErrorAction Stop
         $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
     }
-    if (-not [bool] $security.TpmEnabled) {
-        throw "$VmName TPM is off; Secure Boot Lab VMs must have TPM enabled after firmware apply."
+    if ([bool] $security.TpmEnabled) {
+        throw "$VmName TPM is on; expected TPM off after firmware apply."
     }
 }
 
 function Set-VmFirmwareMode {
     param(
         [Parameter(Mandatory)][string] $VmName,
-        [Parameter(Mandatory)][bool] $SecureBoot
+        [Parameter(Mandatory)][bool] $SecureBoot,
+        [Parameter(Mandatory)][bool] $Tpm
     )
 
     if ($SecureBoot) {
@@ -949,13 +989,16 @@ function Set-VmFirmwareMode {
     else {
         Set-VMFirmware -VMName $VmName -EnableSecureBoot Off
     }
-    Set-LabVmTpmEnabled -VmName $VmName -Enabled $SecureBoot
+    Set-LabVmTpmEnabled -VmName $VmName -Enabled $Tpm
     $adapter = Get-VMNetworkAdapter -VMName $VmName | Select-Object -First 1
     Set-VMFirmware -VMName $VmName -FirstBootDevice $adapter
 }
 
 function Restore-LabCheckpoint {
-    param([Parameter(Mandatory)][string[]] $VmNames)
+    param(
+        [Parameter(Mandatory)][string[]] $VmNames,
+        $RoundFirmware = $null
+    )
 
     foreach ($vmName in $VmNames) {
         $vm = Get-VM -Name $vmName -ErrorAction Stop
@@ -963,8 +1006,13 @@ function Restore-LabCheckpoint {
             Stop-VM -Name $vmName -TurnOff -Force -Confirm:$false -ErrorAction Stop | Out-Null
         }
         Restore-VMSnapshot -VMName $vmName -Name ([string] $script:Config.checkpointName) -Confirm:$false -ErrorAction Stop
-        $isSecureBoot = $vmName -in @($script:Config.secureBootVms)
-        Set-VmFirmwareMode -VmName $vmName -SecureBoot $isSecureBoot
+        $secureBoot = $vmName -in @($script:Config.secureBootVms)
+        $tpm = $secureBoot
+        if ($null -ne $RoundFirmware) {
+            $secureBoot = [bool] $RoundFirmware.secureBoot
+            $tpm = [bool] $RoundFirmware.tpm
+        }
+        Set-VmFirmwareMode -VmName $vmName -SecureBoot $secureBoot -Tpm $tpm
     }
 }
 
@@ -1120,7 +1168,8 @@ function Assert-GuestEvidence {
     param(
         [Parameter(Mandatory)] $Evidence,
         [Parameter(Mandatory)][string] $ExpectedProfileId,
-        [switch] $RequireSecureBootTpm
+        [Parameter(Mandatory)][bool] $ExpectedSecureBoot,
+        [Parameter(Mandatory)][bool] $ExpectedTpm
     )
 
     if (-not $Evidence.desktopReadyFile -or -not $Evidence.explorerRunning -or @($Evidence.oobeProcesses).Count -gt 0) {
@@ -1134,18 +1183,33 @@ function Assert-GuestEvidence {
         [string] $Evidence.profileId -ne $ExpectedProfileId) {
         throw "Guest profile evidence mismatch: $($Evidence.computerName)"
     }
-    if ($RequireSecureBootTpm) {
+    if ($ExpectedSecureBoot) {
         if (-not [bool] $Evidence.confirmSecureBootUEFI) {
             throw "Guest Secure Boot is off: $($Evidence.computerName)"
-        }
-        if (-not [bool] $Evidence.tpmPresent -or -not [bool] $Evidence.tpmReady -or -not [bool] $Evidence.tpmEnabled -or -not [bool] $Evidence.tpmActivated) {
-            throw "Guest TPM is not Present/Ready/Enabled/Activated: $($Evidence.computerName)"
         }
         if ([string] $Evidence.hostSecureBoot -ne 'On' -or [string] $Evidence.hostSecureBootTemplate -ne 'MicrosoftWindows') {
             throw "Host Secure Boot firmware is not MicrosoftWindows On: $($Evidence.computerName)"
         }
+    }
+    else {
+        if ([bool] $Evidence.confirmSecureBootUEFI) {
+            throw "Guest Secure Boot is on; expected off: $($Evidence.computerName)"
+        }
+        if ([string] $Evidence.hostSecureBoot -eq 'On') {
+            throw "Host Secure Boot is On; expected Off: $($Evidence.computerName)"
+        }
+    }
+    if ($ExpectedTpm) {
+        if (-not [bool] $Evidence.tpmPresent -or -not [bool] $Evidence.tpmReady -or -not [bool] $Evidence.tpmEnabled -or -not [bool] $Evidence.tpmActivated) {
+            throw "Guest TPM is not Present/Ready/Enabled/Activated: $($Evidence.computerName)"
+        }
         if (-not [bool] $Evidence.hostTpmEnabled) {
             throw "Host Hyper-V TPM is off: $($Evidence.computerName)"
+        }
+    }
+    else {
+        if ([bool] $Evidence.hostTpmEnabled) {
+            throw "Host Hyper-V TPM is on; expected off: $($Evidence.computerName)"
         }
     }
 }
@@ -1207,14 +1271,20 @@ function Assert-IpxeArtifacts {
 
 function Invoke-LabRound {
     param(
+        [Parameter(Mandatory)][string] $RoundId,
         [Parameter(Mandatory)][ValidateSet('secureboot', 'ipxe')][string] $BootMode,
         [Parameter(Mandatory)][string[]] $VmNames,
+        [Parameter(Mandatory)][bool] $SecureBoot,
+        [Parameter(Mandatory)][bool] $Tpm,
         [Parameter(Mandatory)][pscredential] $Credential,
         [Parameter(Mandatory)][string] $ProfileId
     )
 
-    Write-Host "Starting $BootMode regression round for $($VmNames.Count) VM(s)."
-    Restore-LabCheckpoint -VmNames $VmNames
+    Write-Host "Starting $RoundId ($BootMode, secureBoot=$SecureBoot, tpm=$Tpm) for $($VmNames.Count) VM(s)."
+    Restore-LabCheckpoint -VmNames $VmNames -RoundFirmware @{
+        secureBoot = $SecureBoot
+        tpm = $Tpm
+    }
     Set-ConsoleMode -BootMode $BootMode | Out-Null
     Set-ConsoleEndpoint | Out-Null
     Set-ConsoleDhcpServerMode | Out-Null
@@ -1229,7 +1299,7 @@ function Invoke-LabRound {
         $guest = New-Object System.Collections.Generic.List[object]
         foreach ($vmName in $VmNames) {
             $result = Get-GuestEvidence -VmName $vmName -Credential $Credential
-            Assert-GuestEvidence -Evidence $result -ExpectedProfileId $ProfileId -RequireSecureBootTpm:($BootMode -eq 'secureboot')
+            Assert-GuestEvidence -Evidence $result -ExpectedProfileId $ProfileId -ExpectedSecureBoot $SecureBoot -ExpectedTpm $Tpm
             $guest.Add($result)
         }
         $fleetRunIds = @($fleet | ForEach-Object { [string] $_.runId })
@@ -1242,7 +1312,10 @@ function Invoke-LabRound {
             Assert-IpxeArtifacts | Out-Null
         }
         $round = [ordered]@{
+            roundId = $RoundId
             bootMode = $BootMode
+            secureBoot = $SecureBoot
+            tpm = $Tpm
             vmNames = $VmNames
             fleet = @($fleet)
             guest = @($guest.ToArray())
@@ -1251,12 +1324,12 @@ function Invoke-LabRound {
                 api = $apiPreflight
             }
         }
-        Write-Evidence -Name ("round-{0}.json" -f $BootMode) -Value $round | Out-Null
+        Write-Evidence -Name ("round-{0}.json" -f $RoundId) -Value $round | Out-Null
         return $round
     }
     finally {
         Stop-LabServices
-        try { Restore-LabCheckpoint -VmNames $VmNames } catch { $script:CleanupErrors.Add("round VM cleanup failed: $BootMode") | Out-Null }
+        try { Restore-LabCheckpoint -VmNames $VmNames } catch { $script:CleanupErrors.Add("round VM cleanup failed: $RoundId") | Out-Null }
         $script:PreflightPassed = $false
     }
 }
@@ -1341,6 +1414,7 @@ try {
     Assert-CommandAvailable -Name 'Get-VMSecurity'
     Assert-CommandAvailable -Name 'Set-VMKeyProtector'
     Assert-CommandAvailable -Name 'Enable-VMTPM'
+    Assert-CommandAvailable -Name 'Disable-VMTPM'
     Assert-CommandAvailable -Name 'New-PSSession'
 
     if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
@@ -1402,11 +1476,17 @@ try {
     $profileId = Get-ActiveProfileId -State $state
 
     $rounds = New-Object System.Collections.Generic.List[object]
+    $credential = New-DeploymentCredential
     if ($Mode -in @('All', 'SecureBoot')) {
-        $rounds.Add((Invoke-LabRound -BootMode 'secureboot' -VmNames @($script:Config.secureBootVms) -Credential (New-DeploymentCredential) -ProfileId $profileId))
+        $rounds.Add((Invoke-LabRound -RoundId 'secureboot-tpm-on' -BootMode 'secureboot' -VmNames @($script:Config.secureBootVms) -SecureBoot $true -Tpm $true -Credential $credential -ProfileId $profileId))
     }
     if ($Mode -in @('All', 'Ipxe')) {
-        $rounds.Add((Invoke-LabRound -BootMode 'ipxe' -VmNames @([string] $script:Config.ipxeVm) -Credential (New-DeploymentCredential) -ProfileId $profileId))
+        $rounds.Add((Invoke-LabRound -RoundId 'ipxe-tpm-off' -BootMode 'ipxe' -VmNames @([string] $script:Config.ipxeVm) -SecureBoot $false -Tpm $false -Credential $credential -ProfileId $profileId))
+    }
+    if ($Mode -in @('All', 'FirmwareCorners')) {
+        $firmwareRoles = Get-LabFirmwareConfig
+        $rounds.Add((Invoke-LabRound -RoundId 'secureboot-tpm-off' -BootMode 'secureboot' -VmNames @([string] $firmwareRoles.secureBootTpmOff) -SecureBoot $true -Tpm $false -Credential $credential -ProfileId $profileId))
+        $rounds.Add((Invoke-LabRound -RoundId 'ipxe-tpm-on' -BootMode 'ipxe' -VmNames @([string] $firmwareRoles.ipxeTpmOn) -SecureBoot $false -Tpm $true -Credential $credential -ProfileId $profileId))
     }
     $result = [ordered]@{
         ok = $true

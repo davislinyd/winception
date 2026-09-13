@@ -185,9 +185,9 @@ Web Console 的頂部工作區是 **開始部署** / **部署活動**，並可�
 Winception 的自動化分成兩條 GitHub Actions 流程：
 
 - pull_request 使用 self-hosted / windows / winception-lab runner，只執行 Node、Web/API、PowerShell parser、npm run check、npm test 與 npm run smoke。Checkout 與 npm cache 留在 runner workspace，不會寫入 C:\OSDCloud，也不會執行 Endpoint Sync、profile publish、服務啟停或 DHCP。
-- master push 使用 self-hosted / windows / hyperv / winception-lab runner，建立目前 commit 的 allowlisted Release HostTools bundle，驗證 bundle-manifest.json，安裝空白包後再由 runner 明確 seed Development fixture，然後在固定的 Winception-AutoLab Internal switch（192.168.177.0/24，service 192.168.177.1）執行 `winception-autolab-01..04`（Secure Boot On、TPM On）與 `winception-autolab-ipxe-01`（iPXE）的 PXE 回歸。這些名字不得重用歷史 `winception-client-01..04`。成功或失敗都會停止服務、關閉 VM、還原 Winception-Clean checkpoint 並上傳去秘密化 evidence。`Winception-Clean` 不含 Hyper-V TPM；還原後 Lab 腳本會對 Secure Boot VM 自動重新啟用 TPM。
+- master push 使用 self-hosted / windows / hyperv / winception-lab runner，建立目前 commit 的 allowlisted Release HostTools bundle，驗證 bundle-manifest.json，安裝空白包後再由 runner 明確 seed Development fixture，然後在固定的 Winception-AutoLab Internal switch（192.168.177.0/24，service 192.168.177.1）執行 `winception-autolab-01..04` 與 `winception-autolab-ipxe-01` 的 PXE 回歸（預設：四台 Secure Boot On + TPM On，一台 iPXE Secure Boot Off + TPM Off；`Mode All` 另證 Secure Boot On + TPM Off 與 iPXE Secure Boot Off + TPM On）。這些名字不得重用歷史 `winception-client-01..04`。成功或失敗都會停止服務、關閉 VM、還原 Winception-Clean checkpoint 並上傳去秘密化 evidence。`Winception-Clean` 不含 Hyper-V TPM；還原後 Lab 腳本依該輪的 `-SecureBoot` / `-Tpm` 重套韌體。
 
-第一次只需在專用 runner 執行一次性 bootstrap、建立五台 Gen2 VM/checkpoint、配置受 ACL 保護的 C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json 與 runner labels。日常 PR/merge job 不需要人類介入；runner guard 會拒絕 external switch、非指定 adapter、running/stale VM、缺 checkpoint、Windows DHCP Server 綁在非 Lab 介面，以及 Lab 服務 IP 或 `0.0.0.0` 上已被佔用的 port。其他網卡上的 ICS／DHCP（例如 Default Switch UDP/67）不是 Lab 佔用。Initialize-WinceptionLab.ps1 -ValidateOnly 可在不改變主機的情況下驗證前置條件（含 Secure Boot VM 的 TPM On）。
+第一次只需在專用 runner 執行一次性 bootstrap、建立五台 Gen2 VM/checkpoint、配置受 ACL 保護的 C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json 與 runner labels。日常 PR/merge job 不需要人類介入；runner guard 會拒絕 external switch、非指定 adapter、running/stale VM、缺 checkpoint、Windows DHCP Server 綁在非 Lab 介面，以及 Lab 服務 IP 或 `0.0.0.0` 上已被佔用的 port。其他網卡上的 ICS／DHCP（例如 Default Switch UDP/67）不是 Lab 佔用。Initialize-WinceptionLab.ps1 -ValidateOnly 可在不改變主機的情況下驗證前置條件（含預設韌體：SB VM 為 TPM On，iPXE 為 TPM Off）。
 
 完整回歸由 tools\Invoke-WinceptionLabRegression.ps1 執行既有 Initialize-DeploymentServer.ps1、Web API、server:preflight、Fleet polling 與 PowerShell Direct guest evidence。Preflight 失敗時永遠不呼叫 start-all；iPXE 輪次會另行確認 snponly.efi、boot.ipxe、wimboot、WinPE callback 與 windows-desktop-ready。Lab evidence 只保留去秘密化的 preflight、Fleet、HTTP/TFTP/DHCP logs、bundle manifest、VM 版本/profile/app-script 結果。此流程不代表 production/WAN/LAN DHCP 或實體筆電已驗證，也不自動發布 release。
 
@@ -240,10 +240,12 @@ Client 網路邊界：
 
 Boot mode 決策：
 
-| Boot mode | 開機鏈 | Secure Boot |
-| --- | --- | --- |
-| `secureboot` | Microsoft-signed `bootmgfw.efi` over TFTP，再載入 `boot.wim` | 可保持啟用 |
-| `ipxe` | `snponly.efi` over TFTP，再由 iPXE 透過 HTTP 載入 WinPE | 目標電腦需關閉 Secure Boot |
+| Boot mode | 開機鏈 | 客戶端 Secure Boot | 客戶端 TPM |
+| --- | --- | --- | --- |
+| `secureboot` | Microsoft-signed `bootmgfw.efi` over TFTP，再載入 `boot.wim` | 可 On 或 Off | 獨立；現場預設 On |
+| `ipxe` | `snponly.efi` over TFTP，再由 iPXE 透過 HTTP 載入 WinPE | 必須 Off（未簽名鏈） | 獨立 |
+
+主機 boot mode 只選 PXE 開機檔。客戶端 Secure Boot 與 TPM 是韌體狀態，不是第三種 `/api/boot-mode`。`ipxe` + 客戶端 Secure Boot On 不支援。
 
 啟動服務前，必須在 Web Console 確認：
 
@@ -570,9 +572,9 @@ Each successful HostTools deployment or reload clears the prior diagnostics summ
 Winception automation is split into two GitHub Actions workflows:
 
 - pull_request runs on self-hosted / windows / winception-lab and performs Node, Web/API, PowerShell parser, npm run check, npm test, and npm run smoke. Checkout and npm cache stay in the runner workspace; the job does not write C:\OSDCloud, run Endpoint Sync, publish profiles, start services, or touch DHCP.
-- A master push runs on self-hosted / windows / hyperv / winception-lab, creates and verifies an allowlisted Release HostTools bundle, installs the empty bundle, explicitly seeds the Development fixture into runner State, and executes `winception-autolab-01..04` (Secure Boot On, TPM On) plus `winception-autolab-ipxe-01` (iPXE) on the fixed Winception-AutoLab Internal switch (192.168.177.0/24, service 192.168.177.1). Those names must not reuse historical `winception-client-01..04`. Success and failure both stop services, power off VMs, restore the Winception-Clean checkpoint, and upload de-secretized evidence. `Winception-Clean` does not keep Hyper-V TPM; Lab restore re-enables TPM on the Secure Boot VMs.
+- A master push runs on self-hosted / windows / hyperv / winception-lab, creates and verifies an allowlisted Release HostTools bundle, installs the empty bundle, explicitly seeds the Development fixture into runner State, and executes `winception-autolab-01..04` plus `winception-autolab-ipxe-01` on the fixed Winception-AutoLab Internal switch (192.168.177.0/24, service 192.168.177.1). Default firmware is four Secure Boot On + TPM On VMs and one iPXE Secure Boot Off + TPM Off VM; `Mode All` also proves Secure Boot On + TPM Off and iPXE Secure Boot Off + TPM On. Those names must not reuse historical `winception-client-01..04`. Success and failure both stop services, power off VMs, restore the Winception-Clean checkpoint, and upload de-secretized evidence. `Winception-Clean` does not keep Hyper-V TPM; Lab restore reapplies `-SecureBoot` and `-Tpm` per round.
 
-The dedicated runner needs a one-time bootstrap, five Gen2 VMs/checkpoints, protected local secrets at C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json, and the runner labels. Normal PR/merge jobs are unattended. The runner guard rejects external switches, non-Lab adapters, running/stale VMs, missing checkpoints, Windows DHCP Server bindings off the Lab adapter, and Lab ports already bound on the Lab service IP or 0.0.0.0. ICS or DHCP on another adapter, including Default Switch UDP/67, is not Lab occupancy. Initialize-WinceptionLab.ps1 -ValidateOnly validates prerequisites without changing the host, including TPM On for Secure Boot VMs.
+The dedicated runner needs a one-time bootstrap, five Gen2 VMs/checkpoints, protected local secrets at C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json, and the runner labels. Normal PR/merge jobs are unattended. The runner guard rejects external switches, non-Lab adapters, running/stale VMs, missing checkpoints, Windows DHCP Server bindings off the Lab adapter, and Lab ports already bound on the Lab service IP or 0.0.0.0. ICS or DHCP on another adapter, including Default Switch UDP/67, is not Lab occupancy. Initialize-WinceptionLab.ps1 -ValidateOnly validates prerequisites without changing the host, including default firmware (TPM On for Secure Boot VMs, TPM Off for iPXE).
 
 tools\Invoke-WinceptionLabRegression.ps1 uses the existing Initialize-DeploymentServer.ps1, Web API, server:preflight, Fleet polling, and PowerShell Direct guest evidence. A failed preflight never calls start-all. The iPXE round separately verifies snponly.efi, boot.ipxe, wimboot, the WinPE callback, and windows-desktop-ready. Evidence contains only de-secretized preflight, Fleet, HTTP/TFTP/DHCP logs, bundle manifest, VM version/profile/app-script results. This Lab flow is not proof of production/WAN/LAN DHCP or a physical laptop path and does not publish a release automatically.
 
@@ -625,10 +627,12 @@ Client network boundary:
 
 Boot mode decision:
 
-| Boot mode | Boot chain | Secure Boot |
-| --- | --- | --- |
-| `secureboot` | Microsoft-signed `bootmgfw.efi` over TFTP, then `boot.wim` | Can stay enabled |
-| `ipxe` | `snponly.efi` over TFTP, then iPXE loads WinPE over HTTP | Target computer must disable Secure Boot |
+| Boot mode | Boot chain | Client Secure Boot | Client TPM |
+| --- | --- | --- | --- |
+| `secureboot` | Microsoft-signed `bootmgfw.efi` over TFTP, then `boot.wim` | On or Off | Independent; field default On |
+| `ipxe` | `snponly.efi` over TFTP, then iPXE loads WinPE over HTTP | Must be Off (unsigned chain) | Independent |
+
+Host boot mode only selects the PXE boot file. Client Secure Boot and TPM are firmware state, not a third `/api/boot-mode`. `ipxe` plus client Secure Boot On is unsupported.
 
 Before starting services, confirm in the Web Console:
 

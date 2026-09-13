@@ -73,7 +73,7 @@ jobs:
       - name: Run unattended isolated Lab regression
         shell: powershell
         run: |
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:WINCEPTION_APP_ROOT 'tools\Invoke-WinceptionLabRegression.ps1') -ConfigPath $env:WINCEPTION_LAB_CONFIG -Mode All
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-WinceptionLabRegression.ps1') -ConfigPath $env:WINCEPTION_LAB_CONFIG -Mode All
 
       - name: Package Lab evidence
         if: always()

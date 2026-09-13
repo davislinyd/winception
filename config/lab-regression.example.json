@@ -21,6 +21,17 @@
     "winception-autolab-04"
   ],
   "ipxeVm": "winception-autolab-ipxe-01",
+  "firmware": {
+    "secureBootTpmOn": [
+      "winception-autolab-01",
+      "winception-autolab-02",
+      "winception-autolab-03",
+      "winception-autolab-04"
+    ],
+    "secureBootTpmOff": "winception-autolab-01",
+    "ipxeTpmOff": "winception-autolab-ipxe-01",
+    "ipxeTpmOn": "winception-autolab-ipxe-01"
+  },
   "baseVhdxPath": "C:\\OSDCloud\\HostTools\\State\\lab\\base\\Winception-Client.vhdx",
   "evidenceRoot": "C:\\OSDCloud\\HostTools\\State\\lab\\evidence",
   "secretReference": "WinceptionLabDeployment",
