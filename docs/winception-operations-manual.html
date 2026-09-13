@@ -384,7 +384,7 @@ cd '&lt;repo-root&gt;'
           </figure>
           <div class="table-wrap"><table><thead><tr><th>服務</th><th>角色</th></tr></thead><tbody>
             <tr><td>DHCP responder</td><td>依 DHCP mode 提供 lease 或 PXE boot options。</td></tr>
-            <tr><td>TFTP service</td><td>提供 Secure Boot chain 需要的 Microsoft-signed boot files。</td></tr>
+            <tr><td>TFTP service</td><td>提供 host <code>secureboot</code> 鏈的 Microsoft-signed boot files（<code>bootmgfw.efi</code>）。Client Secure Boot / TPM 是目標電腦韌體，不由 <code>/api/boot-mode</code> 設定。</td></tr>
             <tr><td>HTTP media service</td><td>提供 iPXE script、WinPE boot files、status API、screenshot API 與 Torrent control API。</td></tr>
             <tr><td>SMB share</td><td>供 WinPE 讀取 selected OS WIM、Apps、Scripts 與 manifests。</td></tr>
             <tr><td>Torrent tracker/seeder</td><td>多台 client 同時部署時分散 OS WIM 傳輸壓力；Tracker card 顯示 Base、client console <code>E</code> 的 Client 累積延長、Web 累積延長、總 wait、剩餘時間與 deadline。預設 wait 15 分鐘，可設定後續 client 的 0–1440 分鐘預設；完成後總 wait 上限為 1440 分鐘。</td></tr>
@@ -602,7 +602,7 @@ cd '&lt;repo-root&gt;'
           </figure>
           <div class="table-wrap"><table><thead><tr><th>Service</th><th>Role</th></tr></thead><tbody>
             <tr><td>DHCP responder</td><td>Provides leases or PXE boot options according to DHCP mode.</td></tr>
-            <tr><td>TFTP service</td><td>Serves the Microsoft-signed boot files required by the Secure Boot chain.</td></tr>
+            <tr><td>TFTP service</td><td>Serves Microsoft-signed boot files for the host <code>secureboot</code> chain (<code>bootmgfw.efi</code>). Client Secure Boot and TPM are target firmware and are not set by <code>/api/boot-mode</code>.</td></tr>
             <tr><td>HTTP media service</td><td>Serves iPXE script, WinPE boot files, status API, screenshot API, and Torrent control API.</td></tr>
             <tr><td>SMB share</td><td>Lets WinPE read the selected OS WIM, Apps, Scripts, and manifests.</td></tr>
             <tr><td>Torrent tracker/seeder</td><td>Distributes OS WIM transfer load when many clients deploy together. The Tracker card shows Base, cumulative Client extension entered through console <code>E</code>, cumulative Web extension, total wait, remaining time, and deadline. It defaults to 15 minutes and can set the 0–1440 minute default for future clients; the total post-download wait is capped at 1440 minutes.</td></tr>

@@ -47,6 +47,8 @@ SkipUserOOBE     : 1
 NoAutoUpdate     : 1
 DisplayVersion   : 25H2
 CurrentBuild     : 26200
+windowsFamily    : Windows 11
+ProductName      : may still read Windows 10 Pro
 EditionID        : Professional
 Culture          : zh-TW
 TimeZone         : Taipei Standard Time
@@ -71,7 +73,7 @@ Use VM regression only when the user explicitly asks for VM or regression valida
 - The unattended merge path is a separate acceptance lane from both the physical-laptop path and the historical VM path. It uses only the dedicated Winception-AutoLab Internal switch on 192.168.177.0/24, service 192.168.177.1, and five dedicated Gen2 VMs: `winception-autolab-01..04` plus `winception-autolab-ipxe-01`. These names must not reuse the historical `winception-client-01..04` vSwitch regression VMs. Default resting firmware is Secure Boot On + TPM On (`MicrosoftWindows`) for `01..04` and Secure Boot Off + TPM Off for iPXE. `Winception-Clean` restore drops Hyper-V TPM; Lab restore applies Secure Boot and TPM independently. `Mode All` also proves Secure Boot On + TPM Off and iPXE Secure Boot Off + TPM On. Host `dhcp.bootMode` remains `secureboot` or `ipxe`; `ipxe` still requires client Secure Boot Off.
 - The Lab runner guard must reject any external switch, WAN/daily LAN adapter, foreign DHCP binding, non-target VM attached to the Lab switch, running target VM, missing Winception-Clean checkpoint, or a Lab service port already bound on the Lab service IP or `0.0.0.0`. ICS or other DHCP on a different adapter (for example Hyper-V Default Switch UDP/67) is not a Lab occupancy. It must stop before starting a deployment service when a guard fails. The guard must not stop ICS or repair a foreign network.
 - The Lab path creates a commit-specific HostTools bundle and does not patch the live runtime directly. Runtime preparation and Endpoint Sync use the existing installed helpers; evidence is copied out only after redaction.
-- The merge matrix covers four Secure Boot clients in parallel and a separate Secure Boot-off iPXE fallback client. Fleet status and PowerShell Direct guest evidence are both required. A Lab result does not prove production DHCP, a physical laptop, or a WAN/LAN endpoint is ready.
+- The merge matrix covers four Secure Boot + TPM On clients in parallel, a Secure Boot-off iPXE TPM Off client, then firmware corners (Secure Boot On + TPM Off and iPXE Secure Boot Off + TPM On). Fleet status and PowerShell Direct guest evidence are both required, including `windowsFamily=Windows 11` from `CurrentBuild` >= 22000 and a separate round `hostFirmware` object. 2026-09-14 local `Mode All` e is AutoLab green. A Lab result does not prove production DHCP, a physical laptop, or a WAN/LAN endpoint is ready.
 - On success, failure, Ctrl+C, or job cancellation, cleanup must attempt service stop, VM stop, checkpoint restore, temporary status cleanup, and evidence preservation. No automatic retry or production release is part of this path.
 
 ## Retired ISO Path

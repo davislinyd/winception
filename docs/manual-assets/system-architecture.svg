@@ -62,9 +62,9 @@
   <path class="data" d="M157 408V478"/><path class="data" d="M389 408V455H178V478"/><path class="data" d="M621 408V452H454V478"/><path class="data" d="M853 408V446H454V478"/><path class="data" d="M1085 408V440H454V478"/><path class="data" d="M1280 408V434H454V478"/>
   <path class="status" d="M1006 646V690H621V410"/><path class="status" d="M1252 646V700H811V232"/>
 
-  <rect class="note" x="54" y="714" width="1292" height="102" rx="12"/>
+  <rect class="note" x="54" y="714" width="1292" height="124" rx="12"/>
   <text class="t" x="76" y="743">關鍵判讀</text>
-  <text class="warn" x="76" y="769">• Secure Boot 模式直接由 Windows Boot Manager 透過 TFTP 載入 WinPE；只有 iPXE fallback 才使用 HTTP wimboot。</text>
+  <text class="warn" x="76" y="769">• Host `/api/boot-mode` 只有 secureboot（bootmgfw / TFTP）與 ipxe（snponly / HTTP wimboot）。Client Secure Boot 與 TPM 是獨立韌體軸。</text>
   <text class="warn" x="76" y="791">• Torrent telemetry 是觀測資訊；週期性 telemetry 不寫入 deployment status JSONL，傳輸完整性仍以 SHA-256 與 deployment event 為準。</text>
-  <text class="warn" x="76" y="813">• 截圖是 best-effort evidence；成功條件是 per-run JSON 事件到 windows-desktop-ready，且 client finalization 沒有 error / timeout。</text>
+  <text class="warn" x="76" y="813">• 成功條件是 windows-desktop-ready；Windows 11 以 CurrentBuild ≥ 22000 判定，ProductName 可能仍為 Windows 10 Pro。</text>
 </svg>

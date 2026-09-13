@@ -1,4 +1,4 @@
-<svg viewBox="0 0 1080 560" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', system-ui, -apple-system, 'Noto Sans TC', 'PingFang TC', sans-serif">
+<svg viewBox="0 0 1080 680" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', system-ui, -apple-system, 'Noto Sans TC', 'PingFang TC', sans-serif">
   <style>
     .bg{fill:#F7F2E9}
     .title{fill:#2A2520;font-weight:600;font-size:20px}
@@ -21,9 +21,9 @@
     <marker id="ahc" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#B25B36"/></marker>
   </defs>
 
-  <rect class="bg" width="1080" height="560"/>
+  <rect class="bg" width="1080" height="680"/>
   <text class="title" x="540" y="34" text-anchor="middle">技術流程圖 · OSDCloud 零接觸部署架構與資料流</text>
-  <text class="subtitle" x="540" y="54" text-anchor="middle">Setup → 主機服務編排 → 用戶端 PXE 部署 → 狀態回報</text>
+  <text class="subtitle" x="540" y="54" text-anchor="middle">Setup → 主機服務編排 → 用戶端 PXE 部署 → 狀態回報 · host bootMode ≠ client Secure Boot / TPM</text>
 
   <!-- Lane A: host control pipeline -->
   <g>
@@ -54,7 +54,7 @@
     <rect class="svc" x="458" y="188" width="165" height="62" rx="8"/>
     <rect class="svc" x="642" y="188" width="165" height="62" rx="8"/>
     <rect class="svc" x="826" y="188" width="165" height="62" rx="8"/>
-    <text class="tc" x="172" y="214">DHCP</text>          <text class="ts" x="172" y="232">boot: secureboot / iPXE</text>
+    <text class="tc" x="172" y="214">DHCP</text>          <text class="ts" x="172" y="232">host bootMode 兩種鏈</text>
     <text class="tc" x="356" y="214">TFTP</text>          <text class="ts" x="356" y="232">bootmgr / iPXE 開機檔</text>
     <text class="tc" x="540" y="214">HTTP media + status</text> <text class="ts" x="540" y="232">WinPE · OS · Apps · Scripts</text>
     <text class="tc" x="724" y="214">Torrent tracker+seeder</text> <text class="ts" x="724" y="232">OS image P2P · 預設開啟</text>
@@ -77,7 +77,7 @@
     <rect class="cli" x="642" y="366" width="165" height="86" rx="8"/>
     <rect class="cli" x="826" y="366" width="165" height="86" rx="8"/>
     <text class="tc" x="172" y="392">UEFI IPv4 PXE</text>
-    <text class="ts" x="172" y="412">開機</text>
+    <text class="ts" x="172" y="412">client SB / TPM 獨立</text>
     <text class="fl" x="172" y="436">← DHCP + TFTP</text>
     <text class="tc" x="356" y="392">WinPE 啟動</text>
     <text class="ts" x="356" y="412">OSDCloud iPXE</text>
@@ -99,4 +99,20 @@
 
   <text class="el" x="540" y="504">生命週期：run-start → winpe-end → windows-start → windows-apps-finished → windows-setupcomplete-finished → windows-desktop-ready</text>
   <text class="el" x="540" y="524">狀態回報送至 HTTP <tspan fill="#9C4221">/osdcloud/status</tspan>，於 Web Console 的 Activity / Client Fleet 檢視證據</text>
+
+  <rect class="panel" x="78" y="540" width="925" height="118" rx="10"/>
+  <text class="lane" x="94" y="560">三條獨立軸 · HOST PXE CHAIN ≠ CLIENT FIRMWARE</text>
+  <g>
+    <rect class="svc" x="90" y="572" width="292" height="50" rx="8"/>
+    <rect class="svc" x="394" y="572" width="292" height="50" rx="8"/>
+    <rect class="svc" x="698" y="572" width="292" height="50" rx="8"/>
+    <text class="tc" x="236" y="592">Host PXE chain</text>
+    <text class="ts" x="236" y="608">secureboot=bootmgfw.efi · ipxe=snponly.efi</text>
+    <text class="tc" x="540" y="592">Client Secure Boot</text>
+    <text class="ts" x="540" y="608">On 可用 signed 鏈 · iPXE 必須 Off</text>
+    <text class="tc" x="844" y="592">Client TPM</text>
+    <text class="ts" x="844" y="608">On/Off 同一台 VM · 不進 /api/boot-mode</text>
+  </g>
+  <text class="el" x="540" y="640">Mode All 2×2（2026-09-14 AutoLab 綠燈）：四台 SB+TPM On → iPXE 皆 Off → SB On TPM Off → iPXE SB Off TPM On</text>
+  <text class="el" x="540" y="656">Windows 11 以 CurrentBuild ≥ 22000 判定；登錄檔 ProductName 可能仍為 Windows 10 Pro</text>
 </svg>

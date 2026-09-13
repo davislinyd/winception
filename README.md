@@ -186,7 +186,7 @@ Lab 綠燈須包含 guest 上已發布的 profile ID、主機與客戶端韌體�
 
 客戶端 progress JSON 僅對短暫檔案 sharing/lock violation 做限時重試；finalizer 不得將缺少摘要或失敗的 progress 判定為安裝成功。
 
-Lab 清理會先停止全部目標 VM，再逐台還原；單台失敗仍處理後續 VM，最後彙總錯誤。還原後確認 Network firmware source 與目前 adapter 匹配，並讀回 Secure Boot／TPM。若清理失敗，先解決錯誤，不要放寬整個 HostTools State 權限或直接重跑部署。
+Lab 清理會先停止全部目標 VM，再逐台還原；單台失敗仍處理後續 VM，最後彙總錯誤。還原後略過缺少 `BootType` 的 BootOrder 項目，確認 Network firmware source 與目前 adapter 匹配，並讀回 Secure Boot／TPM。Guest Windows 11 以 `CurrentBuild` ≥ 22000 判定。若清理失敗，先解決錯誤，不要放寬整個 HostTools State 權限或直接重跑部署。本機 2026-09-14 `Mode All` 已綠燈（四輪七部署）；這不能當成實體筆電或生產 DHCP 證據。
 
 WinPE Torrent 網路準備逐步回報進度；CIM 與防火牆命令最多執行 15 秒，失敗會保留診斷並繼續其他準備方式。
 
@@ -586,7 +586,7 @@ Lab green requires the published guest profile ID, host/guest firmware evidence,
 
 Client progress JSON retries only transient sharing/lock violations with a fixed limit. Missing summaries or failed progress must not be accepted as installer success.
 
-Lab cleanup stops all target VMs before restoring checkpoints, attempts later VMs after a failure, and aggregates errors. Restore checks the current-adapter firmware Network source and reads back Secure Boot/TPM. Resolve cleanup errors before rerunning; never loosen the entire HostTools State ACL.
+Lab cleanup stops all target VMs before restoring checkpoints, attempts later VMs after a failure, and aggregates errors. Restore skips BootOrder entries that lack `BootType`, checks the current-adapter firmware Network source, and reads back Secure Boot/TPM. Guest Windows 11 is `CurrentBuild` >= 22000. Resolve cleanup errors before rerunning; never loosen the entire HostTools State ACL. Local 2026-09-14 `Mode All` is green (four rounds / seven deployments); that is not physical-laptop or production DHCP evidence.
 
 WinPE reports each torrent networking preparation step. CIM discovery and firewall commands have a 15-second limit; failures retain diagnostics while other preparation methods continue.
 

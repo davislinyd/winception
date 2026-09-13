@@ -386,7 +386,7 @@ cd "&lt;repo-root&gt;"
           <div class="flow-frame">
             <svg viewBox="0 0 1400 860" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="zh-arch-title zh-arch-desc">
               <title id="zh-arch-title">Winception 系統架構與資料流</title>
-              <desc id="zh-arch-desc">從 Web 管理介面、服務編排、雙 PXE 開機模式，到 WinPE、Torrent、OSDCloud、SetupComplete 與狀態回報的完整架構。</desc>
+              <desc id="zh-arch-desc">從 Web 管理介面、服務編排、host PXE 鏈與獨立的 client Secure Boot／TPM，到 WinPE、Torrent、OSDCloud、SetupComplete 與狀態回報的完整架構。</desc>
               <style>
                 .i{fill:#23201d}.m{fill:#6e665d}.bg{fill:#f7f2e9}.card{fill:#fffdf8;stroke:#d9cfbf;stroke-width:1.5}.host{fill:#fdf5e9;stroke:#e6c7a5}.client{fill:#eef3ed;stroke:#c8d5ca}.control{fill:#edf2f5;stroke:#c8d4dc}.h1{font:700 26px "Segoe UI","Noto Sans TC",sans-serif}.sub{font:14px "Segoe UI","Noto Sans TC",sans-serif;fill:#6e665d}.lane{font:700 13px "Segoe UI","Noto Sans TC",sans-serif;letter-spacing:1px;fill:#9c4221}.t{font:700 14px "Segoe UI","Noto Sans TC",sans-serif}.s{font:12px "Segoe UI","Noto Sans TC",sans-serif;fill:#6e665d}.port{font:11px Consolas,monospace;fill:#9c4221}.arrow{fill:none;stroke:#82786c;stroke-width:2;marker-end:url(#zh-arrow)}.data{fill:none;stroke:#416b82;stroke-width:2;stroke-dasharray:7 5;marker-end:url(#zh-blue)}.status-line{fill:none;stroke:#2f6d53;stroke-width:2;stroke-dasharray:4 5;marker-end:url(#zh-green)}.note{fill:#fff8e8;stroke:#e2c47d;stroke-width:1.2}.warn{font:11px "Segoe UI","Noto Sans TC",sans-serif;fill:#754d0a}
               </style>
@@ -418,11 +418,11 @@ cd "&lt;repo-root&gt;"
               <rect class="card client" x="882" y="480" width="248" height="166" rx="14"/><text class="t i" x="1006" y="513" text-anchor="middle">4 · Desktop ready</text><text class="s" x="1006" y="541" text-anchor="middle">finalization 必須 succeeded</text><text class="s" x="1006" y="562" text-anchor="middle">Explorer ready、無 OOBE process</text><text class="s" x="1006" y="583" text-anchor="middle">建立 desktop-ready marker</text><text class="port" x="1006" y="611" text-anchor="middle">windows-desktop-ready</text>
               <rect class="card client" x="1158" y="480" width="188" height="166" rx="14"/><text class="t i" x="1252" y="513" text-anchor="middle">5 · Evidence</text><text class="s" x="1252" y="541" text-anchor="middle">Activity / Fleet</text><text class="s" x="1252" y="562" text-anchor="middle">Validation Evidence</text><text class="s" x="1252" y="583" text-anchor="middle">System Log</text><text class="s" x="1252" y="604" text-anchor="middle">client local logs</text>
               <path class="arrow" d="M302 563H328"/><path class="arrow" d="M578 563H604"/><path class="arrow" d="M854 563H880"/><path class="arrow" d="M1130 563H1156"/><path class="data" d="M157 408V478"/><path class="data" d="M389 408V455H178V478"/><path class="data" d="M621 408V452H454V478"/><path class="data" d="M853 408V446H454V478"/><path class="data" d="M1085 408V440H454V478"/><path class="data" d="M1280 408V434H454V478"/><path class="status-line" d="M1006 646V690H621V410"/><path class="status-line" d="M1252 646V700H811V232"/>
-              <rect class="note" x="54" y="714" width="1292" height="102" rx="12"/>
+              <rect class="note" x="54" y="714" width="1292" height="124" rx="12"/>
               <text class="t i" x="76" y="743">關鍵判讀</text>
-              <text class="warn" x="76" y="769">• Secure Boot 模式直接由 Windows Boot Manager 透過 TFTP 載入 WinPE；只有 iPXE fallback 才使用 HTTP wimboot。</text>
+              <text class="warn" x="76" y="769">• Host `/api/boot-mode` 只有 secureboot（bootmgfw / TFTP）與 ipxe（snponly / HTTP wimboot）。Client Secure Boot 與 TPM 是獨立韌體軸，不要合成一個 boot mode。</text>
               <text class="warn" x="76" y="791">• Torrent telemetry 是觀測資訊；週期性 telemetry 不寫入 deployment status JSONL，傳輸完整性仍以 SHA-256 與 deployment event 為準。</text>
-              <text class="warn" x="76" y="813">• 成功條件是 per-run JSON 事件到 windows-desktop-ready，且 client finalization 沒有 error / timeout。</text>
+              <text class="warn" x="76" y="813">• 成功條件是 windows-desktop-ready，且 Windows 11 以 CurrentBuild ≥ 22000 判定；登錄檔 ProductName 可能仍為 Windows 10 Pro。</text>
             </svg>
           </div>
         </section>
@@ -712,7 +712,7 @@ cd "&lt;repo-root&gt;"
           <div class="flow-frame">
             <svg viewBox="0 0 1400 860" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="en-arch-title en-arch-desc">
               <title id="en-arch-title">Winception architecture and data flow</title>
-              <desc id="en-arch-desc">The Web control plane, two PXE boot modes, WinPE, Torrent, OSDCloud, SetupComplete, and deployment evidence.</desc>
+              <desc id="en-arch-desc">The Web control plane, host PXE chain, independent client Secure Boot and TPM, WinPE, Torrent, OSDCloud, SetupComplete, and deployment evidence.</desc>
               <style>
                 .i{fill:#23201d}.m{fill:#6e665d}.bg{fill:#f7f2e9}.card{fill:#fffdf8;stroke:#d9cfbf;stroke-width:1.5}.host{fill:#fdf5e9;stroke:#e6c7a5}.client{fill:#eef3ed;stroke:#c8d5ca}.control{fill:#edf2f5;stroke:#c8d4dc}.h1{font:700 26px "Segoe UI",Arial,sans-serif}.sub{font:14px "Segoe UI",Arial,sans-serif;fill:#6e665d}.lane{font:700 13px "Segoe UI",Arial,sans-serif;letter-spacing:1px;fill:#9c4221}.t{font:700 14px "Segoe UI",Arial,sans-serif}.s{font:12px "Segoe UI",Arial,sans-serif;fill:#6e665d}.port{font:11px Consolas,monospace;fill:#9c4221}.arrow{fill:none;stroke:#82786c;stroke-width:2;marker-end:url(#en-arrow)}.data{fill:none;stroke:#416b82;stroke-width:2;stroke-dasharray:7 5;marker-end:url(#en-blue)}.status-line{fill:none;stroke:#2f6d53;stroke-width:2;stroke-dasharray:4 5;marker-end:url(#en-green)}.note{fill:#fff8e8;stroke:#e2c47d;stroke-width:1.2}.warn{font:11px "Segoe UI",Arial,sans-serif;fill:#754d0a}
               </style>
@@ -740,11 +740,11 @@ cd "&lt;repo-root&gt;"
               <rect class="card client" x="882" y="480" width="248" height="166" rx="14"/><text class="t i" x="1006" y="513" text-anchor="middle">4 · Desktop ready</text><text class="s" x="1006" y="541" text-anchor="middle">Finalization must succeed</text><text class="s" x="1006" y="562" text-anchor="middle">Explorer ready; no OOBE process</text><text class="s" x="1006" y="583" text-anchor="middle">Create the desktop-ready marker</text><text class="port" x="1006" y="611" text-anchor="middle">windows-desktop-ready</text>
               <rect class="card client" x="1158" y="480" width="188" height="166" rx="14"/><text class="t i" x="1252" y="513" text-anchor="middle">5 · Evidence</text><text class="s" x="1252" y="541" text-anchor="middle">Activity / Fleet</text><text class="s" x="1252" y="562" text-anchor="middle">Validation Evidence</text><text class="s" x="1252" y="583" text-anchor="middle">System Log</text><text class="s" x="1252" y="604" text-anchor="middle">client-local logs</text>
               <path class="arrow" d="M302 563H328"/><path class="arrow" d="M578 563H604"/><path class="arrow" d="M854 563H880"/><path class="arrow" d="M1130 563H1156"/><path class="data" d="M157 408V478"/><path class="data" d="M389 408V455H178V478"/><path class="data" d="M621 408V452H454V478"/><path class="data" d="M853 408V446H454V478"/><path class="data" d="M1085 408V440H454V478"/><path class="data" d="M1280 408V434H454V478"/><path class="status-line" d="M1006 646V690H621V410"/><path class="status-line" d="M1252 646V700H811V232"/>
-              <rect class="note" x="54" y="714" width="1292" height="102" rx="12"/>
+              <rect class="note" x="54" y="714" width="1292" height="124" rx="12"/>
               <text class="t i" x="76" y="743">Critical interpretation</text>
-              <text class="warn" x="76" y="769">• Secure Boot loads WinPE through Windows Boot Manager and TFTP; only iPXE fallback uses HTTP wimboot.</text>
+              <text class="warn" x="76" y="769">• Host `/api/boot-mode` is only secureboot (bootmgfw / TFTP) or ipxe (snponly / HTTP wimboot). Client Secure Boot and TPM are independent firmware axes.</text>
               <text class="warn" x="76" y="791">• Torrent telemetry is observational and is excluded from deployment status JSONL; SHA-256 and deployment events remain authoritative.</text>
-              <text class="warn" x="76" y="813">• Success requires windows-desktop-ready and finalization without errors or timeouts.</text>
+              <text class="warn" x="76" y="813">• Success requires windows-desktop-ready. Windows 11 is CurrentBuild ≥ 22000; ProductName may still read Windows 10 Pro.</text>
             </svg>
           </div>
         </section>

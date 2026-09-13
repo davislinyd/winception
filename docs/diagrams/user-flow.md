@@ -12,4 +12,6 @@
 - **第一道閘門（步驟 8）**：`Run preflight` 只要有 blocking failure，就不要啟動 DHCP，也不要讓 client PXE 開機 —— 回頭修正後重跑。
 - **第二道閘門（步驟 9 前）**：必須先確認部署網段的 DHCP mode 選擇正確，才按 `Start services` / `Start all services`。
 - 目標電腦從 `UEFI IPv4 PXE` 開機，不使用 USB/ISO、不手動點 OOBE；最終狀態應到 `windows-desktop-ready`。
+- 主機 `bootMode` 只選 PXE 鏈：`secureboot`（`bootmgfw.efi`，client Secure Boot 可保持 On）或 `ipxe`（`snponly.efi`，client Secure Boot 必須 Off）。TPM 是目標電腦韌體，不由 `/api/boot-mode` 設定。
+- 完成判定看 Explorer、desktop marker、無 OOBE，以及 `CurrentBuild` ≥ 22000。登錄檔 `ProductName` 可能仍顯示 Windows 10 Pro。
 - 詳細的子系統架構與資料流見 [technical-flow.md](technical-flow.md)。

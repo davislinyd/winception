@@ -4,9 +4,9 @@
 
 Mode All e (commit `71fee78`) is green on Internal AutoLab `192.168.177.1`. Four rounds / seven deployments reached `windows-desktop-ready` with profile `IZVZO7PU`, `windowsFamily=Windows 11` build `26200` / `25H2`, matching guest Secure Boot/TPM pairs, separate round `hostFirmware`, and successful cleanup. Registry `productName` stayed `Windows 10 Pro` and is accepted by build. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913e`. Five VMs are Off with resting firmware (`01..04` SB On + TPM On; iPXE SB Off + TPM Off). Deployment services are stopped; host `bootMode=secureboot`. ICS/Default Switch was not touched. This is not physical-laptop or production DHCP evidence.
 
-Do not push unless the user asks. Next work is physical UEFI IPv4 PXE on the Web-selected live endpoint after confirming LAN DHCP is disabled for the test window. Re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
+The user requested a documentation/diagram update and an explicit **push to origin/master**. That may start `.github/workflows/lab-deploy.yml` on the dedicated AutoLab runner. Next product work after the push is physical UEFI IPv4 PXE on the Web-selected live endpoint after confirming LAN DHCP is disabled for the test window. Re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
 
-Chinese summary: 本機 `master` 相對 `origin/master` 超前；最新修復 `71fee78`，**不要 push**。Mode All e 四輪 / 七部署與 cleanup 已綠燈。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。下一優先是實體 PXE。
+Chinese summary: 本機 `master` 最新修復 `71fee78`，Mode All e 四輪 / 七部署與 cleanup 已綠燈。使用者已要求 **push**。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。push 之後下一優先是實體 PXE。
 
 ## Workspace
 
@@ -22,6 +22,7 @@ Chinese summary: 本機 `master` 相對 `origin/master` 超前；最新修復 `7
 Unpushed commits, newest first:
 
 ```text
+a88ca4a docs: record AutoLab Mode All e four-round green
 71fee78 fix: guard Lab firmware BootType reads and require Windows 11 by build
 0c96975 docs: hand off Mode All cleanup failure
 b04c6e8 fix: bound client progress lock retries and reject incomplete finalization
@@ -41,7 +42,7 @@ a5a9a84 fix: require elevation and restore npm modules during HostTools reload
 3ec1f53 feat: add Guided and Console operator modes to the Web UI
 ```
 
-Do not push unless the user asks. A push to master may start `.github/workflows/lab-deploy.yml` on a `self-hosted, windows, hyperv, winception-lab` runner.
+A push to master may start `.github/workflows/lab-deploy.yml` on a `self-hosted, windows, hyperv, winception-lab` runner. The user requested this push.
 
 ## What is done
 
@@ -101,9 +102,8 @@ After Mode All e cleanup on 2026-09-14 ~00:15 +08:
 
 ## Open work (priority)
 
-1. **Do not push** until the user asks.
-2. **Physical UEFI IPv4 PXE** on the Web-selected live endpoint. VM green is not physical evidence. Confirm LAN DHCP is disabled for the test window before starting DHCP.
-3. Optional later: signed `bootmgfw.efi` + client Secure Boot **Off** to desktop-ready (WinPE-only evidence exists from 2026-06-12).
+1. **Physical UEFI IPv4 PXE** on the Web-selected live endpoint. VM green is not physical evidence. Confirm LAN DHCP is disabled for the test window before starting DHCP.
+2. Optional later: signed `bootmgfw.efi` + client Secure Boot **Off** to desktop-ready (WinPE-only evidence exists from 2026-06-12).
 
 ## How to run Lab
 
