@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Lab firmware restore inspects BootOrder property existence before reading `BootType` or `Device.Id`, so a transient or malformed Hyper-V boot entry after checkpoint restore cannot fail cleanup under StrictMode. Round evidence now includes a separate `hostFirmware` object. Guest Windows 11 acceptance uses `CurrentBuild` >= 22000; registry `ProductName` may still say Windows 10 Pro on a 25H2 image.
+
 - Client progress JSON replacement retries only Windows sharing/lock violations for at most two seconds. Finalization fails closed on absent/failed progress or missing sequence summary instead of reporting installer success when Windows PowerShell loses ExitCode.
 
 - Lab checkpoint cleanup stops all target VMs before restore, continues later VMs after a failure, and stays fail-closed. Firmware restore waits for a stable matching Network boot source, uses the firmware source instead of a raw adapter, verifies the resting role, and preserves targeted failure diagnostics.

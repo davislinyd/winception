@@ -45,6 +45,110 @@ function Get-OptionalProperty {
     return $null
 }
 
+function ConvertTo-ObjectList {
+    param($Value)
+
+    $list = New-Object System.Collections.Generic.List[object]
+    if ($null -eq $Value) {
+        return ,$list
+    }
+    if ($Value -is [string]) {
+        $list.Add($Value)
+        return ,$list
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        foreach ($item in $Value) {
+            $list.Add($item)
+        }
+        return ,$list
+    }
+    $list.Add($Value)
+    ,$list
+}
+
+function Get-FirmwareBootOrderEntries {
+    param($Firmware)
+
+    if ($null -eq $Firmware) {
+        return ,(New-Object System.Collections.Generic.List[object])
+    }
+    ConvertTo-ObjectList -Value (Get-OptionalProperty -Object $Firmware -Name 'BootOrder')
+}
+
+function Get-FirmwareBootType {
+    param($Entry)
+
+    if ($null -eq $Entry) {
+        return ''
+    }
+    [string] (Get-OptionalProperty -Object $Entry -Name 'BootType')
+}
+
+function Get-FirmwareBootDeviceId {
+    param($Entry)
+
+    if ($null -eq $Entry) {
+        return ''
+    }
+    $device = Get-OptionalProperty -Object $Entry -Name 'Device'
+    if ($null -eq $device) {
+        return ''
+    }
+    [string] (Get-OptionalProperty -Object $device -Name 'Id')
+}
+
+function Get-FirmwareNetworkBootSource {
+    param($BootOrder)
+
+    foreach ($entry in (ConvertTo-ObjectList -Value $BootOrder)) {
+        if ((Get-FirmwareBootType -Entry $entry) -eq 'Network') {
+            return $entry
+        }
+    }
+    $null
+}
+
+function Test-FirmwareNetworkFirst {
+    param($BootOrder)
+
+    $entries = ConvertTo-ObjectList -Value $BootOrder
+    if ($entries.Count -eq 0) {
+        return $false
+    }
+    (Get-FirmwareBootType -Entry $entries[0]) -eq 'Network'
+}
+
+function Convert-FirmwareBootOrderEvidence {
+    param($BootOrder)
+
+    $records = New-Object System.Collections.Generic.List[object]
+    foreach ($entry in (ConvertTo-ObjectList -Value $BootOrder)) {
+        $description = ''
+        if ($null -ne $entry) {
+            $description = [string] (Get-OptionalProperty -Object $entry -Name 'Description')
+        }
+        $records.Add([ordered]@{
+            bootType = Get-FirmwareBootType -Entry $entry
+            description = $description
+            deviceId = Get-FirmwareBootDeviceId -Entry $entry
+        })
+    }
+    ,$records
+}
+
+function Get-WindowsFamilyFromBuild {
+    param([string] $CurrentBuild)
+
+    $buildNumber = 0
+    if (-not [int]::TryParse($CurrentBuild, [ref] $buildNumber)) {
+        return ''
+    }
+    if ($buildNumber -ge 22000) {
+        return 'Windows 11'
+    }
+    'Windows 10'
+}
+
 function Get-RequiredProperty {
     param(
         [Parameter(Mandatory)] $Object,
@@ -1020,16 +1124,16 @@ function Set-VmFirmwareMode {
     }
     Set-LabVmTpmEnabled -VmName $VmName -Enabled $Tpm
     $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
-    $bootOrder = @($firmware.BootOrder)
-    if ($bootOrder.Count -eq 0 -or [string] $bootOrder[0].BootType -ne 'Network') {
-        $networkSource = $bootOrder | Where-Object { [string] $_.BootType -eq 'Network' } | Select-Object -First 1
+    $bootOrder = Get-FirmwareBootOrderEntries -Firmware $firmware
+    if (-not (Test-FirmwareNetworkFirst -BootOrder $bootOrder)) {
+        $networkSource = Get-FirmwareNetworkBootSource -BootOrder $bootOrder
         if (-not $networkSource) { throw "$VmName has no Network firmware boot source." }
         $adapter = Get-VMNetworkAdapter -VMName $VmName -ErrorAction Stop | Select-Object -First 1
-        if ([string] $networkSource.Device.Id -ne [string] $adapter.Id) { throw "$VmName firmware Network source does not match its current adapter." }
+        if ((Get-FirmwareBootDeviceId -Entry $networkSource) -ne [string] $adapter.Id) { throw "$VmName firmware Network source does not match its current adapter." }
         Set-VMFirmware -VMName $VmName -FirstBootDevice $networkSource -ErrorAction Stop
     }
     $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
-    if ([string] $firmware.BootOrder[0].BootType -ne 'Network') { throw "$VmName is not Network-first after firmware apply." }
+    if (-not (Test-FirmwareNetworkFirst -BootOrder (Get-FirmwareBootOrderEntries -Firmware $firmware))) { throw "$VmName is not Network-first after firmware apply." }
 }
 
 function Restore-LabCheckpoint {
@@ -1058,8 +1162,8 @@ function Restore-LabCheckpoint {
                 $vm = Get-VM -Name $vmName -ErrorAction Stop
                 $firmware = Get-VMFirmware -VMName $vmName -ErrorAction Stop
                 $adapter = Get-VMNetworkAdapter -VMName $vmName -ErrorAction Stop | Select-Object -First 1
-                $network = $firmware.BootOrder | Where-Object { [string] $_.BootType -eq 'Network' } | Select-Object -First 1
-                if ($network -and [string] $vm.State -eq 'Off' -and [string] $network.Device.Id -eq [string] $adapter.Id) {
+                $network = Get-FirmwareNetworkBootSource -BootOrder (Get-FirmwareBootOrderEntries -Firmware $firmware)
+                if ($network -and [string] $vm.State -eq 'Off' -and (Get-FirmwareBootDeviceId -Entry $network) -eq [string] $adapter.Id) {
                     if ($previousSource -eq [string] $adapter.Id) { $settled = $true; break }
                     $previousSource = [string] $adapter.Id
                 } else { $previousSource = '' }
@@ -1085,7 +1189,7 @@ function Restore-LabCheckpoint {
                         vmName = $vmName
                         error = $failureMessage
                         stage = 'checkpoint-restore-and-firmware'
-                        bootOrder = @(Get-VMFirmware -VMName $vmName | Select-Object -ExpandProperty BootOrder | Select-Object BootType,Description,@{Name='deviceId';Expression={ if ($_.Device) { [string] $_.Device.Id } }})
+                        bootOrder = Convert-FirmwareBootOrderEvidence -BootOrder (Get-FirmwareBootOrderEntries -Firmware (Get-VMFirmware -VMName $vmName -ErrorAction SilentlyContinue))
                         adapterIds = @(Get-VMNetworkAdapter -VMName $vmName | Select-Object -ExpandProperty Id)
                         vmms = @(Get-WinEvent -FilterHashtable @{ LogName='Microsoft-Windows-Hyper-V-VMMS-Admin'; StartTime=$startedAt } -ErrorAction SilentlyContinue | Where-Object { $_.Message -like "*$vmName*" } | Select-Object TimeCreated,Id,Message)
                     } | Out-Null
@@ -1211,9 +1315,9 @@ function Get-GuestEvidence {
                         Get-Process -Name explorer -ErrorAction SilentlyContinue
                     ).Count -gt 0
                     oobeProcesses = @($oobe | Select-Object -ExpandProperty ProcessName)
-                    displayVersion = [string] $currentVersion.DisplayVersion
-                    currentBuild = [string] $currentVersion.CurrentBuild
-                    productName = [string] $currentVersion.ProductName
+                    displayVersion = [string] (Get-RemoteValue -Value $currentVersion -Names @('DisplayVersion', 'ReleaseId') -Default '')
+                    currentBuild = [string] (Get-RemoteValue -Value $currentVersion -Names @('CurrentBuild', 'CurrentBuildNumber') -Default '')
+                    productName = [string] (Get-RemoteValue -Value $currentVersion -Names @('ProductName') -Default '')
                     profileId = [string] (Get-RemoteValue -Value $status -Names @('profileId', 'selectedProfileId') -Default (Get-RemoteValue -Value $progress -Names @('profileId', 'selectedProfileId') -Default (Get-RemoteValue -Value $profile -Names @('profileId') -Default '')))
                     installSteps = $steps
                     progressStatus = [string] (Get-RemoteValue -Value $progress -Names @('status') -Default '')
@@ -1233,6 +1337,8 @@ function Get-GuestEvidence {
                 $firmware = Get-VMFirmware -VMName $VmName
                 $security = Get-VMSecurity -VMName $VmName -ErrorAction Stop
                 $result = [pscustomobject] $result
+                $result | Add-Member -NotePropertyName vmName -NotePropertyValue $VmName -Force
+                $result | Add-Member -NotePropertyName windowsFamily -NotePropertyValue (Get-WindowsFamilyFromBuild -CurrentBuild ([string] $result.currentBuild)) -Force
                 $result | Add-Member -NotePropertyName hostSecureBoot -NotePropertyValue ([string] $firmware.SecureBoot) -Force
                 $result | Add-Member -NotePropertyName hostSecureBootTemplate -NotePropertyValue ([string] $firmware.SecureBootTemplate) -Force
                 $result | Add-Member -NotePropertyName hostTpmEnabled -NotePropertyValue ([bool] $security.TpmEnabled) -Force
@@ -1260,8 +1366,14 @@ function Assert-GuestEvidence {
     if (-not $Evidence.desktopReadyFile -or -not $Evidence.explorerRunning -or @($Evidence.oobeProcesses).Count -gt 0) {
         throw "Guest evidence failed desktop/OOBE gate: $($Evidence.computerName)"
     }
-    if ([string]::IsNullOrWhiteSpace([string] $Evidence.currentBuild) -or [string]::IsNullOrWhiteSpace([string] $Evidence.productName)) {
+    if ([string]::IsNullOrWhiteSpace([string] $Evidence.currentBuild) -or
+        [string]::IsNullOrWhiteSpace([string] $Evidence.productName) -or
+        [string]::IsNullOrWhiteSpace([string] $Evidence.displayVersion)) {
         throw "Guest evidence is missing Windows version data: $($Evidence.computerName)"
+    }
+    $windowsFamily = Get-WindowsFamilyFromBuild -CurrentBuild ([string] $Evidence.currentBuild)
+    if ($windowsFamily -ne 'Windows 11' -or [string] (Get-OptionalProperty -Object $Evidence -Name 'windowsFamily') -ne 'Windows 11') {
+        throw "Guest is not Windows 11 (build $($Evidence.currentBuild), product $($Evidence.productName)): $($Evidence.computerName)"
     }
     if (-not [string]::IsNullOrWhiteSpace($ExpectedProfileId) -and
         [string] $Evidence.profileId -ne $ExpectedProfileId) {
@@ -1437,6 +1549,20 @@ function Invoke-LabRound {
         if ($BootMode -eq 'ipxe') {
             Assert-IpxeArtifacts | Out-Null
         }
+        $guestRecords = ConvertTo-ObjectList -Value $guest
+        $hostFirmware = New-Object System.Collections.Generic.List[object]
+        foreach ($item in $guestRecords) {
+            $hostFirmware.Add([ordered]@{
+                vmName = [string] (Get-OptionalProperty -Object $item -Name 'vmName')
+                hostSecureBoot = [string] (Get-OptionalProperty -Object $item -Name 'hostSecureBoot')
+                hostSecureBootTemplate = [string] (Get-OptionalProperty -Object $item -Name 'hostSecureBootTemplate')
+                hostTpmEnabled = [bool] (Get-OptionalProperty -Object $item -Name 'hostTpmEnabled')
+            })
+        }
+        $missingHostFirmware = ConvertTo-ObjectList -Value ($hostFirmware | Where-Object { [string]::IsNullOrWhiteSpace([string] $_.vmName) })
+        if ($hostFirmware.Count -ne $VmNames.Count -or $missingHostFirmware.Count -gt 0) {
+            throw 'Host firmware evidence is incomplete.'
+        }
         $round = [ordered]@{
             roundId = $RoundId
             bootMode = $BootMode
@@ -1444,7 +1570,8 @@ function Invoke-LabRound {
             tpm = $Tpm
             vmNames = $VmNames
             fleet = @($fleet)
-            guest = @($guest.ToArray())
+            guest = $guestRecords
+            hostFirmware = $hostFirmware
             preflight = [ordered]@{
                 cli = $cliPreflight
                 api = $apiPreflight

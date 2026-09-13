@@ -1,5 +1,7 @@
 # Deployment Test Result
 
+2026-09-13 21:11 +08 — Mode All d (source `b04c6e8`) first Secure Boot On + TPM On round reached 4/4 `windows-desktop-ready` (profile `IZVZO7PU`, four succeeded install steps, Explorer, no OOBE, build `26200` / `25H2`). Cleanup then failed on all four checkpoint restores: StrictMode `BootType` missing on a `Get-VMFirmware.BootOrder` entry. Guest `productName` was `Windows 10 Pro` while build/displayVersion were Windows 11 25H2; that registry value is stale and is not a Windows 10 result. Source now guards BootOrder property existence, records round `hostFirmware`, and fail-closes Windows 11 on `CurrentBuild` >= 22000. Five VMs Off and deployment services stopped. Fresh Mode All after reload is still required. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913d`.
+
 2026-09-13 20:27 +08 — Mode All c (source b68f554) cancelled after active guest checks found autolab-02 progress failed while Fleet showed setupcomplete-finished. Chrome succeeded; File.Replace of deployment-progress.json failed because another process held the file, leaving runner_error and no sequence summary. Three other clients reached desktop-ready, not a complete Mode All pass. Source/App/WinPE marker fingerprints matched before boot; WinPE network preparation completed on all four. Five VMs Off and deployment services stopped after cancellation. Bounded sharing-violation retry and fail-closed finalizer verification require a fresh full regression.
 
 ## Mode All 整合驗證修復中（2026-09-13）

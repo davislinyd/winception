@@ -2,17 +2,13 @@
 
 ## Active continuation — Mode All repair
 
-Mode All d (commit `b04c6e8`) ran after the bounded progress-lock/finalizer repair, formal reload, published WinPE hash sync, and ValidateOnly all passed. The first Secure Boot On + TPM On round deployed all four VMs to `windows-desktop-ready`; each guest had profile `IZVZO7PU`, four succeeded install steps, Explorer, no OOBE, Windows build `26200` / `25H2`, and matching guest Secure Boot/TPM. The run still failed during cleanup: all four checkpoint restores reported `在此物件上找不到屬性 'BootType'` and the round did not save host firmware evidence as a separate object. The likely source defect is strict property access while reading a transient/malformed `Get-VMFirmware.BootOrder` entry after snapshot restore; inspect and normalize property existence before reading `BootType` (do not weaken ACLs). Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913d\round-secureboot-tpm-on.json` and `result.json`. Five VMs are now Off, deployment services are stopped, host boot mode is `secureboot`, and ICS/Default Switch was not touched. This is not a green Mode All result.
+Source now guards `Get-VMFirmware.BootOrder` property existence before reading `BootType` or `Device.Id`, skips transient/malformed entries, and keeps collections as lists so a single boot entry cannot unwrap under StrictMode. Round JSON writes a separate `hostFirmware` object. Guest Windows 11 acceptance is `CurrentBuild` >= 22000 / `windowsFamily=Windows 11`; registry `ProductName` `Windows 10 Pro` on build `26200` / `25H2` is the known stale CurrentVersion value, not a Windows 10 result. Lab tests 16/16; full `npm test` 451 pass / 3 skip; `check` and `smoke` pass. No ACL changes.
 
-The d-round guest records report `productName` as `Windows 10 Pro` while build/displayVersion are `26200`/`25H2`; treat this as an additional acceptance-data discrepancy to explain or fail closed before claiming the required Windows 11 result.
+Mode All d (commit `b04c6e8`) first Secure Boot On + TPM On round reached 4/4 `windows-desktop-ready` (profile `IZVZO7PU`, four succeeded install steps, Explorer, no OOBE, build `26200` / `25H2`) then failed cleanup with `在此物件上找不到屬性 'BootType'` on all four restores. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913d`. Five VMs are Off, deployment services are stopped, host boot mode was last `secureboot`. This is not a green Mode All result.
 
-Run b was cancelled at 19:14 +08 after autolab-01 stalled between torrent metadata and networking telemetry. Cleanup still failed at FirstBootDevice and left autolab-04 Running. The remaining VM has now been stopped; all five are Off. VMMS also logged VHDX Access denied, but current ACLs already contain VM/SYSTEM grants and no denies; do not assume causation or loosen State ACLs. Source now separates all stops from per-VM restore, aggregates failures, waits for stable matching firmware Network sources, and verifies restored roles. Lab behavioral tests 14/14 pass; full checks, commit, live cleanup, formal reload, and a fresh complete Mode All remain required.
+The user explicitly approved the repair plan and Mode All until green with active per-client inspection. Next: commit this source, elevated `npm run reload`, Endpoint Sync, ValidateOnly, then one Internal AutoLab `Mode All` (four SB+TPM On, iPXE both off, both corners). Do not push. Physical PXE remains separate. Re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
 
-The user explicitly approved the repair plan and Mode All until green with active per-client inspection. Commits 81b01c7 and 4cd44fb fix guest profile/firmware evidence and bound WinPE network commands; b04c6e8 fixes progress-file sharing races and finalizer fail-closed behavior. Source/App/published WinPE template hash was verified as `8129E5E2A656B4AE9998B0A8FCE94F28F32D6B8F05DE0AAE1F98867B340E4377` before d. No direct runtime edits, push, release, rebuild, or global ACL repair. Physical PXE remains separate.
-
-Read this after `AGENTS.md` startup checks. It is the continuation brief for the 2026-09-12/13 work on Web operator modes, HostTools reload, and AutoLab Secure Boot × TPM. Do not treat it as live production truth; re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
-
-Chinese summary: 本機 `master` 相對 `origin/master` 超前 15 個 commit，最新修復 commit 為 `b04c6e8`，**不要 push**。Mode All d 的四台首輪 guest 部署成功，但 cleanup 因 `BootType` property error 失敗；五台目前全 Off、部署服務停止，完整 4 輪 / 7 部署仍未通過。下一步先修復並測試 firmware BootOrder property guard，再用新 evidence 目錄正式 reload、Endpoint Sync、ValidateOnly，重跑四輪。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。實體 PXE 不在本輪驗收內。
+Chinese summary: 本機 `master` 相對 `origin/master` 超前 16+；**不要 push**。BootType StrictMode cleanup 缺陷已修並通過 Lab/全量測試。Mode All d 首輪 4/4 desktop-ready 但清理失敗，完整 4 輪 / 7 部署仍未通過。下一步正式 reload、Endpoint Sync、ValidateOnly，重跑四輪。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。實體 PXE 不在本輪驗收內。
 
 ## Workspace
 
@@ -22,12 +18,14 @@ Chinese summary: 本機 `master` 相對 `origin/master` 超前 15 個 commit，�
 | Installed Web console | `C:\OSDCloud\HostTools\App` — live `:8080` |
 | Host-only state | `C:\OSDCloud\HostTools\State` |
 | Runtime | `C:\OSDCloud` (never patch by hand) |
-| Branch | `master`, ahead 15; latest repair commit `b04c6e8`; preserve untracked `.ai/` |
+| Branch | `master`, ahead of origin; latest repair is the BootType/Windows 11 build guard; preserve untracked `.ai/` |
 | Product version | `1.1.0` on origin; local commits are unreleased |
 
 Unpushed commits, newest first:
 
 ```text
+(this commit) fix: guard Lab firmware BootType reads and require Windows 11 by build
+0c96975 docs: hand off Mode All cleanup failure
 b04c6e8 fix: bound client progress lock retries and reject incomplete finalization
 b68f554 fix: restore all Lab VMs using current firmware boot sources
 4cd44fb fix: bound WinPE torrent network preparation commands
@@ -106,8 +104,8 @@ After FirmwareCorners cleanup on 2026-09-13 ~12:47 +08:
 ## Open work (priority)
 
 1. **Do not push** until the user asks.
-2. Finish current cleanup-source checks/commit, verify all five restore, formally reload App and sync WinPE fingerprints.
-3. **One `Mode All` job** on Internal AutoLab only — four SB+TPM On in parallel, iPXE both off, then both corners — if the user wants a single-run contract. Wall clock is longer; stay on `192.168.177.0/24`; timeout 180 minutes in `lab-deploy.yml`.
+2. Elevated `npm run reload`, Endpoint Sync, ValidateOnly, then verify all five VMs restore with the BootType guard.
+3. **One `Mode All` job** on Internal AutoLab only — four SB+TPM On in parallel, iPXE both off, then both corners. Stay on `192.168.177.0/24`; timeout 180 minutes in `lab-deploy.yml`.
 4. **Physical UEFI IPv4 PXE** on the Web-selected live endpoint. VM green is not physical evidence. Confirm LAN DHCP is disabled for the test window before starting DHCP.
 5. Optional later: signed `bootmgfw.efi` + client Secure Boot **Off** to desktop-ready (WinPE-only evidence exists from 2026-06-12).
 

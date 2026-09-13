@@ -50,7 +50,7 @@ function runLabPowerShell(functionNames, command) {
 }
 
 test('Lab guest evidence persists host firmware and requires the published guest profile', () => {
-  const output = runLabPowerShell(['Get-GuestEvidence', 'Assert-GuestEvidence'], `
+  const output = runLabPowerShell(['Get-GuestEvidence', 'Assert-GuestEvidence', 'Get-WindowsFamilyFromBuild', 'Get-OptionalProperty'], `
     function New-PSSession { [CmdletBinding()] param($VmName, $Credential) [pscustomobject]@{ vm = $VmName } }
     function Remove-PSSession { [CmdletBinding()] param($Session) }
     function Invoke-Command { param($Session, $ArgumentList, $ScriptBlock) & $ScriptBlock @ArgumentList }
@@ -64,7 +64,7 @@ test('Lab guest evidence persists host firmware and requires the published guest
         default { throw 'Unexpected guest path.' }
       }
     }
-    function Get-ItemProperty { [CmdletBinding()] param($Path) [pscustomobject]@{ DisplayVersion='25H2'; CurrentBuild='26200'; ProductName='Windows 11' } }
+    function Get-ItemProperty { [CmdletBinding()] param($Path) [pscustomobject]@{ DisplayVersion='25H2'; CurrentBuild='26200'; ProductName='Windows 10 Pro' } }
     function Get-Process { [CmdletBinding()] param($Name) if ($Name -contains 'explorer') { [pscustomobject]@{ ProcessName='explorer' } } }
     function Confirm-SecureBootUEFI { $true }
     function Get-Tpm { [pscustomobject]@{ TpmPresent=$true; TpmReady=$true; TpmEnabled=$true; TpmActivated=$true } }
@@ -84,13 +84,58 @@ test('Lab guest evidence persists host firmware and requires the published guest
       catch { if ($_.Exception.Message -notlike '*profile*') { throw }; $rejected = $true }
       if (-not $rejected) { throw 'Missing or mismatched guest profile was accepted.' }
     }
+    $persisted.profileId = 'test-profile'
+    $persisted.currentBuild = '19045'
+    $persisted.windowsFamily = 'Windows 10'
+    $rejectedBuild = $false
+    try { Assert-GuestEvidence -Evidence $persisted -ExpectedProfileId 'test-profile' -ExpectedSecureBoot $true -ExpectedTpm $true }
+    catch { if ($_.Exception.Message -notlike '*Windows 11*') { throw }; $rejectedBuild = $true }
+    if (-not $rejectedBuild) { throw 'Windows 10 build was accepted as Windows 11.' }
     $json
   `);
   const evidence = JSON.parse(output);
   assert.equal(evidence.profileId, 'test-profile');
+  assert.equal(evidence.vmName, 'test-vm');
+  assert.equal(evidence.productName, 'Windows 10 Pro');
+  assert.equal(evidence.currentBuild, '26200');
+  assert.equal(evidence.windowsFamily, 'Windows 11');
   assert.equal(evidence.hostSecureBoot, 'On');
   assert.equal(evidence.hostSecureBootTemplate, 'MicrosoftWindows');
   assert.equal(evidence.hostTpmEnabled, true);
+});
+
+test('Lab round persists host firmware as a separate object', () => {
+  const output = runLabPowerShell(['Invoke-LabRound', 'Get-OptionalProperty', 'ConvertTo-ObjectList'], `
+    function Restore-LabCheckpoint { param($VmNames, $RoundFirmware) }
+    function Set-ConsoleMode { param($BootMode) }
+    function Set-ConsoleEndpoint { }
+    function Set-ConsoleDhcpServerMode { }
+    function Invoke-ServerPreflight { @{ ok=$true } }
+    function Invoke-ApiPreflight { @{ ok=$true } }
+    function Clear-DeploymentStatus { }
+    function Start-LabServices { }
+    function Stop-LabServices { }
+    function Start-LabVms { param($VmNames) }
+    function Wait-FleetCompletion { param($VmNames, $TimeoutMinutes) @([pscustomobject]@{ runId='test-run' }) }
+    function Get-GuestEvidence { param($VmName, $Credential) [pscustomobject]@{ runId='test-run'; vmName=$VmName; hostSecureBoot='On'; hostSecureBootTemplate='MicrosoftWindows'; hostTpmEnabled=$true } }
+    function Assert-GuestEvidence { param($Evidence, $ExpectedProfileId, $ExpectedSecureBoot, $ExpectedTpm) }
+    function Write-Evidence { param($Name, $Value) $script:written = $Value }
+    $script:Config = @{ timeouts=@{ deploymentMinutes=1 } }
+    $script:CleanupErrors = New-Object System.Collections.Generic.List[string]
+    $credential = [pscredential]::new('test-user', [System.Security.SecureString]::new())
+    Invoke-LabRound -RoundId 'test-round' -BootMode 'secureboot' -VmNames @('test-vm') -SecureBoot $true -Tpm $true -Credential $credential -ProfileId 'test-profile' | Out-Null
+    ConvertTo-Json -InputObject $script:written -Depth 6 -Compress
+  `);
+  const round = JSON.parse(output.slice(output.indexOf('{')));
+  const hostFirmware = [].concat(round.hostFirmware);
+  const guest = [].concat(round.guest);
+  assert.equal(round.roundId, 'test-round');
+  assert.equal(hostFirmware.length, 1);
+  assert.equal(hostFirmware[0].vmName, 'test-vm');
+  assert.equal(hostFirmware[0].hostSecureBoot, 'On');
+  assert.equal(hostFirmware[0].hostSecureBootTemplate, 'MicrosoftWindows');
+  assert.equal(hostFirmware[0].hostTpmEnabled, true);
+  assert.equal(guest[0].vmName, 'test-vm');
 });
 
 test('Lab round fails when checkpoint cleanup fails', () => {
@@ -120,8 +165,20 @@ test('Lab round fails when checkpoint cleanup fails', () => {
   `);
 });
 
+const firmwareHelpers = [
+  'Get-OptionalProperty',
+  'ConvertTo-ObjectList',
+  'Get-FirmwareBootOrderEntries',
+  'Get-FirmwareBootType',
+  'Get-FirmwareBootDeviceId',
+  'Get-FirmwareNetworkBootSource',
+  'Test-FirmwareNetworkFirst',
+  'Convert-FirmwareBootOrderEvidence',
+  'Set-VmFirmwareMode',
+];
+
 test('Lab firmware keeps an already-first network boot device after checkpoint restore', () => {
-  runLabPowerShell(['Set-VmFirmwareMode'], `
+  runLabPowerShell(firmwareHelpers, `
     function Set-VMFirmware { [CmdletBinding()] param($VmName, $EnableSecureBoot, $SecureBootTemplate, $VM, $FirstBootDevice) if ($FirstBootDevice) { throw 'Redundant boot-device update.' } }
     function Set-LabVmTpmEnabled { param($VmName, $Enabled) }
     function Get-VMFirmware { [CmdletBinding()] param($VmName) [pscustomobject]@{ BootOrder=@([pscustomobject]@{ BootType='Network' }) } }
@@ -131,7 +188,7 @@ test('Lab firmware keeps an already-first network boot device after checkpoint r
 });
 
 test('Lab firmware moves a matching firmware Network source first, not a raw adapter', () => {
-  runLabPowerShell(['Set-VmFirmwareMode'], `
+  runLabPowerShell(firmwareHelpers, `
     $script:source=[pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id='current-adapter' } }
     $script:moved=$false
     function Get-VMFirmware { [CmdletBinding()] param($VmName) if ($script:moved) { $order=@($script:source) } else { $order=@([pscustomobject]@{ BootType='File' },$script:source) }; [pscustomobject]@{ BootOrder=$order } }
@@ -148,15 +205,35 @@ test('Lab firmware moves a matching firmware Network source first, not a raw ada
   `);
 });
 
+test('Lab firmware skips BootOrder entries that lack BootType', () => {
+  const output = runLabPowerShell(firmwareHelpers, `
+    $script:source=[pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id='current-adapter' } }
+    $script:moved=$false
+    function Get-VMFirmware { [CmdletBinding()] param($VmName) if ($script:moved) { $order=@($script:source) } else { $order=@([pscustomobject]@{ Description='pending' }, $null, $script:source) }; [pscustomobject]@{ BootOrder=$order } }
+    function Get-VMNetworkAdapter { [CmdletBinding()] param($VmName) [pscustomobject]@{ Id='current-adapter' } }
+    function Set-LabVmTpmEnabled { param($VmName,$Enabled) }
+    function Set-VMFirmware { [CmdletBinding()] param($VmName,$EnableSecureBoot,$SecureBootTemplate,$FirstBootDevice) if ($FirstBootDevice) { if (-not [object]::ReferenceEquals($FirstBootDevice,$script:source)) { throw 'Raw adapter or stale source used.' }; $script:moved=$true } }
+    Set-VmFirmwareMode -VmName 'test-vm' -SecureBoot $true -Tpm $true
+    if (-not $script:moved) { throw 'Network source behind malformed BootType entries was not moved.' }
+    ConvertTo-Json -InputObject (Convert-FirmwareBootOrderEvidence -BootOrder @([pscustomobject]@{ Description='pending' }, $null, $script:source)) -Compress
+  `);
+  const evidence = [].concat(JSON.parse(output.slice(output.indexOf('['))));
+  assert.equal(evidence[0].bootType, '');
+  assert.equal(evidence[0].description, 'pending');
+  assert.equal(evidence[1].bootType, '');
+  assert.equal(evidence[2].bootType, 'Network');
+  assert.equal(evidence[2].deviceId, 'current-adapter');
+});
+
 test('Lab restore stops all VMs first, waits for firmware, and continues after a restore failure', () => {
-  runLabPowerShell(['Restore-LabCheckpoint'], `
+  runLabPowerShell([...firmwareHelpers, 'Restore-LabCheckpoint'], `
     $script:Config=@{ checkpointName='clean'; secureBootVms=@('vm1','vm2','vm3') }
     $script:states=@{ vm1='Running'; vm2='Running'; vm3='Running' }
     $script:reads=@{}; $script:restored=@(); $script:applied=@(); $script:sleeps=0
     function Get-VM { [CmdletBinding()] param($Name) [pscustomobject]@{ State=$script:states[$Name] } }
     function Stop-VM { [CmdletBinding(SupportsShouldProcess)] param($Name,[switch]$TurnOff,[switch]$Force) $script:states[$Name]='Off' }
     function Restore-VMSnapshot { [CmdletBinding(SupportsShouldProcess)] param($VmName,$Name) if (@($script:states.Values | Where-Object { $_ -ne 'Off' }).Count) { throw 'Restore started before all stops.' }; $script:restored+=$VmName; $script:reads[$VmName]=0; if ($VmName -eq 'vm2') { throw 'Synthetic restore failure.' } }
-    function Get-VMFirmware { [CmdletBinding()] param($VmName) $script:reads[$VmName]++; $order=@(); if ($script:reads[$VmName] -gt 1) { $order=@([pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id="net-$VmName" } }) }; [pscustomobject]@{ BootOrder=$order; SecureBoot='On' } }
+    function Get-VMFirmware { [CmdletBinding()] param($VmName) $script:reads[$VmName]++; $order=@([pscustomobject]@{ Description='transient' }); if ($script:reads[$VmName] -gt 1) { $order=@([pscustomobject]@{ Description='transient' }, [pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id="net-$VmName" } }) }; [pscustomobject]@{ BootOrder=$order; SecureBoot='On' } }
     function Get-VMNetworkAdapter { [CmdletBinding()] param($VmName) [pscustomobject]@{ Id="net-$VmName" } }
     function Get-VMSecurity { [CmdletBinding()] param($VmName) [pscustomobject]@{ TpmEnabled=$true } }
     function Set-VmFirmwareMode { param($VmName,$SecureBoot,$Tpm) $script:applied+=$VmName }
