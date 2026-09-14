@@ -17,9 +17,10 @@ export function setControlsDisabled(disabled, options = {}) {
       return;
     }
     const operationAllowance = control.dataset.operationAllowed;
-    const canRemainEnabled = preserveSoftwareTestControls
+    const canRemainEnabled = (control.dataset.action === 'beginner-primary' && control.dataset.beginnerAction === 'host-progress')
+      || (preserveSoftwareTestControls
       && (operationAllowance === 'inspect'
-        || (operationAllowance === 'abort' && control.dataset.operationReady === 'true'));
+        || (operationAllowance === 'abort' && control.dataset.operationReady === 'true')));
     if (canRemainEnabled) {
       if (control.dataset.busyDisabled === 'true') {
         control.disabled = false;
