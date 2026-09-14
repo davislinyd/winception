@@ -1,8 +1,8 @@
-# Agent handoff — 2026-09-14 23:27
+# Agent handoff — 2026-09-14 23:38
 
 ## Active task — cleanup, corrected router bootstrap, expanded AutoLab
 
-User approved waiting for old runner natural timeout/cleanup, then latest installed update and one corrected bootstrap, then the full matrix. No automatic retry, master push, Release or deployment package. Physical and human acceptance remain independent. Update this brief before quota is exhausted. Latest usage five-hour75% used, weekly74% used.
+User approved waiting for old runner natural timeout/cleanup, then latest installed update and one corrected bootstrap, then the full matrix. No automatic retry, master push, Release or deployment package. Physical and human acceptance remain independent. Update this brief before quota is exhausted. Latest usage five-hour86% used (14% remaining), weekly76% used. Pausing for quota handoff per user requirement; no active installation or services.
 
 ### Source / installed evidence
 
@@ -13,11 +13,15 @@ User approved waiting for old runner natural timeout/cleanup, then latest instal
 
 ### Active failed runner — do not start another deployment
 
-- Elevated PID16072 remains active (verified elevated .ai/acceptance-bootstrap-snapshot.json at23:24). Ordinary Get-Process/CIM cannot see this elevated process. Six owned VMs Off. Services0/Fleet0/operationfalse at23:27; active test profile SE50433G proves cleanup still Pending.
+- Elevated PID16072 remains active (verified elevated .ai/acceptance-bootstrap-snapshot.json at23:38). Ordinary Get-Process/CIM cannot see this elevated process. Six owned VMs Off. Services0/Fleet0/operationfalse at23:38; active test profile SE50433G proves cleanup still Pending.
 - Bootstrap began23:06, PXE23:10: routerMAC00155D6C6580 obtained192.168.177.200; POST boot-session403 outside acceptance scope due stale pre-restore dynamic MAC. No envelope, Fleet run or installation. Services stopped via API23:11; owned router stopped Off23:12 (.ai/acceptance-router-stopped.json). Old runner waits its 60-minute Fleet deadline around9/15 00:10 then finally cleanup/sync. Keep monitoring in <=60-second waits. Do not launch another Lab or installed reload while mutex is held.
 - Approval review rejected forced process termination command with no detailed reason; do not bypass. User now explicitly chose natural timeout/cleanup. The rejected cleanup helper did not execute/create its file. Only router-stop helper ran. No further termination confirmation needed when following natural timeout.
 - Evidence: C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260914; .ai/acceptance-router-bootstrap.log/process.json. Existing result.json and process.json are STALE23:05 URI guard Blocked; do not treat them as current run evidence. Current runner files show later activity. Current State backup HostTools-State-20260914-150620-016.
 - Original state is state-after-start.json DIRECT state object, not .state. OriginalprofileIZVZO7PU; testprofileSE50433G. Restore original profile/remove test profile, endpoint177.1 Server200-250/gateway1/DNS1.1.1.1,8.8.8.8, secureboot host default, Clear Fleet, router Clean+SB/TPM and all five Clean/default firmware. Require fresh endpoint Preflight and stopped services. Cleanup failures => stop and diagnose, no next round.
+
+### Quota pause — exact continuation
+
+At23:38 elevated snapshot confirms PID16072 still active and all six VMs Off. Public API operationfalse/services0/Fleet0/profileSE50433G. The AI is no longer actively monitoring after this handoff; old runner only waits its natural timeout and finally cleanup. No forced termination/new deployment/installed mutation was attempted this turn. Corrected bootstrap and full matrix are NOT run. Next AI must first inspect new result timestamps and elevated process/VM state, never assume timeout cleanup passed. Latest Source report is commitfc48f36f1ef84da6ca611fc272a1e1112811dd1f/hashE2538248CCAF1D7EFB8512A210CD8562DA083DB3AE58D807877278D380DD1E49; subsequent changes are evidence/docs only.
 
 ### Exact next steps after natural timeout
 
