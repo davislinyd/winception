@@ -817,6 +817,33 @@ function Wait-WebConsole {
     $false
 }
 
+function Wait-ConsoleIdle {
+    param([int] $TimeoutSec = 0)
+
+    if ($TimeoutSec -le 0) {
+        $TimeoutSec = Get-ConsoleTimeoutSec
+    }
+    if (-not $script:WebBaseUri -or -not (Test-WebConsoleHealthy)) {
+        return
+    }
+    $deadline = [DateTimeOffset]::Now.AddSeconds($TimeoutSec)
+    do {
+        $state = Get-ConsoleState
+        $operation = Get-OptionalProperty -Object $state -Name 'operation'
+        $running = $false
+        if ($null -ne $operation) {
+            $running = [bool] (Get-OptionalProperty -Object $operation -Name 'running')
+        }
+        if (-not $running) {
+            return
+        }
+        if ([DateTimeOffset]::Now -ge $deadline) {
+            throw 'Web Console operation did not become idle before later cleanup.'
+        }
+        Start-Sleep -Seconds 2
+    } while ($true)
+}
+
 function Ensure-WebConsole {
     $script:WebBaseUri = Get-WebBaseUri
     $script:WebWasHealthy = Test-WebConsoleHealthy
@@ -1679,15 +1706,17 @@ function Invoke-LabCleanup {
     if ($script:Config) {try {Stop-LabRouter -Config $script:Config} catch {$script:CleanupErrors.Add('Router cleanup failed.')|Out-Null}}
     if ($script:AcceptanceProfileId) {
         try {
-            Invoke-ConsoleJson -Method POST -Path '/api/profile' -Body @{profileId=$script:AcceptanceOriginalProfile}|Out-Null
+            Invoke-ConsoleJson -Method POST -Path '/api/profile' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{profileId=$script:AcceptanceOriginalProfile}|Out-Null
             Invoke-ConsoleJson -Method POST -Path '/api/profiles/delete' -Body @{profileId=$script:AcceptanceProfileId}|Out-Null
         } catch {$script:CleanupErrors.Add('Test profile restoration failed.')|Out-Null}
+        try { Wait-ConsoleIdle } catch { $script:CleanupErrors.Add('console idle wait failed.') | Out-Null }
     }
     if ($script:AcceptanceSavedState) {
         try {
             $old=$script:AcceptanceSavedState.config
-            Invoke-ConsoleJson -Method POST -Path '/api/endpoint' -Body @{interfaceAlias=$old.adapter.interfaceAlias;ipAddress=$old.adapter.serverIp;prefixLength=$old.adapter.prefixLength;dhcpMode=$old.dhcp.dhcpMode;leaseStartIp=$old.dhcp.leaseStartIp;leaseEndIp=$old.dhcp.leaseEndIp;gateway=$old.dhcp.router;dnsServers=@($old.dhcp.dnsServers)}|Out-Null
+            Invoke-ConsoleJson -Method POST -Path '/api/endpoint' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{interfaceAlias=$old.adapter.interfaceAlias;ipAddress=$old.adapter.serverIp;prefixLength=$old.adapter.prefixLength;dhcpMode=$old.dhcp.dhcpMode;leaseStartIp=$old.dhcp.leaseStartIp;leaseEndIp=$old.dhcp.leaseEndIp;gateway=$old.dhcp.router;dnsServers=@($old.dhcp.dnsServers)}|Out-Null
         } catch {$script:CleanupErrors.Add('Endpoint restoration failed.')|Out-Null}
+        try { Wait-ConsoleIdle } catch { $script:CleanupErrors.Add('console idle wait failed.') | Out-Null }
     }
     try {
         if ($script:WebBaseUri -and (Test-WebConsoleHealthy)) {

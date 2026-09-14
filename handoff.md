@@ -1,40 +1,38 @@
-# Agent handoff — 2026-09-15 01:05
+# Agent handoff — 2026-09-15 01:20
 
-## Active task — cleanup recorded Failed; live host restored; do not start next round
+## Active task — cleanup timeout fixed in source; next is elevated installed reload
 
-Grok continued from the 23:38 quota handoff. PID16072 is gone. Fresh result exists. Recorded cleanup is **Failed**, so installed update / corrected BootstrapRouter / Mode All are **not** started. No automatic retry, master push, Release or deployment package. Physical and human acceptance remain independent.
+User approved the cleanup timeout fix, then continuation. Source now waits out a long endpoint restore instead of marking cleanup Failed at 30 seconds. No automatic retry, master push, Release or deployment package. Physical and human acceptance remain independent.
 
-### Step 1 inspection (2026-09-15 01:01–01:05 +08)
+### Source fix
 
-- PID **16072 absent**. Global mutex `Winception-AutoLab` was free (diagnostic WaitOne(0) acquired and released).
-- Fresh evidence: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260914\result.json` / `result.html` written **2026-09-15 00:11:38**. Do not use the old 23:05 URI-guard file.
-- Recorded result: `ok=false`, `status=Failed`, `cleanup=Failed`, `detail=Fleet did not reach windows-desktop-ready for 1 VM(s) within the timeout.` `cleanupErrors`: Endpoint restoration failed; secureboot default restore failed; status cleanup failed.
-- Live host after the overlapping endpoint op finished **00:12:16**: profile **IZVZO7PU** / All in One; test profile **SE50433G** file gone; endpoint `192.168.177.1/24` Server `.200–.250` gateway `.1` DNS `1.1.1.1,8.8.8.8`; `bootMode=secureboot`; HTTP/TFTP/DHCP/torrent stopped; Fleet 0; last web op completed Applying service endpoint + Preflight passed. Published Apps `selected-profile.json` is IZVZO7PU.
-- Six owned VMs Off, Winception-Clean present. Resting firmware via `Get-VMSecurity`: `01..04` SB On + TPM On + `MicrosoftWindows`; iPXE SB Off + TPM Off (4-byte dummy protector); router SB On + TPM On. Do not use `Get-VMTPM` (cmdlet missing).
+- `Invoke-LabCleanup` profile and endpoint restore pass `Get-ConsoleTimeoutSec` (preflight minutes, at least 60s).
+- New `Wait-ConsoleIdle` polls `/api/state` operation.running after those restores. Boot-mode and status cleanup run only after the console is idle, so a `boot.wim` remount cannot race them.
+- Contract tests: `labAutomation.test.js` (17) and `acceptancePowerShell.test.js` (11) Passed, including the new cleanup timeout/idle-wait case. Windows PowerShell parser accepted `Invoke-WinceptionLabRegression.ps1`.
+- Docs: CHANGELOG Unreleased, AGENTS.md, `docs/agent-reference/validation-scenarios.md`, `docs/agent-reference/deployment-paths.md`.
 
-### Why cleanup recorded Failed while the host looks restored
+### Live host (re-verify immediately before reload)
 
-Cleanup `POST /api/endpoint` uses `Invoke-ConsoleJson` **default TimeoutSec=30**. The live endpoint restore started 00:10:55, remounted `boot.wim`, and finished 00:12:16 (~81s) with Preflight passed. The 30s client timeout fired first, then `Set-ConsoleMode` and `Clear-DeploymentStatus` ran while that mutating op was still in progress. Result JSON was written 00:11:38, **before** the endpoint op completed.
+Inspected 2026-09-15 01:01–01:05 +08. Re-read API/VMs/mutex before any installed mutation.
 
-Current source still has this gap: `Set-ConsoleEndpoint` uses `Get-ConsoleTimeoutSec` (at least 60s), but `Invoke-LabCleanup` endpoint restore does not pass that timeout. Do not treat the three cleanupErrors as proof that profile/endpoint/firmware are still dirty; they are a timeout/overlap race. Also do not treat recorded Failed as `cleanupPassed`.
+- PID **16072 absent**. Mutex was free. Recorded result `cleanup=Failed` at 00:11:38 is the old 30s race; live host restored after endpoint finished 00:12:16.
+- Profile **IZVZO7PU**; **SE50433G** gone; endpoint `192.168.177.1/24` Server `.200–.250` gateway `.1` DNS `1.1.1.1,8.8.8.8`; `bootMode=secureboot`; services stopped; Fleet 0.
+- Six owned VMs Off with resting firmware: `01..04` SB On + TPM On; iPXE SB Off + TPM Off; router SB On + TPM On.
+- Installed App still **dae06b2**. Failed-run State backup `HostTools-State-20260914-150620-016`.
 
-### Source / installed evidence (unchanged)
+### Exact next steps
 
-- Branch `codex/easier-onboarding`; HEAD docs `205c18e`. Latest source fix `fc48f36`. Baseline `codex/baseline-acceptance-20260914` at `f092edc`. Local master `bdbe5ce` remains one commit ahead of `origin/master` `847b79f`. Only `.ai/` untracked.
-- Source gate Passed: check, 483 tests / 480 passed / 3 skipped, smoke; focused 27/27; UI 9/9. Chromium CDN unavailable; do not retry unchanged download.
-- Installed App last reload is still **dae06b2**. Newer source is not loaded. State backup from the failed run: `HostTools-State-20260914-150620-016`. Do not reload until the user accepts that the live host is idle and the recorded cleanup failure is diagnosed.
+1. **Now:** elevated `.ai/onboarding-installed-update.ps1` guarded reload / protected State backup. Refuse if console is not idle or any AutoLab VM is not Off. Then re-read live adapter/State overlay/`boot.ipxe`/image/profile, Endpoint Sync/Preflight, `Initialize-WinceptionLab -ValidateOnly`.
+2. Router already exists. Do **not** Create again. New unique ignored config/evidence root and one corrected `-BootstrapRouter`. Require Fleet desktop-ready + PSDirect, router guest LAN `.254/24`, WAN Default Switch, independent DHCP tools/NAT, Ready checkpoint, and cleanup.
+3. `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance` with another unique evidence root: original 7 positives + Proxy/Server 2 + rejection; zero retries.
+4. Update JSON/HTML, TEST-RESULT/manuals if behavior changes, handoff/`.ai`, scoped commits. Physical/human remain NotRun/Blocked. No Release/package/master push.
 
-### Exact next steps — blocked until user says continue
+Original bootstrap failure remains POST boot-session 403 on stale pre-restore MAC `00155D6C6580`. The MAC/cancel-wait source fix is not in `dae06b2`; reload must happen first.
 
-Recorded `cleanupPassed` did **not** happen. Per the previous contract this AI stopped after diagnosis. Suggested continuation, only after explicit approval:
+### Step 1 inspection (kept)
 
-1. Optional source fix: `Invoke-LabCleanup` endpoint restore must use `Get-ConsoleTimeoutSec`, and boot-mode/status cleanup must not race a still-running endpoint op. Commit on `codex/easier-onboarding` before any new Lab.
-2. Then elevated `.ai/onboarding-installed-update.ps1` guarded reload / protected State backup. Re-read live adapter/State overlay/`boot.ipxe`/image/profile, Endpoint Sync/Preflight, `Initialize-WinceptionLab -ValidateOnly`.
-3. Router already exists. Do **not** Create again. New unique ignored config/evidence root and one corrected `-BootstrapRouter`. Require Fleet desktop-ready + PSDirect, router guest LAN `.254/24`, WAN Default Switch, independent DHCP tools/NAT, Ready checkpoint, and cleanup.
-4. `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance` with another unique evidence root: original 7 positives + Proxy/Server 2 + rejection; zero retries.
-5. Update JSON/HTML, TEST-RESULT/manuals if behavior changes, handoff/`.ai`, scoped commits. Physical/human remain NotRun/Blocked. No Release/package/master push.
-
-Original bootstrap failure remains POST boot-session 403 on stale pre-restore MAC `00155D6C6580`. Source MAC/cancel-wait fix is not in the still-loaded `dae06b2` App.
+- Fresh evidence: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260914\result.json`. `ok=false`, `status=Failed`, `cleanup=Failed`, `detail=Fleet did not reach windows-desktop-ready for 1 VM(s) within the timeout.` `cleanupErrors`: Endpoint restoration failed; secureboot default restore failed; status cleanup failed.
+- Cause: cleanup `POST /api/endpoint` used default TimeoutSec=30; live restore took ~81s. Do not treat those three errors as live dirt, and do not treat recorded Failed as `cleanupPassed`.
 
 ## Previous completed milestone — One laptop, anywhere onboarding
 

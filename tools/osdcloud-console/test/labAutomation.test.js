@@ -464,6 +464,16 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /\/api\/preflight/);
   assert.match(script, /function Get-ConsoleTimeoutSec/);
   assert.match(script, /TimeoutSec \(Get-ConsoleTimeoutSec\)/);
+  assert.match(script, /function Wait-ConsoleIdle/);
+  const cleanupFn = script.slice(script.indexOf('function Invoke-LabCleanup'), script.indexOf('function Register-LabExitCleanup'));
+  assert.match(cleanupFn, /\/api\/profile' -TimeoutSec \(Get-ConsoleTimeoutSec\)/);
+  assert.match(cleanupFn, /\/api\/endpoint' -TimeoutSec \(Get-ConsoleTimeoutSec\)/);
+  assert.match(cleanupFn, /Wait-ConsoleIdle/);
+  assert.ok(
+    cleanupFn.indexOf('Wait-ConsoleIdle') < cleanupFn.indexOf('Set-ConsoleMode') &&
+      cleanupFn.indexOf('Wait-ConsoleIdle') < cleanupFn.indexOf('Clear-DeploymentStatus'),
+    'cleanup must wait for an idle console before boot-mode and status cleanup',
+  );
   assert.match(script, /\/api\/services\/start-all/);
   assert.match(script, /server:preflight failed; DHCP will not be started/);
   assert.match(script, /IsManagementOS/);
@@ -533,6 +543,74 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /0\.0\.0\.0/);
   assert.match(script, /::ffff:/);
   assert.match(script, /A Lab service port is already occupied/);
+});
+
+test('Lab cleanup uses the preflight timeout and waits for an idle console after endpoint restore', () => {
+  const output = runLabPowerShell(
+    ['Invoke-LabCleanup', 'Wait-ConsoleIdle', 'Get-ConsoleTimeoutSec', 'Get-OptionalProperty'],
+    `
+    $script:CleanupComplete = $false
+    $ValidateOnly = $false
+    $script:MutationStarted = $true
+    $script:CleanupErrors = New-Object System.Collections.Generic.List[string]
+    $script:WebBaseUri = 'http://127.0.0.1:8080'
+    $script:Config = @{
+      timeouts = @{ preflightMinutes = 15 }
+      secureBootVms = @('winception-autolab-01')
+      ipxeVm = 'winception-autolab-ipxe-01'
+    }
+    $script:AcceptanceProfileId = 'SE50433G'
+    $script:AcceptanceOriginalProfile = 'IZVZO7PU'
+    $script:AcceptanceSavedState = @{
+      config = @{
+        adapter = @{ interfaceAlias = 'vEthernet (Winception-AutoLab)'; serverIp = '192.168.177.1'; prefixLength = 24 }
+        dhcp = @{ dhcpMode = 'server'; leaseStartIp = '192.168.177.200'; leaseEndIp = '192.168.177.250'; router = '192.168.177.1'; dnsServers = @('1.1.1.1','8.8.8.8') }
+      }
+    }
+    $script:endpointTimeout = 0
+    $script:profileTimeout = 0
+    $script:polls = 0
+    $script:mode = ''
+    $script:cleared = $false
+    function Stop-LabServices {}
+    function Stop-LabRouter { param($Config) }
+    function Restore-LabCheckpoint { param($VmNames) }
+    function Restore-SecretEnvironment {}
+    function Release-LabLock {}
+    function Collect-SafeRuntimeEvidence {}
+    function Test-WebConsoleHealthy { $true }
+    function Get-ConsoleState {
+      $script:polls++
+      [pscustomobject]@{ operation = [pscustomobject]@{ running = ($script:polls -lt 2) } }
+    }
+    function Invoke-ConsoleJson {
+      param($Method, $Path, $Body, [int] $TimeoutSec = 30)
+      if ($Path -eq '/api/profile') { $script:profileTimeout = $TimeoutSec; return @{ ok = $true } }
+      if ($Path -eq '/api/profiles/delete') { return @{ ok = $true } }
+      if ($Path -eq '/api/endpoint') { $script:endpointTimeout = $TimeoutSec; throw 'Synthetic endpoint timeout' }
+      throw "Unexpected $Path"
+    }
+    function Start-Sleep { param($Seconds) }
+    function Set-ConsoleMode { param($BootMode) $script:mode = $BootMode }
+    function Clear-DeploymentStatus { $script:cleared = $true }
+    Invoke-LabCleanup
+    @{
+      profileTimeout = $script:profileTimeout
+      endpointTimeout = $script:endpointTimeout
+      polls = $script:polls
+      mode = $script:mode
+      cleared = $script:cleared
+      errors = @($script:CleanupErrors)
+    } | ConvertTo-Json -Compress
+  `,
+  );
+  const result = JSON.parse(output.slice(output.indexOf('{')));
+  assert.equal(result.profileTimeout, 900);
+  assert.equal(result.endpointTimeout, 900);
+  assert.ok(result.polls >= 2, 'cleanup must poll until the console operation is idle');
+  assert.equal(result.mode, 'secureboot');
+  assert.equal(result.cleared, true);
+  assert.deepEqual(result.errors, ['Endpoint restoration failed.']);
 });
 
 test('Lab port occupancy ignores ICS on another adapter and treats wildcard binds as conflicts', () => {

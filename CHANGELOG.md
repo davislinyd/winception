@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Lab finally cleanup now restores the original profile and endpoint with the preflight timeout (at least 60 seconds) and waits until the Web Console operation is idle before restoring `secureboot` and clearing Fleet status. A 30-second REST timeout can no longer mark cleanup Failed while `boot.wim` remount is still finishing.
+
 - Added Source/UI acceptance commands, versioned inert Playwright fixtures, one worker/no retries, owned preview State cleanup and separate JSON/HTML evidence. Master Source/UI precede the locked AutoLab matrix with a 240-minute job limit.
 - Added owned-router bootstrap and AutoLab Proxy/shared-LAN Server network rounds, independent no-PXE DHCP, localized NIC-safe creation, post-checkpoint fixed collision-checked MAC scope, service-stop wait cancellation, port-qualified rejection evidence, retained bootstrap round reports, exact-client pairing/rejection and pre/post-service-stop DNS/HTTPS evidence. Physical defaults readonly; disposable MAC, ignored site configuration, report-only collector, scoped credentials and cleanup are required.
 - Auto-login requires an explicit bounded test-only profile (1–3); ordinary profiles require target-account login. Acceptance fixtures/router tools and tickets are excluded from Release. Physical/human evidence remains pending; no Release/package/master push.
