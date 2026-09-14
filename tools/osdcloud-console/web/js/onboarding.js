@@ -112,6 +112,9 @@ export function renderScene(body, appState, apply = false) {
   image.src = `/manual/manual-assets/network-${scenario}.svg`;
   image.alt = SCENARIOS.find((s) => s.id === scenario).detail;
   body.append(image);
+  if (/Winception-AutoLab/i.test(state.onboardingLanInterface || appState.config?.adapter?.interfaceAlias || '')) {
+    body.append(node('p', '目前端點是 AutoLab 虛擬測試網路；這不是實體 client 的接線或上網驗收。更換場地後請明確選擇現場介面。', 'form-error'));
+  }
   if (!apply) {
     body.append(node('p', '選擇只決定教學場景。準備部署檔案後，會再次確認並套用網路。'));
     return;
