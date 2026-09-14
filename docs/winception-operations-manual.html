@@ -349,6 +349,7 @@
 <section id="first-setup"><p class="section-kicker">One laptop, anywhere</p><h2>第一次使用：跟著精靈完成</h2>
   <p>從系統管理員 PowerShell 執行 Setup-DeploymentServer.cmd，開啟本機 Console。點「主機初始化」；每一步都有用途、完成條件與下一步，技術檢查明細可展開查看。正式版沒有預載部署資料，重新整理後依伺服器狀態恢復未完成步驟。</p>
   <figure><div class="media-frame"><img src="manual-assets/onboarding-first.svg" alt="首次設定五個階段"></div><figcaption>首次設定五個階段</figcaption></figure>
+<figure><div class="media-frame"><img src="manual-assets/onboarding-wizard-annotated.svg" loading="lazy" alt="實際精靈：目前階段、接線場景與完成條件。"></div><figcaption>實際精靈：目前階段、接線場景與完成條件。</figcaption></figure>
   <ol><li>主機與帳號：確認部署資料夾、Windows 帳號與密碼；SMB 密碼由系統準備，保存於本機 State。</li>
   <li>接線方式：先看下面的三張圖，選擇現場 DHCP 與 client 上網方式。選擇本身不修改網路。</li>
   <li>部署檔案與網路：準備部署檔案，再選介面、核對 gateway、DNS 與 DHCP 位址池，確認後同步端點。NAT 需兩張不同實體網卡，可選沒有 IPv4 的 Ethernet。</li>
@@ -363,7 +364,8 @@
   <section id="daily-deploy"><h2>日常部署：從首頁到確認完成</h2>
   <figure><div class="media-frame"><img src="manual-assets/onboarding-daily.svg" alt="日常部署七個動作"></div><figcaption>日常部署七個動作</figcaption></figure>
   <p>首頁「這次要裝什麼」核對部署設定、映像與網路位置，依「下一步」啟動服務，再按目前接線場景連線。目標電腦選 UEFI IPv4 PXE：secureboot 使用 Microsoft 簽名鏈，可保留 Secure Boot；ipxe 必須關閉 Secure Boot。TPM 與 boot mode 獨立。</p>
-  <div class="callout"><strong>既有 DHCP 的配對</strong>WinPE 自行計算並顯示配對碼。操作員在 Console 核對 client 與相同配對碼，點「核對並核准」。等待期間不提供部署憑證；請求十分鐘過期。拒絕、過期、重播或身分不符時停止部署，修正後重新 PXE 開機，不能重用舊配對。自管 DHCP 仍使用租約驗證。</div>
+  <figure><div class="media-frame"><img src="manual-assets/onboarding-pairing-annotated.svg" loading="lazy" alt="實際配對確認：核對目標電腦與相同配對碼，再授權重灌。"></div><figcaption>實際配對確認：核對目標電腦與相同配對碼，再授權重灌。</figcaption></figure>
+<div class="callout"><strong>既有 DHCP 的配對</strong>WinPE 自行計算並顯示配對碼。操作員在 Console 核對 client 與相同配對碼，點「核對並核准」。等待期間不提供部署憑證；請求十分鐘過期。拒絕、過期、重播或身分不符時停止部署，修正後重新 PXE 開機，不能重用舊配對。自管 DHCP 仍使用租約驗證。</div>
   <p>主機下載／準備看主機進度；目標電腦安裝看「部署活動」。完成必須是本次 run 的 windows-desktop-ready，不能只看 HTTP 正常、安裝檔下載完成或歷史成功。全部 client 完成後，首頁點「停止部署服務」；NAT 保留，已部署電腦仍可上網。</p></section>
         <section id="product-overview">
           <p class="section-kicker">01 · Overview</p>
@@ -588,6 +590,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
 <section id="en-first-setup"><p class="section-kicker">One laptop, anywhere</p><h2>First use: follow the wizard</h2>
   <p>Run Setup-DeploymentServer.cmd from elevated PowerShell and open the local Console. Open Host initialization. Each step explains its purpose and completion condition; expand technical checks when needed. Release has no preloaded deployment data. Refresh resumes from server state.</p>
   <figure><div class="media-frame"><img src="manual-assets/onboarding-first.en.svg" alt="Five stages of first setup"></div><figcaption>Five stages of first setup</figcaption></figure>
+<figure><div class="media-frame"><img src="manual-assets/onboarding-wizard-annotated.en.svg" loading="lazy" alt="Actual wizard: stages, scenario and completion condition."></div><figcaption>Actual wizard: stages, scenario and completion condition.</figcaption></figure>
   <ol><li>Host and credentials: confirm the runtime folder, Windows user and password. The system prepares the SMB password in local State.</li>
   <li>Wiring: use the three diagrams below to choose DHCP and client Internet. Selecting a scene alone does not change networking.</li>
   <li>Files and network: prepare deployment files, select adapters, check gateway, DNS and DHCP pool, then confirm endpoint sync. NAT needs two distinct physical adapters; Ethernet without IPv4 is selectable.</li>
@@ -602,7 +605,8 @@ Last completed run : &lt;run-id&gt;</code></pre>
   <section id="en-daily-deploy"><h2>Daily deployment: from home to completion</h2>
   <figure><div class="media-frame"><img src="manual-assets/onboarding-daily.en.svg" alt="Seven daily deployment actions"></div><figcaption>Seven daily deployment actions</figcaption></figure>
   <p>Review profile, image and network on Home, follow Next step to start services, then connect clients according to the chosen scene. Boot UEFI IPv4 PXE. The Microsoft-signed secureboot chain allows Secure Boot; ipxe requires Secure Boot off. TPM is independent of boot mode.</p>
-  <div class="callout"><strong>Pairing with existing DHCP</strong>WinPE independently computes and displays a pairing code. Verify the client and matching code in Console, then approve. No deployment credentials are provided while pending. Requests expire after ten minutes. Rejection, expiry, replay or identity mismatch stops deployment; correct the issue and boot PXE again. Self-managed DHCP retains lease validation.</div>
+  <figure><div class="media-frame"><img src="manual-assets/onboarding-pairing-annotated.en.svg" loading="lazy" alt="Actual pairing confirmation: verify the target and matching code before authorizing reinstall."></div><figcaption>Actual pairing confirmation: verify the target and matching code before authorizing reinstall.</figcaption></figure>
+<div class="callout"><strong>Pairing with existing DHCP</strong>WinPE independently computes and displays a pairing code. Verify the client and matching code in Console, then approve. No deployment credentials are provided while pending. Requests expire after ten minutes. Rejection, expiry, replay or identity mismatch stops deployment; correct the issue and boot PXE again. Self-managed DHCP retains lease validation.</div>
   <p>Host downloads/preparation show host progress. Client installation appears in Activity. Completion requires windows-desktop-ready for this run, rather than a healthy HTTP service, completed download or historical success. When all clients finish, stop deployment services from Home; NAT remains available.</p></section>
         <section id="en-product-overview">
           <p class="section-kicker">01 · Overview</p>
