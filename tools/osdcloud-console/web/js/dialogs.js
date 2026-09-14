@@ -1513,7 +1513,7 @@ export async function showScriptContentViewer(script) {
   }
 }
 
-export function confirmAction({ title, message, details = [], confirmLabel = 'Continue', danger = false, severity = null, allowDuringSoftwareTest = false }) {
+export function confirmAction({ title, message, details = [], confirmLabel = '繼續', danger = false, severity = null, allowDuringSoftwareTest = false }) {
   return new Promise((resolve) => {
     elements.confirmTitle.textContent = title;
     elements.confirmMessage.textContent = message;
