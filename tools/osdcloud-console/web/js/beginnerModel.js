@@ -2,6 +2,11 @@ import { state } from './state.js';
 
 const SERVICE_KEYS = ['http', 'tftp', 'dhcp'];
 
+export function activeDeploymentCount(appState) {
+  const counts = appState?.fleet?.counts ?? {};
+  return ['running', 'awaiting-windows', 'windows-running'].reduce((total, status) => total + (counts[status] ?? 0), 0);
+}
+
 function preflightChecks(appState) {
   const value = appState?.preflight;
   if (Array.isArray(value)) {
@@ -230,9 +235,11 @@ export function buildBeginnerHomeModel(appState) {
   const model = primaryModel(appState);
   const counts = appState?.fleet?.counts ?? {};
   const total = appState?.fleet?.total ?? 0;
+  const active = activeDeploymentCount(appState);
+  model.canStopServices = active === 0;
   const initialized = appState?.initialization?.initialized === true;
   model.deploymentSummary = [
-    { value: counts.running ?? 0, label: '進行中', filter: 'active', tone: (counts.running ?? 0) > 0 ? 'working' : '' },
+    { value: active, label: '進行中', filter: 'active', tone: active > 0 ? 'working' : '' },
     { value: counts.failed ?? 0, label: '失敗', filter: 'failed', tone: (counts.failed ?? 0) > 0 ? 'fail' : '' },
     { value: counts.completed ?? 0, label: '已完成', filter: 'done', tone: '' },
     { value: total, label: '總數', filter: 'all', tone: '' },

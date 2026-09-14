@@ -1,4 +1,5 @@
 import { api, loadInterfaces, mutate } from './api.js';
+import { activeDeploymentCount } from './beginnerModel.js';
 import { confirmAction, closeDialog } from './dialogs.js';
 import { elements } from './dom.js';
 import { render } from './render.js';
@@ -234,7 +235,7 @@ export async function handleOnboardingAction(source) {
     return;
   }
   if (actionName === 'stop-services') {
-    if ((state.current.fleet?.counts?.running ?? 0) > 0) throw new Error('仍有電腦部署中，請確認全部完成後再停止服務。');
+    if (activeDeploymentCount(state.current) > 0) throw new Error('仍有電腦部署或等待 Windows 登入，請確認全部完成後再停止服務。');
     if (await confirmAction({ title: '停止部署服務', message: '停止 HTTP、TFTP 與 DHCP／PXE Proxy。Winception NAT 會保持運作，已部署電腦仍可上網。', confirmLabel: '確認停止' })) {
       await mutate('/api/services/stop-all');
     }

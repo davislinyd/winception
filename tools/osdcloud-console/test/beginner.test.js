@@ -64,6 +64,17 @@ test('beginner home asks for basic setup first', () => {
   assert.equal(model.steps[0].status, 'current');
 });
 
+test('daily deployment keeps services available through Windows finalization', () => {
+  for (const status of ['running', 'awaiting-windows', 'windows-running']) {
+    const model = buildBeginnerHomeModel(makeState({ fleet: { counts: { [status]: 1, completed: 2 }, total: 3 } }));
+    assert.equal(model.canStopServices, false, status);
+    assert.equal(model.deploymentSummary[0].value, 1, status);
+  }
+  const finished = buildBeginnerHomeModel(makeState({ fleet: { counts: { completed: 2, failed: 1 }, total: 3 } }));
+  assert.equal(finished.canStopServices, true);
+  assert.equal(finished.deploymentSummary[0].value, 0);
+});
+
 test('beginner home points to missing deployment content', () => {
   const profileMissing = buildBeginnerHomeModel(makeState({ profile: { activeProfile: null } }));
   assert.equal(profileMissing.phase, 'content');

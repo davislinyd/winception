@@ -75,7 +75,10 @@ export function renderBeginnerHome(appState) {
     ? `目標電腦直接或經交換器接到筆電的 ${appState.config.network.nat?.pxeInterfaceAlias || 'Client 接線介面'}。`
     : `目標電腦與筆電的 ${appState?.config?.adapter?.interfaceAlias || '服務介面'} 接到同一 LAN／交換器。`;
   const stop = document.getElementById('beginner-stop-services');
-  if (stop) stop.disabled = (appState?.fleet?.counts?.running ?? 0) > 0;
+  if (stop) {
+    stop.disabled = !model.canStopServices;
+    stop.title = model.canStopServices ? '' : '仍有電腦部署或等待 Windows 登入，請確認完成後再停止服務。';
+  }
   const instruction = document.getElementById('beginner-boot-instruction');
   if (instruction) instruction.textContent = appState?.config?.dhcp?.bootMode === 'ipxe'
     ? '目前使用 iPXE：目標電腦的 Secure Boot 必須關閉；TPM 是獨立的韌體設定。'
