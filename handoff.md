@@ -6,9 +6,13 @@ User-approved onboarding implementation uses `codex/easier-onboarding`. Restorab
 
 Source implements three scenes (existing DHCP Proxy + pairing, shared LAN Winception DHCP, laptop NAT), Chinese step-by-step onboarding, bounded Console-authenticated boot approval, network inventory/overlap/drift guards and bilingual diagrams/manuals. Source verification and commit precede preview/installed/runtime checks. Physical three-scene acceptance and an unfamiliar-PXE human usability run remain independent requirements; do not infer them from source or historical AutoLab evidence.
 
-The AutoLab snapshot below is historical. At implementation startup, installed API instead showed deployment services running on AutoLab with no Fleet clients or host operation; re-read live state before reload/sync. Update installed App only with the elevated State-backup reload flow in an idle window; then use existing Endpoint Sync and Preflight. Never patch runtime manually, stop foreign ICS/NAT or treat a source commit as State/network rollback.
+Source implementation and isolated browser checks are complete. `check`, full tests (462 passed / 3 skipped), smoke and changed PowerShell parser checks passed; focused UI tests/check passed after preview fixes. Preview verified pairing approve/reject, host/client progress separation, site/Preflight repair, restored steps, manual links, bilingual SVGs and 390/1024/1366/1920 px. The raw preview and helpers stay in ignored/untracked workspace files; annotated screenshots are embedded in product SVGs.
 
-## Active continuation — physical PXE after Mode All green
+Installed App was updated through the elevated State-backup reload flow in an idle window. Initial State backup is `C:\OSDCloud\HostTools\Backups\HostTools-State-20260914-081434-402`. Existing Endpoint Sync retained AutoLab `192.168.177.1/24`, Server `.200–.250`, router `.1`, DNS `1.1.1.1,8.8.8.8`, SMB `OSDCloudiPXE`, cached 25H2 image, profile `IZVZO7PU` and secureboot. WinPE marker schema 2 matches the new source template and contains no preloaded secrets. Preflight passed 29 checks with no warnings; deployment services remain stopped. See TEST-RESULT.md for current evidence and the final App source/backup refresh.
+
+Next acceptance requires a disposable physical client, available Ethernet/USB Ethernet client NIC, suitable LAN/DHCP test window and an unfamiliar-PXE operator. Current host has Wi-Fi but no present Ethernet NIC; foreign ICS and two other NATs were retained. Do not repair them automatically or infer physical networking/Internet readiness from AutoLab. Re-read live state before any action. Never patch runtime manually or treat a source commit as State/network rollback.
+
+## Historical continuation — physical PXE after Mode All green
 
 Mode All e (source `71fee78`) is green on Internal AutoLab `192.168.177.1`. Four rounds / seven deployments reached `windows-desktop-ready` with profile `IZVZO7PU`, `windowsFamily=Windows 11` build `26200` / `25H2`, matching guest Secure Boot/TPM pairs, separate round `hostFirmware`, and successful cleanup. Registry `productName` stayed `Windows 10 Pro` and is accepted by build. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913e`. Five VMs are Off with resting firmware (`01..04` SB On + TPM On; iPXE SB Off + TPM Off). Deployment services are stopped; host `bootMode=secureboot`. ICS/Default Switch was not touched. This is not physical-laptop or production DHCP evidence.
 
@@ -24,7 +28,7 @@ Historical summary: `origin/master` was `847b79f`; local master also has unpushe
 | Installed Web console | `C:\OSDCloud\HostTools\App` — live `:8080` |
 | Host-only state | `C:\OSDCloud\HostTools\State` |
 | Runtime | `C:\OSDCloud` (never patch by hand) |
-| Branch | `master` tracks `origin/master` at `847b79f`; preserve untracked `.ai/` |
+| Branch | Active `codex/easier-onboarding`; master retains `bdbe5ce` ahead of origin/master by one; preserve untracked `.ai/` |
 | Product version | `1.1.0` tagged on origin; AutoLab firmware work is on master and still unreleased as a product tag |
 
 Recent origin commits, newest first:
