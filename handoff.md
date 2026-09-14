@@ -2,11 +2,11 @@
 
 ## Active continuation — physical PXE after Mode All green
 
-Mode All e (commit `71fee78`) is green on Internal AutoLab `192.168.177.1`. Four rounds / seven deployments reached `windows-desktop-ready` with profile `IZVZO7PU`, `windowsFamily=Windows 11` build `26200` / `25H2`, matching guest Secure Boot/TPM pairs, separate round `hostFirmware`, and successful cleanup. Registry `productName` stayed `Windows 10 Pro` and is accepted by build. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913e`. Five VMs are Off with resting firmware (`01..04` SB On + TPM On; iPXE SB Off + TPM Off). Deployment services are stopped; host `bootMode=secureboot`. ICS/Default Switch was not touched. This is not physical-laptop or production DHCP evidence.
+Mode All e (source `71fee78`) is green on Internal AutoLab `192.168.177.1`. Four rounds / seven deployments reached `windows-desktop-ready` with profile `IZVZO7PU`, `windowsFamily=Windows 11` build `26200` / `25H2`, matching guest Secure Boot/TPM pairs, separate round `hostFirmware`, and successful cleanup. Registry `productName` stayed `Windows 10 Pro` and is accepted by build. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913e`. Five VMs are Off with resting firmware (`01..04` SB On + TPM On; iPXE SB Off + TPM Off). Deployment services are stopped; host `bootMode=secureboot`. ICS/Default Switch was not touched. This is not physical-laptop or production DHCP evidence.
 
-The user requested a documentation/diagram update and an explicit **push to origin/master**. That may start `.github/workflows/lab-deploy.yml` on the dedicated AutoLab runner. Next product work after the push is physical UEFI IPv4 PXE on the Web-selected live endpoint after confirming LAN DHCP is disabled for the test window. Re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
+`origin/master` is at `847b79f` (diagrams/docs: host PXE chain stays separate from client Secure Boot / TPM). The Mode All repair commits are on origin. Another push to master may start `.github/workflows/lab-deploy.yml`. Next product work is physical UEFI IPv4 PXE on the Web-selected live endpoint after confirming LAN DHCP is disabled for the test window. Re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
 
-Chinese summary: 本機 `master` 最新修復 `71fee78`，Mode All e 四輪 / 七部署與 cleanup 已綠燈。使用者已要求 **push**。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。push 之後下一優先是實體 PXE。
+Chinese summary: 本機 `master` 已與 `origin/master` 對齊 `847b79f`。Mode All e 四輪 / 七部署與 cleanup 已綠燈。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。下一優先是實體 PXE。
 
 ## Workspace
 
@@ -16,33 +16,20 @@ Chinese summary: 本機 `master` 最新修復 `71fee78`，Mode All e 四輪 / �
 | Installed Web console | `C:\OSDCloud\HostTools\App` — live `:8080` |
 | Host-only state | `C:\OSDCloud\HostTools\State` |
 | Runtime | `C:\OSDCloud` (never patch by hand) |
-| Branch | `master`, ahead of origin; Mode All e green on `71fee78`; preserve untracked `.ai/` |
-| Product version | `1.1.0` on origin; local commits are unreleased |
+| Branch | `master` tracks `origin/master` at `847b79f`; preserve untracked `.ai/` |
+| Product version | `1.1.0` tagged on origin; AutoLab firmware work is on master and still unreleased as a product tag |
 
-Unpushed commits, newest first:
+Recent origin commits, newest first:
 
 ```text
+847b79f docs: keep host PXE chain separate from client firmware in diagrams
 a88ca4a docs: record AutoLab Mode All e four-round green
 71fee78 fix: guard Lab firmware BootType reads and require Windows 11 by build
 0c96975 docs: hand off Mode All cleanup failure
 b04c6e8 fix: bound client progress lock retries and reject incomplete finalization
-b68f554 fix: restore all Lab VMs using current firmware boot sources
-4cd44fb fix: bound WinPE torrent network preparation commands
-81b01c7 fix: fail Lab green on cleanup and incomplete guest evidence
-8d45223 docs: add agent continuation handoff for firmware matrix work
-7e11247 fix: keep Lab secrets and endpoint config in HostTools State
-8746d99 docs: record AutoLab Secure Boot x TPM firmware-corner green lights
-1da7e71 fix: keep Lab cache restore on HostTools secrets, skip hashing generated boot files
-a8efdab fix: fail Lab PXE wait on WinPE selected-os/SMB errors
-c1d7d2f fix: treat Hyper-V dummy key protector as missing
-f49a674 fix: look up Hyper-V key protector without KpsAvailable
-2f64c44 feat: prove AutoLab Secure Boot and TPM as independent firmware axes
-deaf92e fix: re-enable Hyper-V TPM after AutoLab checkpoint restore
-a5a9a84 fix: require elevation and restore npm modules during HostTools reload
-3ec1f53 feat: add Guided and Console operator modes to the Web UI
 ```
 
-A push to master may start `.github/workflows/lab-deploy.yml` on a `self-hosted, windows, hyperv, winception-lab` runner. The user requested this push.
+A later push to master may start `.github/workflows/lab-deploy.yml` on a `self-hosted, windows, hyperv, winception-lab` runner.
 
 ## What is done
 
