@@ -113,7 +113,7 @@ function primaryModel(appState) {
       primaryLabel: '完成基本設定',
       status: 'neutral',
       title: '先完成部署基本設定',
-      detail: `下一步：${initialization.steps?.find((item) => item.id === setupStep(initialization))?.label ?? '部署設定'}。`,
+      detail: '開啟逐步設定，依目前未完成的步驟繼續。',
       why: '第一次使用要先指定部署資料夾、網路位置與登入帳號。',
       nextHint: '完成後就可以選擇要安裝的 Windows。',
       step: setupStep(initialization),

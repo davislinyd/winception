@@ -542,9 +542,9 @@ export function renderProfileSummary(appState) {
   const selectedSoftware = appState.profile?.selectedSoftware ?? [];
   const selectedScripts = appState.profile?.selectedScripts ?? [];
   const softwareCount = selectedSoftware.length;
-  const profileTitle = active ? `${active.id} / ${active.name}` : 'No active profile';
+  const profileTitle = active ? `${active.id} / ${active.name}` : '尚未選擇部署設定';
   const summaryParts = [
-    `${softwareCount} ${softwareCount === 1 ? 'app' : 'apps'}`,
+    `${softwareCount} 個軟體`,
     active?.displayLanguage,
     active?.timeZone,
   ].filter(Boolean);
@@ -700,10 +700,10 @@ export function renderOsImageSummary(appState) {
     return;
   }
   const active = osState?.activeImage;
-  const status = makeStatusPill(active?.cached ? 'Cached' : 'Missing', active?.cached ? 'ok' : 'fail');
+  const status = makeStatusPill(active?.cached ? '已快取' : '尚未準備', active?.cached ? 'ok' : 'fail');
   const summary = active
     ? `Windows 11 ${text(active.releaseId ?? active.version ?? active.build)} ${text(active.language)} ${text(active.edition)} · index ${text(active.imageIndex)}`
-    : 'No OS image selected';
+    : '尚未選擇 Windows 映像';
   elements.activeOsDetails.append(makeDeploySummaryCompact(summary, status));
   setDeploySummaryTooltip(elements.activeOsDetails, {
     title: active?.id ?? 'No OS image selected',

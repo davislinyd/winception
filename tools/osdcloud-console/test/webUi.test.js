@@ -690,9 +690,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(styles, /\.fleet-last-seen-cell \{[\s\S]*min-width: 0;[\s\S]*white-space: nowrap;/);
   assert.match(script, /function makeDeploySummaryCompact\(primaryText, secondaryContent, tone = ''\)/);
   assert.match(script, /segment\.dataset\.deployTooltip = JSON\.stringify\(payload\)/);
-  assert.match(script, /const profileTitle = active \? `\$\{active\.id\} \/ \$\{active\.name\}` : 'No active profile'/);
+  assert.match(script, /const profileTitle = active \? `\$\{active\.id\} \/ \$\{active\.name\}` : '尚未選擇部署設定'/);
   assert.match(script, /const selectedScripts = appState\.profile\?\.selectedScripts \?\? \[\]/);
-  assert.match(script, /`\$\{softwareCount\} \$\{softwareCount === 1 \? 'app' : 'apps'\}`/);
+  assert.match(script, /`\$\{softwareCount\} 個軟體`/);
   assert.match(script, /sections: \[[\s\S]*title: 'Selected software'[\s\S]*title: 'Custom scripts'/);
   assert.match(script, /selectedScripts\.map\(\(item\) => item\.name \?\? item\.id\)/);
   assert.match(script, /No custom scripts selected\./);

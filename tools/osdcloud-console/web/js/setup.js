@@ -431,7 +431,7 @@ export function renderSetupProgressChip(initialization, doneSteps, totalSteps) {
   chip.classList.toggle('ok', complete || live);
   chip.classList.toggle('warn', !complete && !live);
   if (elements.setupProgressText) {
-    elements.setupProgressText.textContent = complete || live ? 'Setup complete' : `Setup ${doneSteps}/${totalSteps}`;
+    elements.setupProgressText.textContent = complete || live ? '設定已完成' : `設定 ${doneSteps}/${totalSteps}`;
   }
 }
 
@@ -549,15 +549,15 @@ export function renderInitialization(appState) {
     const body = document.createElement('div');
     body.className = 'initialization-step-body';
     const title = document.createElement('strong');
-    title.textContent = `${index.toString().padStart(2, '0')}. ${step.label}`;
+    title.textContent = step.label;
     if (stepNeedsUpdate) {
       const badge = document.createElement('span');
       badge.className = 'needs-update-badge';
-      badge.textContent = 'Needs update';
+      badge.textContent = '需要更新';
       title.append(badge);
     }
     const detail = document.createElement('span');
-    detail.textContent = step.detail ?? '';
+    detail.textContent = step.done ? '本步已完成，可按下一步繼續。' : '依下方說明完成這一步。';
     body.append(title, detail);
 
     row.append(status, body);

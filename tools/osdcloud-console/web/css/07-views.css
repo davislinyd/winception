@@ -420,6 +420,17 @@ dialog.embedded-open::backdrop { display: none !important; }
 .console-dock.console-dock-idle { display: none; }
 
 .onboarding-stages { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+#initialization-dialog .guided-v3 { display: flex; }
+#initialization-dialog .guided-v3-body { display: block; overflow-y: auto; }
+#initialization-dialog .guided-v3-main { overflow: visible; padding: 0; }
+#initialization-dialog .guided-timeline::before, #initialization-dialog .initialization-step::before, #initialization-dialog .initialization-step::after { display: none; }
+#initialization-dialog .initialization-step { padding: 0 !important; }
+#initialization-dialog .guided-v3-head, #initialization-dialog .guided-v3-foot { flex-shrink: 0; }
+#initialization-dialog .guided-v3-foot { gap: 12px; }
+#initialization-dialog .setup-dialog-close { order: 3; }
+#initialization-dialog .guided-v3-progress { order: 2; }
+#initialization-dialog .guided-detail-header { display: none; }
+#initialization-dialog .guided-step-overview { margin-bottom: 12px; }
 .onboarding-stages button { flex: 1 1 130px; padding: 10px; white-space: normal; text-align: left; }
 .onboarding-stages [aria-current="step"], .onboarding-scenarios .selected { border-color: var(--accent); background: var(--surface-container-low); }
 .onboarding-scenarios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -436,6 +447,10 @@ dialog.embedded-open::backdrop { display: none !important; }
 .initialization-step[hidden] { display: none; }
 @media (max-width: 840px) {
   .onboarding-scenarios { grid-template-columns: 1fr; }
+  #initialization-dialog .guided-v3 { padding: 16px; }
+  #initialization-dialog .guided-v3-head { flex-wrap: wrap; padding-bottom: 12px; }
+  #initialization-dialog .guided-v3-head-text { flex: 1 1 100%; }
+  #initialization-dialog .guided-v3-progress { align-items: flex-start; min-width: 0; }
 }
 
 @media (max-width: 1024px) {

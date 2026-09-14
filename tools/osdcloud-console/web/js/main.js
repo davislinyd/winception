@@ -410,7 +410,7 @@ if (elements.initializationSteps) {
   elements.initializationSteps.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : event.target?.parentElement;
     // Don't toggle expand/collapse when clicking interactive controls inside the step
-    if (target?.closest('input, button, select, textarea, label, a')) {
+    if (target?.closest('input, button, select, textarea, label, a, details, summary, .guided-v3-detail')) {
       return;
     }
     const stepEl = target?.closest('.initialization-step');
