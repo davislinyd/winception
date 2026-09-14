@@ -1738,6 +1738,7 @@ try {
     }
     $script:Config = Read-LabConfig -Path (Resolve-Path -LiteralPath $ConfigPath -ErrorAction Stop).ProviderPath
     Assert-LabConfig -Config $script:Config
+    $script:WebBaseUri = Get-WebBaseUri
     $script:SelectedVms = @($script:Config.secureBootVms) + @([string] $script:Config.ipxeVm)
     Acquire-LabLock
     Register-LabExitCleanup
