@@ -1539,6 +1539,19 @@ function Assert-IpxeArtifacts {
     $evidence
 }
 
+function Set-LabRoundClientScope {
+    param([string[]]$VmNames)
+    $script:RoundClientMacs=@($VmNames|ForEach-Object {
+        $vm=Get-VM -Name $_
+        $nic=@(Get-VMNetworkAdapter -VMName $_|Where-Object SwitchName -eq 'Winception-AutoLab')
+        if($vm.State -ne 'Off' -or $nic.Count -ne 1){throw 'Round MAC requires one powered-off owned Lab adapter'}
+        $mac='00155D'+$vm.Id.ToString('N').Substring(0,6).ToUpperInvariant()
+        if(@(Get-VM|Get-VMNetworkAdapter|Where-Object {$_.VMName -ne $vm.Name -and $_.MacAddress -eq $mac}).Count){throw 'Deterministic Lab MAC collides with another VM'}
+        Set-VMNetworkAdapter -VMNetworkAdapter $nic[0] -StaticMacAddress $mac
+        $mac -replace '(.{2})(?!$)','$1-'
+    })
+}
+
 function Invoke-LabRound {
     param(
         [Parameter(Mandatory)][string] $RoundId,
@@ -1558,15 +1571,7 @@ function Invoke-LabRound {
         secureBoot = $SecureBoot
         tpm = $Tpm
     }
-    $script:RoundClientMacs=@($VmNames|ForEach-Object {
-        $vm=Get-VM -Name $_
-        $nic=@(Get-VMNetworkAdapter -VMName $_|Where-Object SwitchName -eq 'Winception-AutoLab')
-        if($vm.State -ne 'Off' -or $nic.Count -ne 1){throw 'Round MAC requires one powered-off owned Lab adapter'}
-        $mac='00155D'+$vm.Id.ToString('N').Substring(0,6).ToUpperInvariant()
-        if(@(Get-VM|Get-VMNetworkAdapter|Where-Object {$_.VMName -ne $vm.Name -and $_.MacAddress -eq $mac}).Count){throw 'Deterministic Lab MAC collides with another VM'}
-        Set-VMNetworkAdapter -VMNetworkAdapter $nic[0] -StaticMacAddress $mac
-        $mac -replace '(.{2})(?!$)','$1-'
-    })
+    Set-LabRoundClientScope -VmNames $VmNames
     Set-ConsoleMode -BootMode $BootMode | Out-Null
     $script:RoundDhcpMode=$DhcpMode
     Set-ConsoleEndpoint | Out-Null
@@ -1809,7 +1814,7 @@ try {
     $rounds = New-Object System.Collections.Generic.List[object]
     $credential = New-DeploymentCredential
     if ($BootstrapRouter) {
-        Invoke-LabRound -RoundId router-bootstrap -BootMode secureboot -VmNames @('winception-autolab-router') -SecureBoot $true -Tpm $true -Credential $credential -ProfileId $profileId -KeepGuest|Out-Null
+        $rounds.Add((Invoke-LabRound -RoundId router-bootstrap -BootMode secureboot -VmNames @('winception-autolab-router') -SecureBoot $true -Tpm $true -Credential $credential -ProfileId $profileId -KeepGuest))
         Initialize-LabRouterGuest -Config $script:Config -Credential $credential -SourceRoot $script:RepoRoot
     }
     if (-not $BootstrapRouter -and $Mode -in @('All', 'SecureBoot')) {

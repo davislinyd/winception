@@ -105,7 +105,7 @@ test('Lab guest evidence persists host firmware and requires the published guest
 });
 
 test('Lab round persists host firmware as a separate object', () => {
-  const output = runLabPowerShell(['Invoke-LabRound', 'Get-OptionalProperty', 'ConvertTo-ObjectList'], `
+  const output = runLabPowerShell(['Set-LabRoundClientScope', 'Invoke-LabRound', 'Get-OptionalProperty', 'ConvertTo-ObjectList'], `
     function Restore-LabCheckpoint { param($VmNames, $RoundFirmware) }
     function Get-VM { param($Name) if($Name){[pscustomobject]@{Name=$Name;State='Off';Id=[guid]'12345678-1234-1234-1234-123456789012'}} }
     function Get-VMNetworkAdapter { param($VMName) @{VMName='test-vm';MacAddress='AABBCCDDEEFF';SwitchName='Winception-AutoLab'} }
@@ -142,7 +142,7 @@ test('Lab round persists host firmware as a separate object', () => {
 });
 
 test('Lab round fails when checkpoint cleanup fails', () => {
-  runLabPowerShell(['Invoke-LabRound'], `
+  runLabPowerShell(['Set-LabRoundClientScope', 'Invoke-LabRound'], `
     function Restore-LabCheckpoint { param($VmNames, $RoundFirmware) if ($null -eq $RoundFirmware) { throw 'Synthetic checkpoint cleanup failure.' } }
     function Get-VM { param($Name) if($Name){[pscustomobject]@{Name=$Name;State='Off';Id=[guid]'12345678-1234-1234-1234-123456789012'}} }
     function Get-VMNetworkAdapter { param($VMName) @{VMName='test-vm';MacAddress='AABBCCDDEEFF';SwitchName='Winception-AutoLab'} }

@@ -51,8 +51,8 @@ function Get-LabNetworkEvidence {
 function Invoke-LabProxyRejection {
     param([pscredential]$Credential)
     $name=[string]$script:Config.secureBootVms[0]
-    $script:RoundClientMacs=@((Get-VMNetworkAdapter -VMName $name|Select-Object -First 1).MacAddress -replace '(.{2})(?!$)','$1-')
     Restore-LabCheckpoint -VmNames @($name)
+    Set-LabRoundClientScope -VmNames @($name)
     $script:RoundDhcpMode='proxy'
     Set-ConsoleMode secureboot|Out-Null
     Set-ConsoleEndpoint|Out-Null
@@ -71,7 +71,7 @@ function Invoke-LabProxyRejection {
         $state=Get-ConsoleState
         $logs=@($state.logs|Where-Object {$_ -notin $previousLogs}) -join "`n"
         $remote=[regex]::Escape([string]$rejected.clientIp)
-        if ($logs -notmatch "$remote POST /osdcloud/boot-session 403" -or $logs -match "$remote POST /osdcloud/boot-session 201" -or @($state.fleet.runs).Count -gt 0) {throw 'Rejected Proxy client did not provide denied-session/no-install evidence.'}
+        if ($logs -notmatch "${remote}(?::\d+)? POST /osdcloud/boot-session 403" -or $logs -match "${remote}(?::\d+)? POST /osdcloud/boot-session 201" -or @($state.fleet.runs).Count -gt 0) {throw 'Rejected Proxy client did not provide denied-session/no-install evidence.'}
         Write-Evidence -Name 'proxy-rejection.json' -Value @{status='Passed';bootId=$rejected.bootId;clientMac=$rejected.clientMac;credentialsDenied=$true;installationStarted=$false}|Out-Null
     } finally {Stop-LabServices;Restore-LabCheckpoint @($name);$script:PreflightPassed=$false}
 }

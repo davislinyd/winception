@@ -109,10 +109,9 @@ test('physical cleanup refuses HTTP success when a deployment service is still r
 
 test('round credential MAC scope is fixed after checkpoint restore and rejects collisions',()=>{
   const source=fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1','utf8');
-  const start=source.indexOf('    $script:RoundClientMacs=@($VmNames|ForEach-Object {');
-  assert.ok(start>source.indexOf('    Restore-LabCheckpoint -VmNames $VmNames -RoundFirmware'));
-  const block=source.slice(start,source.indexOf('    Set-ConsoleMode -BootMode $BootMode',start));
-  const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',[],`
+  assert.match(source,/Restore-LabCheckpoint -VmNames \$VmNames -RoundFirmware[\s\S]*?Set-LabRoundClientScope -VmNames \$VmNames/);
+  const block='Set-LabRoundClientScope -VmNames $VmNames';
+  const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Set-LabRoundClientScope'],`
     $VmNames=@('winception-autolab-router');$script:collision=$false;$script:assigned=''
     $vm=[pscustomobject]@{Name=$VmNames[0];State='Off';Id=[guid]'12345678-1234-1234-1234-123456789012'}
     function Get-VM {param($Name) if($Name){$vm}else{[pscustomobject]@{Name='foreign'}}}
@@ -132,4 +131,23 @@ test('stopping deployment services aborts Fleet wait without retry',()=>{
     function Get-ConsoleState { @{services=@{http=@{running=$false};tftp=@{running=$false};dhcp=@{running=$false}}} }
     try {Wait-FleetCompletion @('owned-vm') 60;throw 'Wait accepted stopped services'}catch{if($_.Exception.Message -notlike 'Deployment services stopped*'){throw};'Aborted'}
   `),/Aborted/);
+});
+
+test('Proxy rejection accepts port-qualified denial evidence and refuses issued credentials',()=>{
+  const output=runPowerShell('tools/lib/LabNetworkAcceptance.ps1',['Invoke-LabProxyRejection'],`
+    $script:Config=@{secureBootVms=@('owned-vm')};$script:reads=0;$script:issued=$false;$script:scope=$false;$script:written=$null
+    function Restore-LabCheckpoint {param($VmNames) $script:scope=$false}
+    function Set-LabRoundClientScope {param($VmNames) $script:scope=$true}
+    function Set-ConsoleMode {param($BootMode)};function Set-ConsoleEndpoint {};function Set-ConsoleDhcpServerMode {param($Mode)};function Invoke-ApiPreflight {};function Clear-DeploymentStatus {};function Stop-LabServices {};function Start-LabVms {param($VmNames)};function Start-Sleep {param($Seconds)}
+    function Start-LabServices {if(-not $script:scope){throw 'Scope not set after restore'}}
+    function Get-ConsoleState {$script:reads++;@{logs=@($(if($script:reads -eq 1){'old'}elseif($script:issued){'192.168.177.100:50001 POST /osdcloud/boot-session 201'}else{'192.168.177.100:50001 POST /osdcloud/boot-session 403'}));fleet=@{runs=@()}}}
+    function Invoke-LabPairingDecision {param($VmNames,$Approve) @{clientIp='192.168.177.100';clientMac='00155DAABBCC';bootId='fresh'}}
+    function Write-Evidence {param($Name,$Value) $script:written=$Value}
+    $credential=[pscredential]::new('test',[Security.SecureString]::new())
+    Invoke-LabProxyRejection -Credential $credential
+    $status=$script:written.status;$script:reads=0;$script:issued=$true;$rejected=$false
+    try{Invoke-LabProxyRejection -Credential $credential}catch{if($_.Exception.Message -notlike 'Rejected Proxy client*'){throw};$rejected=$true}
+    @{status=$status;issuedRejected=$rejected}|ConvertTo-Json -Compress
+  `);
+  assert.deepEqual(JSON.parse(output),{status:'Passed',issuedRejected:true});
 });
