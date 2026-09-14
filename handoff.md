@@ -20,6 +20,10 @@ User explicitly resumed the Loop Breaker pause. Negative DHCP no-output assertio
 - Source5f9355d passed full post-commit acceptance:source (check /482 tests,479 pass,3 skip /smoke), .ai/acceptance-source-postcommit.log. Source report bound to5f9355d. Source MAC bug fixed: scope read after restore; deterministic owned VM GUID MAC, collision guard; next runner service-stop causes immediate failed wait/finally. Focused26/26 passed .ai/acceptance-round-mac-tests.log. These Source edits DO NOT affect old loaded runner. No automatic deployment retry; validate/commit before fresh idle guard/bootstrap.
 - A cleanup-helper write was auto-review rejected and did NOT execute/create its file; only .ai/acceptance-router-stop.ps1 actually ran. Do not assume cleanup completed. Source layer is green; expanded VM, physical and human remain unpassed.
 
+### Latest approved continuation
+
+User approved waiting for old runner natural timeout/cleanup, then installed sync, one corrected bootstrap and full matrix; no forced termination bypass. At23:24 elevated snapshot confirms PID16072 active, six VMs Off. Current services0/Fleet0/testprofileSE50433G means cleanup still Pending. Sourcefc48f36 shares post-restore MAC scope with Proxy negative test, matches HTTP source port in deny evidence, and retains bootstrap round in aggregate report. Focused27/27 passed .ai/acceptance-network-review-tests.log; full Source gate running .ai/acceptance-source-network-review.log. No new installed/deployment action until old cleanup Passed.
+
 ### Next execution
 
 1. Source commit dae06b2 completed, focused29/29 passed. Preserve untracked .ai; never stage ignored config/collector tickets or generated outputs.
