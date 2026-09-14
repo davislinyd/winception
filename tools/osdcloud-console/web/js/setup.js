@@ -490,6 +490,10 @@ export function renderInitialization(appState) {
         : `Next: ${nextStep?.label ?? 'Run preflight'}`;
   const dialogScrollPosition = captureInitializationDialogScrollPosition();
   state.initializationDetailScrollPositions = captureInitializationDetailScrollPositions();
+  state.initializationTechnicalOpen ??= {};
+  for (const detail of elements.guidedStepDetail?.querySelectorAll('details[data-step-id]') ?? []) {
+    state.initializationTechnicalOpen[detail.dataset.stepId] = detail.open;
+  }
   
   // Set default selected step in guided setup (skip when user explicitly collapsed)
   if (!state.selectedGuidedStepId && !state.guidedStepCollapsed) {
@@ -613,6 +617,8 @@ export function renderInitialization(appState) {
     // Render detailed items & forms (named 'body' to pass test assertions)
     appendGuidedStepOverview(body, step);
     const technical = document.createElement('details');
+    technical.dataset.stepId = step.id;
+    technical.open = state.initializationTechnicalOpen[step.id] === true;
     const technicalSummary = document.createElement('summary');
     technicalSummary.textContent = '技術檢查明細';
     technical.append(technicalSummary);
