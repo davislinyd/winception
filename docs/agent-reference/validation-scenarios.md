@@ -4,6 +4,9 @@ Read this file when selecting verification for subsystem-specific changes.
 
 ## General
 
+- Layered entries/statuses/router bootstrap/physical safety: docs/acceptance.md. acceptance:source combines check/test/smoke; acceptance:ui uses an owned Chromium preview and simulated network/services.
+- Mode All -NetworkAcceptance adds Proxy/shared-LAN Server to seven firmware deployments. Require owned ready router, Fleet+PowerShell Direct, exact DHCP/network and valid HTTPS before/after service stop. Physical NIC/NAT and unfamiliar-PXE usability remain independent.
+
 - `npm run check` must pass for Web/static/front-end changes.
 - `npm test` must pass for host console code changes.
 - `npm run smoke` must pass before handoff; it uses temporary roots/test ports and must not touch the live LAN or live `C:\OSDCloud`.

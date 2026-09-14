@@ -16,7 +16,7 @@ jobs:
   isolated-lab:
     name: Secure Boot and iPXE PXE regression
     runs-on: [self-hosted, windows, hyperv, winception-lab]
-    timeout-minutes: 180
+    timeout-minutes: 240
     env:
       WINCEPTION_RUNTIME_ROOT: C:\OSDCloud
       WINCEPTION_APP_ROOT: C:\OSDCloud\HostTools\App
@@ -36,7 +36,20 @@ jobs:
         shell: powershell
         run: npm ci --no-audit --no-fund
 
-      - name: Export versioned HostTools bundle
+      - name: Source acceptance before host mutation
+        shell: powershell
+        run: npm run acceptance:source
+
+      - name: Source UI acceptance before host mutation
+        shell: powershell
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: 120000
+        run: |
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run acceptance:ui
+
+      - name: Export verified HostTools bundle
         shell: powershell
         run: |
           $bundleRoot = Join-Path $env:RUNNER_TEMP ('winception-bundle-{0}' -f $env:GITHUB_SHA)
@@ -54,7 +67,7 @@ jobs:
             Join-Path $env:GITHUB_WORKSPACE 'config\lab-regression.example.json'
           }
           "WINCEPTION_LAB_CONFIG=$labConfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:GITHUB_WORKSPACE 'tools\Initialize-WinceptionLab.ps1') -ConfigPath $labConfig -ValidateOnly
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:GITHUB_WORKSPACE 'tools\Initialize-WinceptionLab.ps1') -ConfigPath $labConfig -ValidateOnly -RequireRouter
 
       - name: Install HostTools bundle
         shell: powershell
@@ -73,7 +86,7 @@ jobs:
       - name: Run unattended isolated Lab regression
         shell: powershell
         run: |
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-WinceptionLabRegression.ps1') -ConfigPath $env:WINCEPTION_LAB_CONFIG -Mode All
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:GITHUB_WORKSPACE 'tools\Invoke-WinceptionLabRegression.ps1') -ConfigPath $env:WINCEPTION_LAB_CONFIG -Mode All -NetworkAcceptance
 
       - name: Package Lab evidence
         if: always()
@@ -106,6 +119,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      - name: Upload Source and UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winception-source-ui-${{ github.run_id }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 30
+
       - name: Write Lab job summary
         if: always()
         shell: powershell
@@ -114,7 +137,8 @@ jobs:
             '## Winception isolated Hyper-V Lab'
             ''
             '- Network: Winception-AutoLab / 192.168.177.0/24'
-            '- Matrix: four Secure Boot VMs plus one iPXE VM'
+            '- Matrix: seven firmware deployments plus Proxy and shared-LAN Server deployments'
+            '- Router: owned winception-autolab-router; Default Switch is upstream only'
             '- Cleanup: attempted by regression finally and evidence collection step'
             '- Production/WAN/LAN DHCP: out of scope and guarded against'
             '- Automatic retry: disabled'

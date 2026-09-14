@@ -107,6 +107,7 @@ test('Lab guest evidence persists host firmware and requires the published guest
 test('Lab round persists host firmware as a separate object', () => {
   const output = runLabPowerShell(['Invoke-LabRound', 'Get-OptionalProperty', 'ConvertTo-ObjectList'], `
     function Restore-LabCheckpoint { param($VmNames, $RoundFirmware) }
+    function Get-VMNetworkAdapter { param($VMName) @{MacAddress='AABBCCDDEEFF'} }
     function Set-ConsoleMode { param($BootMode) }
     function Set-ConsoleEndpoint { }
     function Set-ConsoleDhcpServerMode { }
@@ -141,6 +142,7 @@ test('Lab round persists host firmware as a separate object', () => {
 test('Lab round fails when checkpoint cleanup fails', () => {
   runLabPowerShell(['Invoke-LabRound'], `
     function Restore-LabCheckpoint { param($VmNames, $RoundFirmware) if ($null -eq $RoundFirmware) { throw 'Synthetic checkpoint cleanup failure.' } }
+    function Get-VMNetworkAdapter { param($VMName) @{MacAddress='AABBCCDDEEFF'} }
     function Set-ConsoleMode { param($BootMode) }
     function Set-ConsoleEndpoint { }
     function Set-ConsoleDhcpServerMode { }
@@ -563,16 +565,16 @@ test('Workflows use the dedicated runner and keep PRs non-mutating', () => {
   assert.match(pr, /runs-on: \[self-hosted, windows, winception-lab\]/);
   assert.match(pr, /node-version: 24\.x/);
   assert.match(pr, /npm ci/);
-  assert.match(pr, /npm run check/);
-  assert.match(pr, /npm test/);
-  assert.match(pr, /npm run smoke/);
+  assert.match(pr, /npm run acceptance:source/);
+  assert.match(pr, /npm run acceptance:ui/);
   assert.doesNotMatch(pr, /services\/start-all|server:preflight|dhcp-mode|Initialize-DeploymentServer/);
 
   assert.match(lab, /branches:\s+- master/);
   assert.match(lab, /runs-on: \[self-hosted, windows, hyperv, winception-lab\]/);
   assert.match(lab, /concurrency:\s+group: winception-lab/s);
   assert.match(lab, /cancel-in-progress: false/);
-  assert.match(lab, /timeout-minutes: 180/);
+  assert.match(lab, /timeout-minutes: 240/);
+  assert.match(lab, /-Mode All -NetworkAcceptance/);
   assert.match(lab, /contents: read/);
   assert.match(lab, /Export-HostToolsBundle\.ps1/);
   assert.match(lab, /Seed-DevelopmentFixture\.ps1/);

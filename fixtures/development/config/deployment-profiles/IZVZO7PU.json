@@ -1,4 +1,5 @@
 {
+  "acceptance": { "testOnly": true, "autoLogonCount": 3 },
   "id": "IZVZO7PU",
   "name": "All in One",
   "software": [

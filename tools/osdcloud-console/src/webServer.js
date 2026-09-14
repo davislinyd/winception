@@ -434,7 +434,8 @@ export class WebManagementServer {
     }
 
     if (pathname === '/api/services/start-all') {
-      const result = await this.controller.startAll();
+      const body = Number(req.headers['content-length'] ?? 0) > 0 || req.headers['transfer-encoding'] ? await readBody() : {};
+      const result = await this.controller.startAll(body);
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }

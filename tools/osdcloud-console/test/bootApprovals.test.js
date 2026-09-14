@@ -62,6 +62,10 @@ test('Proxy session waits without credentials, issues once after approval, and r
     const request = { clientPublicKey: publicKey.export({ format: 'jwk' }), nonce: 'proxy-nonce',
       bootId: 'proxy-boot', clientId: 'proxy-client', clientMac: 'AA-BB-CC-DD-EE-FF', runId: 'proxy-run' };
     const post = (url, body, headers = {}) => fetch(base + url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    server.acceptanceClients=new Set(['AABBCCDDEEFF']);
+    const foreign=await post('/osdcloud/boot-session',{...request,clientMac:'AA-BB-CC-DD-EE-01'});
+    assert.equal(foreign.status,403);assert.equal((await foreign.json()).envelope,undefined);
+    assert.equal(server.bootApprovals.list().length,0);
     let response = await post('/osdcloud/boot-session', request);
     assert.equal(response.status, 202);
     const pending = await response.json();

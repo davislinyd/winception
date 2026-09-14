@@ -79,6 +79,10 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 
 ## Unattended Lab Automation
 
+- Layered acceptance contract: docs/acceptance.md. Source/UI use only checkout/temporary State and inert services, never installed State or deployment networking. Source/UI green does not prove installed, physical or human acceptance.
+- Optional network matrix adds only owned Gen2 winception-autolab-router (fixed 4 GiB, Secure Boot/TPM On). LAN is Internal AutoLab/.254; Default Switch is WAN upstream only. Verify ownership/VHD parent chain/tool hash/clean+ready checkpoints. Bootstrap is explicit; missing prerequisites block master. Independent DHCP .100–.149 has no PXE options and must stop before Winception Server .200–.250.
+- Physical/AutoLab share Global\Winception-AutoLab. Physical defaults readonly; require ignored onsite config, disposable MAC/UUID, Execute and confirmed DHCP-free window for self-managed DHCP. Foreign ICS/NAT is Blocked, never repaired. Only test-only profiles opt into limited auto-login. Cleanup removes test tasks/tickets and restores original profile/endpoint; missing post-stop report or cleanup failure prohibits complete pass.
+
 - `.github/workflows/pr.yml` is source-only: it may run Node, Web/API, PowerShell, check, test, and smoke commands in the checkout workspace, but must not write `C:\OSDCloud`, run Endpoint Sync, publish profiles, start services, or mutate DHCP.
 - `.github/workflows/lab-deploy.yml` is limited to a dedicated runner labelled `self-hosted, windows, hyperv, winception-lab`. Its only deployment network is the Internal Winception-AutoLab switch on `192.168.177.0/24`; production, WAN, daily LAN, and physical PXE paths are never valid targets.
 - AutoLab VMs are `winception-autolab-01..04` and `winception-autolab-ipxe-01`. Do not reuse historical `winception-client-01..04` vSwitch regression VMs. Default resting firmware is Secure Boot On + TPM On (`MicrosoftWindows`) for `01..04`, and Secure Boot Off + TPM Off for the iPXE VM. Host `dhcp.bootMode` (`secureboot` | `ipxe`) is independent of client TPM.

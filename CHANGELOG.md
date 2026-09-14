@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added Source/UI acceptance commands, versioned inert Playwright fixtures, one worker/no retries, owned preview State cleanup and separate JSON/HTML evidence. Master Source/UI precede the locked AutoLab matrix with a 240-minute job limit.
+- Added owned-router bootstrap and AutoLab Proxy/shared-LAN Server network rounds, independent no-PXE DHCP, exact-client pairing/rejection and pre/post-service-stop DNS/HTTPS evidence. Physical defaults readonly; disposable MAC, ignored site configuration, report-only collector, scoped credentials and cleanup are required.
+- Auto-login requires an explicit bounded test-only profile (1–3); ordinary profiles require target-account login. Acceptance fixtures/router tools and tickets are excluded from Release. Physical/human evidence remains pending; no Release/package/master push.
+
 - One laptop, anywhere onboarding adds a Chinese five-stage wizard, three wiring scenarios, explicit shared-LAN DHCP pool/gateway/DNS confirmation, no-IPv4 physical NIC selection and CIDR overlap guards for laptop NAT. Home separates host preparation from client progress, shows boot-mode instructions and stops deployment services while retaining NAT. Editable bilingual SVG wiring/first-use/daily guides and annotated actual preview screens accompany the manual. The focused step stays expanded, technical disclosure survives refresh, and host progress remains available while preparing.
 - Existing-DHCP PXE Proxy boot credentials now require Console-approved WinPE pairing, bound to source IP/MAC/boot ID/public key/nonce/client/run. Pending responses contain no credentials; rejection, expiry, replay, identity mismatch and terminal state remain fail-closed. Managed DHCP lease checks and the successful boot-session response remain compatible. Site/network drift invalidates readiness. No release, package or tag is created.
 - Daily Home includes clients waiting for Windows login or completing post-logon installation in its active count, and prevents stopping deployment services during those stages.

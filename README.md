@@ -41,6 +41,8 @@ Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在�
 
 ### 02. 部署主機安裝
 
+自動驗收：[分層入口與操作規則](docs/acceptance.md)。Source／UI、AutoLab、實體網路及真人上手各自記錄狀態。實體入口預設唯讀；重灌需明確指定可重灌 MAC。一般 profile 預設不自動登入，登入目標帳號後完成 Windows finalizer；有限次數自動登入只供明確 test-only profile。
+
 從系統管理員 PowerShell 執行：
 
 ```powershell
@@ -408,6 +410,8 @@ Last completed run : <run-id>
 - [`AGENTS.md`](AGENTS.md)：agent-only operational contract。
 
 ## English
+
+See [layered acceptance](docs/acceptance.md) for isolated Source/UI, owned-router AutoLab and explicit disposable-client physical testing. Cleanup and post-stop Internet must pass independently. Normal profiles require target-account sign-in for finalization; bounded auto-login is test-only.
 
 ### 01. Product Overview
 

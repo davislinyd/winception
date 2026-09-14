@@ -8,9 +8,9 @@
       "source": "C:\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-OobeCustomization.ps1",
       "sourceKind": "filesystem",
       "repoPath": "osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1",
-      "length": 13810,
-      "lastWriteTimeUtc": "2026-06-18T08:44:40.8140230Z",
-      "sha256": "31868EEEF6B99C78D25539561EC98B35CA75BA86F251DD48FD7D75CCE5846228"
+      "length": 15164,
+      "lastWriteTimeUtc": "2026-09-14T14:27:20.097Z",
+      "sha256": "AB636CCE3407D8FEEA7B48650243F85CD9DE3BE8B9CE155572D3B7595364D150"
     },
     {
       "source": "C:\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
@@ -152,9 +152,9 @@
       "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\Shutdown\\Invoke-OobeCustomization.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1",
-      "length": 13810,
-      "lastWriteTimeUtc": "2026-06-18T08:44:40.8140230Z",
-      "sha256": "31868EEEF6B99C78D25539561EC98B35CA75BA86F251DD48FD7D75CCE5846228"
+      "length": 15164,
+      "lastWriteTimeUtc": "2026-09-14T14:27:20.097Z",
+      "sha256": "AB636CCE3407D8FEEA7B48650243F85CD9DE3BE8B9CE155572D3B7595364D150"
     },
     {
       "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Config\\Scripts\\SetupComplete\\SetupComplete.cmd",
@@ -192,9 +192,9 @@
       "source": "C:\\OSDCloud\\MountReadOnly\\OSDCloud\\Start-OSDCloud-iPXE.ps1",
       "sourceKind": "boot.wim:index1",
       "repoPath": "osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1",
-      "length": 66297,
-      "lastWriteTimeUtc": "2026-09-14T05:07:52.948Z",
-      "sha256": "55EACE314FCCCC0A3E9B83DB21097327B25C9FEB2476ADA3DDA7EBBACDBBF380"
+      "length": 66358,
+      "lastWriteTimeUtc": "2026-09-14T11:03:48.807Z",
+      "sha256": "C5C6496CC57ED46F7B2186A5139536549FB5538EA111B6952AB61E2C68A1479C"
     }
   ],
   "excludedArtifacts": [

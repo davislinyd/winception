@@ -366,6 +366,7 @@ export class MediaHttpServer extends EventEmitter {
   }
 
   async stop() {
+    this.acceptanceClients = null;
     this.bootApprovals.clear();
     this.bootSessions.clear();
     this.usedBootNonces.clear();
@@ -420,6 +421,9 @@ export class MediaHttpServer extends EventEmitter {
       const bootId = safeClientValue(payload.bootId, 'bootId');
       const clientId = safeClientValue(payload.clientId, 'clientId');
       const clientMac = normalizeMacAddress(payload.clientMac);
+      if (this.acceptanceClients && !this.acceptanceClients.has(clientMac.replace(/[:-]/g, '').toUpperCase())) {
+        throw new Error('Client is outside the active acceptance run');
+      }
       const runId = sanitizeName(safeClientValue(payload.runId, 'runId'));
       const remoteIp = normalizeRemoteIp(req.socket.remoteAddress);
       const claimedIp = payload.clientIp ? normalizeRemoteIp(payload.clientIp) : remoteIp;

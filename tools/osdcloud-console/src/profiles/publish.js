@@ -44,6 +44,7 @@ export function profileManifest(state, osImageResult = null) {
   const manifest = {
     profileId: state.activeProfile.id,
     profileName: state.activeProfile.name,
+    ...(state.activeProfile.acceptance ? { acceptance: state.activeProfile.acceptance } : {}),
     publishedAt: new Date().toISOString(),
     selectedSoftware: state.selectedSoftware.map((software) => software.id),
     software: state.selectedSoftware.map((software) => ({

@@ -557,6 +557,8 @@ function Save-DeploymentStatusMetadata {
         $metadata = [ordered]@{
             runId = $runId
             clientId = $clientId
+            bootId = $bootId
+            clientMac = $clientMac
             bootSessionToken = $bootSessionToken
             statusUrl = $statusUrl
             screenshotUrl = $screenshotUrl

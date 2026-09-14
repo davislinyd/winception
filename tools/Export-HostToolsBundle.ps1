@@ -67,6 +67,7 @@ function Test-ExcludedBundlePath {
     param([Parameter(Mandatory)][string] $RelativePath)
 
     $normalized = Normalize-RelativePath $RelativePath
+    if ($normalized -match '^tools\\acceptance\\|^tools\\lib\\(?:Acceptance|LabRouter|LabNetworkAcceptance)\.ps1$|^tools\\(?:Invoke-WinceptionAcceptance|Initialize-WinceptionLabRouter)\.ps1$|^config\\acceptance\.example\.json$') { return $true }
     if ($normalized -match '(^|\\)(\.git|\.ai|node_modules|downloads|\.downloads|status|logs|screenshots|transcripts|runtime|test|tests)(\\|$)') {
         return $true
     }

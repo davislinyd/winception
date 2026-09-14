@@ -6,6 +6,8 @@ It is not a runnable backup. A fresh deployment host first runs `Setup-Deploymen
 
 ## What This Mirror Contains
 
+WinPE persists public bootId/clientMac for acceptance identity. OOBE auto-login requires an explicit bounded test-only profile; normal deployment waits for target-account sign-in. Source/embedded Shutdown mirrors and modified manifest hash records must stay synchronized. Acceptance collector/DHCP/router assets and tickets are excluded from Release runtime.
+
 The versioned PXE WinPE startup script supports both managed DHCP leases and existing-DHCP Proxy pairing. In Proxy mode it computes the pairing code locally, waits up to ten minutes for Console approval, then decrypts the existing single-use boot-session envelope. Rejection/expiry stops deployment before image application. Source edits take effect in installed WinPE only through the existing Endpoint Sync / boot.wim workflow; a Git commit alone does not update published media.
 
 The repo tracks small source/config files that define deployment behavior:

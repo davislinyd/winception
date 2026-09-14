@@ -1,5 +1,7 @@
 # Agent Reference: Deployment Paths
 
+Layered acceptance: docs/acceptance.md. Router Default Switch attachment is upstream only; AutoLab PXE/client traffic stays Internal Winception-AutoLab. Physical uses ignored onsite config and explicit disposable MAC/UUID, never VM results as physical evidence.
+
 Read this file when a task mentions deployment paths, physical laptop, VM regression, timing runs, USB/ISO, or evidence separation.
 
 ## Live Endpoint Rule

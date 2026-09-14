@@ -1,0 +1,108 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { bootPairingCode } from '../src/bootApprovals.js';
+
+function runPowerShell(relative, names, command) {
+  const full=path.resolve(relative).replaceAll("'","''");
+  const setup=`$ErrorActionPreference='Stop'; $t=$null;$e=$null;$a=[System.Management.Automation.Language.Parser]::ParseFile('${full}',[ref]$t,[ref]$e); if($e.Count){throw ($e.Message -join ';')}; foreach($f in $a.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$false)|Where-Object Name -in @(${names.map(n=>`'${n}'`).join(',')})){Invoke-Expression $f.Extent.Text};`;
+  const env={...process.env};if(env.PSModulePath)env.PSModulePath=env.PSModulePath.split(';').filter(s=>!/codex-runtimes/i.test(s)).join(';');
+  const result=spawnSync('powershell.exe',['-NoProfile','-Command',setup+command],{encoding:'utf8',windowsHide:true,timeout:15000,env});
+  assert.equal(result.error,undefined);assert.equal(result.status,0,result.stdout+result.stderr);
+  return result.stdout.trim();
+}
+test('new acceptance scripts parse in Windows PowerShell without invoking host operations',()=>{
+  for(const relative of ['tools/Invoke-WinceptionAcceptance.ps1','tools/Initialize-WinceptionLabRouter.ps1','tools/lib/Acceptance.ps1','tools/lib/LabRouter.ps1','tools/lib/LabNetworkAcceptance.ps1','tools/acceptance/client.ps1'])runPowerShell(relative,[],"'Parsed'");
+});
+test('WinPE auto-logon accepts only an integer limited test-only profile',()=>{
+  const output=runPowerShell('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1',['Get-TestAutoLogonCount'],`
+    function Test-Path {param($LiteralPath) $true}
+    function Get-Content {param($LiteralPath,[switch]$Raw) $script:profile}
+    $counts=@();foreach($script:profile in @('{}','{"acceptance":{"testOnly":false,"autoLogonCount":1}}','{"acceptance":{"testOnly":true,"autoLogonCount":5}}','{"acceptance":{"testOnly":true,"autoLogonCount":1.5}}','{"acceptance":{"testOnly":"true","autoLogonCount":1}}','{"acceptance":{"testOnly":true,"autoLogonCount":3}}')){$counts+=Get-TestAutoLogonCount 'C:\\'};$counts|ConvertTo-Json -Compress
+  `);
+  assert.deepEqual(JSON.parse(output),[0,0,0,0,0,3]);
+});
+test('actual WinPE pairing calculation matches server vectors',()=>{
+  const source=fs.readFileSync('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1','utf8');
+  const calculation=source.match(/\$pairingInput = [\s\S]*?\$pairingCode = [^\r\n]+/)[0];
+  const vectors=[{n:'AQIDBA',e:'AQAB',nonce:'nonce',bootId:'boot'},{n:'AAEC_w',e:'Aw',nonce:'second-nonce',bootId:'fresh-boot'}];
+  for(const v of vectors){
+    const decode=s=>Buffer.from(s,'base64url').toString('base64');
+    const command=`$publicParameters=@{Modulus=[Convert]::FromBase64String('${decode(v.n)}');Exponent=[Convert]::FromBase64String('${decode(v.e)}')};$clientNonce='${v.nonce}';$bootId='${v.bootId}';${calculation};$pairingCode`;
+    assert.equal(runPowerShell('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1',['ConvertTo-Base64Url'],command),bootPairingCode(v,v.nonce,v.bootId));
+  }
+});
+test('DHCP discovery rejects unrelated, malformed and non-offer packets',()=>{
+  const output=runPowerShell('tools/lib/Acceptance.ps1',['Get-DhcpOfferServer'],`
+    $p=New-Object byte[] 278;$p[0]=69;$p[9]=17;$p[20]=0;$p[21]=67;$p[22]=0;$p[23]=68;$p[28]=2;
+    ([byte[]](1,2,3,4)).CopyTo($p,32);([byte[]](99,130,83,99,53,1,2,54,4,192,168,177,254,255)).CopyTo($p,264);
+    $transaction=[byte[]](1,2,3,4);$valid=Get-DhcpOfferServer $p $transaction;
+    $wrong=[string](Get-DhcpOfferServer $p ([byte[]](9,9,9,9)));$p[270]=5;$ack=[string](Get-DhcpOfferServer $p $transaction);
+    $p[270]=2;$p[264]=0;$badCookie=[string](Get-DhcpOfferServer $p $transaction);
+    @{valid=$valid;wrong=$wrong;ack=$ack;badCookie=$badCookie}|ConvertTo-Json -Compress
+  `);
+  const result=JSON.parse(output);assert.equal(result.valid,'192.168.177.254');
+  for(const field of ['wrong','ack','badCookie'])assert.ok(result[field] === null || result[field] === '', `${field} emitted a DHCP server value`);
+});
+test('physical configuration refuses unsafe pool subnet and WAN settings',()=>{
+  const output=runPowerShell('tools/lib/Acceptance.ps1',['Assert-AcceptanceConfig','Get-AcceptanceMac','Get-AcceptanceIpv4Value'],`
+    $env:COMPUTERNAME='TEST-HOST'
+    function Get-NetAdapter {param($Name) [pscustomobject]@{HardwareInterface=$true;Status='Up'}}
+    $base=@{schemaVersion=1;webBase='http://127.0.0.1:8080';stateRoot='C:\\OSDCloud\\HostTools\\State';host=@{computerName='TEST-HOST';serviceInterface='Ethernet';serviceIp='192.168.177.1';wanInterface='Wi-Fi';clientInterface='Ethernet'};
+      client=@{mac='AA-BB-CC-DD-EE-FF';machineId='11111111-2222-3333-4444-555555555555';name='label';disposableConfirmed=$true};expected=@{subnet='192.168.177.0/24';prefixLength=24;gateway='192.168.177.254';dhcpServer='192.168.177.1';dnsServers=@('1.1.1.1')};
+      leaseStartIp='192.168.177.200';leaseEndIp='192.168.177.250';dhcpClearConfirmed=$true;testWindowExpiresAt='2050-01-01T00:00:00Z';probeHost='www.microsoft.com';collectorPort=18081}
+    foreach($scene in @('ExistingDhcp','WinceptionDhcp','LaptopNat')){Assert-AcceptanceConfig ($base|ConvertTo-Json -Depth 6|ConvertFrom-Json) $scene}
+    $rejected=0
+    foreach($case in @('pool','subnet','prefix','wan','window')){
+      $cfg=$base|ConvertTo-Json -Depth 6|ConvertFrom-Json
+      switch($case){pool{$cfg.leaseStartIp='192.168.177.1'} subnet{$cfg.expected.subnet='192.168.177.5/24'} prefix{$cfg.expected.prefixLength=16} wan{$cfg.host.wanInterface='Ethernet'} window{$cfg.testWindowExpiresAt='2000-01-01T00:00:00Z'}}
+      try{Assert-AcceptanceConfig $cfg LaptopNat}catch{$rejected++}
+    };$rejected
+  `);
+  assert.equal(Number(output),5);
+});
+test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
+  const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`
+    $script:foreign=$false;$script:checkpoint=$true;$script:vmId='owned'
+    function Test-Path {param($LiteralPath) $true}
+    function Get-Content {param($LiteralPath,[switch]$Raw) @{vmId='owned';switchName='Winception-AutoLab';vhdxPath='C:\\OSDCloud\\HostTools\\State\\lab\\router\\winception-autolab-router.vhdx'}|ConvertTo-Json}
+    function Get-VM {[CmdletBinding()]param($Name) [pscustomobject]@{Id=$script:vmId;Generation=2}}
+    function Get-VMMemory {param($VMName) [pscustomobject]@{DynamicMemoryEnabled=$false;Startup=4GB}}
+    function Get-VMNetworkAdapter {param($VMName) [pscustomobject]@{Name='LAN';SwitchName='Winception-AutoLab'}}
+    function Get-VMHardDiskDrive {param($VMName) [pscustomobject]@{Path='C:\\OSDCloud\\HostTools\\State\\lab\\router\\checkpoint.avhdx'}}
+    function Get-VHD {[CmdletBinding()]param($Path) [pscustomobject]@{ParentPath=$(if($script:foreign){'C:\\foreign.vhdx'}else{'C:\\OSDCloud\\HostTools\\State\\lab\\router\\winception-autolab-router.vhdx'})}}
+    function Get-VMFirmware {param($VMName) [pscustomobject]@{SecureBoot='On'}}
+    function Get-VMSecurity {param($VMName) [pscustomobject]@{TpmEnabled=$true}}
+    function Get-VMSnapshot {[CmdletBinding()]param($VMName,$Name) if($script:checkpoint){[pscustomobject]@{Name=$Name}}}
+    $cfg=@{stateRoot='C:\\OSDCloud\\HostTools\\State'}
+    Assert-LabRouterOwnership $cfg|Out-Null
+    $rejected=0;foreach($case in @('foreign','vm','checkpoint')){
+      $script:foreign=$case -eq 'foreign';$script:vmId=if($case -eq 'vm'){'unknown'}else{'owned'};$script:checkpoint=$case -ne 'checkpoint'
+      try{Assert-LabRouterOwnership $cfg|Out-Null}catch{$rejected++}
+    };$rejected
+  `);
+  assert.equal(Number(output),3);
+});
+test('Lab guard failure cleanup performs no service or VM mutation',()=>{
+  assert.equal(runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Invoke-LabCleanup'],`
+    $script:CleanupComplete=$false;$ValidateOnly=$false;$script:MutationStarted=$false
+    $script:CleanupErrors=New-Object 'System.Collections.Generic.List[string]'
+    function Stop-LabServices {throw 'Unexpected mutation'}
+    function Restore-LabCheckpoint {throw 'Unexpected VM restore'}
+    function Restore-SecretEnvironment {}
+    function Release-LabLock {}
+    Invoke-LabCleanup;'No mutation'
+  `),'No mutation');
+});
+test('physical cleanup refuses HTTP success when a deployment service is still running',()=>{
+  const output=runPowerShell('tools/lib/Acceptance.ps1',['Stop-AcceptanceServices'],`
+    $script:running=$true
+    function Invoke-AcceptanceApi {param($Method,$Path) [pscustomobject]@{state=[pscustomobject]@{services=[pscustomobject]@{http=[pscustomobject]@{running=$script:running}}}}}
+    $rejected=$false;try{Stop-AcceptanceServices}catch{$rejected=$true}
+    if(-not $rejected){throw 'Running service accepted as cleaned'}
+    $script:running=$false;Stop-AcceptanceServices;'Stopped'
+  `);
+  assert.equal(output,'Stopped');
+});

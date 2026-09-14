@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { normalizeAcceptance } from './acceptance.js';
 import { loadCustomScriptCatalog } from './scripts.js';
 import { arrayFrom, assertInside, defaultInstallSequenceTimeoutSeconds, deploymentProfileOptions, generateDeploymentProfileId, inputError, normalizeExecutionSettings, normalizeId, normalizeLocaleTag, normalizePositiveInteger, normalizeProfileDescription, normalizeProfileName, normalizeWindowsTimeZoneId, profileNameKey, readJson, resolveExecutionSettings, selectedProfileFileName, writeJson } from './shared.js';
 import { loadSoftwareCatalog } from './software.js';
@@ -260,6 +261,7 @@ export function loadDeploymentProfiles(config = {}, options = {}) {
       id,
       name,
       description: String(raw.description ?? ''),
+      acceptance: normalizeAcceptance(raw.acceptance),
       softwareIds: selectedIds,
       installSequence,
       execution,
@@ -445,6 +447,8 @@ export function createDeploymentProfile(config = {}, input = {}, options = {}) {
     software: softwareIds,
     installSequence,
   };
+  const acceptance = normalizeAcceptance(input.acceptance);
+  if (acceptance) raw.acceptance = acceptance;
   if (osImageId) {
     raw.osImage = osImageId;
   }

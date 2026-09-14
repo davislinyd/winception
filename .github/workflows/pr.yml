@@ -44,7 +44,7 @@ jobs:
       - name: Check JavaScript syntax
         shell: powershell
         run: |
-          $files = @(git ls-files '*.js')
+          $files = @(git ls-files '*.js' '*.mjs')
           if ($LASTEXITCODE -ne 0) { throw 'Unable to enumerate tracked JavaScript files.' }
           foreach ($file in $files) {
             node --check -- $file
@@ -69,23 +69,34 @@ jobs:
             }
           }
 
-      - name: Run project checks
+      - name: Run source acceptance
         shell: powershell
-        run: npm run check
-
-      - name: Run unit and integration tests
-        shell: powershell
-        run: npm test
-
-      - name: Run local smoke test
-        shell: powershell
-        run: npm run smoke
+        run: npm run acceptance:source
 
       - name: Run Web and Lab automation targeted tests
         shell: powershell
         run: node --test tools/osdcloud-console/test/webUi.test.js tools/osdcloud-console/test/beginner.test.js tools/osdcloud-console/test/labAutomation.test.js
 
-      - name: Write PR test summary
+      - name: Install acceptance Chromium
+        shell: powershell
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: 120000
+        run: npx playwright install chromium
+
+      - name: Run isolated UI acceptance
+        shell: powershell
+        run: npm run acceptance:ui
+
+      - name: Upload isolated UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winception-pr-ui-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+
+      - name: Write final PR test summary
         if: always()
         shell: powershell
         run: |

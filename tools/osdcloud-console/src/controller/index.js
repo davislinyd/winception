@@ -817,9 +817,20 @@ export class ServiceController extends EventEmitter {
     });
   }
 
-  async startAll() {
+  async startAll(options = {}) {
     return this.runOperation('Starting all services', async () => {
       try {
+        if (options.acceptanceClients !== undefined) {
+          const clients = options.acceptanceClients;
+          const profile = this.dependencies.resolveDeploymentProfileState(this.config).activeProfile;
+          if (this.services.http.running || profile?.acceptance?.testOnly !== true || !Array.isArray(clients) || clients.length < 1 || clients.length > 5 || clients.some((mac) => !/^(?:[A-Fa-f0-9]{2}[:-]){5}[A-Fa-f0-9]{2}$/.test(mac))) {
+            throw new Error('Acceptance start requires stopped services, a test-only profile and explicit client MACs');
+          }
+          this.services.http.acceptanceClients = new Set(clients.map((mac) => mac.replace(/[:-]/g, '').toUpperCase()));
+        } else {
+          if (this.services.http.running && this.services.http.acceptanceClients) throw new Error('Stop the active acceptance services before an ordinary start');
+          this.services.http.acceptanceClients = null;
+        }
         await this.networkOptions();
         this.assertDeploymentReadyForServices();
         await this.services.http.start();

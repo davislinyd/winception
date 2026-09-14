@@ -1,10 +1,12 @@
 [CmdletBinding()]
 param(
     [string] $ConfigPath,
-    [switch] $ValidateOnly
+    [switch] $ValidateOnly,
+    [switch] $RequireRouter
 )
 
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
+. (Join-Path $PSScriptRoot 'lib\LabRouter.ps1')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -306,6 +308,7 @@ Assert-CommandAvailable -Name 'Enable-VMTPM'
 Assert-CommandAvailable -Name 'Disable-VMTPM'
 $config = Read-LabConfig -Path $ConfigPath
 Assert-LabConfig -Config $config
+if ($RequireRouter) {Assert-LabRouterOwnership -Config $config -Ready|Out-Null}
 if (-not (Test-IsAdministrator)) {
     throw 'Initialize-WinceptionLab.ps1 requires an elevated PowerShell session.'
 }

@@ -192,6 +192,24 @@ function makeController(root, overrides = {}) {
   };
 }
 
+test('acceptance service start requires a limited test profile and cannot broaden an active client scope', async () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'winception-acceptance-start-'));
+  try {
+    let testOnly=false;
+    const {controller,services}=makeController(root,{dependencies:{resolveDeploymentProfileState:()=>({activeProfile:{id:'test',acceptance:{testOnly}}})}});
+    controller.assertDeploymentReadyForServices=()=>{};
+    const options={acceptanceClients:['AA-BB-CC-DD-EE-FF']};
+    await assert.rejects(()=>controller.startAll(options),/test-only profile/);
+    assert.equal(services.http.starts,0);
+    testOnly=true;
+    await assert.rejects(()=>controller.startAll({acceptanceClients:[]}),/explicit client MACs/);
+    await controller.startAll(options);
+    assert.deepEqual([...services.http.acceptanceClients],['AABBCCDDEEFF']);
+    await assert.rejects(()=>controller.startAll(),/Stop the active acceptance/);
+    assert.equal(services.http.starts,1);
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test('network drift revokes readiness and blocks all service starts until endpoint is current', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'winception-site-change-'));
   try {

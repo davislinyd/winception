@@ -63,6 +63,21 @@ function ConvertTo-XmlText {
     [System.Security.SecurityElement]::Escape($Value)
 }
 
+function Get-TestAutoLogonCount {
+    param([string] $WindowsRoot)
+    $profilePath = Join-Path $WindowsRoot 'ProgramData\OSDCloud\Apps\selected-profile.json'
+    if (-not (Test-Path -LiteralPath $profilePath)) { return 0 }
+    try {
+        $profile = Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
+        if ($profile.acceptance.testOnly -is [bool] -and $profile.acceptance.testOnly -eq $true -and
+            $profile.acceptance.autoLogonCount -is [ValueType] -and $profile.acceptance.autoLogonCount -eq [Math]::Truncate($profile.acceptance.autoLogonCount) -and
+            $profile.acceptance.autoLogonCount -ge 1 -and $profile.acceptance.autoLogonCount -le 3) {
+            return [int] $profile.acceptance.autoLogonCount
+        }
+    } catch {}
+    return 0
+}
+
 function Get-DeploymentSecretPathCandidates {
     $candidates = @()
     if ($PSScriptRoot) {
@@ -144,6 +159,12 @@ try {
     $setupScripts = Join-Path $windowsRoot 'Windows\Setup\Scripts'
     New-Item -ItemType Directory -Path $panther, $sysprep, $setupScripts -Force | Out-Null
 
+    $testAutoLogonCount = Get-TestAutoLogonCount -WindowsRoot $windowsRoot
+    $testAutoLogonXml = ''
+    if ($testAutoLogonCount -gt 0) {
+        Write-Warning 'TEST ONLY: this acceptance profile enables limited automatic login.'
+        $testAutoLogonXml = "<AutoLogon><Password><Value>$windowsPasswordXml</Value><PlainText>true</PlainText></Password><Enabled>true</Enabled><LogonCount>$testAutoLogonCount</LogonCount><Username>$windowsUsernameXml</Username></AutoLogon>"
+    }
     $unattend = @"
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
@@ -182,15 +203,7 @@ try {
           </LocalAccount>
         </LocalAccounts>
       </UserAccounts>
-      <AutoLogon>
-        <Password>
-          <Value>$windowsPasswordXml</Value>
-          <PlainText>true</PlainText>
-        </Password>
-        <Enabled>true</Enabled>
-        <LogonCount>5</LogonCount>
-        <Username>$windowsUsernameXml</Username>
-      </AutoLogon>
+      $testAutoLogonXml
     </component>
   </settings>
 </unattend>
@@ -282,11 +295,17 @@ exit /b 0
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' /v HideOnlineAccountScreens /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' /v HideEULAPage /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' /v HideWirelessSetupInOOBE /t REG_DWORD /d 1 /f | Out-Null
+    if ($testAutoLogonCount -gt 0) {
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoAdminLogon /t REG_SZ /d '1' /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v ForceAutoLogon /t REG_SZ /d '1' /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultUserName /t REG_SZ /d $windowsUsername /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultPassword /t REG_SZ /d $windowsPassword /f | Out-Null
-    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoLogonCount /t REG_DWORD /d 5 /f | Out-Null
+    reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoLogonCount /t REG_DWORD /d $testAutoLogonCount /f | Out-Null
+    } else {
+        foreach ($name in @('AutoAdminLogon','ForceAutoLogon','DefaultUserName','DefaultPassword','AutoLogonCount')) {
+            reg.exe delete 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v $name /f 2>$null | Out-Null
+        }
+    }
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v NoAutoUpdate /t REG_DWORD /d 1 /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v AUOptions /t REG_DWORD /d 2 /f | Out-Null
     reg.exe unload HKLM\OSD_OFF_SOFTWARE | Out-Null

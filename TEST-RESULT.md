@@ -1,5 +1,20 @@
 # Deployment Test Result
 
+## Layered automated acceptance — Source milestone 2026-09-14
+
+Branch codex/easier-onboarding; restorable acceptance baseline codex/baseline-acceptance-20260914 at f092edc91136e5cef118338743705378f1b7a4ec. No Release, package or master push. Operational entries and separate layer rules: [docs/acceptance.md](docs/acceptance.md).
+
+| Layer | Status | Current evidence |
+| --- | --- | --- |
+| Source | Passed | acceptance:source: check, 480 tests / 477 passed / 3 skipped, smoke; logs .ai/acceptance-source-final.log and ignored JSON/HTML test-results/acceptance-source |
+| UI | Passed | 9 cases at 390/1024/1366/1920 px, one worker/no retries, owned State cleanup Passed; local Chrome, not downloaded Chromium; test-results/acceptance-ui-report/result.json and HTML |
+| Windows PowerShell / safety | Passed | Changed scripts parse; limited auto-login; actual WinPE/server pairing vectors; exact DHCP packets; unsafe site/pool/WAN guards; router VHD ownership; no mutation on early guard; partial stop fails cleanup |
+| Installed App / WinPE | NotRun | Previous onboarding installed/Preflight evidence below is historical; update only after verified scoped source commit and fresh idle guards |
+| Expanded AutoLab | NotRun | Router creation/bootstrap/ready checkpoint and nine positive deployments plus Proxy rejection not executed yet |
+| Physical / human | NotRun | Three physical scenes and unfamiliar-PXE usability remain independent; missing-site readonly entry reports Blocked with deployment/network/cleanup NotRun |
+
+Final draft review added authenticated Console calls, shared router-create mutex, live workspace runtimeRoot lookup and strict service-stop checks. Focused validation follows those edits; no live service/network mutation occurred in this Source milestone. Ordinary profiles now require target-account login; only bounded TEST ONLY profiles allow auto-login. No disk rollback is promised for physical reinstallation.
+
 ## One laptop, anywhere acceptance — 2026-09-14
 
 Implementation is on `codex/easier-onboarding`, based on `bdbe5ce`; baseline branch is `codex/baseline-onboarding-20260914`. Source, isolated preview, installed service, physical network and human usability evidence are separate. No new physical deployment or human usability pass is claimed by this implementation record.

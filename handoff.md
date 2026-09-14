@@ -1,6 +1,30 @@
 # Agent handoff — 2026-09-14
 
-## Active continuation — One laptop, anywhere onboarding
+## Active continuation — Layered automated acceptance
+
+User explicitly resumed the Loop Breaker pause. Negative DHCP no-output assertions are fixed without relaxing packet checks. Continue the approved plan; do not infer physical/human readiness from Source or VM evidence. Before usage reaches the limit, update this file with exact active run/process/evidence/cleanup state. Latest usage query: five-hour used22%, weekly66%; refresh at milestones.
+
+### Git/source milestone
+
+- Branch codex/easier-onboarding; acceptance baseline codex/baseline-acceptance-20260914 at f092edc91136e5cef118338743705378f1b7a4ec. Original bdbe5ce/master/unpushed work preserved. No push, Release, tag or package.
+- Acceptance implementation/detailed bilingual operator contract is docs/acceptance.md. Source/UI drafts, collector/client/report-only ticket, test-only profile gate/MAC-scoped boot credentials, router DHCP/ownership/bootstrap/network rounds, CI matrix and manuals are complete for Source review. All edits still unstaged/uncommitted at this handoff edit; commit before installed/runtime/PXE.
+- Latest acceptance:source passed check /480 tests (477 pass,3 skip)/smoke, .ai/acceptance-source-final.log and test-results/acceptance-source JSON+HTML. Subsequent focused tests cover final guards. UI9 pass, owned State cleanupPassed, local Chrome (Chromium CDN download failed; do not retry unchanged download). Logs .ai/acceptance-ui-final.log; layered UI JSON+HTML test-results/acceptance-ui-report. YAML parsed with installed Playwright-core utilsBundle yaml, no new dependency. WinPE Shutdown mirror/three changed manifest hashes synchronized.
+- Final Source edits: Console-auth token handling in Lab; router Create shares mutex; physical uses live config.workspace.runtimeRoot; partial stop never counts cleanupPassed; next round blocked on cleanup failure; router firewall accepts LAN broadcast only on LAN interface. Run focused scripts/parser before scoped commit. Source report hash is observed tree at run time; later evidence/doc-only edits are separate.
+
+### Next execution
+
+1. Finish final focused validation, scoped stage/commit Source/tests/docs. Preserve untracked .ai; never stage ignored config/collector tickets or generated outputs.
+2. Refresh installed host idle/API/NIC/VM state. Current read-only snapshot: operationfalse/fleet0/services0; AutoLab192.168.177.1, activeIZVZO7PU/image25H2, installed workspace runtimeC:\OSDCloud; auth.requiredfalse. Previous installed4b9fb36/29-check Preflight below is historical. No acceptance reload/sync/router creation/deployment yet.
+3. Existing elevated .ai/onboarding-installed-update.ps1 performs guarded npmreload + protected State backup (process-only CodexPSModulePath removal). Reuse only AFTER sourcecommit. Then verify exact installed hashes, sync WinPE/endpoint through existing API, fresh Preflight. Do not patch runtime manually.
+4. Readonly elevated Initialize-WinceptionLab -ValidateOnly and required clean baseVHDX/caches. Explicit Initialize-WinceptionLabRouter -Create, then main -BootstrapRouter: one existing-image test-only deployment, PSDirect LAN/WAN/independent DHCP/guestNAT, Winception-Router-Ready checkpoint. All assetsState-owned; DefaultSwitch WAN only, foreign hostICS/NAT untouched.
+5. Run main -ModeAll -NetworkAcceptance (nine positives + rejection) under existing mutex, no automatic retry. Require Fleet+PSDirect+exact network+post-stopDNS/validHTTPS+cleanup. Missing/blocked prerequisite never green. Monitor long runs; never leave background deployment unattended when handing off. On failure fix source, validate/commit/reload before fresh deployment; capture exact diagnostics and no-retry boundary.
+6. Physical/human remainNotRun/Blocked: no present physicalEthernet clientNIC, foreignICS and unrelated77/88 NATs retained. Physical entry defaultValidateOnly missing-site creates BlockedJSON/HTML in ignored test-results; no physical DHCP/NAT/wipe without ignored exact onsite/disposable confirmation.
+
+### Known review boundaries
+
+Source validation is not installed/WinPE proof. Router/UDP/Hyper-V/Internet real behavior still needs bootstrap/network rounds; physical NIC/hardware/actualNAT and human comprehension are not covered by VM. Limited auto-login requires explicit test-only selected profile; ordinary profile does not inherit opt-in. Collector holds only report permission, ties UUID/MAC/source/run/boot, stays alive post-stop, and cleanup acknowledgement requires removed ticket/task/login. State/network rollback is not a Git guarantee.
+
+## Previous completed milestone — One laptop, anywhere onboarding
 
 User-approved onboarding implementation uses `codex/easier-onboarding`. Restorable source baseline is `bdbe5ceac22032edcf8c04b6532fe3c9785c9db2` on `codex/baseline-onboarding-20260914`; master and its existing unpushed handoff commit are preserved. `.ai/` stays untracked. Changes belong in Unreleased, with no Release/package/tag or master push.
 

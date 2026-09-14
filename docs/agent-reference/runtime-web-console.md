@@ -1,5 +1,7 @@
 # Agent Reference: Runtime And Web Console
 
+Acceptance profile opt-in is testOnly true / autoLogonCount 1–3; normal profiles require target-account login. start-all explicit acceptanceClients requires stopped HTTP/test-only profile; boot-envelope issue enforces that MAC scope. Collector is separate/report-only and remains through post-stop Internet/cleanup, never Console/deployment authority. See docs/acceptance.md.
+
 Read this file when a task touches Runtime Readiness, Prepare runtime, endpoint sync, Web console behavior, service controls, OS Image Cache, deployment profile publish, WinPE, SetupComplete, or desktop-ready behavior.
 
 ## Runtime Readiness

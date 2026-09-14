@@ -3,10 +3,15 @@ param(
     [string] $ConfigPath,
     [ValidateSet('All', 'SecureBoot', 'Ipxe', 'FirmwareCorners')]
     [string] $Mode = 'All',
-    [switch] $ValidateOnly
+    [switch] $ValidateOnly,
+    [switch] $NetworkAcceptance,
+    [switch] $BootstrapRouter
 )
 
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
+. (Join-Path $PSScriptRoot 'lib\LabRouter.ps1')
+. (Join-Path $PSScriptRoot 'lib\LabNetworkAcceptance.ps1')
+. (Join-Path $PSScriptRoot 'lib\Acceptance.ps1')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -26,6 +31,12 @@ $script:LabMutex = $null
 $script:CleanupComplete = $false
 $script:CleanupErrors = New-Object System.Collections.Generic.List[string]
 $script:Secrets = $null
+$script:RoundDhcpMode = 'server'
+$script:AcceptanceProfileId = $null
+$script:AcceptanceOriginalProfile = $null
+$script:AcceptanceSavedState = $null
+$script:MutationStarted = $false
+$script:RoundClientMacs = @()
 $script:SavedEnvironment = @{}
 $script:SelectedVms = @()
 
@@ -512,7 +523,13 @@ function Assert-LabRunnerGuard {
     $labAdapters = @(Get-VMNetworkAdapter -All | Where-Object {
         [string] $_.SwitchName -eq $switchName -and -not [bool] $_.IsManagementOS
     })
-    $unexpectedAdapters = @($labAdapters | Where-Object { [string] $_.VMName -notin $allVms })
+    $allowedRouter = @()
+    if (Get-VM -Name winception-autolab-router -ErrorAction SilentlyContinue) {
+        Assert-LabRouterOwnership -Config $script:Config -Ready:($NetworkAcceptance -and -not $BootstrapRouter) | Out-Null
+        if ((Get-VM -Name winception-autolab-router).State -ne 'Off') {throw 'Router must be Off before the Lab run.'}
+        $allowedRouter = @('winception-autolab-router')
+    } elseif ($NetworkAcceptance -or $BootstrapRouter) {throw 'Dedicated router VM is missing.'}
+    $unexpectedAdapters = @($labAdapters | Where-Object { [string] $_.VMName -notin ($allVms + $allowedRouter) })
     if ($unexpectedAdapters.Count -gt 0) {
         throw "Unexpected VM is connected to isolated Lab switch: $($unexpectedAdapters[0].VMName)"
     }
@@ -841,6 +858,11 @@ function Invoke-ConsoleJson {
             TimeoutSec = $TimeoutSec
             ErrorAction = 'Stop'
         }
+        $auth=Invoke-RestMethod "$($script:WebBaseUri)/api/auth/status" -TimeoutSec 30 -ErrorAction Stop
+        if($auth.required){
+            $token=Get-Content -LiteralPath (Join-Path $script:StateRoot 'config\web-console-token.json') -Raw|ConvertFrom-Json
+            $parameters.Headers=@{'X-Winception-Token'=[string]$token.token}
+        }
         if ($Method -eq 'POST') {
             $parameters.Body = ($Body | ConvertTo-Json -Depth 12 -Compress)
             $parameters.ContentType = 'application/json'
@@ -894,6 +916,10 @@ function Set-ConsoleEndpoint {
         ipAddress = [string] $script:Config.serviceIp
         prefixLength = [int] $script:Config.prefixLength
         gateway = [string] $script:Config.dhcp.router
+        dhcpMode = $script:RoundDhcpMode
+        leaseStartIp = [string] $script:Config.dhcp.leaseStartIp
+        leaseEndIp = [string] $script:Config.dhcp.leaseEndIp
+        dnsServers = @('1.1.1.1','8.8.8.8')
     }
     $state = $response.state
     Assert-ConsoleEndpoint -State $state
@@ -920,8 +946,9 @@ function Set-ConsoleMode {
 }
 
 function Set-ConsoleDhcpServerMode {
-    $response = Invoke-ConsoleJson -Method POST -Path '/api/dhcp-mode' -Body @{ mode = 'server' }
-    if ([string] $response.result.dhcpMode -ne 'server') {
+    param([ValidateSet('server','proxy')][string]$Mode='server')
+    $response = Invoke-ConsoleJson -Method POST -Path '/api/dhcp-mode' -Body @{ mode = $Mode }
+    if ([string] $response.result.dhcpMode -ne $Mode) {
         throw 'Web Console did not apply DHCP server mode.'
     }
     $response.state
@@ -1011,7 +1038,9 @@ function Start-LabServices {
     if (-not $script:PreflightPassed) {
         throw 'Internal guard refused to start services before preflight passed.'
     }
-    $response = Invoke-ConsoleJson -Method POST -Path '/api/services/start-all' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{}
+    $body=@{}
+    if($script:RoundClientMacs.Count){$body.acceptanceClients=$script:RoundClientMacs}
+    $response = Invoke-ConsoleJson -Method POST -Path '/api/services/start-all' -TimeoutSec (Get-ConsoleTimeoutSec) -Body $body
     $services = $response.state.services
     if ($services.http.running -ne $true -or $services.tftp.running -ne $true -or $services.dhcp.running -ne $true) {
         throw 'One or more deployment services did not start.'
@@ -1039,6 +1068,7 @@ function Stop-LabServices {
         if ($script:WebBaseUri -and (Test-WebConsoleHealthy)) {
             $response = Invoke-ConsoleJson -Method POST -Path '/api/services/stop-all' -Body @{}
             Write-Evidence -Name 'services-stopped.json' -Value $response.state.services | Out-Null
+            if(-not $response.state.services -or @($response.state.services.psobject.Properties|Where-Object {$_.Value.running}).Count){throw 'Lab services did not stop completely.'}
             $stoppedViaApi = $true
         }
     }
@@ -1170,7 +1200,7 @@ function Restore-LabCheckpoint {
                 Start-Sleep -Seconds 1
             }
             if (-not $settled) { throw 'Network firmware source did not settle within 15 seconds.' }
-            $secureBoot = $vmName -in @($script:Config.secureBootVms)
+            $secureBoot = $vmName -in @($script:Config.secureBootVms) -or $vmName -eq 'winception-autolab-router'
             $tpm = $secureBoot
             if ($null -ne $RoundFirmware) {
                 $secureBoot = [bool] $RoundFirmware.secureBoot
@@ -1457,6 +1487,7 @@ function Wait-FleetCompletion {
             throw "Client reported a terminal WinPE failure: $($clientText.Substring(0, [Math]::Min(300, $clientText.Length)))"
         }
         $state = Get-ConsoleState
+        if ($script:RoundDhcpMode -eq 'proxy') {Invoke-LabPairingDecision -VmNames $VmNames | Out-Null}
         $runs = @($state.fleet.runs | Where-Object {
             [string] $_.status -in @('running', 'completed', 'failed', 'stale', 'windows-running', 'awaiting-windows')
         })
@@ -1515,17 +1546,22 @@ function Invoke-LabRound {
         [Parameter(Mandatory)][bool] $SecureBoot,
         [Parameter(Mandatory)][bool] $Tpm,
         [Parameter(Mandatory)][pscredential] $Credential,
-        [Parameter(Mandatory)][string] $ProfileId
+        [Parameter(Mandatory)][string] $ProfileId,
+        [ValidateSet('server','proxy')][string] $DhcpMode='server',
+        [switch]$CheckNetwork,
+        [switch]$KeepGuest
     )
 
     Write-Host "Starting $RoundId ($BootMode, secureBoot=$SecureBoot, tpm=$Tpm) for $($VmNames.Count) VM(s)."
+    $script:RoundClientMacs=@($VmNames|ForEach-Object {((Get-VMNetworkAdapter -VMName $_|Select-Object -First 1).MacAddress -replace '(.{2})(?!$)','$1-')})
     Restore-LabCheckpoint -VmNames $VmNames -RoundFirmware @{
         secureBoot = $SecureBoot
         tpm = $Tpm
     }
     Set-ConsoleMode -BootMode $BootMode | Out-Null
+    $script:RoundDhcpMode=$DhcpMode
     Set-ConsoleEndpoint | Out-Null
-    Set-ConsoleDhcpServerMode | Out-Null
+    Set-ConsoleDhcpServerMode -Mode $DhcpMode | Out-Null
     $cliPreflight = Invoke-ServerPreflight
     $apiPreflight = Invoke-ApiPreflight
     $script:PreflightPassed = $true
@@ -1577,13 +1613,22 @@ function Invoke-LabRound {
                 api = $apiPreflight
             }
         }
+        if ($CheckNetwork) {
+            $expectedDhcp=if($DhcpMode -eq 'proxy'){'192.168.177.254'}else{'192.168.177.1'}
+            $before=Get-LabNetworkEvidence -VmName $VmNames[0] -Credential $Credential -ExpectedDhcp $expectedDhcp
+            Stop-LabServices
+            $after=Get-LabNetworkEvidence -VmName $VmNames[0] -Credential $Credential -ExpectedDhcp $expectedDhcp
+            $round.network=@{status='Passed';beforeStop=$before;afterStop=$after}
+        }
         Write-Evidence -Name ("round-{0}.json" -f $RoundId) -Value $round | Out-Null
         return $round
     }
     finally {
         Stop-LabServices
-        Restore-LabCheckpoint -VmNames $VmNames
+        if ($CheckNetwork) {Stop-LabRouter -Config $script:Config}
+        if (-not $KeepGuest) {Restore-LabCheckpoint -VmNames $VmNames}
         $script:PreflightPassed = $false
+        if($script:CleanupErrors.Count -gt 0){throw 'Lab cleanup failed; no next round is permitted.'}
     }
 }
 
@@ -1611,12 +1656,25 @@ function Invoke-LabCleanup {
         return
     }
     $script:CleanupComplete = $true
-    if ($ValidateOnly) {
+    if ($ValidateOnly -or -not $script:MutationStarted) {
         try { Restore-SecretEnvironment } catch { $script:CleanupErrors.Add('secret environment cleanup failed.') | Out-Null }
         Release-LabLock
         return
     }
     try { Stop-LabServices } catch { $script:CleanupErrors.Add('service cleanup failed.') | Out-Null }
+    if ($script:Config) {try {Stop-LabRouter -Config $script:Config} catch {$script:CleanupErrors.Add('Router cleanup failed.')|Out-Null}}
+    if ($script:AcceptanceProfileId) {
+        try {
+            Invoke-ConsoleJson -Method POST -Path '/api/profile' -Body @{profileId=$script:AcceptanceOriginalProfile}|Out-Null
+            Invoke-ConsoleJson -Method POST -Path '/api/profiles/delete' -Body @{profileId=$script:AcceptanceProfileId}|Out-Null
+        } catch {$script:CleanupErrors.Add('Test profile restoration failed.')|Out-Null}
+    }
+    if ($script:AcceptanceSavedState) {
+        try {
+            $old=$script:AcceptanceSavedState.config
+            Invoke-ConsoleJson -Method POST -Path '/api/endpoint' -Body @{interfaceAlias=$old.adapter.interfaceAlias;ipAddress=$old.adapter.serverIp;prefixLength=$old.adapter.prefixLength;dhcpMode=$old.dhcp.dhcpMode;leaseStartIp=$old.dhcp.leaseStartIp;leaseEndIp=$old.dhcp.leaseEndIp;gateway=$old.dhcp.router;dnsServers=@($old.dhcp.dnsServers)}|Out-Null
+        } catch {$script:CleanupErrors.Add('Endpoint restoration failed.')|Out-Null}
+    }
     try {
         if ($script:WebBaseUri -and (Test-WebConsoleHealthy)) {
             Set-ConsoleMode -BootMode 'secureboot' | Out-Null
@@ -1684,11 +1742,17 @@ try {
     Acquire-LabLock
     Register-LabExitCleanup
     $guard = Assert-LabRunnerGuard
+    Assert-LabPortsFree
     if (-not $ValidateOnly) {
+        $stateBackup=New-AcceptanceStateBackup $script:StateRoot
+        if(-not (Test-WebConsoleHealthy)){throw 'Installed Console must be ready before preserving the acceptance endpoint.'}
+        $script:AcceptanceSavedState=Get-ConsoleState
+        if($script:AcceptanceSavedState.operation.running -or @($script:AcceptanceSavedState.fleet.runs|Where-Object status -in @('running','awaiting-windows','windows-running')).Count -or
+            @($script:AcceptanceSavedState.services.psobject.Properties|Where-Object {$_.Value.running}).Count){throw 'Installed host must be idle before acceptance mutation.'}
+        $script:MutationStarted=$true
         Stop-LabServices
         Restore-LabCheckpoint -VmNames $script:SelectedVms
     }
-    Assert-LabPortsFree
     $script:Secrets = Read-LabSecrets
     Set-SecretEnvironment -Secrets $script:Secrets
     if (-not $ValidateOnly) {
@@ -1711,6 +1775,7 @@ try {
         exit 0
     }
 
+    Write-Evidence -Name 'state-backup.json' -Value @{path=$stateBackup}|Out-Null
     Invoke-ExternalPowerShell -ScriptPath (Join-Path $script:RepoRoot 'tools\Initialize-DeploymentServer.ps1') -Arguments @(
         '-LiveRoot', $script:RuntimeRoot,
         '-StateRoot', $script:StateRoot,
@@ -1729,26 +1794,40 @@ try {
     $state = Set-ConsoleEndpoint
     $state = Publish-ActiveProfile -State $state
     $profileId = Get-ActiveProfileId -State $state
+    $profileId = New-LabAcceptanceProfile
 
     $rounds = New-Object System.Collections.Generic.List[object]
     $credential = New-DeploymentCredential
-    if ($Mode -in @('All', 'SecureBoot')) {
+    if ($BootstrapRouter) {
+        Invoke-LabRound -RoundId router-bootstrap -BootMode secureboot -VmNames @('winception-autolab-router') -SecureBoot $true -Tpm $true -Credential $credential -ProfileId $profileId -KeepGuest|Out-Null
+        Initialize-LabRouterGuest -Config $script:Config -Credential $credential -SourceRoot $script:RepoRoot
+    }
+    if (-not $BootstrapRouter -and $Mode -in @('All', 'SecureBoot')) {
         $rounds.Add((Invoke-LabRound -RoundId 'secureboot-tpm-on' -BootMode 'secureboot' -VmNames @($script:Config.secureBootVms) -SecureBoot $true -Tpm $true -Credential $credential -ProfileId $profileId))
     }
-    if ($Mode -in @('All', 'Ipxe')) {
+    if (-not $BootstrapRouter -and $Mode -in @('All', 'Ipxe')) {
         $rounds.Add((Invoke-LabRound -RoundId 'ipxe-tpm-off' -BootMode 'ipxe' -VmNames @([string] $script:Config.ipxeVm) -SecureBoot $false -Tpm $false -Credential $credential -ProfileId $profileId))
     }
-    if ($Mode -in @('All', 'FirmwareCorners')) {
+    if (-not $BootstrapRouter -and $Mode -in @('All', 'FirmwareCorners')) {
         $firmwareRoles = Get-LabFirmwareConfig
         $rounds.Add((Invoke-LabRound -RoundId 'secureboot-tpm-off' -BootMode 'secureboot' -VmNames @([string] $firmwareRoles.secureBootTpmOff) -SecureBoot $true -Tpm $false -Credential $credential -ProfileId $profileId))
         $rounds.Add((Invoke-LabRound -RoundId 'ipxe-tpm-on' -BootMode 'ipxe' -VmNames @([string] $firmwareRoles.ipxeTpmOn) -SecureBoot $false -Tpm $true -Credential $credential -ProfileId $profileId))
     }
+    if ($NetworkAcceptance -and -not $BootstrapRouter) {foreach ($networkRound in @(Invoke-LabNetworkRounds -Credential $credential -ProfileId $profileId)) {$rounds.Add($networkRound)}}
     Invoke-LabCleanup
     if ($script:CleanupErrors.Count -gt 0) {
         throw "Lab cleanup failed: $($script:CleanupErrors -join '; ')"
     }
     $result = [ordered]@{
         ok = $true
+        layer = 'AutoLab'
+        status = 'Passed'
+        cleanup = 'Passed'
+        physical = 'NotRun'
+        human = 'NotRun'
+        sourceCommit = [string] (& git -C $script:RepoRoot rev-parse HEAD)
+        installedHash = (Get-FileHash (Join-Path $script:AppRoot 'tools\osdcloud-console\src\httpServer.js')).Hash
+        winpeHash = (Get-FileHash (Join-Path $script:RuntimeRoot 'PXE-HttpRoot\osdcloud\boot.wim')).Hash
         commit = [string] (Get-OptionalProperty -Object $script:Config -Name 'commit')
         mode = $Mode
         rounds = @($rounds.ToArray())
@@ -1756,11 +1835,18 @@ try {
         completedAt = [DateTimeOffset]::UtcNow.ToString('o')
     }
     Write-Evidence -Name 'result.json' -Value $result | Out-Null
+    [IO.File]::WriteAllText((Join-Path $script:EvidenceRoot 'result.html'),('<!doctype html><meta charset="utf-8"><h1>Winception AutoLab</h1><pre>'+[Net.WebUtility]::HtmlEncode(($result|ConvertTo-Json -Depth 20))+'</pre>'))
     $result | ConvertTo-Json -Depth 20
 }
 catch {
+    Invoke-LabCleanup
     $errorRecord = [ordered]@{
         ok = $false
+        layer = 'AutoLab'
+        status = $(if($script:MutationStarted){'Failed'}else{'Blocked'})
+        cleanup = $(if($script:CleanupErrors.Count){'Failed'}elseif($script:MutationStarted){'Passed'}else{'NotRun'})
+        physical = 'NotRun'
+        human = 'NotRun'
         error = 'Winception Lab regression failed.'
         detail = [string] $_.Exception.Message
         stage = $_.InvocationInfo.ScriptLineNumber
@@ -1770,6 +1856,7 @@ catch {
     }
     if ($script:EvidenceRoot -and -not $ValidateOnly) {
         try { Write-Evidence -Name 'result.json' -Value $errorRecord | Out-Null } catch {}
+        try {[IO.File]::WriteAllText((Join-Path $script:EvidenceRoot 'result.html'),('<!doctype html><meta charset="utf-8"><h1>Winception AutoLab</h1><pre>'+[Net.WebUtility]::HtmlEncode(($errorRecord|ConvertTo-Json -Depth 20))+'</pre>'))}catch{}
     }
     Write-Error $errorRecord.error
     exit 1
