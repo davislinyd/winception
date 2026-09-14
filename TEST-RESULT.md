@@ -6,7 +6,7 @@ Branch codex/easier-onboarding; restorable acceptance baseline codex/baseline-ac
 
 | Layer | Status | Current evidence |
 | --- | --- | --- |
-| Source | Passed | acceptance:source: check, 480 tests / 477 passed / 3 skipped, smoke; logs .ai/acceptance-source-final.log and ignored JSON/HTML test-results/acceptance-source |
+| Source | Passed | acceptance:source: check, 482 tests / 479 passed / 3 skipped, smoke; logs .ai/acceptance-source-postcommit.log (source5f9355d) and ignored JSON/HTML test-results/acceptance-source |
 | UI | Passed | 9 cases at 390/1024/1366/1920 px, one worker/no retries, owned State cleanup Passed; local Chrome, not downloaded Chromium; test-results/acceptance-ui-report/result.json and HTML |
 | Windows PowerShell / safety | Passed | Changed scripts parse; limited auto-login; actual WinPE/server pairing vectors; exact DHCP packets; unsafe site/pool/WAN guards; router VHD ownership; no mutation on early guard; partial stop fails cleanup |
 | Installed App / WinPE | Passed | Source dae06b2 installed via guarded reload; HTTP hash matches; State backup HostTools-State-20260914-145854-135; Endpoint Sync and 29 Preflight checks passed; WinPE published SHA256 EFE3AFE948B177BC8624A4EA7B8E20D66015F3F021DF2FA1ECA3BB0AC8BF7CE4; services stopped |
