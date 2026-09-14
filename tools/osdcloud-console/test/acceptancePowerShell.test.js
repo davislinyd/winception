@@ -106,3 +106,30 @@ test('physical cleanup refuses HTTP success when a deployment service is still r
   `);
   assert.equal(output,'Stopped');
 });
+
+test('round credential MAC scope is fixed after checkpoint restore and rejects collisions',()=>{
+  const source=fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1','utf8');
+  const start=source.indexOf('    $script:RoundClientMacs=@($VmNames|ForEach-Object {');
+  assert.ok(start>source.indexOf('    Restore-LabCheckpoint -VmNames $VmNames -RoundFirmware'));
+  const block=source.slice(start,source.indexOf('    Set-ConsoleMode -BootMode $BootMode',start));
+  const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',[],`
+    $VmNames=@('winception-autolab-router');$script:collision=$false;$script:assigned=''
+    $vm=[pscustomobject]@{Name=$VmNames[0];State='Off';Id=[guid]'12345678-1234-1234-1234-123456789012'}
+    function Get-VM {param($Name) if($Name){$vm}else{[pscustomobject]@{Name='foreign'}}}
+    function Get-VMNetworkAdapter {param($VMName,[Parameter(ValueFromPipeline)]$InputObject) process {if($VMName){[pscustomobject]@{VMName=$VMName;SwitchName='Winception-AutoLab';MacAddress='000000000000'}}else{[pscustomobject]@{VMName='foreign';MacAddress=$(if($script:collision){'00155D123456'}else{'00155DAABBCC'})}}}}
+    function Set-VMNetworkAdapter {param($VMNetworkAdapter,$StaticMacAddress) $script:assigned=$StaticMacAddress}
+    ${block}
+    $expectedMac=$script:RoundClientMacs[0];$script:collision=$true;$rejected=$false
+    try {${block}}catch{$rejected=$true}
+    @{mac=$expectedMac;assigned=$script:assigned;collisionRejected=$rejected}|ConvertTo-Json -Compress
+  `);
+  assert.deepEqual(JSON.parse(output),{mac:'00-15-5D-12-34-56',assigned:'00155D123456',collisionRejected:true});
+});
+
+test('stopping deployment services aborts Fleet wait without retry',()=>{
+  assert.match(runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Wait-FleetCompletion','Test-ClientTerminalFailureText'],`
+    function Get-LatestClientStatusText { '' }
+    function Get-ConsoleState { @{services=@{http=@{running=$false};tftp=@{running=$false};dhcp=@{running=$false}}} }
+    try {Wait-FleetCompletion @('owned-vm') 60;throw 'Wait accepted stopped services'}catch{if($_.Exception.Message -notlike 'Deployment services stopped*'){throw};'Aborted'}
+  `),/Aborted/);
+});

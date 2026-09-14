@@ -1487,6 +1487,7 @@ function Wait-FleetCompletion {
             throw "Client reported a terminal WinPE failure: $($clientText.Substring(0, [Math]::Min(300, $clientText.Length)))"
         }
         $state = Get-ConsoleState
+        if (-not $state.services.http.running -or -not $state.services.tftp.running -or -not $state.services.dhcp.running) {throw 'Deployment services stopped while waiting for Fleet; aborting this round.'}
         if ($script:RoundDhcpMode -eq 'proxy') {Invoke-LabPairingDecision -VmNames $VmNames | Out-Null}
         $runs = @($state.fleet.runs | Where-Object {
             [string] $_.status -in @('running', 'completed', 'failed', 'stale', 'windows-running', 'awaiting-windows')
@@ -1553,11 +1554,19 @@ function Invoke-LabRound {
     )
 
     Write-Host "Starting $RoundId ($BootMode, secureBoot=$SecureBoot, tpm=$Tpm) for $($VmNames.Count) VM(s)."
-    $script:RoundClientMacs=@($VmNames|ForEach-Object {((Get-VMNetworkAdapter -VMName $_|Select-Object -First 1).MacAddress -replace '(.{2})(?!$)','$1-')})
     Restore-LabCheckpoint -VmNames $VmNames -RoundFirmware @{
         secureBoot = $SecureBoot
         tpm = $Tpm
     }
+    $script:RoundClientMacs=@($VmNames|ForEach-Object {
+        $vm=Get-VM -Name $_
+        $nic=@(Get-VMNetworkAdapter -VMName $_|Where-Object SwitchName -eq 'Winception-AutoLab')
+        if($vm.State -ne 'Off' -or $nic.Count -ne 1){throw 'Round MAC requires one powered-off owned Lab adapter'}
+        $mac='00155D'+$vm.Id.ToString('N').Substring(0,6).ToUpperInvariant()
+        if(@(Get-VM|Get-VMNetworkAdapter|Where-Object {$_.VMName -ne $vm.Name -and $_.MacAddress -eq $mac}).Count){throw 'Deterministic Lab MAC collides with another VM'}
+        Set-VMNetworkAdapter -VMNetworkAdapter $nic[0] -StaticMacAddress $mac
+        $mac -replace '(.{2})(?!$)','$1-'
+    })
     Set-ConsoleMode -BootMode $BootMode | Out-Null
     $script:RoundDhcpMode=$DhcpMode
     Set-ConsoleEndpoint | Out-Null

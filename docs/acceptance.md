@@ -28,6 +28,8 @@
 
 建立時以唯一的 AutoLab 網卡物件設定 LAN，不依賴本地化名稱。若建立中斷且 VM 仍關機、無 checkpoint、唯一 NIC／base disk／ownership 完全吻合，可明確 -Create -ResumeCreate 完成韌體與 clean checkpoint；其他狀態阻擋。
 
+每輪還原 checkpoint 後，依 owned VM GUID 設定固定 MAC，檢查其他 VM 衝突後才發布部署憑證限制。等待 Fleet 時停止 HTTP／TFTP／DHCP 會使本輪失敗並進入 finally 清理，不重試。
+
 master 不自動建立 router，缺少 ready checkpoint 則 Blocked。專用 runner 工作上限 240 分鐘、單次部署 60 分鐘、零自動重試；共享既有 Global\Winception-AutoLab mutex，禁止並行實體／VM 部署。
 
 winception-autolab-router 為 Gen2、固定 4 GiB、Secure Boot／TPM On；LAN 接 Internal Winception-AutoLab、192.168.177.254/24，WAN 只接 Default Switch 作上游。ownership 綁定 VM GUID、State-owned VHD parent chain、介面、DHCP 工具 hash、Winception-Clean／Winception-Router-Ready。未知 VM、外来 DHCP、錯誤 endpoint、缺 checkpoint 阻擋，不修復 foreign 網路。
