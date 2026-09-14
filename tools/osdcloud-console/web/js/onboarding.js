@@ -74,7 +74,7 @@ let optionsReadAt = 0;
 export function ensureNetworkOptions() {
   if (optionsPromise || Date.now() - optionsReadAt < 15_000) return;
   optionsReadAt = Date.now();
-  optionsPromise = Promise.all([api('/api/network/options'), loadInterfaces()]).then(([payload]) => {
+  optionsPromise = Promise.all([api('/api/network/options'), Promise.resolve().then(() => loadInterfaces())]).then(([payload]) => {
     state.networkOptions = payload.options;
     state.networkOptionsError = '';
   }).catch((error) => { state.networkOptionsError = error.message; }).finally(() => {
