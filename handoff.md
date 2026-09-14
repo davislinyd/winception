@@ -1,6 +1,8 @@
-# Agent handoff — 2026-09-15 01:45
+# Agent handoff — 2026-09-15 03:30
 
-## Active task — BootstrapRouter failed at OOBE Winlogon delete; cleanup Passed; source fix ready
+## Active task — BootstrapRouter 20260915b Fleet timeout; cleanup Passed; no retry
+
+User-approved reload of `1a9fb85` + Endpoint Sync + one `-BootstrapRouter` finished. PXE/WinPE never posted status. Cleanup **Passed**. Do not Create the router. Zero retries. No master push, Release or package. Physical/human remain independent.
 
 One corrected `-BootstrapRouter` ran after the cleanup timeout fix. PXE/boot-session/MAC 403 did **not** recur. WinPE, SMB, torrent 100%, and DISM apply started. Fleet then failed in shutdown `Invoke-OobeCustomization.ps1`: `reg.exe delete` of missing Winlogon values under `$ErrorActionPreference = 'Stop'`. Lab cleanup **Passed**. No automatic retry. Do not Create the router. No master push, Release or package. Physical/human remain independent.
 
@@ -29,11 +31,20 @@ User approved the cleanup timeout fix, then continuation. Source now waits out a
 - Cause: `Get-TestAutoLogonCount` ran before published Apps were copied onto the Windows volume, so count was 0; the else-path `reg.exe delete` of absent Winlogon values is fatal under Stop. Mode All e never hit this easier-onboarding path.
 - Source fix (uncommitted until this handoff lands with it): copy Apps first, then read `selected-profile.json`; wrap missing Winlogon deletes with Continue. `acceptancePowerShell.test.js` 12 Passed.
 
+### 20260915b result
+
+- Reload `1a9fb85` ok (backup `HostTools-State-20260914-181800-375`). Endpoint Preflight and ValidateOnly passed. Test profile during the run: `KR26H1RW` test-only autoLogonCount=3.
+- Evidence `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260915b`. `ok=false`, `status=Failed`, **`cleanup=Passed`**. `detail=Fleet did not reach windows-desktop-ready for 1 VM(s) within the timeout.` failedAt 03:25. Mutex free. Profile IZVZO7PU. Services stopped. Six VMs Off, Clean only (no Ready).
+- Services started 02:23; router was Running at 03:19; Fleet 0 the whole hour. No new `PXE-HttpRoot\status` run, no `logs\runs` after 20260915a, torrent tracker only saw host seeder `192.168.177.1`. Contrast 20260915a, which reached WinPE/SMB/torrent/DISM.
+- Published OOBE script hash `7836E35F63FCD4379A4BA08F7E1AD4C4E9B2974925405D949EA069D9CE173B1D` matches `1a9fb85`. DHCP config was `bootMode=secureboot` / `secureBootFile=bootmgfw.efi`.
+- During the run the router adapter was static `00155DC243AA`; firmware Network path stayed `MAC(000000000000)`. After cleanup the adapter is dynamic `000000000000` again. `C:\OSDCloud\logs\host-services.log` last write is 2026-09-14 23:26, so this run left no DHCP/TFTP lines there.
+- Leading reading: client never entered WinPE (PXE/firmware identity or disk fallback). Not the previous 403, and not the Winlogon `reg.exe delete`.
+
 ### Exact next steps
 
-1. Commit the OOBE Winlogon fix if not already committed. Elevated reload + Endpoint Sync so `boot.wim` has the new shutdown script. Then **one** new unique evidence root `-BootstrapRouter`. Zero retries. Do not Create the router.
-2. After that cleanupPassed and Ready exists: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance`.
-3. Update JSON/HTML, TEST-RESULT/manuals if behavior changes, handoff/`.ai`, scoped commits. Physical/human remain NotRun/Blocked. No Release/package/master push.
+1. Do **not** start another Lab until the user approves. Optional source work: after `Set-LabRoundClientScope`, refresh Network-first firmware so the boot path binds the static MAC; restore host-services logging after reload. Then one new unique evidence root `-BootstrapRouter`.
+2. After cleanupPassed and Ready exists: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance`.
+3. Physical/human remain NotRun/Blocked. No Release/package/master push.
 
 ### Step 1 inspection (kept)
 
