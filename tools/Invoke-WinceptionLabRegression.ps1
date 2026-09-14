@@ -1736,7 +1736,7 @@ try {
         }
         $ConfigPath = $candidate
     }
-    $script:Config = Read-LabConfig -Path (Get-FullPath $ConfigPath)
+    $script:Config = Read-LabConfig -Path (Resolve-Path -LiteralPath $ConfigPath -ErrorAction Stop).ProviderPath
     Assert-LabConfig -Config $script:Config
     $script:SelectedVms = @($script:Config.secureBootVms) + @([string] $script:Config.ipxeVm)
     Acquire-LabLock
@@ -1858,7 +1858,8 @@ catch {
         try { Write-Evidence -Name 'result.json' -Value $errorRecord | Out-Null } catch {}
         try {[IO.File]::WriteAllText((Join-Path $script:EvidenceRoot 'result.html'),('<!doctype html><meta charset="utf-8"><h1>Winception AutoLab</h1><pre>'+[Net.WebUtility]::HtmlEncode(($errorRecord|ConvertTo-Json -Depth 20))+'</pre>'))}catch{}
     }
-    Write-Error $errorRecord.error
+    Write-Error $errorRecord.error -ErrorAction Continue
+    $errorRecord | ConvertTo-Json -Depth 20
     exit 1
 }
 finally {
