@@ -1,6 +1,8 @@
-# Agent handoff — 2026-09-15 01:20
+# Agent handoff — 2026-09-15 01:27
 
-## Active task — cleanup timeout fixed in source; next is elevated installed reload
+## Active task — elevated BootstrapRouter running after cleanup timeout fix
+
+Cleanup timeout/idle-wait is committed (`9dcc164`). Installed App reloaded from that commit. ValidateOnly passed. RequireRouter correctly reported missing Ready checkpoint — do **not** Create the router; BootstrapRouter is the step that creates Ready. That elevated run is in progress. No master push, Release or package. Physical/human remain independent.
 
 User approved the cleanup timeout fix, then continuation. Source now waits out a long endpoint restore instead of marking cleanup Failed at 30 seconds. No automatic retry, master push, Release or deployment package. Physical and human acceptance remain independent.
 
@@ -11,23 +13,19 @@ User approved the cleanup timeout fix, then continuation. Source now waits out a
 - Contract tests: `labAutomation.test.js` (17) and `acceptancePowerShell.test.js` (11) Passed, including the new cleanup timeout/idle-wait case. Windows PowerShell parser accepted `Invoke-WinceptionLabRegression.ps1`.
 - Docs: CHANGELOG Unreleased, AGENTS.md, `docs/agent-reference/validation-scenarios.md`, `docs/agent-reference/deployment-paths.md`.
 
-### Live host (re-verify immediately before reload)
+### Live host after reload
 
-Inspected 2026-09-15 01:01–01:05 +08. Re-read API/VMs/mutex before any installed mutation.
-
-- PID **16072 absent**. Mutex was free. Recorded result `cleanup=Failed` at 00:11:38 is the old 30s race; live host restored after endpoint finished 00:12:16.
-- Profile **IZVZO7PU**; **SE50433G** gone; endpoint `192.168.177.1/24` Server `.200–.250` gateway `.1` DNS `1.1.1.1,8.8.8.8`; `bootMode=secureboot`; services stopped; Fleet 0.
-- Six owned VMs Off with resting firmware: `01..04` SB On + TPM On; iPXE SB Off + TPM Off; router SB On + TPM On.
-- Installed App still **dae06b2**. Failed-run State backup `HostTools-State-20260914-150620-016`.
+- Installed App reloaded from **`9dcc164`**. State backup `HostTools-State-20260914-171845-710` (UTC name; LastWriteTime 2026-09-15 01:18 +08).
+- Endpoint Sync + Preflight **29/29** passed. Profile **IZVZO7PU**; endpoint `192.168.177.1/24` Server `.200–.250` gateway `.1` DNS `1.1.1.1,8.8.8.8`; `bootMode=secureboot`; services stopped; Fleet 0.
+- `Initialize-WinceptionLab -ValidateOnly` passed: five client VMs Off with resting firmware and Winception-Clean.
+- `Initialize-WinceptionLab -ValidateOnly -RequireRouter` failed: **Router ready checkpoint is missing.** Expected before the first successful bootstrap. Do **not** Create. Router VM already exists (Clean + SB/TPM).
+- Elevated `Invoke-WinceptionLabRegression.ps1 -BootstrapRouter` started with ignored config `.ai/acceptance-router-bootstrap-20260915-config.json` and evidence `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260915a`.
 
 ### Exact next steps
 
-1. **Now:** elevated `.ai/onboarding-installed-update.ps1` guarded reload / protected State backup. Refuse if console is not idle or any AutoLab VM is not Off. Then re-read live adapter/State overlay/`boot.ipxe`/image/profile, Endpoint Sync/Preflight, `Initialize-WinceptionLab -ValidateOnly`.
-2. Router already exists. Do **not** Create again. New unique ignored config/evidence root and one corrected `-BootstrapRouter`. Require Fleet desktop-ready + PSDirect, router guest LAN `.254/24`, WAN Default Switch, independent DHCP tools/NAT, Ready checkpoint, and cleanup.
-3. `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance` with another unique evidence root: original 7 positives + Proxy/Server 2 + rejection; zero retries.
-4. Update JSON/HTML, TEST-RESULT/manuals if behavior changes, handoff/`.ai`, scoped commits. Physical/human remain NotRun/Blocked. No Release/package/master push.
-
-Original bootstrap failure remains POST boot-session 403 on stale pre-restore MAC `00155D6C6580`. The MAC/cancel-wait source fix is not in `dae06b2`; reload must happen first.
+1. **In progress:** one corrected `-BootstrapRouter`. Require Fleet desktop-ready + PSDirect, router guest LAN `.254/24`, WAN Default Switch, independent DHCP tools/NAT, Ready checkpoint, and cleanup. Zero retries. Do not launch another Lab while this mutex is held.
+2. After cleanupPassed: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance` with another unique evidence root: original 7 positives + Proxy/Server 2 + rejection.
+3. Update JSON/HTML, TEST-RESULT/manuals if behavior changes, handoff/`.ai`, scoped commits. Physical/human remain NotRun/Blocked. No Release/package/master push.
 
 ### Step 1 inspection (kept)
 
