@@ -68,7 +68,7 @@ Read this file when selecting verification for subsystem-specific changes.
 
 ## WinPE And SetupComplete
 
-- WinPE or SetupComplete changes must be tested with the relevant scripts and, when behavior changes inside `C:\OSDCloud` or WinPE, followed by live file update, `boot.wim` mount/commit when needed, and `osdcloud-assets` sync.
+- WinPE or SetupComplete changes must be tested with the relevant scripts and, when behavior changes inside `C:\OSDCloud` or WinPE, followed by live file update, `boot.wim` mount/commit when needed, and `osdcloud-assets` sync. Shutdown OOBE customization must copy published Apps before reading `selected-profile.json`, and `reg.exe delete` of absent Winlogon values must not terminate the deployment.
 - For language changes, parse the PowerShell scripts, assert OOBE maps `InputLocale` only from `inputLanguage`, assert SetupComplete builds the user language list only from `TargetInputLanguage`, and verify a fresh client reports the expected display language, culture, time zone, input languages, and input methods at `windows-desktop-ready`.
 - Deployment progress should include explicit lifecycle records: `run-start`, `winpe-end`, `windows-start`, and final `run-end` on `windows-desktop-ready`.
 - Client app installation should report `windows-apps-start` and `windows-apps-finished`; installer or custom-script failures should report `windows-apps-error` and leave detailed logs under `C:\Windows\Temp\osdcloud-logs`.

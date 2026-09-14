@@ -159,6 +159,37 @@ try {
     $setupScripts = Join-Path $windowsRoot 'Windows\Setup\Scripts'
     New-Item -ItemType Directory -Path $panther, $sysprep, $setupScripts -Force | Out-Null
 
+    $appCandidates = @()
+    if ($PSScriptRoot) {
+        $osdCloudScriptRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+        $appCandidates += Join-Path $osdCloudScriptRoot 'Apps'
+    }
+
+    $appCandidates += Get-PSDrive -PSProvider FileSystem |
+        Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
+        ForEach-Object { "$($_.Name):\OSDCloud\Apps" }
+
+    $sourceApps = $appCandidates |
+        Where-Object { $_ -and (Test-Path (Join-Path $_ 'Install-Apps.ps1') -PathType Leaf) } |
+        Select-Object -First 1
+
+    if ($sourceApps) {
+        $targetApps = Join-Path $windowsRoot 'ProgramData\OSDCloud\Apps'
+        New-Item -ItemType Directory -Path $targetApps -Force | Out-Null
+        Copy-Item -Path (Join-Path $sourceApps '*') -Destination $targetApps -Recurse -Force
+        Write-Host "Client apps source: $sourceApps"
+        Write-Host "Client apps target: $targetApps"
+
+        $sourceScripts = Join-Path (Split-Path -Parent $sourceApps) 'Scripts'
+        if (Test-Path -LiteralPath $sourceScripts -PathType Container) {
+            $targetScripts = Join-Path $windowsRoot 'ProgramData\OSDCloud\Scripts'
+            New-Item -ItemType Directory -Path $targetScripts -Force | Out-Null
+            Copy-Item -Path (Join-Path $sourceScripts '*') -Destination $targetScripts -Recurse -Force
+            Write-Host "Client scripts source: $sourceScripts"
+            Write-Host "Client scripts target: $targetScripts"
+        }
+    }
+
     $testAutoLogonCount = Get-TestAutoLogonCount -WindowsRoot $windowsRoot
     $testAutoLogonXml = ''
     if ($testAutoLogonCount -gt 0) {
@@ -239,37 +270,6 @@ try {
         Copy-Item -Path (Join-Path $sourceSetup '*') -Destination $setupScripts -Recurse -Force
     }
 
-    $appCandidates = @()
-    if ($PSScriptRoot) {
-        $osdCloudScriptRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-        $appCandidates += Join-Path $osdCloudScriptRoot 'Apps'
-    }
-
-    $appCandidates += Get-PSDrive -PSProvider FileSystem |
-        Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
-        ForEach-Object { "$($_.Name):\OSDCloud\Apps" }
-
-    $sourceApps = $appCandidates |
-        Where-Object { $_ -and (Test-Path (Join-Path $_ 'Install-Apps.ps1') -PathType Leaf) } |
-        Select-Object -First 1
-
-    if ($sourceApps) {
-        $targetApps = Join-Path $windowsRoot 'ProgramData\OSDCloud\Apps'
-        New-Item -ItemType Directory -Path $targetApps -Force | Out-Null
-        Copy-Item -Path (Join-Path $sourceApps '*') -Destination $targetApps -Recurse -Force
-        Write-Host "Client apps source: $sourceApps"
-        Write-Host "Client apps target: $targetApps"
-
-        $sourceScripts = Join-Path (Split-Path -Parent $sourceApps) 'Scripts'
-        if (Test-Path -LiteralPath $sourceScripts -PathType Container) {
-            $targetScripts = Join-Path $windowsRoot 'ProgramData\OSDCloud\Scripts'
-            New-Item -ItemType Directory -Path $targetScripts -Force | Out-Null
-            Copy-Item -Path (Join-Path $sourceScripts '*') -Destination $targetScripts -Recurse -Force
-            Write-Host "Client scripts source: $sourceScripts"
-            Write-Host "Client scripts target: $targetScripts"
-        }
-    }
-
     $cmdPath = Join-Path $setupScripts 'SetupComplete.cmd'
     if (-not (Test-Path $cmdPath)) {
         $cmd = @'
@@ -302,8 +302,15 @@ exit /b 0
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v DefaultPassword /t REG_SZ /d $windowsPassword /f | Out-Null
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v AutoLogonCount /t REG_DWORD /d $testAutoLogonCount /f | Out-Null
     } else {
-        foreach ($name in @('AutoAdminLogon','ForceAutoLogon','DefaultUserName','DefaultPassword','AutoLogonCount')) {
-            reg.exe delete 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v $name /f 2>$null | Out-Null
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            foreach ($name in @('AutoAdminLogon','ForceAutoLogon','DefaultUserName','DefaultPassword','AutoLogonCount')) {
+                & reg.exe delete 'HKLM\OSD_OFF_SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' /v $name /f 1>$null 2>$null
+            }
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
         }
     }
     reg.exe add 'HKLM\OSD_OFF_SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' /v NoAutoUpdate /t REG_DWORD /d 1 /f | Out-Null

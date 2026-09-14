@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- WinPE `Invoke-OobeCustomization.ps1` copies the published Apps payload before reading `selected-profile.json`, and missing offline Winlogon values are no longer a terminating `reg.exe` error under `$ErrorActionPreference = 'Stop'`.
+
 - Lab finally cleanup now restores the original profile and endpoint with the preflight timeout (at least 60 seconds) and waits until the Web Console operation is idle before restoring `secureboot` and clearing Fleet status. A 30-second REST timeout can no longer mark cleanup Failed while `boot.wim` remount is still finishing.
 
 - Added Source/UI acceptance commands, versioned inert Playwright fixtures, one worker/no retries, owned preview State cleanup and separate JSON/HTML evidence. Master Source/UI precede the locked AutoLab matrix with a 240-minute job limit.

@@ -1,8 +1,8 @@
-# Agent handoff — 2026-09-15 01:27
+# Agent handoff — 2026-09-15 01:45
 
-## Active task — elevated BootstrapRouter running after cleanup timeout fix
+## Active task — BootstrapRouter failed at OOBE Winlogon delete; cleanup Passed; source fix ready
 
-Cleanup timeout/idle-wait is committed (`9dcc164`). Installed App reloaded from that commit. ValidateOnly passed. RequireRouter correctly reported missing Ready checkpoint — do **not** Create the router; BootstrapRouter is the step that creates Ready. That elevated run is in progress. No master push, Release or package. Physical/human remain independent.
+One corrected `-BootstrapRouter` ran after the cleanup timeout fix. PXE/boot-session/MAC 403 did **not** recur. WinPE, SMB, torrent 100%, and DISM apply started. Fleet then failed in shutdown `Invoke-OobeCustomization.ps1`: `reg.exe delete` of missing Winlogon values under `$ErrorActionPreference = 'Stop'`. Lab cleanup **Passed**. No automatic retry. Do not Create the router. No master push, Release or package. Physical/human remain independent.
 
 User approved the cleanup timeout fix, then continuation. Source now waits out a long endpoint restore instead of marking cleanup Failed at 30 seconds. No automatic retry, master push, Release or deployment package. Physical and human acceptance remain independent.
 
@@ -21,10 +21,18 @@ User approved the cleanup timeout fix, then continuation. Source now waits out a
 - `Initialize-WinceptionLab -ValidateOnly -RequireRouter` failed: **Router ready checkpoint is missing.** Expected before the first successful bootstrap. Do **not** Create. Router VM already exists (Clean + SB/TPM).
 - Elevated `Invoke-WinceptionLabRegression.ps1 -BootstrapRouter` started with ignored config `.ai/acceptance-router-bootstrap-20260915-config.json` and evidence `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260915a`.
 
+### BootstrapRouter 20260915a result
+
+- Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260915a`. `ok=false`, `status=Failed`, **`cleanup=Passed`**. Mutex free. Profile IZVZO7PU. Services stopped. Six VMs Off, resting firmware, still only Winception-Clean (no Ready).
+- Run `20260915-013215-3833-6458-5439-4386-0617-9856-93`. Client `192.168.177.200`. Diagnostics `C:\OSDCloud\HostTools\State\diagnostics\2026-09-14-173800Z-run-failed-fail.zip`.
+- `osdcloud-error`: `ERROR: The system was unable to find the specified registry key or value.` Native `TerminatingError(reg.exe)` during `[1] Shutdown Scripts` / `Invoke-OobeCustomization.ps1`. Screenshot shows Apps copy and zh-TW OOBE fallback; it does **not** show the TEST ONLY auto-logon warning.
+- Cause: `Get-TestAutoLogonCount` ran before published Apps were copied onto the Windows volume, so count was 0; the else-path `reg.exe delete` of absent Winlogon values is fatal under Stop. Mode All e never hit this easier-onboarding path.
+- Source fix (uncommitted until this handoff lands with it): copy Apps first, then read `selected-profile.json`; wrap missing Winlogon deletes with Continue. `acceptancePowerShell.test.js` 12 Passed.
+
 ### Exact next steps
 
-1. **In progress:** one corrected `-BootstrapRouter`. Require Fleet desktop-ready + PSDirect, router guest LAN `.254/24`, WAN Default Switch, independent DHCP tools/NAT, Ready checkpoint, and cleanup. Zero retries. Do not launch another Lab while this mutex is held.
-2. After cleanupPassed: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance` with another unique evidence root: original 7 positives + Proxy/Server 2 + rejection.
+1. Commit the OOBE Winlogon fix if not already committed. Elevated reload + Endpoint Sync so `boot.wim` has the new shutdown script. Then **one** new unique evidence root `-BootstrapRouter`. Zero retries. Do not Create the router.
+2. After that cleanupPassed and Ready exists: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance`.
 3. Update JSON/HTML, TEST-RESULT/manuals if behavior changes, handoff/`.ai`, scoped commits. Physical/human remain NotRun/Blocked. No Release/package/master push.
 
 ### Step 1 inspection (kept)

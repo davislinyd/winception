@@ -16,6 +16,17 @@ function runPowerShell(relative, names, command) {
 test('new acceptance scripts parse in Windows PowerShell without invoking host operations',()=>{
   for(const relative of ['tools/Invoke-WinceptionAcceptance.ps1','tools/Initialize-WinceptionLabRouter.ps1','tools/lib/Acceptance.ps1','tools/lib/LabRouter.ps1','tools/lib/LabNetworkAcceptance.ps1','tools/acceptance/client.ps1'])runPowerShell(relative,[],"'Parsed'");
 });
+test('WinPE OOBE customization copies Apps before auto-logon lookup and ignores missing Winlogon values',()=>{
+  const source=fs.readFileSync('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1','utf8');
+  const copyApps=source.indexOf("Copy-Item -Path (Join-Path $sourceApps '*')");
+  const countCall=source.indexOf('$testAutoLogonCount = Get-TestAutoLogonCount');
+  assert.ok(copyApps>=0 && countCall>copyApps, 'selected-profile.json must be copied before auto-logon lookup');
+  const deleteAt=source.indexOf("reg.exe delete 'HKLM\\OSD_OFF_SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon'");
+  const continueAt=source.lastIndexOf("$ErrorActionPreference = 'Continue'", deleteAt);
+  assert.ok(deleteAt>0 && continueAt>=0 && continueAt<deleteAt, 'missing Winlogon values must not terminate under Stop');
+  const media=fs.readFileSync('osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1','utf8');
+  assert.equal(media, source);
+});
 test('WinPE auto-logon accepts only an integer limited test-only profile',()=>{
   const output=runPowerShell('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1',['Get-TestAutoLogonCount'],`
     function Test-Path {param($LiteralPath) $true}
