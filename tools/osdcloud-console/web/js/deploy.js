@@ -1893,7 +1893,7 @@ export const dhcpModes = [
   },
   {
     id: 'proxy',
-    title: 'PXE Proxy (relay)',
+    title: '使用既有 DHCP（PXE Proxy）',
     description: 'winception only injects PXE boot options (TFTP server + boot file). The existing router DHCP server assigns IPs. Use this on a shared internal network. Requires modern UEFI firmware.',
   },
 ];
@@ -1964,7 +1964,7 @@ function networkInterfaceOptions(select, interfaces, selected, placeholder) {
   for (const item of interfaces.filter(isPhysicalGatewayInterface)) {
     const option = document.createElement('option');
     option.value = item.interfaceAlias;
-    option.textContent = `${item.interfaceAlias} · ${item.ipAddress}/${item.prefixLength}${item.gateway ? ` · GW ${item.gateway}` : ''}`;
+    option.textContent = `${item.interfaceAlias} · ${item.ipAddress ? `${item.ipAddress}/${item.prefixLength}` : '尚無 IPv4'}${item.gateway ? ` · GW ${item.gateway}` : ''}`;
     select.append(option);
   }
   select.value = selected;
@@ -1973,27 +1973,25 @@ function networkInterfaceOptions(select, interfaces, selected, placeholder) {
 export async function handleNetworkPrepare() {
   const wanInterfaceAlias = state.networkWanInterface || elements.networkWanInterface.value;
   const pxeInterfaceAlias = state.networkPxeInterface || elements.networkPxeInterface.value;
+  const internalSubnet = elements.networkInternalSubnet.value.trim();
+  if (!wanInterfaceAlias || !pxeInterfaceAlias || !internalSubnet) throw new Error('請選擇兩張不同網卡，並輸入 client 子網。');
   const ok = await confirmAction({
-    title: 'Prepare dual NIC NAT',
-    message: 'This stops deployment services, enables Hyper-V if needed, binds only the selected PXE NIC to Winception-PXE, and creates WinceptionNAT. The WAN NIC IP, gateway, DNS, and firewall profiles are not changed.',
-    details: [`WAN: ${wanInterfaceAlias || '(not selected)'}`, `PXE: ${pxeInterfaceAlias || '(not selected)'}`, 'A reboot may be required; a one-time SYSTEM task will resume the requested preparation.'],
-    confirmLabel: 'Prepare NAT',
+    title: '準備筆電 NAT',
+    message: '停止部署服務、準備 Hyper-V，將選定 client 網卡連到 Winception-PXE，建立 WinceptionNAT。WAN 的 IP、gateway、DNS 與 firewall 設定保持原樣。',
+    details: [`WAN: ${wanInterfaceAlias}`, `PXE: ${pxeInterfaceAlias}`, `Client subnet: ${internalSubnet}`, '可能需要重開機；一次性 SYSTEM 工作會繼續已確認的設定。'],
+    confirmLabel: '確認並準備 NAT',
     severity: 'warning',
   });
   if (ok) {
-    const internalSubnet = window.prompt('Enter the isolated NAT subnet in CIDR form (for example, 192.168.177.0/24):', '')?.trim();
-    if (!internalSubnet) {
-      return;
-    }
     await mutate('/api/network/prepare', { wanInterfaceAlias, pxeInterfaceAlias, internalSubnet });
   }
 }
 
 export async function handleNetworkRemove() {
   const ok = await confirmAction({
-    title: 'Remove Winception NAT',
-    message: 'This stops deployment services and removes only WinceptionNAT and Winception-PXE. WAN configuration is unchanged; select a shared-LAN endpoint before restarting services.',
-    confirmLabel: 'Remove NAT',
+    title: '移除 Winception NAT',
+    message: '停止部署服務，移除 WinceptionNAT 與 Winception-PXE；WAN 設定保持原樣。Client 的 NAT 上網將停止。重新選擇共享 LAN 端點並檢查後，才可啟動服務。',
+    confirmLabel: '確認並移除 NAT',
     severity: 'danger',
   });
   if (ok) {
@@ -2015,13 +2013,18 @@ export function renderNetworkTopology(appState) {
     : 'Shared LAN: client Internet is provided by the current LAN/router. Use DHCP Server only when no other DHCP responder is present; use PXE Proxy when the router already assigns leases.';
   const wanInterfaceAlias = state.networkWanInterface || nat.wanInterfaceAlias;
   const pxeInterfaceAlias = state.networkPxeInterface || nat.pxeInterfaceAlias;
-  const physicalInterfaces = state.interfaces.filter(isPhysicalGatewayInterface);
+  const physicalInterfaces = state.networkOptions?.adapters?.map((item) => ({ ...item, ipAddress: item.ipv4?.[0]?.ipAddress || '', prefixLength: item.ipv4?.[0]?.prefixLength || '' })) ?? [];
   networkInterfaceOptions(elements.networkWanInterface, physicalInterfaces, wanInterfaceAlias, 'Select WAN physical interface');
   networkInterfaceOptions(elements.networkPxeInterface, physicalInterfaces, pxeInterfaceAlias, 'Select PXE physical interface');
   const busy = state.busy || appState.operation?.running === true;
   elements.networkWanInterface.disabled = busy;
   elements.networkPxeInterface.disabled = busy;
   elements.networkPrepareButton.disabled = busy || physicalInterfaces.length < 2;
+  if (document.activeElement !== elements.networkInternalSubnet) {
+    elements.networkInternalSubnet.value = state.networkInternalSubnet || nat.internalSubnet || state.networkOptions?.suggestedSubnet || '';
+  }
+  elements.networkInternalSubnet.oninput = () => { state.networkInternalSubnet = elements.networkInternalSubnet.value; };
+  elements.networkInternalSubnet.disabled = busy;
   elements.networkRemoveButton.disabled = busy || !dual;
   elements.networkWanInterface.onchange = () => {
     state.networkWanInterface = elements.networkWanInterface.value;

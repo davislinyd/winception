@@ -73,7 +73,8 @@ Before starting services, endpoint sync, preflight, runtime validation, or deplo
 - Web read-only checks must not mutate live runtime state.
 - Web mutating actions can modify live deployment state.
 - Run preflight before starting services.
-- Do not start DHCP until the real LAN DHCP server is confirmed disabled for the test window.
+- DHCP Server requires confirmation that no other DHCP server answers on the client segment. PXE Proxy deliberately retains existing LAN DHCP; NAT upstream DHCP may remain active.
+- Existing-DHCP Proxy clients require operator verification of the WinPE pairing code in Console before boot credentials are issued. DHCP Server retains managed-lease binding; do not weaken either authorization path.
 - Do not silently change Windows NIC IP settings.
 
 ## Unattended Lab Automation

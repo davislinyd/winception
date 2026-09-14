@@ -314,6 +314,9 @@ try {
   const webController = new ServiceController({
     config,
     dependencies: {
+      readNetworkOptions: async () => ({ adapters: [], routes: [], serviceAddresses: [
+        { interfaceAlias: config.adapter.interfaceAlias, ipAddress: config.adapter.serverIp, prefixLength: config.adapter.prefixLength },
+      ] }),
       listOsDownloadCatalog: async () => [{
         id: 'SMOKE-DOWNLOAD-PRO',
         name: 'Smoke Download Pro',

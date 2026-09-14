@@ -168,12 +168,20 @@
                   </div>
                 </div>
                 <ol class="beginner-pxe-list">
-                  <li>把目標電腦接到這條部署網路。</li>
+                  <li id="beginner-wiring-instruction">依本次接線場景連接目標電腦。</li>
                   <li>開機選單選擇 UEFI IPv4 PXE。</li>
-                  <li>Secure Boot 維持開啟。只有 iPXE 模式才需要關閉。</li>
+                  <li id="beginner-boot-instruction">依目前模式設定 Secure Boot。</li>
                   <li>之後到「部署活動」查看進度與證據。</li>
+                  <li>本次部署顯示 windows-desktop-ready，才算完成。</li>
                 </ol>
+                <div class="onboarding-daily-actions">
+                  <button data-action="initialization" data-initialization-step="scene" type="button">重新確認場地與接線</button>
+                  <a href="/manual/#daily-deployment" target="_blank" rel="noopener">查看日常部署圖解</a>
+                  <button id="beginner-stop-services" data-onboarding-action="stop-services" type="button">全部完成後停止服務</button>
+                </div>
               </section>
+
+              <section id="beginner-boot-requests" class="beginner-summary-card" hidden aria-live="polite"></section>
 
               <section class="beginner-summary-card" aria-labelledby="beginner-summary-title">
                 <div class="beginner-card-heading">
@@ -439,8 +447,9 @@
           </div>
           <p id="network-topology-detail" class="text-on-surface-variant">Shared LAN uses the current router. Dual NIC NAT creates a Hyper-V PXE switch and WinNAT without changing the WAN adapter.</p>
           <div class="drawer-two-column mt-3">
-            <label title="僅供 dual NIC NAT 使用：選連到 router 或 Internet 的實體 NIC。不要選 vEthernet 或 Hyper-V vSwitch。">WAN physical interface<select id="network-wan-interface"></select></label>
-            <label title="僅供 dual NIC NAT 使用：選直接接 client switch 的第二張實體 NIC。單 NIC 或 Hyper-V VM 回歸測試不使用此欄位。">PXE physical interface<select id="network-pxe-interface"></select></label>
+            <label title="選連到 Internet 的介面，可使用 Wi-Fi。">筆電上網介面<select id="network-wan-interface"></select></label>
+            <label title="選直接接 client 或交換器的另一張實體網卡。">Client 接線介面<select id="network-pxe-interface"></select></label>
+            <label>Client 子網（CIDR）<input id="network-internal-subnet" placeholder="例如 192.168.100.0/24" autocomplete="off"></label>
           </div>
           <div class="drawer-actions mt-3">
             <button id="network-prepare-button" data-icon="lan" title="僅適用兩張不同實體 NIC。會將 PXE NIC 建立為 Winception-PXE vSwitch；單 NIC Hyper-V 測試請維持 shared-lan。" type="button">Prepare dual NIC NAT</button>

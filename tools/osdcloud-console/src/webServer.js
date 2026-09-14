@@ -122,6 +122,10 @@ const apiRouteTable = [
   { method: 'GET', path: '/api/state' },
   { method: 'GET', path: '/api/interfaces' },
   { method: 'GET', path: '/api/network/state' },
+  { method: 'GET', path: '/api/network/options' },
+  { method: 'GET', path: '/api/boot-requests' },
+  { method: 'POST', path: '/api/boot-requests/approve', bodyLimit: json16KiB },
+  { method: 'POST', path: '/api/boot-requests/reject', bodyLimit: json16KiB },
   { method: 'GET', path: '/api/profiles' },
   { method: 'GET', path: '/api/os-images' },
   { method: 'GET', path: '/api/os-download-catalog' },
@@ -496,6 +500,20 @@ export class WebManagementServer {
     if (pathname === '/api/endpoint') {
       const body = await readBody();
       const result = await this.controller.changeEndpoint(body.interface ?? body);
+      sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
+      return;
+    }
+    if (pathname === '/api/network/options') {
+      sendJson(res, 200, { ok: true, options: await this.controller.networkOptions() });
+      return;
+    }
+    if (pathname === '/api/boot-requests') {
+      sendJson(res, 200, { ok: true, requests: this.controller.services.http?.bootApprovals?.list() ?? [] });
+      return;
+    }
+    if (pathname === '/api/boot-requests/approve' || pathname === '/api/boot-requests/reject') {
+      const body = await readBody(json16KiB);
+      const result = this.controller.decideBootRequest(body, pathname.endsWith('/approve'));
       sendJson(res, 200, { ok: true, result, state: this.controller.getState() });
       return;
     }

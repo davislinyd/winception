@@ -36,6 +36,20 @@ function makeState(overrides = {}) {
   return result;
 }
 
+test('beginner home prioritizes physical pairing and invalidates stale site readiness', () => {
+  const pending = buildBeginnerHomeModel(makeState({ bootRequests: [{ requestId: 'test' }] }));
+  assert.equal(pending.primaryAction, 'pairing');
+  assert.equal(pending.pxeReady, false);
+  const changed = buildBeginnerHomeModel(makeState({ endpointDrift: true }));
+  assert.equal(changed.primaryAction, 'initialization');
+  assert.equal(changed.step, 'endpoint');
+  assert.equal(changed.pxeReady, false);
+  const ipxe = buildBeginnerHomeModel(makeState({ config: { dhcp: { bootMode: 'ipxe' } } }));
+  assert.match(ipxe.why, /Secure Boot 必須關閉/);
+  const signed = buildBeginnerHomeModel(makeState({ config: { dhcp: { bootMode: 'secureboot' } } }));
+  assert.match(signed.why, /Secure Boot 可保持開啟/);
+});
+
 test('beginner home asks for basic setup first', () => {
   const model = buildBeginnerHomeModel(makeState({
     initialization: { initialized: false, nextStepId: 'endpoint' },
@@ -120,7 +134,7 @@ test('beginner home prioritizes operation progress and handles an empty fleet', 
   }));
 
   assert.equal(model.phase, 'progress');
-  assert.equal(model.primaryAction, 'fleet');
-  assert.equal(model.primaryLabel, '查看進度');
+  assert.equal(model.primaryAction, 'host-progress');
+  assert.equal(model.primaryLabel, '查看主機作業進度');
   assert.deepEqual(model.deploymentSummary.map((item) => item.value), [0, 0, 0, 0]);
 });

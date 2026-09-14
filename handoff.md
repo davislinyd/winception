@@ -1,12 +1,20 @@
 # Agent handoff — 2026-09-14
 
+## Active continuation — One laptop, anywhere onboarding
+
+User-approved onboarding implementation uses `codex/easier-onboarding`. Restorable source baseline is `bdbe5ceac22032edcf8c04b6532fe3c9785c9db2` on `codex/baseline-onboarding-20260914`; master and its existing unpushed handoff commit are preserved. `.ai/` stays untracked. Changes belong in Unreleased, with no Release/package/tag or master push.
+
+Source implements three scenes (existing DHCP Proxy + pairing, shared LAN Winception DHCP, laptop NAT), Chinese step-by-step onboarding, bounded Console-authenticated boot approval, network inventory/overlap/drift guards and bilingual diagrams/manuals. Source verification and commit precede preview/installed/runtime checks. Physical three-scene acceptance and an unfamiliar-PXE human usability run remain independent requirements; do not infer them from source or historical AutoLab evidence.
+
+The AutoLab snapshot below is historical. At implementation startup, installed API instead showed deployment services running on AutoLab with no Fleet clients or host operation; re-read live state before reload/sync. Update installed App only with the elevated State-backup reload flow in an idle window; then use existing Endpoint Sync and Preflight. Never patch runtime manually, stop foreign ICS/NAT or treat a source commit as State/network rollback.
+
 ## Active continuation — physical PXE after Mode All green
 
 Mode All e (source `71fee78`) is green on Internal AutoLab `192.168.177.1`. Four rounds / seven deployments reached `windows-desktop-ready` with profile `IZVZO7PU`, `windowsFamily=Windows 11` build `26200` / `25H2`, matching guest Secure Boot/TPM pairs, separate round `hostFirmware`, and successful cleanup. Registry `productName` stayed `Windows 10 Pro` and is accepted by build. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913e`. Five VMs are Off with resting firmware (`01..04` SB On + TPM On; iPXE SB Off + TPM Off). Deployment services are stopped; host `bootMode=secureboot`. ICS/Default Switch was not touched. This is not physical-laptop or production DHCP evidence.
 
 `origin/master` is at `847b79f` (diagrams/docs: host PXE chain stays separate from client Secure Boot / TPM). The Mode All repair commits are on origin. Another push to master may start `.github/workflows/lab-deploy.yml`. Next product work is physical UEFI IPv4 PXE on the Web-selected live endpoint after confirming LAN DHCP is disabled for the test window. Re-read `http://127.0.0.1:8080/api/state` and Hyper-V firmware before any PXE or service action.
 
-Chinese summary: 本機 `master` 已與 `origin/master` 對齊 `847b79f`。Mode All e 四輪 / 七部署與 cleanup 已綠燈。`/api/boot-mode` 仍只有 `secureboot`/`ipxe`；TPM 是客戶端韌體。下一優先是實體 PXE。
+Historical summary: `origin/master` was `847b79f`; local master also has unpushed `bdbe5ce`. Mode All e is historical AutoLab green. Current work proceeds on the onboarding branch; physical acceptance remains pending.
 
 ## Workspace
 

@@ -1,5 +1,23 @@
 # Deployment Test Result
 
+## One laptop, anywhere acceptance — 2026-09-14
+
+Implementation is on `codex/easier-onboarding`, based on `bdbe5ce`; baseline branch is `codex/baseline-onboarding-20260914`. Source, isolated preview, installed service, physical network and human usability evidence are separate. No new physical deployment or human usability pass is claimed by this implementation record.
+
+| Evidence layer | Required observation | Status |
+| --- | --- | --- |
+| Source | Three scenes, disconnected NIC inventory, overlap-before-side-effects, site drift, Preflight/partial-start guards, pairing auth/pending/approve/reject/expiry/replay/identity/terminal rules | `npm run check`, `npm test` (462 passed / 3 skipped), `npm run smoke` and changed PowerShell parser checks passed |
+| Isolated UI | Chinese wizard, refresh-derived steps, three diagrams, pairing controls, manual links and responsive widths | Pending |
+| Installed service | Elevated App update with State backup, WinPE/endpoint sync and current Preflight | Pending idle-window check |
+| Physical existing DHCP | Same client subnet; existing DHCP/gateway/DNS; PXE, pairing approval, post-logon DNS/HTTPS and this run's desktop-ready | Pending onsite client/network |
+| Physical Winception LAN DHCP | No other DHCP; confirmed available pool; existing gateway/DNS; PXE, DNS/HTTPS and desktop-ready | Pending onsite DHCP test window |
+| Physical laptop NAT | Distinct WAN/client NICs; isolated client subnet; Winception gateway/DNS, PXE, post-logon DNS/HTTPS and desktop-ready; Internet remains after service stop | Pending onsite NIC/client |
+| Human usability | Unfamiliar-PXE user independently completes first setup and daily deployment, identifying wiring, pairing, failure recovery and completion | Pending designated operator |
+
+Operator checks after logon: use `ipconfig /all` to record DHCP server, IP, subnet mask, gateway and DNS; `Resolve-DnsName www.microsoft.com` and `Invoke-WebRequest https://www.microsoft.com -UseBasicParsing` to verify DNS and HTTPS. Record the actual run ID and `windows-desktop-ready` in Activity. Do not reuse an old success. In Proxy retain existing DHCP; in Server confirm no other DHCP on the client segment. Do not modify foreign ICS/NAT. Stop deployment services only after all clients finish; NAT removal is a separate explicit action.
+
+Source test environment: inherited Codex runtime `PSModulePath` selected an incomplete PackageManagement module for Windows PowerShell, failing four setup tests. Re-running with only that runtime path removed from the test process environment passed; no machine/user module path was changed. NAT CIDR calculation was also executed as an isolated extracted pure function under Windows PowerShell for /8, /24 and /30. These checks do not configure a NIC or create NAT.
+
 2026-09-14 00:14 +08 — Mode All e (source `71fee78`) green on Internal AutoLab `192.168.177.1`. Four rounds / seven deployments all reached `windows-desktop-ready` with profile `IZVZO7PU`, four succeeded install steps (Chrome, 7-Zip, desktop script, Notepad++), Explorer, desktop marker, no OOBE, `windowsFamily=Windows 11` build `26200` / `25H2`. Registry `productName` remained `Windows 10 Pro` and was accepted by build. Cleanup restored resting firmware and stopped services; host `bootMode=secureboot`. This is AutoLab evidence, not physical-laptop or production DHCP proof. Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\mode-all-20260913e` and `result.json`.
 
 | Round | Host | Client SB | Client TPM | Fleet elapsed | Guest |

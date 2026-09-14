@@ -90,6 +90,7 @@ function makeController(root, overrides = {}) {
     http: new FakeService(config.http),
   };
   const dependencies = {
+    readNetworkOptions: async () => ({ adapters: [], routes: [] }),
     readFleetStatus: () => ({ total: 0, counts: {}, runs: [] }),
     readRecentScreenshotMetadata: () => [],
     readRunLatestScreenshot: () => null,
@@ -190,6 +191,47 @@ function makeController(root, overrides = {}) {
     controller: new ServiceController({ config, services, dependencies, updateChecker: overrides.updateChecker }),
   };
 }
+
+test('network drift revokes readiness and blocks all service starts until endpoint is current', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'winception-site-change-'));
+  try {
+    let addresses = [{ interfaceAlias: 'LAN', ipAddress: '10.10.20.1', prefixLength: 24 }];
+    const { controller, config, services } = makeController(root, { dependencies: {
+      readNetworkOptions: async () => ({ adapters: [], routes: [], serviceAddresses: addresses }),
+    } });
+    let cleared = 0;
+    services.http.bootApprovals = { clear: () => { cleared += 1; } };
+    controller.preflightResults = [{ ok: true, name: 'old-site' }];
+    await controller.networkOptions();
+    assert.equal(controller.endpointDrift, true);
+    assert.deepEqual(controller.preflightResults, []);
+    assert.equal(cleared, 1);
+    await assert.rejects(() => controller.startAll(), (e) => e.statusCode === 412);
+    await assert.rejects(() => controller.startService('dhcp'), (e) => e.statusCode === 412);
+    assert.equal(services.http.starts + services.tftp.starts + services.dhcp.starts, 0);
+    assert.equal(fs.existsSync(config.http.statusRoot), false);
+    addresses = [{ interfaceAlias: 'LAN', ipAddress: '10.10.10.1', prefixLength: 24 }];
+    await controller.networkOptions();
+    assert.equal(controller.endpointDrift, false);
+    assert.deepEqual(controller.preflightResults, []);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('NAT overlap fails before service stop, config save or gateway preparation', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'winception-nat-overlap-'));
+  try {
+    let mutations = 0;
+    const { controller, config, services } = makeController(root, { dependencies: {
+      isElevated: () => true,
+      readNetworkOptions: async () => ({ adapters: [], routes: [{ interfaceAlias: 'VPN', destinationPrefix: '10.0.0.0/8' }] }),
+      saveConfig: () => { mutations += 1; }, prepareNetworkGateway: () => { mutations += 1; },
+    } });
+    await assert.rejects(() => controller.prepareNetworkGateway({ wanInterfaceAlias: 'Wi-Fi', pxeInterfaceAlias: 'USB Ethernet', internalSubnet: '10.203.0.0/24' }), /VPN/);
+    assert.equal(mutations, 0);
+    assert.equal(config.network?.topology, undefined);
+    assert.equal(services.http.stops + services.tftp.stops + services.dhcp.stops, 0);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
 
 test('project root update honors the request and validates before stopping services', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-project-root-'));

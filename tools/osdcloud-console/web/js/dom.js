@@ -78,6 +78,7 @@ export const elements = {
   networkTopologyDetail: $('#network-topology-detail'),
   networkWanInterface: $('#network-wan-interface'),
   networkPxeInterface: $('#network-pxe-interface'),
+  networkInternalSubnet: $('#network-internal-subnet'),
   networkPrepareButton: $('#network-prepare-button'),
   networkRemoveButton: $('#network-remove-button'),
   syncProgressSubtitle: $('#sync-progress-subtitle'),

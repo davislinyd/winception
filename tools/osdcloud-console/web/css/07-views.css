@@ -419,6 +419,25 @@ dialog.embedded-open::backdrop { display: none !important; }
 
 .console-dock.console-dock-idle { display: none; }
 
+.onboarding-stages { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.onboarding-stages button { flex: 1 1 130px; padding: 10px; white-space: normal; text-align: left; }
+.onboarding-stages [aria-current="step"], .onboarding-scenarios .selected { border-color: var(--accent); background: var(--surface-container-low); }
+.onboarding-scenarios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.onboarding-scenarios button { display: flex; flex-direction: column; gap: 8px; padding: 14px; white-space: normal; text-align: left; }
+.onboarding-scenarios small { font-weight: 400; line-height: 1.6; color: var(--on-surface-variant); }
+.onboarding-wiring { display: block; width: 100%; height: auto; border-radius: 10px; background: #fffaf1; }
+.onboarding-network { display: grid; gap: 12px; }
+.onboarding-network label { display: grid; gap: 6px; font-size: 13px; }
+.onboarding-network select, .onboarding-network input { width: 100%; min-width: 0; }
+.onboarding-pairing { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--hairline); }
+.onboarding-pairing strong { flex: 1 1 250px; overflow-wrap: anywhere; }
+.onboarding-pairing code { font: 600 20px/1.3 Consolas, monospace; }
+.onboarding-daily-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0; }
+.initialization-step[hidden] { display: none; }
+@media (max-width: 840px) {
+  .onboarding-scenarios { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 1024px) {
   .console-grid { grid-template-columns: 1fr; }
 }

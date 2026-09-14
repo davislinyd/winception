@@ -14,6 +14,7 @@ import { ipv4ToUInt32, normalizeMacAddress } from './dhcp.js';
 import { driverPackCacheStage, handleDriverPackCacheRequest } from './driverPackCache.js';
 import { appendLog, formatSyslog } from './logger.js';
 import { buildRunsIndex, isRunTerminal, updateRunSummary } from './runSummary.js';
+import { BootApprovals, isInClientSubnet } from './bootApprovals.js';
 
 function loadSecrets(config) {
   const stateRoot = stateRootForConfig(config);
@@ -226,6 +227,7 @@ export class MediaHttpServer extends EventEmitter {
     this.bootSessions = new Map();
     this.usedBootNonces = new Map();
     this.bootLeaseValidator = options.bootLeaseValidator ?? null;
+    this.bootApprovals = new BootApprovals(options.bootApprovalOptions);
   }
 
   setTorrentCoordinator(coordinator) {
@@ -251,6 +253,7 @@ export class MediaHttpServer extends EventEmitter {
 
   revokeBootSession(sessionId) {
     if (sessionId) {
+      this.bootApprovals.revoke(this.bootSessions.get(sessionId)?.approvalId);
       this.bootSessions.delete(sessionId);
     }
   }
@@ -278,7 +281,12 @@ export class MediaHttpServer extends EventEmitter {
       this.log(`${remote} ${req.method} boot-session 403 client-mismatch`);
       return false;
     }
-    if (this.config.security?.requireLeaseBinding === true
+    const proxy = this.config.dhcp?.dhcpMode === 'proxy';
+    if (proxy !== Boolean(session.approvalId) || (proxy && !this.bootApprovals.valid(session))) {
+      sendJson(res, 403, { ok: false, error: 'Client pairing is no longer authorized.' });
+      return false;
+    }
+    if (!proxy && this.config.security?.requireLeaseBinding === true
       && (!this.bootLeaseValidator || !this.bootLeaseValidator(session.remoteIp, session.clientMac))) {
       sendJson(res, 403, { ok: false, error: 'Boot session is no longer bound to an active DHCP lease.' });
       return false;
@@ -358,6 +366,9 @@ export class MediaHttpServer extends EventEmitter {
   }
 
   async stop() {
+    this.bootApprovals.clear();
+    this.bootSessions.clear();
+    this.usedBootNonces.clear();
     if (!this.server) {
       return;
     }
@@ -409,18 +420,22 @@ export class MediaHttpServer extends EventEmitter {
       const bootId = safeClientValue(payload.bootId, 'bootId');
       const clientId = safeClientValue(payload.clientId, 'clientId');
       const clientMac = normalizeMacAddress(payload.clientMac);
-      const runId = safeClientValue(payload.runId, 'runId');
+      const runId = sanitizeName(safeClientValue(payload.runId, 'runId'));
       const remoteIp = normalizeRemoteIp(req.socket.remoteAddress);
       const claimedIp = payload.clientIp ? normalizeRemoteIp(payload.clientIp) : remoteIp;
       if (claimedIp !== remoteIp) {
         throw new Error('clientIp does not match the network connection');
       }
-      if (!isIpInRange(remoteIp, this.config.dhcp?.leaseStartIp, this.config.dhcp?.leaseEndIp)) {
+      const proxy = this.config.dhcp?.dhcpMode === 'proxy';
+      if (proxy && !isInClientSubnet(remoteIp, this.config.dhcp?.listenIp, this.config.dhcp?.prefixLength)) {
+        throw new Error('Client is not inside the selected service subnet.');
+      }
+      if (!proxy && !isIpInRange(remoteIp, this.config.dhcp?.leaseStartIp, this.config.dhcp?.leaseEndIp)) {
         throw new Error(
           `client is not inside the current DHCP lease range (${this.config.dhcp?.leaseStartIp ?? 'unset'}-${this.config.dhcp?.leaseEndIp ?? 'unset'}, client=${remoteIp})`,
         );
       }
-      if (this.config.security?.requireLeaseBinding === true
+      if (!proxy && this.config.security?.requireLeaseBinding === true
         && (!this.bootLeaseValidator || !this.bootLeaseValidator(remoteIp, clientMac))) {
         throw new Error('client is not bound to an active DHCP lease');
       }
@@ -428,6 +443,14 @@ export class MediaHttpServer extends EventEmitter {
       this.purgeBootSessions();
       if (this.usedBootNonces.has(nonce)) {
         throw new Error('boot nonce has already been used');
+      }
+      const approval = proxy ? this.bootApprovals.submit({
+        key: publicKey.export({ format: 'jwk' }), nonce, bootId, clientId, clientMac, runId, remoteIp,
+      }) : null;
+      if (approval?.status === 'pending') {
+        sendJson(res, 202, { ok: true, pending: true, requestId: approval.requestId,
+          expiresAt: new Date(approval.expiresAt).toISOString() });
+        return;
       }
       const secrets = loadSecrets(this.config);
       if (!secrets.pxeinstallPassword || !secrets.windowsUsername || !secrets.windowsPassword) {
@@ -465,6 +488,7 @@ export class MediaHttpServer extends EventEmitter {
       }, envelopeKey);
 
       this.usedBootNonces.set(nonce, expiresAt);
+      if (approval) this.bootApprovals.issue(approval.requestId, expiresAt);
       this.bootSessions.set(sessionId, {
         sessionId,
         token: sessionToken,
@@ -474,6 +498,8 @@ export class MediaHttpServer extends EventEmitter {
         clientMac,
         runId: sanitizeName(runId),
         remoteIp,
+        approvalId: approval?.requestId ?? null,
+        key: approval?.key ?? null,
         expiresAt,
       });
 

@@ -247,7 +247,23 @@ $bootRequest = [ordered]@{
 } | ConvertTo-Json -Depth 8 -Compress
 
 try {
+    $pairingInput = "$(ConvertTo-Base64Url -Bytes $publicParameters.Modulus)`n$(ConvertTo-Base64Url -Bytes $publicParameters.Exponent)`n$clientNonce`n$bootId"
+    $pairingHash = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $pairingHex = ([BitConverter]::ToString($pairingHash.ComputeHash([Text.Encoding]::UTF8.GetBytes($pairingInput)))).Replace('-', '')
+    } finally { $pairingHash.Dispose() }
+    $pairingCode = "$($pairingHex.Substring(0, 4))-$($pairingHex.Substring(4, 4))-$($pairingHex.Substring(8, 4))"
+    $pairingDeadline = [DateTime]::UtcNow.AddMinutes(10)
     $bootConfig = Invoke-RestMethod -Uri $bootSessionUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $bootRequest -TimeoutSec 10 -ErrorAction Stop
+    if ($bootConfig.PSObject.Properties['pending'] -and $bootConfig.pending) {
+        Write-Host "等待 Winception Console 核准本次部署。請核對配對碼：$pairingCode" -ForegroundColor Yellow
+        Write-Host "Waiting for host approval. Compare this pairing code in Winception Console: $pairingCode"
+        while ($bootConfig.PSObject.Properties['pending'] -and $bootConfig.pending) {
+            if ([DateTime]::UtcNow -ge $pairingDeadline) { throw 'Client pairing timed out. Boot the client again.' }
+            Start-Sleep -Seconds 3
+            $bootConfig = Invoke-RestMethod -Uri $bootSessionUrl -Method Post -ContentType 'application/json' -DisableKeepAlive -Body $bootRequest -TimeoutSec 10 -ErrorAction Stop
+        }
+    }
     if (-not $bootConfig.ok -or [string]::IsNullOrWhiteSpace([string] $bootConfig.sessionToken)) {
         throw 'Host did not issue a boot session.'
     }

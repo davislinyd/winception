@@ -29,6 +29,16 @@ Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在�
 
 完整圖解手冊可開啟 [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)，安裝後也可在 Web Console 頂部用 **使用手冊** 開啟 `/manual/`。
 
+**One laptop, anywhere**：首次使用跟著「主機初始化」五個階段完成；日常使用依首頁「下一步」核對內容、啟動服務、PXE 開機、必要時核准配對、查看部署活動，全部完成後停止服務。
+
+| 接線方式 | DHCP | Client 上網 |
+| --- | --- | --- |
+| 筆電與 client 接既有 LAN | 既有 DHCP；Winception PXE Proxy | 同一 subnet，既有 gateway／DNS；WinPE 配對碼需在 Console 核對核准 |
+| 筆電與 client 接既有 LAN | Winception DHCP；此網段無其他 DHCP | 同一 subnet，確認可用位址池及既有 gateway／DNS |
+| Client 直連筆電或經交換器 | Winception DHCP | 獨立 subnet，筆電 NAT；Wi-Fi 可上網，另一張 Ethernet／USB Ethernet 接 client |
+
+圖解：[首次設定](docs/winception-operations-manual.html#first-setup)、[三種接線](docs/winception-operations-manual.html#network-scenes)、[日常部署](docs/winception-operations-manual.html#daily-deploy)。更換場地保留映像與部署設定，重新確認介面、IP、DHCP、gateway、DNS，執行 Endpoint Sync 與 Preflight。正式版不預載部署資料。
+
 ### 02. 部署主機安裝
 
 從系統管理員 PowerShell 執行：
@@ -236,7 +246,7 @@ Client Internet 拓撲：
 | 拓撲 | Host 接法 | Client Internet |
 | --- | --- | --- |
 | Shared LAN（預設） | Winception 與 client 接同一 switch；router 也接該 LAN | 由既有 router/LAN 決定；依當下 DHCP Server 或 PXE Proxy 模式操作 |
-| Dual NIC NAT | WAN NIC 接 Internet；PXE NIC 接 client 專用 switch | Web Console 明確確認後建立 `Winception-PXE` Hyper-V switch 與 `WinceptionNAT`；PXE client gateway 是 host `192.168.100.1` |
+| Dual NIC NAT | WAN NIC 接 Internet；PXE NIC 直連 client 或接 client 專用 switch | 明確確認兩張介面與 client CIDR；建立 `Winception-PXE` 與 `WinceptionNAT`，gateway 使用所選子網第一個可用 IP |
 
 Dual NIC NAT 不修改 WAN NIC 的 IP、gateway、DNS 或全域 firewall。它會停止 deployment services、要求 PXE NIC 沒有 default gateway、拒絕既有 ICS/非 Winception NetNat 衝突，並固定使用 DHCP Server；Hyper-V 初次啟用若需要 reboot，會以一次性 SYSTEM task 完成使用者已確認的網路準備。停止 HTTP/TFTP/DHCP 不會停用 NAT，因此已部署 client 的 post-logon software/custom scripts 仍可上網。
 
@@ -400,6 +410,16 @@ Last completed run : <run-id>
 ## English
 
 ### 01. Product Overview
+
+**One laptop, anywhere**: follow the five-stage Host initialization wizard for first setup. For daily deployment, review the image/profile/network, start services after Preflight, connect and PXE boot clients, approve pairing when required, follow Activity, and stop services after every client completes.
+
+| Wiring | DHCP | Client Internet |
+| --- | --- | --- |
+| Laptop and clients on an existing LAN | Existing DHCP + Winception PXE Proxy | Same subnet, existing gateway/DNS; verify and approve the WinPE pairing code in Console |
+| Laptop and clients on an existing LAN | Winception DHCP, no other DHCP server on this segment | Same subnet; confirm available lease pool and existing gateway/DNS |
+| Clients directly connected or through a client switch | Winception DHCP | Separate subnet through laptop NAT; Wi-Fi uplink plus separate Ethernet/USB Ethernet for clients |
+
+Illustrated guide: [first setup](docs/winception-operations-manual.html#en-first-setup), [wiring](docs/winception-operations-manual.html#en-network-scenes), [daily deployment](docs/winception-operations-manual.html#en-daily-deploy). At a new site, retain images/profiles, recheck NICs, IP, DHCP, gateway and DNS, then sync the endpoint and rerun Preflight. Release has no preloaded deployment data.
 
 Winception is a Windows 11 zero-touch deployment toolkit. A technician installs the Web Console on a deployment host, prepares the runtime, Windows image, deployment profile, and service endpoint, then the target computer only needs to boot from UEFI IPv4 PXE. WinPE, OSDCloud, Windows SetupComplete, applications, and custom scripts finish automatically.
 
@@ -631,7 +651,7 @@ Client Internet topologies:
 | Topology | Host wiring | Client Internet |
 | --- | --- | --- |
 | Shared LAN (default) | Winception and clients use the same switch, which is also connected to the router | Owned by the existing router/LAN; select DHCP Server or PXE Proxy for that segment |
-| Dual NIC NAT | WAN NIC reaches the Internet; PXE NIC reaches a client-only switch | After explicit Web confirmation, Winception creates the `Winception-PXE` Hyper-V switch and `WinceptionNAT`; PXE clients use host `192.168.100.1` as their gateway |
+| Dual NIC NAT | WAN NIC reaches Internet; PXE NIC connects directly or to a client-only switch | Confirm both adapters and client CIDR; create `Winception-PXE` and `WinceptionNAT`, using the subnet's first usable IP as client gateway |
 
 Dual NIC NAT does not change the WAN NIC IP, gateway, DNS, or global firewall. It stops deployment services, requires the PXE NIC to have no default gateway, rejects ICS/non-Winception NetNat conflicts, and always uses DHCP Server mode. If the first Hyper-V enablement needs a reboot, a one-time SYSTEM task completes the already-confirmed network preparation. Stopping HTTP/TFTP/DHCP does not stop NAT, so deployed clients retain Internet access for post-logon software/custom scripts.
 

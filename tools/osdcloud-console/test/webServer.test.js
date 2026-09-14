@@ -7,6 +7,7 @@ import { EventEmitter } from 'node:events';
 import { ServiceController } from '../src/controller/index.js';
 import { WebManagementServer } from '../src/webServer.js';
 import { appVersion } from '../src/version.js';
+import { BootApprovals } from '../src/bootApprovals.js';
 
 class FakeService extends EventEmitter {
   constructor(config = {}) {
@@ -74,6 +75,7 @@ async function makeServer(root, overrides = {}) {
     services,
     updateChecker: overrides.updateChecker,
     dependencies: {
+      readNetworkOptions: async () => ({ adapters: [], routes: [] }),
       listIpv4ServiceInterfaces: async () => [{ interfaceAlias: 'LAN', ipAddress: '127.0.0.1', prefixLength: 24 }],
       isElevated: () => true,
       readFleetStatus: () => ({ total: 1, counts: { running: 1 }, runs: [{ runId: 'run-1', status: 'running', latestStage: 'winpe-start' }] }),
@@ -584,6 +586,36 @@ test('API auth status reports loopback bypass without requiring a token', async 
     await server.stop();
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('network options and pairing APIs preserve Console auth and require matching approval', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'winception-web-pairing-'));
+  const server = await makeServer(root, { listenHost: '0.0.0.0' });
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    const queue = new BootApprovals();
+    server.controller.services.http.bootApprovals = queue;
+    server.controller.config.dhcp.dhcpMode = 'proxy';
+    const request = queue.submit({ key: { n: 'test', e: 'AQAB' }, nonce: 'test-nonce', bootId: 'test-boot',
+      runId: 'test-run', clientId: 'test-client', clientMac: 'AA-BB-CC-DD-EE-FF', remoteIp: '127.0.0.1' });
+    const headers = { 'x-winception-token': JSON.parse(fs.readFileSync(path.join(root, 'config/web-console-token.json'))).token, 'content-type': 'application/json' };
+    for (const [route, method] of [['/api/network/options', 'GET'], ['/api/boot-requests', 'GET'], ['/api/boot-requests/approve', 'POST'], ['/api/boot-requests/reject', 'POST']]) {
+      assert.equal((await fetch(base + route, { method })).status, 401);
+    }
+    let response = await fetch(base + '/api/network/options', { headers });
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).options.adapters, []);
+    response = await fetch(base + '/api/boot-requests', { headers });
+    const view = await response.json();
+    assert.equal(view.requests[0].pairingCode, request.pairingCode);
+    assert.equal(view.requests[0].key, undefined);
+    assert.equal(view.requests[0].nonce, undefined);
+    const post = (route, code) => fetch(base + route, { method: 'POST', headers, body: JSON.stringify({ requestId: request.requestId, pairingCode: code }) });
+    assert.equal((await post('/api/boot-requests/approve', 'WRONG')).status, 400);
+    assert.equal((await post('/api/boot-requests/reject')).status, 200);
+    assert.equal((await post('/api/boot-requests/approve', request.pairingCode)).status, 400);
+    assert.equal(fs.existsSync(path.join(root, 'status')), false);
+  } finally { await server.stop(); fs.rmSync(root, { recursive: true, force: true }); }
 });
 
 test('API auth gate protects non-loopback listeners while static and manual stay readable', async () => {

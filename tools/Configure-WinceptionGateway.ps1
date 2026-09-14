@@ -36,7 +36,7 @@ function Get-SubnetInfo {
     $bytes = $ip.GetAddressBytes()
     [array]::Reverse($bytes)
     $value = [BitConverter]::ToUInt32($bytes, 0)
-    $mask = if ($prefix -eq 0) { [uint32] 0 } else { [uint32] ([uint64] 0xffffffff -shl (32 - $prefix)) }
+    $mask = [uint32] (([uint64] 4294967295 -shl (32 - $prefix)) -band [uint64] 4294967295)
     $network = [uint32] ($value -band $mask)
     $gateway = [uint32] ($network + 1)
     $gatewayBytes = [BitConverter]::GetBytes($gateway)
@@ -136,6 +136,26 @@ function Get-GatewayState {
     $stored = Read-State
     $blockers = @()
     if (-not $subnet) { $blockers += 'Internal subnet is not configured.' }
+    if ($subnet) {
+        $candidateParts = $subnet.Cidr -split '/', 2
+        $candidateBytes = ([System.Net.IPAddress]::Parse($candidateParts[0])).GetAddressBytes()
+        [array]::Reverse($candidateBytes)
+        $candidateStart = [BitConverter]::ToUInt32($candidateBytes, 0)
+        $candidateEnd = [uint64] $candidateStart + [math]::Pow(2, 32 - $subnet.PrefixLength) - 1
+        foreach ($route in @(Get-NetRoute -AddressFamily IPv4 -ErrorAction Stop)) {
+            if ($route.DestinationPrefix -eq '0.0.0.0/0' -or $route.InterfaceAlias -eq $virtualAlias) { continue }
+            $parts = $route.DestinationPrefix -split '/', 2
+            $prefix = [int] $parts[1]
+            $bytes = ([System.Net.IPAddress]::Parse($parts[0])).GetAddressBytes()
+            [array]::Reverse($bytes)
+            $mask = [uint32] (([uint64] 4294967295 -shl (32 - $prefix)) -band [uint64] 4294967295)
+            $start = [BitConverter]::ToUInt32($bytes, 0) -band $mask
+            $end = [uint64] $start + [math]::Pow(2, 32 - $prefix) - 1
+            if ($candidateStart -le $end -and $start -le $candidateEnd) {
+                $blockers += "Internal subnet overlaps $($route.InterfaceAlias): $($route.DestinationPrefix)."
+            }
+        }
+    }
     if ($WanInterfaceAlias -and -not $wan) { $blockers += "WAN interface not found: $WanInterfaceAlias" }
     if ($PxeInterfaceAlias -and -not $pxe) { $blockers += "PXE interface not found: $PxeInterfaceAlias" }
     if ($wan -and (Test-IsVirtualGatewayAdapter $wan)) { $blockers += "WAN interface must be a physical NIC, not $($wan.Name)." }

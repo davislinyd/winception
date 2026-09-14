@@ -694,6 +694,28 @@ if ([string]::IsNullOrWhiteSpace($DefaultGateway)) {
 }
 $dhcpRouter = if (Test-IPv4InPrefix -Address $DefaultGateway -NetworkAddress $ServerIp -PrefixLength $PrefixLength) { $DefaultGateway } else { $ServerIp }
 $dhcpRange = Get-DhcpLeaseRange -ServerIp $ServerIp -PrefixLength $PrefixLength
+$rangeStart = [string] $config.dhcp.leaseStartIp
+$rangeEnd = [string] $config.dhcp.leaseEndIp
+$info = Get-SubnetInfo -Address $ServerIp -PrefixLength $PrefixLength
+if ($rangeStart -and $rangeEnd -and
+    (Test-IPv4InPrefix -Address $rangeStart -NetworkAddress $ServerIp -PrefixLength $PrefixLength) -and
+    (Test-IPv4InPrefix -Address $rangeEnd -NetworkAddress $ServerIp -PrefixLength $PrefixLength)) {
+    $start = ConvertTo-IPv4UInt32 $rangeStart
+    $end = ConvertTo-IPv4UInt32 $rangeEnd
+    $router = ConvertTo-IPv4UInt32 $dhcpRouter
+    if ($start -le $end -and $start -ge $info.FirstUsable -and $end -le $info.LastUsable -and
+        ($info.AddressValue -lt $start -or $info.AddressValue -gt $end) -and ($router -lt $start -or $router -gt $end)) {
+        $dhcpRange = [pscustomobject]@{ LeaseStartIp = $rangeStart; LeaseEndIp = $rangeEnd }
+    }
+}
+$start = ConvertTo-IPv4UInt32 $dhcpRange.LeaseStartIp
+$end = ConvertTo-IPv4UInt32 $dhcpRange.LeaseEndIp
+$router = ConvertTo-IPv4UInt32 $dhcpRouter
+if ($router -ge $start -and $router -le $end) {
+    if (($router - $start) -ge ($end - $router)) { $end = $router - 1 } else { $start = $router + 1 }
+    if ($start -gt $end) { throw 'No DHCP lease range available outside server and gateway.' }
+    $dhcpRange = [pscustomobject]@{ LeaseStartIp = ConvertFrom-IPv4UInt32 $start; LeaseEndIp = ConvertFrom-IPv4UInt32 $end }
+}
 $subnetMask = ConvertFrom-IPv4UInt32 (ConvertTo-PrefixMask -PrefixLength $PrefixLength)
 $remoteSubnet = if (-not [string]::IsNullOrWhiteSpace($SmbRemoteSubnet)) { $SmbRemoteSubnet } else { Get-SubnetCidr -ServerIp $ServerIp -PrefixLength $PrefixLength }
 

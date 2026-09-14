@@ -8,19 +8,20 @@ import { text } from './format.js';
 import { render } from './render.js';
 import { RESERVED_WINDOWS_USERNAMES, state } from './state.js';
 import { makeIcon, setControlsDisabled } from './ui.js';
+import { renderScene, renderWizardNavigation, wizardInitialization } from './onboarding.js';
 
 export function initializationActionLabel(action) {
   const labels = {
-    'project-root': 'Set project root',
-    secrets: 'Save secrets',
-    'prepare-runtime': 'Prepare runtime',
-    'endpoint-sync': 'Sync endpoint',
-    interfaces: 'Select endpoint',
-    'os-images': 'Open OS images',
-    profiles: 'Publish profile',
-    preflight: 'Run preflight',
-    'all-services-toggle': 'Start services',
-    dashboard: 'Open dashboard',
+    'project-root': '儲存部署資料夾',
+    secrets: '儲存部署帳號',
+    'prepare-runtime': '準備部署檔案',
+    'endpoint-sync': '同步部署端點',
+    interfaces: '設定部署網路',
+    'os-images': '選擇 Windows 映像',
+    profiles: '開啟並發布部署設定',
+    preflight: '執行部署前檢查',
+    'all-services-toggle': '啟動部署服務',
+    dashboard: '查看部署進度',
   };
   return labels[action] ?? 'Open';
 }
@@ -95,9 +96,9 @@ export function appendInitializationDetailItems(body, stepId, detailItems = []) 
 
 export function appendGuidedStepOverview(body, step) {
   const items = [
-    ['Objective', step.objective],
-    ['Done when', step.doneWhen],
-    ['Safety note', step.safetyNote],
+    ['這一步的用途', step.objective],
+    ['完成後會看到', step.doneWhen],
+    ['操作提醒', step.safetyNote],
   ].filter(([, value]) => String(value ?? '').trim());
   if (items.length === 0) {
     return;
@@ -207,7 +208,7 @@ export function clearInitializationSecretsDraft() {
 
 export function focusedInitializationTextControl() {
   const activeId = document.activeElement?.id;
-  if (activeId !== 'init-windows-username' && activeId !== 'init-windows-password' && activeId !== 'init-project-root') {
+  if (!['init-windows-username', 'init-windows-password', 'init-project-root', 'onboarding-subnet', 'onboarding-wan', 'onboarding-pxe', 'onboarding-lan', 'onboarding-lease-start', 'onboarding-lease-end'].includes(activeId)) {
     return null;
   }
   return {
@@ -263,7 +264,7 @@ export function appendInitializationSecretsForm(body) {
   status.className = 'initialization-secrets-status';
   status.setAttribute('aria-live', 'polite');
   if (editing) {
-    status.textContent = 'Re-enter the Windows username and password to replace the existing credentials. The password is not prefilled and must be entered again.';
+    status.textContent = '請重新輸入 Windows 帳號與密碼。既有密碼不會預填。';
   }
   const actions = document.createElement('div');
   actions.className = 'initialization-secrets-actions';
@@ -272,18 +273,18 @@ export function appendInitializationSecretsForm(body) {
   button.className = 'warning';
   button.dataset.initAction = 'save-secrets';
   button.dataset.icon = 'password';
-  button.textContent = editing ? 'Update deployment secrets' : 'Save deployment secrets';
+  button.textContent = editing ? '更新部署帳號' : '儲存部署帳號';
   actions.append(button);
   if (editing) {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.dataset.initAction = 'cancel-secrets';
-    cancel.textContent = 'Cancel';
+    cancel.textContent = '取消';
     actions.append(cancel);
   }
   form.append(
-    createInitializationSecretField('init-windows-username', 'windowsUsername', 'Windows username', 'text'),
-    createInitializationSecretField('init-windows-password', 'windowsPassword', 'Windows password', 'password'),
+    createInitializationSecretField('init-windows-username', 'windowsUsername', 'Windows 使用者名稱', 'text'),
+    createInitializationSecretField('init-windows-password', 'windowsPassword', 'Windows 密碼', 'password'),
     status,
     actions,
   );
@@ -297,7 +298,7 @@ export function appendInitializationSecretsEditButton(body) {
   button.type = 'button';
   button.dataset.initAction = 'edit-secrets';
   button.dataset.icon = 'password';
-  button.textContent = 'Edit secrets';
+  button.textContent = '修改部署帳號';
   actions.append(button);
   body.append(actions);
 }
@@ -310,7 +311,7 @@ export function appendInitializationProjectRootForm(body, step) {
   const form = document.createElement('div');
   form.className = 'initialization-secrets-form';
   const label = document.createElement('label');
-  label.textContent = 'Deployment working directory';
+  label.textContent = '部署資料夾';
   const input = document.createElement('input');
   input.id = 'init-project-root';
   input.type = 'text';
@@ -323,7 +324,7 @@ export function appendInitializationProjectRootForm(body, step) {
   label.append(input);
   const status = document.createElement('span');
   status.className = 'initialization-secrets-status';
-  status.textContent = 'Use an absolute path outside the Git clone and HostTools.';
+  status.textContent = '請使用 Git clone 與 HostTools 之外的絕對路徑。';
   const actions = document.createElement('div');
   actions.className = 'initialization-secrets-actions';
   const button = document.createElement('button');
@@ -331,7 +332,7 @@ export function appendInitializationProjectRootForm(body, step) {
   button.className = 'warning';
   button.dataset.initAction = 'save-project-root';
   button.dataset.icon = 'save';
-  button.textContent = 'Save project root';
+  button.textContent = '儲存部署資料夾';
   actions.append(button);
   form.append(label, status, actions);
   body.append(form);
@@ -435,7 +436,7 @@ export function renderSetupProgressChip(initialization, doneSteps, totalSteps) {
 }
 
 export function renderInitialization(appState) {
-  const initialization = appState.initialization;
+  const initialization = appState.initialization ? wizardInitialization(appState) : null;
   if (!initialization || !elements.initializationDialog) {
     return;
   }
@@ -543,9 +544,7 @@ export function renderInitialization(appState) {
 
     const status = document.createElement('span');
     status.className = `status-pill ${stepIsRunning ? 'working' : step.done ? 'ok' : stepHasFailures ? 'warn' : step.required ? 'fail' : 'neutral'}`;
-    status.textContent = stepIsRunning && step.id === 'runtime'
-      ? 'Preparing'
-      : stepIsRunning ? 'Running' : step.done ? 'Done' : stepHasFailures ? 'Issues' : step.required ? 'Required' : 'Optional';
+    status.textContent = stepIsRunning ? '處理中' : step.done ? '已完成' : stepHasFailures ? '需要修正' : '待處理';
 
     const body = document.createElement('div');
     body.className = 'initialization-step-body';
@@ -598,7 +597,7 @@ export function renderInitialization(appState) {
       || (selectedStep.id === 'services' && activeOperation?.action === 'all-services-toggle' && initializationBusy);
     const selectedStepHasFailures = selectedStep.ran === true && !selectedStep.done && !stepIsRunning;
     badge.className = `status-pill ${stepIsRunning ? 'working' : selectedStep.done ? 'ok' : selectedStepHasFailures ? 'warn' : selectedStep.required ? 'fail' : 'neutral'}`;
-    badge.textContent = stepIsRunning ? 'Running' : selectedStep.done ? 'Ready' : selectedStepHasFailures ? 'Issues' : selectedStep.required ? 'Required' : 'Optional';
+    badge.textContent = stepIsRunning ? '處理中' : selectedStep.done ? '已完成' : selectedStepHasFailures ? '需要修正' : '待處理';
 
     header.append(titleRow, badge);
     detailPanel.append(header);
@@ -613,7 +612,19 @@ export function renderInitialization(appState) {
 
     // Render detailed items & forms (named 'body' to pass test assertions)
     appendGuidedStepOverview(body, step);
-    const detailList = appendInitializationDetailItems(body, step.id, step.detailItems);
+    const technical = document.createElement('details');
+    const technicalSummary = document.createElement('summary');
+    technicalSummary.textContent = '技術檢查明細';
+    technical.append(technicalSummary);
+    const detailList = appendInitializationDetailItems(technical, step.id, step.detailItems);
+    if (detailList) body.append(technical);
+    if (step.id === 'scene' || step.id === 'endpoint') renderScene(body, appState, step.id === 'endpoint');
+    if (selectedStepHasFailures) {
+      const issue = document.createElement('p');
+      issue.textContent = '這一步尚未通過。請查看檢查明細中的失敗項目，修正後再執行檢查；服務保持停止。';
+      issue.className = 'form-error';
+      body.append(issue);
+    }
     if (hasInlineSecretsForm) {
       appendInitializationSecretsForm(body);
     } else if (step.id === 'secrets' && step.done) {
@@ -628,7 +639,7 @@ export function renderInitialization(appState) {
 
     // Action button — re-runnable steps stay editable after init
     const stepRerunnable = RERUNNABLE_STEP_ACTIONS.has(selectedStep.action);
-    if (selectedStep.action && selectedStep.action !== 'setup' && !hasInlineSecretsForm && !hasInlineProjectRootForm
+    if (selectedStep.action && !['setup', 'scene', 'interfaces'].includes(selectedStep.action) && !hasInlineSecretsForm && !hasInlineProjectRootForm
       && (!selectedStep.done || stepRerunnable)) {
       const buttonContainer = document.createElement('div');
       buttonContainer.className = 'flex justify-start mt-md';
@@ -638,9 +649,7 @@ export function renderInitialization(appState) {
       button.className = (selectedStep.required && !selectedStep.done) ? 'warning' : '';
       button.dataset.initAction = selectedStep.action;
       button.dataset.icon = initializationActionIcon(selectedStep.action);
-      button.textContent = selectedStep.done
-        ? (RERUN_STEP_LABELS[selectedStep.action] ?? `Update ${selectedStep.label}`)
-        : (selectedStep.nextActionText ?? initializationActionLabel(selectedStep.action));
+      button.textContent = `${selectedStep.done ? '重新' : ''}${initializationActionLabel(selectedStep.action)}`;
       
       const runtime = appState.runtime;
       const requiresElevation = appState?.host?.elevated === false;
@@ -688,6 +697,7 @@ export function renderInitialization(appState) {
     }
     openDialog(elements.initializationDialog);
   }
+  renderWizardNavigation(appState, initialization);
   restoreInitializationDialogScrollPosition(dialogScrollPosition);
   restoreInitializationTextControlFocus(focusedTextControl);
 }
@@ -764,13 +774,13 @@ export async function saveInitializationProjectRoot() {
 
 export function confirmPrepareRuntime(runtime) {
   return confirmAction({
-    title: 'Prepare runtime',
-    message: 'This downloads or rebuilds missing runtime artifacts on the host. Deployment services remain stopped.',
+    title: '準備部署檔案',
+    message: '下載或建立主機缺少的部署檔案。完成後仍需確認部署網路並執行檢查，服務保持停止。',
     details: [
-      `${runtime?.missingCount ?? 'Unknown'} artifact group(s) need preparation.`,
-      'After this completes, sync endpoint and run preflight from the Web console.',
+      `${runtime?.missingCount ?? '未知'} 組部署檔案需要準備。`,
+      '完成後請同步部署端點，再執行部署前檢查。',
     ],
-    confirmLabel: 'Prepare runtime',
+    confirmLabel: '確認並準備部署檔案',
     severity: 'warning',
   });
 }

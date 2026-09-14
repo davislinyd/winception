@@ -27,10 +27,16 @@ import { showOperationError } from './errorDialog.js';
 import { render } from './render.js';
 import { handleInitializationAction } from './setup.js';
 import { state } from './state.js';
+import { handleOnboardingAction } from './onboarding.js';
 
 export function handleDocumentClick(event) {
   const target = event.target instanceof Element ? event.target : event.target?.parentElement;
   if (!target) {
+    return;
+  }
+  const onboardingButton = target.closest('[data-onboarding-action]');
+  if (onboardingButton) {
+    handleOnboardingAction(onboardingButton).catch(showOperationError);
     return;
   }
   if (target === elements.fleetBackdrop) {

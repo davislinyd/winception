@@ -24,6 +24,7 @@ instead of reading a multi-thousand-line monolith. Grep the symbol, open the lis
 | Guided home model (next action, four stages, PXE-ready copy) | `web/js/beginnerModel.js` |
 | Guided home renderer | `web/js/beginner.js` |
 | **Setup** (guided init): steps, secrets form, project-root form, init handlers | `web/js/setup.js` |
+| Five-stage onboarding, wiring choices, network forms and client pairing | `web/js/onboarding.js` |
 | **Activity** (fleet): cards, detail, search/filter, `STALE_DONE_STAGES` | `web/js/fleet.js` |
 | Action dispatch (`handleAction`) + async button handlers, `switchToView` | `web/js/actions.js` |
 | Document-level click dispatch registry | `web/js/actionRegistry.js` |
@@ -53,6 +54,8 @@ Entry points (run by `package.json` scripts) stay at `src/` root: `webServer.js`
 | PowerShell exec + elevation | `src/windows/powershell.js` |
 | Network interfaces, DHCP subnet, SMB, service IPs | `src/windows/network.js` |
 | Hyper-V external PXE switch, WinNAT lifecycle, dual-NIC readiness | `src/windows/gateway.js` + `tools/Configure-WinceptionGateway.ps1` |
+| Read-only physical NIC/NAT options, route overlap | `src/windows/networkOptions.js` |
+| Existing-DHCP client pairing queue, code and authorization | `src/bootApprovals.js` + `src/httpServer.js` |
 | iPXE endpoint sync, boot.wim sync inputs/hash | `src/windows/bootArtifacts.js` |
 | boot.wim customization + secure boot validation | `src/windows/bootValidation.js` |
 | Preflight, port checks, SMB image, runtime staging, status cleanup | `src/windows/preflight.js` |

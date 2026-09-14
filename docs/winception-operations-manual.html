@@ -317,7 +317,8 @@
       <h1>Winception<br>部署操作手冊</h1>
       <p class="hero-lede">給技術人員使用的產品手冊：如何安裝部署服務、理解服務運作、準備 runtime 與 profile，並完成 Windows 11 電腦部署。</p>
       <div class="hero-actions">
-        <a href="#product-overview">開始部署</a>
+        <a href="#first-setup">首次設定</a><a href="#network-scenes">三種接線</a><a href="#daily-deploy">日常部署</a>
+<a href="#product-overview">開始部署</a>
         <a href="#architecture">服務架構</a>
         <a href="#usb-iso">USB / ISO 模式</a>
         <a href="#deploy-client">部署電腦</a>
@@ -329,7 +330,8 @@
           <p class="nav-title">On this page</p>
           <input id="manual-search" class="manual-search" type="search" placeholder="搜尋段落..." aria-label="搜尋手冊段落">
           <nav class="toc">
-            <a href="#product-overview">產品概要</a>
+            <a href="#first-setup">首次設定</a><a href="#network-scenes">三種接線</a><a href="#daily-deploy">日常部署</a>
+<a href="#product-overview">產品概要</a>
             <a href="#host-install">部署主機安裝</a>
             <a href="#architecture">服務如何運作</a>
             <a href="#boundaries">Runtime/State/Secrets 邊界</a>
@@ -344,10 +346,29 @@
         </div>
       </aside>
       <main id="main">
+<section id="first-setup"><p class="section-kicker">One laptop, anywhere</p><h2>第一次使用：跟著精靈完成</h2>
+  <p>從系統管理員 PowerShell 執行 Setup-DeploymentServer.cmd，開啟本機 Console。點「主機初始化」；每一步都有用途、完成條件與下一步，技術檢查明細可展開查看。正式版沒有預載部署資料，重新整理後依伺服器狀態恢復未完成步驟。</p>
+  <figure><div class="media-frame"><img src="manual-assets/onboarding-first.svg" alt="首次設定五個階段"></div><figcaption>首次設定五個階段</figcaption></figure>
+  <ol><li>主機與帳號：確認部署資料夾、Windows 帳號與密碼；SMB 密碼由系統準備，保存於本機 State。</li>
+  <li>接線方式：先看下面的三張圖，選擇現場 DHCP 與 client 上網方式。選擇本身不修改網路。</li>
+  <li>部署檔案與網路：準備部署檔案，再選介面、核對 gateway、DNS 與 DHCP 位址池，確認後同步端點。NAT 需兩張不同實體網卡，可選沒有 IPv4 的 Ethernet。</li>
+  <li>Windows 與部署設定：下載或匯入映像，選擇要安裝的 Windows、語言、時區與軟體，發布部署設定。</li>
+  <li>檢查並啟動：Preflight 沒有失敗才可啟動。閱讀警告；若只有部分服務啟動，先停止服務、查看失敗項目並修正，再重新檢查。</li></ol></section>
+  <section id="network-scenes"><h2>依現場選擇三種接線方式</h2>
+  <figure><div class="media-frame"><img src="manual-assets/network-proxy.svg" alt="既有 DHCP：client 與筆電 LAN 服務介面在同一 subnet，使用既有 gateway／DNS。需核對配對碼。"></div><figcaption>既有 DHCP：client 與筆電 LAN 服務介面在同一 subnet，使用既有 gateway／DNS。需核對配對碼。</figcaption></figure>
+  <figure><div class="media-frame"><img src="manual-assets/network-server.svg" alt="Winception DHCP + 既有 LAN：確認該 client 網段沒有其他 DHCP，並確認位址池未被占用。"></div><figcaption>Winception DHCP + 既有 LAN：確認該 client 網段沒有其他 DHCP，並確認位址池未被占用。</figcaption></figure>
+  <figure><div class="media-frame"><img src="manual-assets/network-nat.svg" alt="筆電 NAT：Wi-Fi 或 Ethernet 上網，另一張 Ethernet／USB Ethernet 直連 client 或連交換器。"></div><figcaption>筆電 NAT：Wi-Fi 或 Ethernet 上網，另一張 Ethernet／USB Ethernet 直連 client 或連交換器。</figcaption></figure>
+  <div class="callout warning"><strong>套用前確認</strong>NAT 子網不能與上游、VPN 或其他網路重疊。需要 Hyper-V／WinNAT 與管理員權限，可能須重開機。ICS、Default Switch 或其他 NAT 衝突由擁有者處理；精靈不改 WAN 設定，也不停止其他服務的 ICS／NAT。AutoLab 是虛擬測試網路。</div>
+  <p>更換場地：全部電腦完成後停止部署服務，點「重新確認場地與接線」。保留映像與部署設定；重新確認場景、介面、IP、DHCP、gateway 與 DNS，再執行 Endpoint Sync 與 Preflight。偵測介面或 IP 改變會撤銷先前就緒提示。由 NAT 改回共享 LAN，須先在控制台明確移除 Winception NAT。</p></section>
+  <section id="daily-deploy"><h2>日常部署：從首頁到確認完成</h2>
+  <figure><div class="media-frame"><img src="manual-assets/onboarding-daily.svg" alt="日常部署七個動作"></div><figcaption>日常部署七個動作</figcaption></figure>
+  <p>首頁「這次要裝什麼」核對部署設定、映像與網路位置，依「下一步」啟動服務，再按目前接線場景連線。目標電腦選 UEFI IPv4 PXE：secureboot 使用 Microsoft 簽名鏈，可保留 Secure Boot；ipxe 必須關閉 Secure Boot。TPM 與 boot mode 獨立。</p>
+  <div class="callout"><strong>既有 DHCP 的配對</strong>WinPE 自行計算並顯示配對碼。操作員在 Console 核對 client 與相同配對碼，點「核對並核准」。等待期間不提供部署憑證；請求十分鐘過期。拒絕、過期、重播或身分不符時停止部署，修正後重新 PXE 開機，不能重用舊配對。自管 DHCP 仍使用租約驗證。</div>
+  <p>主機下載／準備看主機進度；目標電腦安裝看「部署活動」。完成必須是本次 run 的 windows-desktop-ready，不能只看 HTTP 正常、安裝檔下載完成或歷史成功。全部 client 完成後，首頁點「停止部署服務」；NAT 保留，已部署電腦仍可上網。</p></section>
         <section id="product-overview">
           <p class="section-kicker">01 · Overview</p>
           <h2>產品概要</h2>
-          <p>Winception 是 Windows 11 zero-touch deployment 工具。部署主機提供 Web Console 與部署資料服務；目標電腦只需從 UEFI IPv4 PXE 開機，後續 WinPE、OSDCloud、SetupComplete、client software 與 custom scripts 會自動完成。</p>
+          <p>Winception 是 Windows 11 zero-touch deployment 工具。部署主機提供 Web Console 與部署資料服務；目標電腦從 UEFI IPv4 PXE 開機（既有 DHCP 模式需核對配對碼並核准），後續 WinPE、OSDCloud、SetupComplete、client software 與 custom scripts 會自動完成。</p>
           <div class="grid-3">
             <article class="card"><span class="status ok">HOST</span><h3>部署主機</h3><p>安裝 Web Console、管理 runtime、OS images、profiles、services 與部署狀態。</p></article>
             <article class="card"><span class="status info">CLIENT</span><h3>目標電腦</h3><p>從 PXE 進入 WinPE，掛載 SMB share，套用 Windows image，首次開機後完成 finalizer。</p></article>
@@ -377,7 +398,7 @@ cd '&lt;repo-root&gt;'
         <section id="architecture">
           <p class="section-kicker">03 · Services</p>
           <h2>服務如何運作</h2>
-          <p>Web Console 是控制面；DHCP、TFTP、HTTP、SMB 與 Torrent 是資料面。Endpoint Sync 負責讓 live boot files、WinPE endpoint、SMB firewall 與 local overlay 保持一致；每次同步也會把 service IP 寫入 WinPE 的優先 health probe。deployment secrets 不會寫入 <code>boot.wim</code>；WinPE 開機時以 client public key、nonce、boot ID、client MAC 與近期有效 DHCP lease 申請短效、單次使用的 <code>/osdcloud/boot-session</code> envelope，Host 每次使用 session 都會重新確認 lease binding。更新後的 WinPE startup script 必須透過 Endpoint Sync 同步既有 <code>boot.wim</code>。</p>
+          <p>Web Console 是控制面；DHCP、TFTP、HTTP、SMB 與 Torrent 是資料面。Endpoint Sync 負責讓 live boot files、WinPE endpoint、SMB firewall 與 local overlay 保持一致；每次同步也會把 service IP 寫入 WinPE 的優先 health probe。deployment secrets 不會寫入 <code>boot.wim</code>；WinPE 開機時以 client public key、nonce、boot ID、client MAC 與自管 DHCP lease 或當次核准的 Proxy 配對 申請短效、單次使用的 <code>/osdcloud/boot-session</code> envelope，Host 每次使用 session 都會重新確認該模式的授權綁定。更新後的 WinPE startup script 必須透過 Endpoint Sync 同步既有 <code>boot.wim</code>。</p>
           <figure>
             <div class="media-frame"><img src="manual-assets/system-architecture.svg" alt="Winception Web Console、DHCP、TFTP、HTTP、Torrent、SMB、WinPE、OSDCloud 與 Windows client 的資料流"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.svg" data-zoom-alt="Winception 系統架構與資料流">放大架構圖</button></div>
             <figcaption>實線表示控制或階段交接，藍色虛線表示 boot/image 資料，綠色虛線表示 status 與 evidence。</figcaption>
@@ -535,7 +556,8 @@ Last completed run : &lt;run-id&gt;</code></pre>
       <h1>Winception<br>Deployment Manual</h1>
       <p class="hero-lede">A product manual for technicians: install deployment services, understand service behavior, prepare runtime and profiles, and deploy Windows 11 computers.</p>
       <div class="hero-actions">
-        <a href="#en-product-overview">Start deployment</a>
+        <a href="#en-first-setup">First setup</a><a href="#en-network-scenes">Three wiring scenarios</a><a href="#en-daily-deploy">Daily deployment</a>
+<a href="#en-product-overview">Start deployment</a>
         <a href="#en-architecture">Service architecture</a>
         <a href="#en-usb-iso">USB / ISO mode</a>
         <a href="#en-deploy-client">Deploy a computer</a>
@@ -547,7 +569,8 @@ Last completed run : &lt;run-id&gt;</code></pre>
           <p class="nav-title">On this page</p>
           <input id="manual-search-en" class="manual-search" type="search" placeholder="Search sections..." aria-label="Search manual sections">
           <nav class="toc">
-            <a href="#en-product-overview">Product Overview</a>
+            <a href="#en-first-setup">First setup</a><a href="#en-network-scenes">Three wiring scenarios</a><a href="#en-daily-deploy">Daily deployment</a>
+<a href="#en-product-overview">Product Overview</a>
             <a href="#en-host-install">Deployment Host Installation</a>
             <a href="#en-architecture">How The Services Work</a>
             <a href="#en-boundaries">Runtime/State/Secrets Boundaries</a>
@@ -562,6 +585,25 @@ Last completed run : &lt;run-id&gt;</code></pre>
         </div>
       </aside>
       <main id="en-main">
+<section id="en-first-setup"><p class="section-kicker">One laptop, anywhere</p><h2>First use: follow the wizard</h2>
+  <p>Run Setup-DeploymentServer.cmd from elevated PowerShell and open the local Console. Open Host initialization. Each step explains its purpose and completion condition; expand technical checks when needed. Release has no preloaded deployment data. Refresh resumes from server state.</p>
+  <figure><div class="media-frame"><img src="manual-assets/onboarding-first.en.svg" alt="Five stages of first setup"></div><figcaption>Five stages of first setup</figcaption></figure>
+  <ol><li>Host and credentials: confirm the runtime folder, Windows user and password. The system prepares the SMB password in local State.</li>
+  <li>Wiring: use the three diagrams below to choose DHCP and client Internet. Selecting a scene alone does not change networking.</li>
+  <li>Files and network: prepare deployment files, select adapters, check gateway, DNS and DHCP pool, then confirm endpoint sync. NAT needs two distinct physical adapters; Ethernet without IPv4 is selectable.</li>
+  <li>Windows and profile: download/import an image, choose Windows, language, time zone and software, then publish the profile.</li>
+  <li>Check and start: start only after Preflight has no blocking failures. Read warnings. If services start partially, stop them, inspect and resolve the failure, then recheck.</li></ol></section>
+  <section id="en-network-scenes"><h2>Choose one of three wiring scenarios</h2>
+  <figure><div class="media-frame"><img src="manual-assets/network-proxy.en.svg" alt="Existing DHCP: clients share the laptop LAN service subnet and use existing gateway/DNS. Pairing is required."></div><figcaption>Existing DHCP: clients share the laptop LAN service subnet and use existing gateway/DNS. Pairing is required.</figcaption></figure>
+  <figure><div class="media-frame"><img src="manual-assets/network-server.en.svg" alt="Winception DHCP + existing LAN: confirm no other DHCP server and an available lease pool on the client segment."></div><figcaption>Winception DHCP + existing LAN: confirm no other DHCP server and an available lease pool on the client segment.</figcaption></figure>
+  <figure><div class="media-frame"><img src="manual-assets/network-nat.en.svg" alt="Laptop NAT: use Wi-Fi/Ethernet for Internet and a separate Ethernet/USB NIC directly to a client or client switch."></div><figcaption>Laptop NAT: use Wi-Fi/Ethernet for Internet and a separate Ethernet/USB NIC directly to a client or client switch.</figcaption></figure>
+  <div class="callout warning"><strong>Before applying</strong>NAT subnet must not overlap upstream, VPN or other networks. Hyper-V/WinNAT and administrator privileges are required; reboot may be necessary. Resolve ICS, Default Switch or foreign NAT with its owner. The wizard does not change WAN settings or stop foreign ICS/NAT. AutoLab is a virtual test network.</div>
+  <p>Moving sites: after every client completes, stop services and choose Recheck site and wiring. Keep images/profiles, recheck scenario, NICs, IP, DHCP, gateway and DNS, then run Endpoint Sync and Preflight. Interface/IP drift invalidates readiness. Remove Winception NAT explicitly in Console before returning to shared LAN.</p></section>
+  <section id="en-daily-deploy"><h2>Daily deployment: from home to completion</h2>
+  <figure><div class="media-frame"><img src="manual-assets/onboarding-daily.en.svg" alt="Seven daily deployment actions"></div><figcaption>Seven daily deployment actions</figcaption></figure>
+  <p>Review profile, image and network on Home, follow Next step to start services, then connect clients according to the chosen scene. Boot UEFI IPv4 PXE. The Microsoft-signed secureboot chain allows Secure Boot; ipxe requires Secure Boot off. TPM is independent of boot mode.</p>
+  <div class="callout"><strong>Pairing with existing DHCP</strong>WinPE independently computes and displays a pairing code. Verify the client and matching code in Console, then approve. No deployment credentials are provided while pending. Requests expire after ten minutes. Rejection, expiry, replay or identity mismatch stops deployment; correct the issue and boot PXE again. Self-managed DHCP retains lease validation.</div>
+  <p>Host downloads/preparation show host progress. Client installation appears in Activity. Completion requires windows-desktop-ready for this run, rather than a healthy HTTP service, completed download or historical success. When all clients finish, stop deployment services from Home; NAT remains available.</p></section>
         <section id="en-product-overview">
           <p class="section-kicker">01 · Overview</p>
           <h2>Product Overview</h2>
@@ -595,7 +637,7 @@ cd '&lt;repo-root&gt;'
         <section id="en-architecture">
           <p class="section-kicker">03 · Services</p>
           <h2>How The Services Work</h2>
-          <p>The Web Console is the control plane; DHCP, TFTP, HTTP, SMB, and Torrent form the data plane. Endpoint Sync keeps live boot files, the WinPE endpoint, SMB firewall rules, and local overlay aligned; each sync also writes the service IP as WinPE's preferred health probe. Deployment secrets are never written into <code>boot.wim</code>; WinPE requests a short-lived, single-use <code>/osdcloud/boot-session</code> envelope bound to its public key, nonce, boot ID, client MAC, and an active DHCP lease, and the host rechecks that lease binding on each session use. Run Endpoint Sync after updating the WinPE startup script.</p>
+          <p>The Web Console is the control plane; DHCP, TFTP, HTTP, SMB, and Torrent form the data plane. Endpoint Sync keeps live boot files, the WinPE endpoint, SMB firewall rules, and local overlay aligned; each sync also writes the service IP as WinPE's preferred health probe. Deployment secrets are never written into <code>boot.wim</code>; WinPE requests a short-lived, single-use <code>/osdcloud/boot-session</code> envelope bound to its public key, nonce, boot ID, client MAC, and a server-managed DHCP lease or an explicitly approved Proxy pairing. The host rechecks the applicable binding on each session use. Run Endpoint Sync after updating the WinPE startup script.</p>
           <figure>
             <div class="media-frame"><img src="manual-assets/system-architecture.en.svg" alt="Data flow among the Winception Web Console, DHCP, TFTP, HTTP, Torrent, SMB, WinPE, OSDCloud, and Windows clients"><button class="zoom" type="button" data-zoom-src="manual-assets/system-architecture.en.svg" data-zoom-alt="Winception architecture and data flow">Enlarge architecture</button></div>
             <figcaption>Solid lines show control or stage handoff, blue dashed lines show boot/image data, and green dashed lines show status and evidence.</figcaption>
@@ -662,7 +704,7 @@ cd '&lt;repo-root&gt;'
             <li>USB output is GPT, UEFI x64, a FAT32 <code>WinPE</code> partition, and an NTFS <code>OSDCloudUSB</code> partition. <code>-Iso</code> exports a no-prompt UDF ISO to <code>&lt;project-root&gt;\Exports</code>.</li>
             <li><code>-OpenInRufus</code> only preloads the ISO and NTFS preference. The operator still chooses the target disk and starts the write in Rufus.</li>
             <li>Offline WinPE allows one internal target disk only. After a successful deployment, the same media is blocked from wiping the machine again by media ID + <code>appliedAt</code>.</li>
-            <li><strong>Management → Offline ISO</strong> exposes <strong>Create ISO</strong>. It builds the ISO on the host only, then shows the host output folder and full ISO path in the UI; it does not offer a browser download.</li>
+            <li><strong>Console → Offline ISO</strong> exposes <strong>Create ISO</strong>. It builds the ISO on the host only, then shows the host output folder and full ISO path in the UI; it does not offer a browser download.</li>
           </ul>
           <div class="callout warning"><strong>Sensitive media</strong>USB / ISO media contains deployable local Windows secrets and must be handled as a sensitive asset. Evidence from this path proves only that specific snapshot and does not replace PXE readiness.</div>
           <div class="callout"><strong>Current validation</strong>Formal offline validation is complete for the ISO path: the rebuilt ISO reached <code>windows-desktop-ready</code> on Hyper-V Gen2 with Secure Boot ON and no NIC.</div>
@@ -672,7 +714,7 @@ cd '&lt;repo-root&gt;'
           <p class="section-kicker">07 · Client deployment</p>
           <h2>Deploy One Computer</h2>
           <ol>
-            <li>Open <strong>Management → service controls</strong>, confirm Preflight and DHCP safety, then click <strong>Start deployment services</strong>.</li>
+            <li>Open <strong>Console → service controls</strong>, confirm Preflight and DHCP safety, then click <strong>Start deployment services</strong>.</li>
             <li>Select UEFI IPv4 PXE boot on the target computer.</li>
             <li>WinPE mounts the SMB share, reads selected manifests, and applies the Windows image.</li>
             <li>Windows automatically signs in as <code>&lt;windowsUsername&gt;</code> on first boot.</li>
@@ -820,7 +862,7 @@ Last completed run : &lt;run-id&gt;</code></pre>
         languageToggle.setAttribute("aria-label", config.toggleLabel);
         document.documentElement.lang = currentLocale === "en" ? "en" : "zh-Hant";
 
-        var targetId = config.targetPrefix + scrollAnchor.section;
+        var targetId = (currentLocale === "en" ? "en-" : "") + scrollAnchor.section;
         var target = document.getElementById(targetId);
         if (target) {
           window.scrollTo({ top: window.scrollY + target.getBoundingClientRect().top - scrollAnchor.offset, behavior: "auto" });

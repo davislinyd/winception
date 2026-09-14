@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { applyProjectRoot, applyServiceEndpoint, assertRuntimeRootAllowed, deploymentEndpointMissing, loadConfig, maxTorrentSeedMinutes, mediaHttpServerConfig, runtimeRootForConfig, saveConfig, torrentServerConfig, webServerConfig, workspaceInfo } from '../config.js';
+import { applyProjectRoot, applyServiceEndpoint, assertRuntimeRootAllowed, deploymentEndpointMissing, isDeploymentEndpointConfigured, loadConfig, maxTorrentSeedMinutes, mediaHttpServerConfig, runtimeRootForConfig, saveConfig, torrentServerConfig, webServerConfig, workspaceInfo } from '../config.js';
 import { DhcpResponder } from '../dhcp.js';
 import { summarizeDriverPackCache } from '../driverPackCache.js';
 import { MediaHttpServer } from '../httpServer.js';
@@ -23,6 +23,7 @@ import { appVersion } from '../version.js';
 import { ReleaseUpdateChecker } from '../updateCheck.js';
 import { syncIpxeEndpoint } from '../windows/bootArtifacts.js';
 import { listIpv4ServiceInterfaces } from '../windows/network.js';
+import { assertNatSubnetAvailable, readNetworkOptions } from '../windows/networkOptions.js';
 import { gatewayOptions, inspectNetworkGateway, networkTopology, prepareNetworkGateway, removeNetworkGateway, validateGatewayInput } from '../windows/gateway.js';
 import { isElevatedSync } from '../windows/powershell.js';
 import { prepareRuntimeArtifacts, removeStatusFiles, runPreflight } from '../windows/preflight.js';
@@ -56,6 +57,7 @@ export class ServiceController extends EventEmitter {
       importUploadedOsImage,
       listOsDownloadCatalog,
       listIpv4ServiceInterfaces,
+      readNetworkOptions,
       inspectNetworkGateway,
       prepareNetworkGateway,
       removeNetworkGateway,
@@ -240,6 +242,9 @@ export class ServiceController extends EventEmitter {
   }
 
   assertDeploymentReadyForServices() {
+    if (this.endpointDrift) {
+      throw errorWithStatus('部署介面或 IP 已改變。請重新選擇接線場景、同步端點並執行 Preflight。', 412);
+    }
     if (!this.deploymentReadinessRequired()) {
       return;
     }
@@ -487,6 +492,7 @@ export class ServiceController extends EventEmitter {
       ready: false,
       detail: 'Unable to read local endpoint overlay.',
     });
+    if (this.endpointDrift) endpointResult.value = { ready: false, detail: '部署網路已改變；請重新確認並同步端點。' };
     const profilePayloadResult = safeRead(() => this.dependencies.evaluateDeploymentProfilePayload(this.config), {
       name: 'Deployment profile',
       ok: false,
@@ -505,6 +511,8 @@ export class ServiceController extends EventEmitter {
 
     const state = {
       generatedAt: new Date().toISOString(),
+      bootRequests: this.services.http?.bootApprovals?.list() ?? [],
+      endpointDrift: this.endpointDrift === true,
       app: {
         version: appVersion,
         update: this.updateChecker.getState(),
@@ -611,9 +619,44 @@ export class ServiceController extends EventEmitter {
     return this.dependencies.listIpv4ServiceInterfaces();
   }
 
+  async networkOptions() {
+    const options = await this.dependencies.readNetworkOptions();
+    const signature = JSON.stringify({
+      adapters: [...(options.adapters ?? [])].sort((a, b) => a.interfaceAlias.localeCompare(b.interfaceAlias)),
+      routes: [...(options.routes ?? [])].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    });
+    if (this.networkSignature && signature !== this.networkSignature) this.networkChangePending = true;
+    this.networkSignature = signature;
+    if (options.serviceAddresses && this.config.adapter?.serverIp && isDeploymentEndpointConfigured(this.config)) {
+      const lan = this.config.network?.topology !== 'dual-nic-nat' && options.adapters?.find((item) => item.interfaceAlias === this.config.adapter.interfaceAlias);
+      const gatewayChanged = lan && this.config.adapter.defaultGateway && this.config.adapter.defaultGateway !== this.config.adapter.serverIp
+        && (lan.gateway || '') !== this.config.adapter.defaultGateway;
+      const dnsChanged = lan && lan.dnsServers?.length && this.config.dhcp.dnsServers?.length
+        && JSON.stringify(lan.dnsServers) !== JSON.stringify(this.config.dhcp.dnsServers);
+      this.endpointDrift = this.networkChangePending === true || Boolean(gatewayChanged || dnsChanged) || !options.serviceAddresses.some((item) => item.interfaceAlias === this.config.adapter.interfaceAlias
+        && item.ipAddress === this.config.adapter.serverIp && Number(item.prefixLength) === Number(this.config.adapter.prefixLength));
+      if (this.endpointDrift) {
+        this.preflightResults = [];
+        this.services.http?.bootApprovals?.clear();
+      }
+    }
+    return options;
+  }
+
+  decideBootRequest(input, approved) {
+    if (this.config.dhcp.dhcpMode !== 'proxy' || !this.services.http?.bootApprovals) {
+      throw errorWithStatus('Client pairing is available only in PXE Proxy mode.', 400);
+    }
+    try {
+      return this.services.http.bootApprovals.decide(input.requestId, approved, input.pairingCode);
+    } catch (error) { throw errorWithStatus(error.message, 400); }
+  }
+
   async runPreflight() {
     return this.runOperation('Running preflight', async () => {
       try {
+        await this.networkOptions();
+        if (this.endpointDrift) throw errorWithStatus('部署網路已改變，請先重新同步端點。', 412);
         this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
           onCheck: (result) => {
             this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
@@ -641,17 +684,23 @@ export class ServiceController extends EventEmitter {
         throw errorWithStatus('Gateway preparation requires an elevated Web console session.', 400);
       }
       const selected = this.dependencies.validateGatewayInput(input);
+      const options = await this.networkOptions();
+      assertNatSubnetAvailable(selected.internalSubnet, options, `vEthernet (${this.config.network?.nat?.switchName ?? 'Winception-PXE'})`);
       await this.stopAllServices();
       this.config.network ??= {};
       this.config.network.topology = 'dual-nic-nat';
       this.config.network.nat ??= {};
       Object.assign(this.config.network.nat, selected);
       this.config.dhcp.dhcpMode = 'server';
+      const wanDns = options.adapters?.find((item) => item.interfaceAlias === selected.wanInterfaceAlias)?.dnsServers;
+      if (wanDns?.length) this.config.dhcp.dnsServers = [...wanDns];
       const savedPath = this.dependencies.saveConfig(this.config);
       const result = await this.dependencies.prepareNetworkGateway(this.config, selected);
       this.networkGatewayState = result;
       this.config = this.dependencies.loadConfig(this.config.__savePath ?? savedPath);
       this.refreshServiceConfigs();
+      this.networkChangePending = false;
+      await this.networkOptions();
       this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
         onCheck: (check) => this.addLog(`[PREFLIGHT] ${check.ok ? 'ok' : 'FAIL'} ${check.name}: ${check.detail}`),
       });
@@ -745,6 +794,7 @@ export class ServiceController extends EventEmitter {
     return this.runOperation(`Starting ${name}`, async () => {
       try {
         this.serviceByName(name);
+        await this.networkOptions();
         this.assertDeploymentReadyForServices();
         await this.serviceByName(name).start();
         return this.servicesState()[name];
@@ -770,6 +820,7 @@ export class ServiceController extends EventEmitter {
   async startAll() {
     return this.runOperation('Starting all services', async () => {
       try {
+        await this.networkOptions();
         this.assertDeploymentReadyForServices();
         await this.services.http.start();
         await this.services.tftp.start();
@@ -885,6 +936,8 @@ export class ServiceController extends EventEmitter {
   async changeEndpoint(choice) {
     return this.runOperation('Applying service endpoint', async () => {
       try {
+        // Reject invalid choices before stopping services or changing host state.
+        this.dependencies.applyServiceEndpoint(structuredClone(this.config), choice);
         this.endpointUpdateStatus = [];
         this.addEndpointStatus(`Selected ${choice.interfaceAlias ?? choice.InterfaceAlias} ${choice.ipAddress ?? choice.IPAddress}/${choice.prefixLength ?? choice.PrefixLength}`, 'run');
         await this.stopAllServices();
@@ -915,6 +968,8 @@ export class ServiceController extends EventEmitter {
           stream.flush();
         }
         this.addEndpointStatus('Endpoint files synced and published boot.wim verified', 'ok');
+        this.networkChangePending = false;
+        await this.networkOptions();
 
         await this.regenerateOsTorrent();
 

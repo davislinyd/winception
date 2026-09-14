@@ -463,9 +463,9 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /button\.disabled = state\.busy[\s\S]*selectedStep\.action === 'prepare-runtime' && requiresElevation/);
   assert.match(script, /function appendInitializationDetailItems\(body, stepId, detailItems = \[\]\)/);
   assert.match(script, /function appendGuidedStepOverview\(body, step\)/);
-  assert.match(script, /'Objective', step\.objective/);
-  assert.match(script, /'Done when', step\.doneWhen/);
-  assert.match(script, /'Safety note', step\.safetyNote/);
+  assert.match(script, /'這一步的用途', step\.objective/);
+  assert.match(script, /'完成後會看到', step\.doneWhen/);
+  assert.match(script, /'操作提醒', step\.safetyNote/);
   assert.match(script, /deploymentReady/);
   assert.match(script, /deploymentLive/);
   assert.match(script, /selectedStep\.action === 'all-services-toggle' && initialization\.deploymentReady !== true/);
@@ -494,7 +494,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /input\.value = state\.initializationSecretsDraft\[name\] \?\? ''/);
   assert.match(script, /input\.addEventListener\('input', \(\) => \{[\s\S]*state\.initializationSecretsDraft\[name\] = input\.value;/);
   assert.match(script, /const focusedTextControl = focusedInitializationTextControl\(\);/);
-  assert.match(script, /activeId !== 'init-windows-username' && activeId !== 'init-windows-password' && activeId !== 'init-project-root'/);
+  assert.match(script, /'init-windows-username', 'init-windows-password', 'init-project-root',[\s\S]*includes\(activeId\)/);
   assert.match(script, /const dialogScrollPosition = captureInitializationDialogScrollPosition\(\);/);
   assert.match(script, /restoreInitializationDialogScrollPosition\(dialogScrollPosition\);/);
   assert.match(script, /restoreInitializationTextControlFocus\(focusedTextControl\);/);
@@ -526,7 +526,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /dataset\.initAction = 'edit-secrets'/);
   assert.match(script, /resolvedAction === 'edit-secrets'/);
   assert.match(script, /resolvedAction === 'cancel-secrets'/);
-  assert.match(script, /const detailList = appendInitializationDetailItems\(body, step\.id, step\.detailItems\);/);
+  assert.match(script, /const detailList = appendInitializationDetailItems\(technical, step\.id, step\.detailItems\);/);
   assert.match(script, /restoreInitializationDetailScrollPosition\(step\.id, detailList\);/);
   assert.match(script, /!hasInlineSecretsForm/);
   assert.match(script, /dataset\.initAction = 'save-secrets'/);
@@ -943,11 +943,11 @@ test('web UI exposes explicit dual NIC NAT controls without changing WAN setting
   assert.match(html, /id="network-pxe-interface"/);
   assert.match(html, /id="network-prepare-button"/);
   assert.match(html, /單 NIC 的 Hyper-V 測試可選連到 VM 的 vEthernet/);
-  assert.match(html, /單 NIC 或 Hyper-V VM 回歸測試不使用此欄位/);
+  assert.match(html, /選直接接 client 或交換器的另一張實體網卡/);
   assert.match(html, /單 NIC Hyper-V 測試請維持 shared-lan/);
-  assert.match(script, /Prepare dual NIC NAT/);
+  assert.match(script, /準備筆電 NAT/);
   assert.match(script, /mutate\('\/api\/network\/prepare'/);
-  assert.match(script, /WAN NIC IP, gateway, DNS, and firewall profiles are not changed/);
+  assert.match(script, /WAN 的 IP、gateway、DNS 與 firewall 設定保持原樣/);
   assert.match(script, /mutate\('\/api\/network\/remove'/);
   assert.match(script, /networkWanInterface: ''/);
   assert.match(script, /networkPxeInterface: ''/);

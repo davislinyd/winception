@@ -9,6 +9,7 @@ import { render, renderFleetExpandedState } from './render.js';
 import { confirmPrepareRuntime } from './setup.js';
 import { state } from './state.js';
 import { applyOperatorMode } from './operatorMode.js';
+import { dhcpSafetyText } from './onboarding.js';
 import { copyTextWithFeedback, setConsoleDockCollapsed, setControlsDisabled } from './ui.js';
 
 export function setFleetExpanded(expanded) {
@@ -624,7 +625,12 @@ export async function handleAction(action, source = null) {
     if (!targetAction || targetAction === 'none') {
       return;
     }
-    if (targetAction === 'activity' || targetAction === 'fleet' || targetAction === 'progress') {
+    if (targetAction === 'pairing') {
+      document.getElementById('beginner-boot-requests')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (targetAction === 'host-progress') {
+      state.consoleDockUserToggled = true;
+      setConsoleDockCollapsed(false);
+    } else if (targetAction === 'activity' || targetAction === 'fleet' || targetAction === 'progress') {
       switchToView('fleet');
     } else if (targetAction === 'initialization') {
       state.selectedGuidedStepId = source?.dataset?.beginnerStep || state.current?.initialization?.nextStepId || 'project-root';
@@ -843,9 +849,9 @@ export async function handleAction(action, source = null) {
       return;
     }
     const ok = await confirmAction({
-      title: 'Start DHCP',
-      message: 'Confirm the real LAN DHCP server is disabled before starting the host DHCP responder.',
-      confirmLabel: 'Start DHCP',
+      title: '啟動 DHCP／PXE Proxy',
+      message: dhcpSafetyText(state.current),
+      confirmLabel: '確認並啟動',
       danger: true,
     });
     if (ok) {
@@ -858,9 +864,9 @@ export async function handleAction(action, source = null) {
       return;
     }
     const ok = await confirmAction({
-      title: 'Start all services',
-      message: 'Confirm the real LAN DHCP server is disabled before starting HTTP/status, TFTP, and DHCP.',
-      confirmLabel: 'Start all services',
+      title: '啟動部署服務',
+      message: `${dhcpSafetyText(state.current)} 目標電腦從 PXE 開機後將進行重灌。`,
+      confirmLabel: '確認並啟動部署服務',
       danger: true,
     });
     if (ok) {

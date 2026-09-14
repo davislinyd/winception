@@ -157,6 +157,8 @@ export function mediaHttpServerConfig(config) {
     osCacheRoot: config.osImage?.cacheRoot ?? null,
     dhcp: {
       listenIp: config.dhcp?.listenIp ?? null,
+      dhcpMode: config.dhcp?.dhcpMode ?? 'server',
+      prefixLength: config.adapter?.prefixLength ?? null,
       leaseStartIp: config.dhcp?.leaseStartIp ?? null,
       leaseEndIp: config.dhcp?.leaseEndIp ?? null,
     },
@@ -396,14 +398,14 @@ function subnetCidr(serverIp, prefixLength) {
   return `${uint32ToIPv4(subnetInfo(serverIp, prefixLength).network)}/${prefixLength}`;
 }
 
-function dhcpLeaseRange(serverIp, prefixLength) {
+function dhcpLeaseRange(serverIp, prefixLength, router = serverIp) {
   const info = subnetInfo(serverIp, prefixLength);
   const preferredStart = info.network + 200;
   const preferredEnd = info.network + 250;
   if (
     preferredStart >= info.firstUsable
     && preferredEnd <= info.lastUsable
-    && (info.addressValue < preferredStart || info.addressValue > preferredEnd)
+    && [serverIp, router].every((ip) => ipv4ToUInt32(ip) < preferredStart || ipv4ToUInt32(ip) > preferredEnd)
   ) {
     return {
       leaseStartIp: uint32ToIPv4(preferredStart),
@@ -425,6 +427,12 @@ function dhcpLeaseRange(serverIp, prefixLength) {
     throw new Error(`No DHCP lease range available outside server IP ${serverIp}/${prefixLength}`);
   }
 
+  const routerValue = ipv4ToUInt32(router);
+  if (routerValue >= start && routerValue <= end) {
+    if (routerValue - start >= end - routerValue) end = routerValue - 1;
+    else start = routerValue + 1;
+    if (start > end) throw new Error('No DHCP lease range available outside server and gateway.');
+  }
   return {
     leaseStartIp: uint32ToIPv4(start),
     leaseEndIp: uint32ToIPv4(end),
@@ -432,6 +440,11 @@ function dhcpLeaseRange(serverIp, prefixLength) {
 }
 
 export function applyServiceEndpoint(config, choice, options = {}) {
+  if (choice.dhcpMode !== undefined) {
+    if (!['proxy', 'server'].includes(choice.dhcpMode)) throw new Error('Invalid DHCP mode.');
+    if (choice.dhcpMode === 'proxy' && config.network?.topology === 'dual-nic-nat') throw new Error('NAT requires Winception DHCP.');
+    config.dhcp.dhcpMode = choice.dhcpMode;
+  }
   const interfaceAlias = choice.interfaceAlias ?? choice.InterfaceAlias;
   const serverIp = choice.ipAddress ?? choice.IPAddress;
   const prefixLength = Number(choice.prefixLength ?? choice.PrefixLength);
@@ -448,12 +461,28 @@ export function applyServiceEndpoint(config, choice, options = {}) {
   config.adapter.prefixLength = prefixLength;
   config.adapter.defaultGateway = gateway || serverIp;
   config.adapter.remoteSubnet = subnetCidr(serverIp, prefixLength);
+  if (Array.isArray(choice.dnsServers) && choice.dnsServers.length > 0) {
+    choice.dnsServers.forEach((address) => ipv4ToUInt32(address));
+    config.dhcp.dnsServers = [...choice.dnsServers];
+  }
+
   config.dhcp.listenIp = serverIp;
   config.dhcp.ipxeBootUrl = `http://${serverIp}/osdcloud/boot.ipxe`;
   if ((config.dhcp.dhcpMode ?? 'server') !== 'proxy') {
     config.dhcp.subnetMask = subnetMask(prefixLength);
     config.dhcp.router = gateway && isInSubnet(gateway, serverIp, prefixLength) ? gateway : serverIp;
-    Object.assign(config.dhcp, dhcpLeaseRange(serverIp, prefixLength));
+    Object.assign(config.dhcp, dhcpLeaseRange(serverIp, prefixLength, config.dhcp.router));
+    if (choice.leaseStartIp !== undefined || choice.leaseEndIp !== undefined) {
+      const info = subnetInfo(serverIp, prefixLength);
+      const start = ipv4ToUInt32(choice.leaseStartIp);
+      const end = ipv4ToUInt32(choice.leaseEndIp);
+      const router = ipv4ToUInt32(config.dhcp.router);
+      if (start > end || start < info.firstUsable || end > info.lastUsable
+        || [info.addressValue, router].some((ip) => ip >= start && ip <= end)) {
+        throw new Error('DHCP 位址池必須在服務 subnet 內，且不能包含主機、gateway、網路或廣播位址。');
+      }
+      Object.assign(config.dhcp, { leaseStartIp: choice.leaseStartIp, leaseEndIp: choice.leaseEndIp });
+    }
     if (config.dhcp.reservations !== undefined) {
       config.dhcp.reservations = filterReservationsForSubnet(config.dhcp.reservations, serverIp, prefixLength);
     }

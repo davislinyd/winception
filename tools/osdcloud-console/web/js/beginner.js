@@ -1,5 +1,6 @@
 import { elements } from './dom.js';
 import { buildBeginnerHomeModel } from './beginnerModel.js';
+import { renderBootRequests } from './onboarding.js';
 
 export { buildBeginnerHomeModel } from './beginnerModel.js';
 
@@ -68,6 +69,17 @@ function renderBlockers(model) {
 export function renderBeginnerHome(appState) {
   if (!elements.beginnerHome) return;
   const model = buildBeginnerHomeModel(appState);
+  renderBootRequests(appState);
+  const wiring = document.getElementById('beginner-wiring-instruction');
+  if (wiring) wiring.textContent = appState?.config?.network?.topology === 'dual-nic-nat'
+    ? `目標電腦直接或經交換器接到筆電的 ${appState.config.network.nat?.pxeInterfaceAlias || 'Client 接線介面'}。`
+    : `目標電腦與筆電的 ${appState?.config?.adapter?.interfaceAlias || '服務介面'} 接到同一 LAN／交換器。`;
+  const stop = document.getElementById('beginner-stop-services');
+  if (stop) stop.disabled = (appState?.fleet?.counts?.running ?? 0) > 0;
+  const instruction = document.getElementById('beginner-boot-instruction');
+  if (instruction) instruction.textContent = appState?.config?.dhcp?.bootMode === 'ipxe'
+    ? '目前使用 iPXE：目標電腦的 Secure Boot 必須關閉；TPM 是獨立的韌體設定。'
+    : '目前使用簽署的 Windows PXE 開機鏈：Secure Boot 可維持開啟；TPM 是獨立的韌體設定。';
   const statusLabels = { neutral: '待處理', warn: '需要操作', fail: '需要修正', working: '進行中', ok: '已就緒' };
 
   elements.beginnerOverallBadge.textContent = statusLabels[model.status] ?? '待處理';
@@ -120,7 +132,7 @@ export function renderBeginnerHome(appState) {
     renderFlowStep(node, step.status, step.detail);
     if (node) {
       node.dataset.beginnerAction = step.action;
-      node.dataset.beginnerStep = model.step ?? '';
+      node.dataset.beginnerStep = step.id === 'setup' ? 'project-root' : model.step ?? '';
     }
   }
 

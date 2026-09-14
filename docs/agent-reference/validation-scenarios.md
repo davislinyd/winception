@@ -21,6 +21,11 @@ Read this file when selecting verification for subsystem-specific changes.
 
 ## Web Console
 
+- Onboarding source acceptance covers existing-DHCP Proxy, same-LAN DHCP Server and laptop NAT; no-IPv4 NIC inventory; upstream/VPN overlap before side effects; site drift; failed/warning Preflight; and partial service start. Pairing tests cover pending without credentials, approve, reject, expiry, replay, identity mismatch, terminal revocation and Console auth.
+- Preview must use isolated temporary state, never installed runtime. Check Chinese five-stage wizard, refresh-derived incomplete steps, all three wiring diagrams, pairing controls/manual links and common desktop/mobile widths.
+- Physical acceptance is three independent runs: record DHCP source, client IP/prefix/gateway/DNS, PXE path, post-logon DNS and HTTPS, and this run's `windows-desktop-ready`. NAT must retain Internet after deployment services stop. Existing AutoLab green is a separate result.
+- Usability acceptance requires a person unfamiliar with PXE to complete first setup and daily deployment from the UI/manual and identify wiring, next action, pairing, failure recovery and completion. Agent browser checks do not satisfy this human acceptance.
+
 - Web layout or visual changes must run `npm run check`, relevant Web UI tests such as `node --test tools/osdcloud-console/test/webUi.test.js`, and a read-only browser or HTTP verification of `http://127.0.0.1:8080/` when appropriate.
 - Web console code changes must include controller/API tests that prove read-only state calls do not create or modify live status roots.
 - Diagnostics changes must test the Windows npm probe, missing-ZIP download rejection, disabled download affordance, and that a successful HostTools deployment clears the prior diagnostics State while `-DryRun` preserves it.

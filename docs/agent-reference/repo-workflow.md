@@ -45,7 +45,6 @@ README.md
 AGENTS.md
 TEST-RESULT.md
 docs\agent-reference\...
-.ai/status.json
 CHANGELOG.md
 Setup-DeploymentServer.cmd
 Deploy-DeploymentServer.cmd
@@ -63,6 +62,8 @@ osdcloud-assets\OSDCloud\...
 ```
 
 For OSDCloud behavior changes, the intended commit set must include synchronized `osdcloud-assets` files. The sync mirror must not contain real deployment secrets; use ignored local secret files or environment variables for account and SMB passwords.
+
+Keep `.ai/status.json`, preview fixtures and validation logs local and out of commits. Onboarding wiring/flow SVGs and the existing bilingual/portable manual are product documentation. Actual annotated manual screenshots must contain only isolated preview data; runtime evidence remains uncommitted.
 
 ## Generated Artifacts
 

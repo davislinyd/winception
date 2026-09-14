@@ -20,6 +20,27 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
+test('shared LAN preserves site DNS/gateway and explicitly confirmed pool; Proxy does not need that pool', () => {
+  const config = { adapter: {}, dhcp: { bootFile: 'bootmgfw.efi' },
+    tftp: { root: 'C:\\test-tftp' }, http: { root: 'C:\\test-http', statusRoot: 'C:\\test-status' },
+    paths: { expectedHttpFiles: ['osdcloud/boot.ipxe'] }, smb: {} };
+  const choice = { interfaceAlias: 'LAN', ipAddress: '10.20.30.5', prefixLength: 24,
+    gateway: '10.20.30.1', dnsServers: ['10.20.30.1'], dhcpMode: 'server',
+    leaseStartIp: '10.20.30.80', leaseEndIp: '10.20.30.100' };
+  applyServiceEndpoint(config, choice);
+  assert.equal(config.dhcp.router, choice.gateway);
+  assert.deepEqual(config.dhcp.dnsServers, choice.dnsServers);
+  assert.equal(config.dhcp.leaseStartIp, choice.leaseStartIp);
+  assert.equal(config.dhcp.leaseEndIp, choice.leaseEndIp);
+  assert.throws(() => applyServiceEndpoint(structuredClone(config), { ...choice, leaseStartIp: '10.20.30.1' }), /DHCP 位址池/);
+  assert.throws(() => applyServiceEndpoint(structuredClone(config), { ...choice, leaseEndIp: '10.20.31.100' }), /DHCP 位址池/);
+  applyServiceEndpoint(config, { ...choice, ipAddress: '172.20.0.5', gateway: '172.20.0.1', dnsServers: ['172.20.0.1'], dhcpMode: 'proxy' });
+  const media = mediaHttpServerConfig(config);
+  assert.equal(media.dhcp.dhcpMode, 'proxy');
+  assert.equal(media.dhcp.prefixLength, 24);
+  assert.equal(media.dhcp.listenIp, '172.20.0.5');
+});
+
 test('rejects incomplete config', () => {
   assert.throws(() => validateConfig({}), /Missing required config values/);
 });

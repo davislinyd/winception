@@ -107,6 +107,7 @@ export function normalizeIpv4ServiceInterfaces(records) {
       ipAddress: record.IPAddress ?? record.ipAddress,
       prefixLength: Number(record.PrefixLength ?? record.prefixLength),
       gateway: record.Gateway ?? record.gateway ?? '',
+      dnsServers: asArray(record.DnsServers ?? record.dnsServers).filter(Boolean),
     }))
     .filter((record) => (
       record.status === 'Up'
@@ -145,6 +146,7 @@ $rows = foreach ($ip in Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Silent
     IPAddress = $ip.IPAddress
     PrefixLength = $ip.PrefixLength
     Gateway = if ($route) { $route.NextHop } else { '' }
+    DnsServers = @((Get-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses)
   }
 }
 @($rows) | ConvertTo-Json -Compress

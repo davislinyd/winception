@@ -80,19 +80,32 @@ function primaryModel(appState) {
   if (operationRunning) {
     return model({
       phase: 'progress',
-      primaryAction: 'fleet',
-      primaryLabel: '查看進度',
+      primaryAction: 'host-progress',
+      primaryLabel: '查看主機作業進度',
       status: 'working',
-      title: '部署正在進行',
-      detail: appState.operation?.label || '系統正在執行部署操作。',
-      why: '長時間作業進行中，完成前請勿關閉主控台。',
-      nextHint: '可到部署活動查看每一台電腦。',
+      title: '主機準備作業進行中',
+      detail: '系統正在準備主機。可展開作業日誌查看目前步驟。',
+      why: '下載、部署檔案準備與網路同步是主機作業，完成前請勿關閉主控台。',
+      nextHint: '目標電腦的安裝進度另外顯示在「部署活動」。',
       step: null,
       blockers: [],
       ...shared,
     });
   }
 
+  if (appState.endpointDrift === true) {
+    return model({ phase: 'repair', primaryAction: 'initialization', primaryLabel: '重新確認部署網路',
+      status: 'fail', title: '部署介面或 IP 已改變', detail: '請重新確認目前場地的介面、IP、DHCP、gateway 與 DNS，再同步端點並執行部署前檢查。',
+      why: '舊的就緒結果已撤銷。', step: 'endpoint', blockers: [], ...shared });
+  }
+
+  if (appState.bootRequests?.length > 0) {
+    return model({ phase: 'pairing', primaryAction: 'pairing', primaryLabel: '查看並核對配對碼',
+      status: 'warn', title: `${appState.bootRequests.length} 台電腦等待核准`,
+      detail: '核對目標電腦 WinPE 畫面與下方配對碼，確認是本次要重灌的電腦後核准。',
+      why: '使用既有 DHCP 時，每次開機都需要明確授權，等待期間不提供部署憑證。',
+      nextHint: '配對請求十分鐘過期；身分不符請拒絕並重新 PXE 開機。', step: null, blockers: [], ...shared });
+  }
   if (initialization.initialized !== true) {
     return model({
       phase: 'setup',
@@ -181,9 +194,11 @@ function primaryModel(appState) {
       primaryLabel: '啟動網路開機服務',
       status: 'warn',
       title: '啟動部署服務',
-      detail: '檢查已通過。確認測試網路的既有 DHCP 已關閉後，再啟動服務。',
+      detail: appState.config?.dhcp?.dhcpMode === 'proxy'
+        ? '檢查已通過。沿用既有 DHCP 與 gateway，Winception 只提供 PXE。'
+        : '檢查已通過。確認 client 網段没有其他 DHCP server，再啟動服務。',
       why: '啟動 HTTP、TFTP、DHCP 後，電腦才能從這台主機網路開機。',
-      nextHint: '啟動前請確認測試網路的既有 DHCP 已關閉。',
+      nextHint: appState.config?.dhcp?.dhcpMode === 'proxy' ? 'Client 首次連入需核對配對碼並核准。' : 'NAT 的上游 DHCP 可維持運作。',
       step: 'services',
       blockers: [],
       ...shared,
@@ -197,7 +212,7 @@ function primaryModel(appState) {
     status: 'ok',
     title: '可以開始開機',
     detail: '把目標電腦接到這條部署網路，從 UEFI IPv4 PXE 開機。',
-    why: '服務已在運作。Secure Boot 請維持開啟；只有 iPXE 模式才需要關閉。',
+    why: appState.config?.dhcp?.bootMode === 'ipxe' ? '目前使用 iPXE：Secure Boot 必須關閉。' : '目前使用簽署的 Windows PXE 開機鏈：Secure Boot 可保持開啟。',
     nextHint: '開機後到「部署活動」查看每一台電腦。',
     pxeReady: true,
     step: 'activity',
