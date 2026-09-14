@@ -1,35 +1,40 @@
-# Agent handoff — 2026-09-14 23:38
+# Agent handoff — 2026-09-15 01:05
 
-## Active task — cleanup, corrected router bootstrap, expanded AutoLab
+## Active task — cleanup recorded Failed; live host restored; do not start next round
 
-User approved waiting for old runner natural timeout/cleanup, then latest installed update and one corrected bootstrap, then the full matrix. No automatic retry, master push, Release or deployment package. Physical and human acceptance remain independent. Update this brief before quota is exhausted. Latest usage five-hour86% used (14% remaining), weekly76% used. Pausing for quota handoff per user requirement; no active installation or services.
+Grok continued from the 23:38 quota handoff. PID16072 is gone. Fresh result exists. Recorded cleanup is **Failed**, so installed update / corrected BootstrapRouter / Mode All are **not** started. No automatic retry, master push, Release or deployment package. Physical and human acceptance remain independent.
 
-### Source / installed evidence
+### Step 1 inspection (2026-09-15 01:01–01:05 +08)
 
-- Branch codex/easier-onboarding; baseline codex/baseline-acceptance-20260914 at f092edc91136e5cef118338743705378f1b7a4ec; original bdbe5ce/master and unpushed work preserved. Acceptance implementation dae06b2, fixes5605cf1/7d089f7/694f01e/5f9355d/fc48f36 committed. Only .ai remains untracked.
-- Latest Source gate Passed: check,483 tests/480 passed/3 skipped,smoke; .ai/acceptance-source-network-review.log and test-results/acceptance-source JSON/HTML. Focused27/27 .ai/acceptance-network-review-tests.log. UI9/9 local Chrome, cleanupPassed, test-results/acceptance-ui-report JSON/HTML; Chromium CDN unavailable, do not retry unchanged download.
-- Latest source uses localized NIC object plus guarded ResumeCreate, Resolve-Path config, initialized Console URI before idle guard, fixed collision-checked owned VM MAC after checkpoint restore shared by positive/negative rounds, service-stop aborts Fleet wait, port-qualified Proxy denial evidence, retained router-bootstrap round in aggregate report. These edits do NOT change the old loaded runner.
-- Installed App last reload from dae06b2: HTTP hash matched; State backup HostTools-State-20260914-145854-135. Endpoint Sync/29 Preflight checks passed. WinPE published SHA256 EFE3AFE948B177BC8624A4EA7B8E20D66015F3F021DF2FA1ECA3BB0AC8BF7CE4, schema2, ephemeral-boot-session/no embedded secrets. Must refresh latest installed only AFTER old cleanup passes and host idle.
+- PID **16072 absent**. Global mutex `Winception-AutoLab` was free (diagnostic WaitOne(0) acquired and released).
+- Fresh evidence: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260914\result.json` / `result.html` written **2026-09-15 00:11:38**. Do not use the old 23:05 URI-guard file.
+- Recorded result: `ok=false`, `status=Failed`, `cleanup=Failed`, `detail=Fleet did not reach windows-desktop-ready for 1 VM(s) within the timeout.` `cleanupErrors`: Endpoint restoration failed; secureboot default restore failed; status cleanup failed.
+- Live host after the overlapping endpoint op finished **00:12:16**: profile **IZVZO7PU** / All in One; test profile **SE50433G** file gone; endpoint `192.168.177.1/24` Server `.200–.250` gateway `.1` DNS `1.1.1.1,8.8.8.8`; `bootMode=secureboot`; HTTP/TFTP/DHCP/torrent stopped; Fleet 0; last web op completed Applying service endpoint + Preflight passed. Published Apps `selected-profile.json` is IZVZO7PU.
+- Six owned VMs Off, Winception-Clean present. Resting firmware via `Get-VMSecurity`: `01..04` SB On + TPM On + `MicrosoftWindows`; iPXE SB Off + TPM Off (4-byte dummy protector); router SB On + TPM On. Do not use `Get-VMTPM` (cmdlet missing).
 
-### Active failed runner — do not start another deployment
+### Why cleanup recorded Failed while the host looks restored
 
-- Elevated PID16072 remains active (verified elevated .ai/acceptance-bootstrap-snapshot.json at23:38). Ordinary Get-Process/CIM cannot see this elevated process. Six owned VMs Off. Services0/Fleet0/operationfalse at23:38; active test profile SE50433G proves cleanup still Pending.
-- Bootstrap began23:06, PXE23:10: routerMAC00155D6C6580 obtained192.168.177.200; POST boot-session403 outside acceptance scope due stale pre-restore dynamic MAC. No envelope, Fleet run or installation. Services stopped via API23:11; owned router stopped Off23:12 (.ai/acceptance-router-stopped.json). Old runner waits its 60-minute Fleet deadline around9/15 00:10 then finally cleanup/sync. Keep monitoring in <=60-second waits. Do not launch another Lab or installed reload while mutex is held.
-- Approval review rejected forced process termination command with no detailed reason; do not bypass. User now explicitly chose natural timeout/cleanup. The rejected cleanup helper did not execute/create its file. Only router-stop helper ran. No further termination confirmation needed when following natural timeout.
-- Evidence: C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260914; .ai/acceptance-router-bootstrap.log/process.json. Existing result.json and process.json are STALE23:05 URI guard Blocked; do not treat them as current run evidence. Current runner files show later activity. Current State backup HostTools-State-20260914-150620-016.
-- Original state is state-after-start.json DIRECT state object, not .state. OriginalprofileIZVZO7PU; testprofileSE50433G. Restore original profile/remove test profile, endpoint177.1 Server200-250/gateway1/DNS1.1.1.1,8.8.8.8, secureboot host default, Clear Fleet, router Clean+SB/TPM and all five Clean/default firmware. Require fresh endpoint Preflight and stopped services. Cleanup failures => stop and diagnose, no next round.
+Cleanup `POST /api/endpoint` uses `Invoke-ConsoleJson` **default TimeoutSec=30**. The live endpoint restore started 00:10:55, remounted `boot.wim`, and finished 00:12:16 (~81s) with Preflight passed. The 30s client timeout fired first, then `Set-ConsoleMode` and `Clear-DeploymentStatus` ran while that mutating op was still in progress. Result JSON was written 00:11:38, **before** the endpoint op completed.
 
-### Quota pause — exact continuation
+Current source still has this gap: `Set-ConsoleEndpoint` uses `Get-ConsoleTimeoutSec` (at least 60s), but `Invoke-LabCleanup` endpoint restore does not pass that timeout. Do not treat the three cleanupErrors as proof that profile/endpoint/firmware are still dirty; they are a timeout/overlap race. Also do not treat recorded Failed as `cleanupPassed`.
 
-At23:38 elevated snapshot confirms PID16072 still active and all six VMs Off. Public API operationfalse/services0/Fleet0/profileSE50433G. The AI is no longer actively monitoring after this handoff; old runner only waits its natural timeout and finally cleanup. No forced termination/new deployment/installed mutation was attempted this turn. Corrected bootstrap and full matrix are NOT run. Next AI must first inspect new result timestamps and elevated process/VM state, never assume timeout cleanup passed. Latest Source report is commitfc48f36f1ef84da6ca611fc272a1e1112811dd1f/hashE2538248CCAF1D7EFB8512A210CD8562DA083DB3AE58D807877278D380DD1E49; subsequent changes are evidence/docs only.
+### Source / installed evidence (unchanged)
 
-### Exact next steps after natural timeout
+- Branch `codex/easier-onboarding`; HEAD docs `205c18e`. Latest source fix `fc48f36`. Baseline `codex/baseline-acceptance-20260914` at `f092edc`. Local master `bdbe5ce` remains one commit ahead of `origin/master` `847b79f`. Only `.ai/` untracked.
+- Source gate Passed: check, 483 tests / 480 passed / 3 skipped, smoke; focused 27/27; UI 9/9. Chromium CDN unavailable; do not retry unchanged download.
+- Installed App last reload is still **dae06b2**. Newer source is not loaded. State backup from the failed run: `HostTools-State-20260914-150620-016`. Do not reload until the user accepts that the live host is idle and the recorded cleanup failure is diagnosed.
 
-1. Confirm fresh failed-run result JSON/HTML, cleanupPassed and elevated runner absent. Verify six VMs/checkpoints/firmware, restored profile and endpoint; no automatic retry. If cleanup fails stop, preserve diagnostic/handoff.
-2. Reuse elevated .ai/onboarding-installed-update.ps1 for guarded latest npm reload/protected State backup; no direct runtime copy/patch. Refresh live adapter/State overlay/boot.ipxe/image/profile, then Endpoint Sync/Preflight and Initialize-WinceptionLab -ValidateOnly.
-3. Router already exists, owned Gen2 fixed4GiB/LAN/SB+TPM/Clean. Do not Create again. Use NEW unique ignored config/evidence root and corrected Invoke-WinceptionLabRegression -BootstrapRouter once. Require Fleet desktop-ready+PSDirect and router guest LAN254/24, WAN DefaultSwitch, independent DHCP tools/NAT plus Ready checkpoint and cleanup.
-4. Initialize-WinceptionLab -ValidateOnly -RequireRouter, then ModeAll -NetworkAcceptance with unique evidence root: original7 positives + Proxy/Server2 + rejection; zero retries, exact DHCP/IP/subnet/gateway/DNS, Fleet+PSDirect, DNS/validHTTPS before/after service stop and cleanup required. Known Lab mutex only; no foreign DHCP/ICS/NAT repairs.
-5. Update JSON/HTML, TEST-RESULT, manuals if behavior changes, handoff/.ai and scoped commits. Physical/human remainNotRun/Blocked: no present Ethernet/USB Ethernet NIC/site/disposable client window. Foreign host ICS and NAT77/88 retained. No formal Release/package/master push.
+### Exact next steps — blocked until user says continue
+
+Recorded `cleanupPassed` did **not** happen. Per the previous contract this AI stopped after diagnosis. Suggested continuation, only after explicit approval:
+
+1. Optional source fix: `Invoke-LabCleanup` endpoint restore must use `Get-ConsoleTimeoutSec`, and boot-mode/status cleanup must not race a still-running endpoint op. Commit on `codex/easier-onboarding` before any new Lab.
+2. Then elevated `.ai/onboarding-installed-update.ps1` guarded reload / protected State backup. Re-read live adapter/State overlay/`boot.ipxe`/image/profile, Endpoint Sync/Preflight, `Initialize-WinceptionLab -ValidateOnly`.
+3. Router already exists. Do **not** Create again. New unique ignored config/evidence root and one corrected `-BootstrapRouter`. Require Fleet desktop-ready + PSDirect, router guest LAN `.254/24`, WAN Default Switch, independent DHCP tools/NAT, Ready checkpoint, and cleanup.
+4. `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance` with another unique evidence root: original 7 positives + Proxy/Server 2 + rejection; zero retries.
+5. Update JSON/HTML, TEST-RESULT/manuals if behavior changes, handoff/`.ai`, scoped commits. Physical/human remain NotRun/Blocked. No Release/package/master push.
+
+Original bootstrap failure remains POST boot-session 403 on stale pre-restore MAC `00155D6C6580`. Source MAC/cancel-wait fix is not in the still-loaded `dae06b2` App.
 
 ## Previous completed milestone — One laptop, anywhere onboarding
 
