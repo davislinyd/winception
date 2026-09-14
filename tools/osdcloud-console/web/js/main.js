@@ -415,12 +415,8 @@ if (elements.initializationSteps) {
     }
     const stepEl = target?.closest('.initialization-step');
     if (stepEl && stepEl.dataset.stepId) {
-      if (stepEl.dataset.stepId === state.selectedGuidedStepId && !state.guidedStepCollapsed) {
-        state.guidedStepCollapsed = true;
-      } else {
-        state.selectedGuidedStepId = stepEl.dataset.stepId;
-        state.guidedStepCollapsed = false;
-      }
+      state.selectedGuidedStepId = stepEl.dataset.stepId;
+      state.guidedStepCollapsed = false;
       render();
     }
   });
