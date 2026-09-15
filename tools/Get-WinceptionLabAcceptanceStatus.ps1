@@ -22,7 +22,9 @@ function Get-LabMutexStatus {
 
 function Get-LabRunnerProcesses {
     @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -match '^(powershell|pwsh)\.exe$' -and [string]$_.CommandLine -match 'Invoke-WinceptionLabRegression\.ps1'
+        $_.Name -match '^(powershell|pwsh)\.exe$' -and
+        [string]$_.CommandLine -match 'Invoke-WinceptionLabRegression\.ps1|acceptance-router-bootstrap-\d{8}[a-z]?\.ps1' -and
+        [string]$_.CommandLine -notmatch 'Get-WinceptionLabAcceptanceStatus|monitor|snapshot|validate|proc'
     } | ForEach-Object {
         [ordered]@{
             pid = [int]$_.ProcessId

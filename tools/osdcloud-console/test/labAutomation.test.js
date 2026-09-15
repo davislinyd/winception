@@ -173,6 +173,8 @@ test('Lab acceptance monitor is read-only and exposes live process, console, VM,
   assert.match(source, /Get-LabMutexStatus/);
   assert.match(source, /Get-LabVmStatus/);
   assert.match(source, /Get-LabEvidenceStatus/);
+  assert.match(source, /acceptance-router-bootstrap-\\d\{8\}/);
+  assert.match(source, /Invoke-WinceptionLabRegression\\.ps1/);
   assert.match(source, /api\/state/);
   assert.match(source, /\$Follow/);
   assert.doesNotMatch(source, /\b(?:Start|Stop|Restart|Set)-(?:VM|Service|Lab)/);
