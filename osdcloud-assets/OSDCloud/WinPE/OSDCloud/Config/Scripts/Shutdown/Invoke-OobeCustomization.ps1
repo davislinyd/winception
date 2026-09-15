@@ -63,6 +63,126 @@ function ConvertTo-XmlText {
     [System.Security.SecurityElement]::Escape($Value)
 }
 
+function Write-OobeTextFileDurably {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][AllowEmptyString()][string] $Value,
+        [ValidateSet('UTF8', 'ASCII')][string] $Encoding = 'UTF8'
+    )
+
+    $parent = Split-Path -Parent $Path
+    if ($parent) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    $encodingObject = if ($Encoding -eq 'ASCII') {
+        New-Object System.Text.ASCIIEncoding
+    }
+    else {
+        New-Object System.Text.UTF8Encoding($true)
+    }
+    $bytes = $encodingObject.GetBytes($Value)
+    $stream = [System.IO.FileStream]::new(
+        $Path,
+        [System.IO.FileMode]::Create,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::Read,
+        65536,
+        [System.IO.FileOptions]::WriteThrough
+    )
+    try {
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush($true)
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Copy-OobeFileDurably {
+    param(
+        [Parameter(Mandatory)][string] $Source,
+        [Parameter(Mandatory)][string] $Destination
+    )
+
+    $parent = Split-Path -Parent $Destination
+    if ($parent) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    $sourceStream = [System.IO.FileStream]::new(
+        $Source,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::Read,
+        1048576,
+        [System.IO.FileOptions]::SequentialScan
+    )
+    $targetStream = [System.IO.FileStream]::new(
+        $Destination,
+        [System.IO.FileMode]::Create,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::Read,
+        1048576,
+        [System.IO.FileOptions]::WriteThrough
+    )
+    $buffer = New-Object byte[] 1048576
+    try {
+        do {
+            $read = $sourceStream.Read($buffer, 0, $buffer.Length)
+            if ($read -gt 0) {
+                $targetStream.Write($buffer, 0, $read)
+            }
+        } while ($read -gt 0)
+        $targetStream.Flush($true)
+    }
+    finally {
+        $targetStream.Dispose()
+        $sourceStream.Dispose()
+    }
+
+    $sourceLength = (Get-Item -LiteralPath $Source -ErrorAction Stop).Length
+    $targetLength = (Get-Item -LiteralPath $Destination -ErrorAction Stop).Length
+    if ($sourceLength -ne $targetLength) {
+        throw "Durable copy length mismatch for $Destination."
+    }
+}
+
+function Copy-OobeDirectoryContentsDurably {
+    param(
+        [Parameter(Mandatory)][string] $Source,
+        [Parameter(Mandatory)][string] $Destination
+    )
+
+    foreach ($file in @(Get-ChildItem -LiteralPath $Source -File -Recurse -Force -ErrorAction Stop)) {
+        $relative = $file.FullName.Substring($Source.Length).TrimStart('\')
+        Copy-OobeFileDurably -Source $file.FullName -Destination (Join-Path $Destination $relative)
+    }
+}
+
+function Test-OobeProfileManifest {
+    param([Parameter(Mandatory)][string] $Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    try {
+        if ((Get-Item -LiteralPath $Path -ErrorAction Stop).Length -le 0) { return $false }
+        $manifest = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        return $manifest -and -not [string]::IsNullOrWhiteSpace([string] $manifest.profileId)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-OobeUsableFile {
+    param([Parameter(Mandatory)][string] $Path)
+
+    try {
+        return (Test-Path -LiteralPath $Path -PathType Leaf) -and (Get-Item -LiteralPath $Path -ErrorAction Stop).Length -gt 0
+    }
+    catch {
+        return $false
+    }
+}
+
 function Get-TestAutoLogonCount {
     param([string] $WindowsRoot)
     $profilePath = Join-Path $WindowsRoot 'ProgramData\OSDCloud\Apps\selected-profile.json'
@@ -169,27 +289,34 @@ try {
         Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
         ForEach-Object { "$($_.Name):\OSDCloud\Apps" }
 
-    $sourceApps = $appCandidates |
-        Where-Object { $_ -and (Test-Path (Join-Path $_ 'selected-profile.json') -PathType Leaf) } |
+    $orderedAppCandidates = @($appCandidates | Where-Object { $_ -and $_ -notmatch '^[Xx]:\\' }) +
+        @($appCandidates | Where-Object { $_ -and $_ -match '^[Xx]:\\' })
+    $sourceApps = $orderedAppCandidates |
+        Where-Object { Test-OobeProfileManifest -Path (Join-Path $_ 'selected-profile.json') } |
         Select-Object -First 1
     if (-not $sourceApps) {
-        $sourceApps = $appCandidates |
-            Where-Object { $_ -and (Test-Path (Join-Path $_ 'Install-Apps.ps1') -PathType Leaf) } |
+        $sourceApps = $orderedAppCandidates |
+            Where-Object { Test-OobeUsableFile -Path (Join-Path $_ 'Install-Apps.ps1') } |
             Select-Object -First 1
     }
 
     if ($sourceApps) {
         $targetApps = Join-Path $windowsRoot 'ProgramData\OSDCloud\Apps'
         New-Item -ItemType Directory -Path $targetApps -Force | Out-Null
-        Copy-Item -Path (Join-Path $sourceApps '*') -Destination $targetApps -Recurse -Force
+        Copy-OobeDirectoryContentsDurably -Source $sourceApps -Destination $targetApps
         Write-Host "Client apps source: $sourceApps"
         Write-Host "Client apps target: $targetApps"
+
+        $targetProfilePath = Join-Path $targetApps 'selected-profile.json'
+        if (Test-Path -LiteralPath $targetProfilePath -PathType Leaf -and -not (Test-OobeProfileManifest -Path $targetProfilePath)) {
+            throw 'Published selected-profile.json was not copied as a readable profile manifest.'
+        }
 
         $sourceScripts = Join-Path (Split-Path -Parent $sourceApps) 'Scripts'
         if (Test-Path -LiteralPath $sourceScripts -PathType Container) {
             $targetScripts = Join-Path $windowsRoot 'ProgramData\OSDCloud\Scripts'
             New-Item -ItemType Directory -Path $targetScripts -Force | Out-Null
-            Copy-Item -Path (Join-Path $sourceScripts '*') -Destination $targetScripts -Recurse -Force
+            Copy-OobeDirectoryContentsDurably -Source $sourceScripts -Destination $targetScripts
             Write-Host "Client scripts source: $sourceScripts"
             Write-Host "Client scripts target: $targetScripts"
         }
@@ -246,16 +373,16 @@ try {
 "@
 
     $unattendPath = Join-Path $panther 'Unattend.xml'
-    Set-Content -LiteralPath $unattendPath -Value $unattend -Encoding UTF8 -Force
-    Set-Content -LiteralPath (Join-Path $sysprep 'Unattend.xml') -Value $unattend -Encoding UTF8 -Force
+    Write-OobeTextFileDurably -Path $unattendPath -Value $unattend -Encoding UTF8
+    Write-OobeTextFileDurably -Path (Join-Path $sysprep 'Unattend.xml') -Value $unattend -Encoding UTF8
 
     $secretTargetRoot = Join-Path $windowsRoot 'ProgramData\OSDCloud'
     New-Item -ItemType Directory -Path $secretTargetRoot -Force | Out-Null
-    ([ordered]@{
+    $deploymentSecretsJson = ([ordered]@{
         windowsUsername = $windowsUsername
         windowsPassword = $windowsPassword
-    } | ConvertTo-Json -Depth 4) |
-        Set-Content -LiteralPath (Join-Path $secretTargetRoot 'secrets.json') -Encoding UTF8 -Force
+    } | ConvertTo-Json -Depth 4)
+    Write-OobeTextFileDurably -Path (Join-Path $secretTargetRoot 'secrets.json') -Value $deploymentSecretsJson -Encoding UTF8
 
     $setupCandidates = @()
     if ($PSScriptRoot) {
@@ -266,13 +393,18 @@ try {
         Where-Object { $_.Name -ne 'C' -and $_.Name -ne 'X' } |
         ForEach-Object { "$($_.Name):\OSDCloud\Config\Scripts\SetupComplete" }
 
-    $sourceSetup = $setupCandidates |
-        Where-Object { $_ -and (Test-Path (Join-Path $_ 'SetupComplete.ps1')) } |
+    $orderedSetupCandidates = @($setupCandidates | Where-Object { $_ -and $_ -notmatch '^[Xx]:\\' }) +
+        @($setupCandidates | Where-Object { $_ -and $_ -match '^[Xx]:\\' })
+    $sourceSetup = $orderedSetupCandidates |
+        Where-Object { Test-OobeUsableFile -Path (Join-Path $_ 'SetupComplete.ps1') } |
         Select-Object -First 1
 
     if ($sourceSetup) {
         Write-Host "SetupComplete source: $sourceSetup"
-        Copy-Item -Path (Join-Path $sourceSetup '*') -Destination $setupScripts -Recurse -Force
+        Copy-OobeDirectoryContentsDurably -Source $sourceSetup -Destination $setupScripts
+        if (-not (Test-OobeUsableFile -Path (Join-Path $setupScripts 'SetupComplete.ps1'))) {
+            throw 'SetupComplete.ps1 was not copied as a readable file.'
+        }
     }
 
     $cmdPath = Join-Path $setupScripts 'SetupComplete.cmd'
@@ -284,7 +416,7 @@ echo [%date% %time%] SetupComplete.cmd starting>>%LOG%
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Setup\Scripts\SetupComplete.ps1 >>%LOG% 2>&1
 exit /b 0
 '@
-        Set-Content -LiteralPath $cmdPath -Value $cmd -Encoding ASCII -Force
+        Write-OobeTextFileDurably -Path $cmdPath -Value $cmd -Encoding ASCII
     }
 
     $systemHive = Join-Path $windowsRoot 'Windows\System32\Config\SYSTEM'
@@ -323,7 +455,7 @@ exit /b 0
     reg.exe unload HKLM\OSD_OFF_SOFTWARE | Out-Null
 
     $marker = Join-Path $windowsRoot 'OSDCloud\Logs\OobeCustomizationInjected.txt'
-    "Injected $(Get-Date -Format o) to $windowsRoot" | Set-Content -LiteralPath $marker -Encoding ASCII -Force
+    Write-OobeTextFileDurably -Path $marker -Value "Injected $(Get-Date -Format o) to $windowsRoot" -Encoding ASCII
 }
 finally {
     Stop-Transcript -ErrorAction SilentlyContinue | Out-Null

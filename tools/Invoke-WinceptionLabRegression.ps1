@@ -1603,7 +1603,48 @@ function Test-ClientTerminalFailureText {
     if ([string]::IsNullOrWhiteSpace($Text)) {
         return $false
     }
-    $Text -match '(?i)selected-os\.json did not produce|usable OS selection|TerminatingError\(|ParameterArgumentValidationErrorNullNotAllowed|SMB map to Z: failed|OS root path is empty|selected-os\.json not found|Boot session did not provide|System error 86'
+    $Text -match '(?i)selected-os\.json did not produce|usable OS selection|TerminatingError\(|ParameterArgumentValidationErrorNullNotAllowed|SMB map to Z: failed|OS root path is empty|selected-os\.json not found|Boot session did not provide|System error 86|post-apply-customization-error|windows-metadata-error|unattend.*(error|invalid|fail)'
+}
+
+function Write-FleetWaitHeartbeat {
+    param(
+        [Parameter(Mandatory)][string[]] $VmNames,
+        [Parameter(Mandatory)][object[]] $Runs
+    )
+
+    if (-not $script:LastFleetWaitHeartbeatAt) {
+        $script:LastFleetWaitHeartbeatAt = [DateTimeOffset]::MinValue
+    }
+    if (([DateTimeOffset]::Now - $script:LastFleetWaitHeartbeatAt).TotalSeconds -lt 15) {
+        return
+    }
+
+    $vmSnapshot = @($VmNames | ForEach-Object {
+        $vm = Get-VM -Name $_ -ErrorAction SilentlyContinue
+        [ordered]@{
+            vmName = $_
+            state = if ($vm) { [string] $vm.State } else { 'Missing' }
+            heartbeat = if ($vm) {
+                [string] ((Get-VMIntegrationService -VMName $_ -Name 'Heartbeat' -ErrorAction SilentlyContinue | Select-Object -First 1).PrimaryStatusDescription)
+            }
+            else { '' }
+        }
+    })
+    $runSnapshot = @($Runs | ForEach-Object {
+        [ordered]@{
+            runId = [string] $_.runId
+            status = [string] $_.status
+            latestStage = [string] $_.latestStage
+        }
+    })
+    Write-Evidence -Name 'fleet-wait-heartbeat.json' -Value ([ordered]@{
+        observedAt = [DateTimeOffset]::Now.ToString('o')
+        phase = 'fleet-wait'
+        vmNames = @($VmNames)
+        runs = $runSnapshot
+        vms = $vmSnapshot
+    }) | Out-Null
+    $script:LastFleetWaitHeartbeatAt = [DateTimeOffset]::Now
 }
 
 function Wait-FleetCompletion {
@@ -1627,6 +1668,7 @@ function Wait-FleetCompletion {
             [string] $_.status -in @('running', 'completed', 'failed', 'stale', 'windows-running', 'awaiting-windows')
         })
         $relevant = @($runs | Sort-Object startedAt -Descending | Select-Object -First $VmNames.Count)
+        Write-FleetWaitHeartbeat -VmNames $VmNames -Runs $relevant
         $failures = @($relevant | Where-Object { [string] $_.status -in @('failed', 'stale') })
         if ($failures.Count -gt 0) {
             throw "Fleet reported failure: $($failures[0].runId)"

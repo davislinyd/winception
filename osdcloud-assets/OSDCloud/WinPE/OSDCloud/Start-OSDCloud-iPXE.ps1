@@ -443,6 +443,145 @@ function Get-DeployedWindowsRoot {
     return $null
 }
 
+function Write-DeploymentTextFileDurably {
+    param(
+        [Parameter(Mandatory)][string] $Path,
+        [Parameter(Mandatory)][AllowEmptyString()][string] $Value,
+        [ValidateSet('UTF8', 'ASCII')][string] $Encoding = 'UTF8'
+    )
+
+    $parent = Split-Path -Parent $Path
+    if ($parent) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    $encodingObject = if ($Encoding -eq 'ASCII') {
+        New-Object System.Text.ASCIIEncoding
+    }
+    else {
+        New-Object System.Text.UTF8Encoding($true)
+    }
+    $bytes = $encodingObject.GetBytes($Value)
+    $stream = [System.IO.FileStream]::new(
+        $Path,
+        [System.IO.FileMode]::Create,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::Read,
+        65536,
+        [System.IO.FileOptions]::WriteThrough
+    )
+    try {
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush($true)
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Get-DeploymentCustomizationCheck {
+    param([Parameter(Mandatory)][string] $WindowsRoot)
+
+    $checks = [ordered]@{}
+    $required = @(
+        'Windows\Panther\Unattend.xml',
+        'Windows\System32\Sysprep\Unattend.xml',
+        'Windows\Setup\Scripts\SetupComplete.ps1',
+        'OSDCloud\Logs\OobeCustomizationInjected.txt',
+        'ProgramData\OSDCloud\DeploymentStatus.json'
+    )
+    foreach ($relativePath in $required) {
+        $path = Join-Path $WindowsRoot $relativePath
+        $length = 0L
+        try {
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+                $length = [long] (Get-Item -LiteralPath $path -ErrorAction Stop).Length
+            }
+        }
+        catch {
+        }
+        $record = [ordered]@{
+            exists = ($length -gt 0)
+            length = $length
+            valid = ($length -gt 0)
+        }
+        if ($relativePath -like '*.xml' -and $length -gt 0) {
+            try {
+                $xml = New-Object System.Xml.XmlDocument
+                $xml.Load($path)
+                $record.valid = ([string] $xml.DocumentElement.LocalName -eq 'unattend')
+            }
+            catch {
+                $record.valid = $false
+            }
+        }
+        $checks[$relativePath] = $record
+    }
+
+    $profilePath = 'Z:\OSDCloud\Apps\selected-profile.json'
+    if (Test-Path -LiteralPath $profilePath -PathType Leaf) {
+        $length = 0L
+        try { $length = [long] (Get-Item -LiteralPath $profilePath -ErrorAction Stop).Length } catch {}
+        $valid = $false
+        if ($length -gt 0) {
+            try {
+                $profile = Get-Content -LiteralPath $profilePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+                $valid = $null -ne $profile -and -not [string]::IsNullOrWhiteSpace([string] $profile.profileId)
+            }
+            catch {
+            }
+        }
+        $checks['ProgramData\OSDCloud\Apps\selected-profile.json'] = [ordered]@{
+            exists = ($length -gt 0)
+            length = $length
+            valid = $valid
+        }
+    }
+
+    [pscustomobject]@{
+        valid = (@($checks.Values | Where-Object { -not [bool] $_.valid }).Count -eq 0)
+        targetRoot = $WindowsRoot
+        checks = $checks
+    }
+}
+
+function Wait-DeploymentCustomization {
+    param(
+        [int] $TimeoutSeconds = 120,
+        [int] $IntervalSeconds = 2
+    )
+
+    $deadline = [DateTimeOffset]::Now.AddSeconds($TimeoutSeconds)
+    $lastHeartbeat = [DateTimeOffset]::MinValue
+    do {
+        $targetRoot = Get-DeployedWindowsRoot
+        if ($targetRoot) {
+            $check = Get-DeploymentCustomizationCheck -WindowsRoot $targetRoot
+            if ($check.valid) {
+                Send-DeploymentStatus -Stage 'post-apply-customization' -Message 'Deployment customization files were verified before reboot.' -Extra $check.checks
+                return $check
+            }
+            if (([DateTimeOffset]::Now - $lastHeartbeat).TotalSeconds -ge 10) {
+                Send-DeploymentStatus -Stage 'post-apply-customization-waiting' -Message 'Waiting for deployment customization files to become readable before reboot.' -Extra $check.checks
+                $lastHeartbeat = [DateTimeOffset]::Now
+            }
+        }
+        else {
+            if (([DateTimeOffset]::Now - $lastHeartbeat).TotalSeconds -ge 10) {
+                Send-DeploymentStatus -Stage 'post-apply-customization-waiting' -Message 'Waiting for the deployed Windows volume before reboot.'
+                $lastHeartbeat = [DateTimeOffset]::Now
+            }
+        }
+        Start-Sleep -Seconds ([Math]::Max(1, $IntervalSeconds))
+    } while ([DateTimeOffset]::Now -lt $deadline)
+
+    $targetRoot = Get-DeployedWindowsRoot
+    $finalCheck = if ($targetRoot) { Get-DeploymentCustomizationCheck -WindowsRoot $targetRoot } else { $null }
+    $extra = if ($finalCheck) { $finalCheck.checks } else { @{ targetRoot = '' } }
+    Send-DeploymentStatus -Stage 'post-apply-customization-error' -Message 'Deployment customization files were not readable before reboot; WinPE will remain stopped.' -Extra $extra
+    Send-Screenshot -Stage 'post-apply-customization-error'
+    throw 'Deployment customization files were not valid before reboot.'
+}
+
 function Get-LabSelectedOsManifest {
     param(
         [string] $OsRoot
@@ -573,7 +712,8 @@ function Save-DeploymentStatusMetadata {
             createdAt = (Get-Date).ToString('o')
         }
 
-        $metadata | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $metadataPath -Encoding UTF8 -Force
+        $metadataJson = $metadata | ConvertTo-Json -Depth 6
+        Write-DeploymentTextFileDurably -Path $metadataPath -Value $metadataJson -Encoding UTF8
         Send-DeploymentStatus -Stage 'windows-metadata-written' -Message "Deployment status metadata written to $metadataPath" -Extra @{ targetRoot = $targetRoot }
     }
     catch {
@@ -1376,9 +1516,10 @@ try {
     }
     Send-DeploymentStatus -Stage 'osdcloud-start' -Message 'Invoke-OSDCloud starting.' -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
     Send-Screenshot -Stage 'osdcloud-start'
-    Invoke-OSDCloud
-    $deploymentSucceeded = $true
     Save-DeploymentStatusMetadata
+    Invoke-OSDCloud
+    Wait-DeploymentCustomization | Out-Null
+    $deploymentSucceeded = $true
     if ($torrentTransfer) {
         if ($torrentTransfer.seedBaseMinutes -gt 0) {
             Wait-TorrentSeedWindow -Context $torrentTransfer

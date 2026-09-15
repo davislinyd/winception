@@ -18,17 +18,29 @@ test('new acceptance scripts parse in Windows PowerShell without invoking host o
 });
 test('WinPE OOBE customization copies Apps before auto-logon lookup and ignores missing Winlogon values',()=>{
   const source=fs.readFileSync('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1','utf8');
-  const copyApps=source.indexOf("Copy-Item -Path (Join-Path $sourceApps '*')");
+  const copyApps=source.indexOf('Copy-OobeDirectoryContentsDurably -Source $sourceApps');
   const countCall=source.indexOf('$testAutoLogonCount = Get-TestAutoLogonCount');
   assert.ok(copyApps>=0 && countCall>copyApps, 'selected-profile.json must be copied before auto-logon lookup');
-  const profilePick=source.indexOf("Test-Path (Join-Path $_ 'selected-profile.json')");
-  const installerPick=source.lastIndexOf("Test-Path (Join-Path $_ 'Install-Apps.ps1')");
+  const profilePick=source.indexOf("Test-OobeProfileManifest -Path (Join-Path $_ 'selected-profile.json')");
+  const installerPick=source.lastIndexOf("Test-OobeUsableFile -Path (Join-Path $_ 'Install-Apps.ps1')");
   assert.ok(profilePick>=0 && installerPick>profilePick, 'published selected-profile.json must win over WinPE template Apps');
+  assert.match(source,/function Write-OobeTextFileDurably/);
+  assert.match(source,/function Copy-OobeFileDurably/);
+  assert.match(source,/FileOptions\]::WriteThrough/);
   const deleteAt=source.indexOf("reg.exe delete 'HKLM\\OSD_OFF_SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon'");
   const continueAt=source.lastIndexOf("$ErrorActionPreference = 'Continue'", deleteAt);
   assert.ok(deleteAt>0 && continueAt>=0 && continueAt<deleteAt, 'missing Winlogon values must not terminate under Stop');
   const media=fs.readFileSync('osdcloud-assets/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1','utf8');
   assert.equal(media, source);
+});
+test('WinPE verifies durable customization artifacts before reboot',()=>{
+  const source=fs.readFileSync('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Start-OSDCloud-iPXE.ps1','utf8');
+  assert.match(source,/function Write-DeploymentTextFileDurably/);
+  assert.match(source,/function Get-DeploymentCustomizationCheck/);
+  assert.match(source,/function Wait-DeploymentCustomization/);
+  assert.match(source,/post-apply-customization-error/);
+  assert.match(source,/Save-DeploymentStatusMetadata\s+Invoke-OSDCloud\s+Wait-DeploymentCustomization/);
+  assert.match(source,/Write-DeploymentTextFileDurably -Path \$metadataPath/);
 });
 test('WinPE auto-logon accepts only an integer limited test-only profile',()=>{
   const output=runPowerShell('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1',['Get-TestAutoLogonCount'],`
@@ -160,6 +172,13 @@ test('router bootstrap switches its owned VM to the deployed disk before waiting
   assert.match(waitFn,/latestStage -eq 'rebooting'/);
   assert.match(waitFn,/Set-LabDeployedDiskFirst -VmName \$vmName/);
   assert.match(source,/Wait-FleetCompletion -VmNames \$VmNames[\s\S]*?-PreferDeployedDisk:\$KeepGuest/);
+});
+test('Fleet wait emits bounded redacted heartbeat evidence for active monitoring',()=>{
+  const source=fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1','utf8');
+  assert.match(source,/function Write-FleetWaitHeartbeat/);
+  assert.match(source,/fleet-wait-heartbeat\.json/);
+  const waitFn=source.slice(source.indexOf('function Wait-FleetCompletion'),source.indexOf('function Acquire-LabLock'));
+  assert.match(waitFn,/Write-FleetWaitHeartbeat -VmNames \$VmNames -Runs \$relevant/);
 });
 test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`
