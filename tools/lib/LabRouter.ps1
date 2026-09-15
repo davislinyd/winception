@@ -37,17 +37,17 @@ function Get-LabRouterFirmwareEvidence {
     $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
     $bootOrder = New-Object System.Collections.Generic.List[object]
     foreach ($entry in @($firmware.BootOrder)) {
-        $device = $entry.Device
+        $device = if ($entry -and $entry.PSObject.Properties['Device']) { $entry.Device } else { $null }
         $bootOrder.Add([ordered]@{
-            bootType = [string]$entry.BootType
-            deviceId = if ($device) { [string]$device.Id } else { '' }
-            description = if ($device) { [string]$device.Description } else { '' }
+            bootType = if ($entry -and $entry.PSObject.Properties['BootType']) { [string]$entry.BootType } else { '' }
+            deviceId = if ($device -and $device.PSObject.Properties['Id']) { [string]$device.Id } else { '' }
+            description = if ($device -and $device.PSObject.Properties['Description']) { [string]$device.Description } else { '' }
         })
     }
     [ordered]@{
         secureBoot = [string]$firmware.SecureBoot
         secureBootTemplate = [string]$firmware.SecureBootTemplate
-        bootOrder = @($bootOrder)
+        bootOrder = $bootOrder.ToArray()
     }
 }
 
@@ -358,6 +358,10 @@ function Stop-LabRouter {
             Set-VMProcessor -VMName winception-autolab-router -Count 2 -ExposeVirtualizationExtensions $true
             Enable-LabRouterTpm
         } else {
+            $wan = Get-VMNetworkAdapter -VMName winception-autolab-router -Name WAN -ErrorAction SilentlyContinue
+            if ($wan) {
+                Remove-VMNetworkAdapter -VMName winception-autolab-router -Name WAN -Confirm:$false -ErrorAction Stop
+            }
             Restore-LabCheckpoint -VmNames @('winception-autolab-router')
             $processorEvidence = Join-Path $Config.evidenceRoot 'router-processor-before.json'
             if (Test-Path -LiteralPath $processorEvidence) {

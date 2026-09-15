@@ -14,7 +14,7 @@ function runPowerShell(relative, names, command) {
   return result.stdout.trim();
 }
 test('new acceptance scripts parse in Windows PowerShell without invoking host operations',()=>{
-  for(const relative of ['tools/Invoke-WinceptionAcceptance.ps1','tools/Initialize-WinceptionLabRouter.ps1','tools/lib/Acceptance.ps1','tools/lib/LabRouter.ps1','tools/lib/LabNetworkAcceptance.ps1','tools/acceptance/client.ps1'])runPowerShell(relative,[],"'Parsed'");
+  for(const relative of ['tools/Invoke-WinceptionAcceptance.ps1','tools/Initialize-WinceptionLabRouter.ps1','tools/Get-WinceptionLabAcceptanceStatus.ps1','tools/lib/Acceptance.ps1','tools/lib/LabRouter.ps1','tools/lib/LabNetworkAcceptance.ps1','tools/acceptance/client.ps1'])runPowerShell(relative,[],"'Parsed'");
 });
 test('WinPE OOBE customization copies Apps before auto-logon lookup and ignores missing Winlogon values',()=>{
   const source=fs.readFileSync('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1','utf8');
@@ -109,6 +109,17 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   const cleanup=source.slice(source.indexOf('function Stop-LabRouter'));
   assert.match(cleanup,/router-processor-before\.json/);
   assert.match(cleanup,/ExposeVirtualizationExtensions \(\[bool\]\$processorBefore\.exposeVirtualizationExtensions\)/);
+  assert.match(cleanup,/Remove-VMNetworkAdapter -VMName winception-autolab-router -Name WAN/);
+});
+
+test('router firmware evidence tolerates Hyper-V entries without descriptions',()=>{
+  const output=runPowerShell('tools/lib/LabRouter.ps1',['Get-LabRouterFirmwareEvidence'],`
+    function Get-VMFirmware { [pscustomobject]@{ SecureBoot='On'; SecureBootTemplate='MicrosoftWindows'; BootOrder=@([pscustomobject]@{ BootType='Drive'; Device=[pscustomobject]@{ Id='disk' } }, [pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id='net' } }) } }
+    Get-LabRouterFirmwareEvidence -VmName 'router' | ConvertTo-Json -Depth 6 -Compress
+  `);
+  const evidence=JSON.parse(output);
+  assert.equal(evidence.bootOrder[0].deviceId,'disk');
+  assert.equal(evidence.bootOrder[0].description,'');
 });
 
 test('router PowerShell Direct timeout evidence records the phase and host boot state',()=>{
@@ -120,6 +131,20 @@ test('router PowerShell Direct timeout evidence records the phase and host boot 
   assert.match(evidence,/Get-VMIntegrationService -VMName \$VmName/);
   assert.match(evidence,/vmState = \[string\]\$vm\.State/);
   assert.match(evidence,/lastError = \[string\]\$LastError/);
+});
+
+test('router bootstrap switches its owned VM to the deployed disk before waiting for Windows',()=>{
+  const source=fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1','utf8');
+  const switchFn=source.slice(source.indexOf('function Set-LabDeployedDiskFirst'),source.indexOf('function Get-FirstValue'));
+  assert.match(switchFn,/Stop-VM -Name \$VmName -TurnOff -Force/);
+  assert.match(switchFn,/Set-VMFirmware -VMName \$VmName -FirstBootDevice \$disk/);
+  assert.match(switchFn,/deployed-disk-boot-\$safeName\.json/);
+  assert.match(switchFn,/Start-VM -Name \$VmName/);
+  const waitFn=source.slice(source.indexOf('function Wait-FleetCompletion'),source.indexOf('function Acquire-LabLock'));
+  assert.match(waitFn,/PreferDeployedDisk/);
+  assert.match(waitFn,/latestStage -eq 'rebooting'/);
+  assert.match(waitFn,/Set-LabDeployedDiskFirst -VmName \$vmName/);
+  assert.match(source,/Wait-FleetCompletion -VmNames \$VmNames[\s\S]*?-PreferDeployedDisk:\$KeepGuest/);
 });
 test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`

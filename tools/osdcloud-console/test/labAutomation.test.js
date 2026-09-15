@@ -142,6 +142,42 @@ test('Lab round persists host firmware as a separate object', () => {
   assert.equal(guest[0].vmName, 'test-vm');
 });
 
+test('Router post-WinPE boot switch is owned, verifiable, and restartable', () => {
+  const output = runLabPowerShell([
+    'Set-LabDeployedDiskFirst',
+    'Get-OptionalProperty',
+    'ConvertTo-ObjectList',
+    'Get-FirmwareBootOrderEntries',
+    'Get-FirmwareBootType',
+    'Get-FirmwareBootDeviceId',
+    'Convert-FirmwareBootOrderEvidence',
+  ], `
+    $script:state = 'Running'; $script:order = @([pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id='net'; Description='PXE' } }, [pscustomobject]@{ BootType='Drive'; Device=[pscustomobject]@{ Id='disk'; Description='OS' } }); $script:evidence = $null; $script:started = $false
+    function Get-VM { param($Name) [pscustomobject]@{ Name=$Name; State=$script:state } }
+    function Get-VMFirmware { param($VMName) [pscustomobject]@{ BootOrder=$script:order } }
+    function Get-VMHardDiskDrive { param($VMName) [pscustomobject]@{ Id='disk'; Path='C:\\state\\router.vhdx' } }
+    function Stop-VM { param($Name,[switch]$TurnOff,[switch]$Force,[switch]$Confirm) $script:state='Off' }
+    function Set-VMFirmware { param($VMName,$FirstBootDevice) $script:order=@([pscustomobject]@{ BootType='Drive'; Device=[pscustomobject]@{ Id=$FirstBootDevice.Id; Description='OS' } }, [pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id='net'; Description='PXE' } }) }
+    function Start-VM { param($Name) $script:started=$true; $script:state='Running' }
+    function Write-Evidence { param($Name,$Value) $script:evidence=$Value }
+    Set-LabDeployedDiskFirst -VmName 'router' -Reason 'test'
+    if (-not $script:started -or $script:state -ne 'Running' -or $script:evidence.hardDiskId -ne 'disk' -or $script:evidence.after[0].deviceId -ne 'disk') { throw 'Router disk switch did not verify and restart the owned VM.' }
+    'ok'
+  `);
+  assert.equal(output.trim(), 'ok');
+});
+
+test('Lab acceptance monitor is read-only and exposes live process, console, VM, and evidence state', () => {
+  const source = read('tools/Get-WinceptionLabAcceptanceStatus.ps1');
+  assert.match(source, /Get-LabRunnerProcesses/);
+  assert.match(source, /Get-LabMutexStatus/);
+  assert.match(source, /Get-LabVmStatus/);
+  assert.match(source, /Get-LabEvidenceStatus/);
+  assert.match(source, /api\/state/);
+  assert.match(source, /\$Follow/);
+  assert.doesNotMatch(source, /\b(?:Start|Stop|Restart|Set)-(?:VM|Service|Lab)/);
+});
+
 test('Lab round fails when checkpoint cleanup fails', () => {
   runLabPowerShell(['Set-LabRoundClientScope', 'Invoke-LabRound'], `
     function Restore-LabCheckpoint { param($VmNames, $RoundFirmware) if ($null -eq $RoundFirmware) { throw 'Synthetic checkpoint cleanup failure.' } }

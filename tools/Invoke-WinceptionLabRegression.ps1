@@ -1265,6 +1265,41 @@ function Start-LabVms {
     }
 }
 
+function Set-LabDeployedDiskFirst {
+    param(
+        [Parameter(Mandatory)][string] $VmName,
+        [Parameter(Mandatory)][string] $Reason
+    )
+
+    $vm = Get-VM -Name $VmName -ErrorAction Stop
+    $before = Get-VMFirmware -VMName $VmName -ErrorAction Stop
+    $disk = Get-VMHardDiskDrive -VMName $VmName -ErrorAction Stop
+    if (@($disk).Count -ne 1) {
+        throw "$VmName does not have one deployed hard disk to boot."
+    }
+    if ([string]$vm.State -ne 'Off') {
+        Stop-VM -Name $VmName -TurnOff -Force -Confirm:$false -ErrorAction Stop
+    }
+    Set-VMFirmware -VMName $VmName -FirstBootDevice $disk -ErrorAction Stop
+    $after = Get-VMFirmware -VMName $VmName -ErrorAction Stop
+    $entries = Get-FirmwareBootOrderEntries -Firmware $after
+    $first = if ($entries.Count -gt 0) { $entries[0] } else { $null }
+    if ($null -eq $first -or (Get-FirmwareBootDeviceId -Entry $first) -ne [string]$disk.Id) {
+        throw "$VmName deployed hard disk was not made the first firmware boot device."
+    }
+    $safeName = $VmName -replace '[^A-Za-z0-9_-]', '_'
+    Write-Evidence -Name ("deployed-disk-boot-$safeName.json") -Value ([ordered]@{
+        capturedAt = [DateTimeOffset]::Now.ToString('o')
+        vmName = $VmName
+        reason = $Reason
+        vmStateBefore = [string]$vm.State
+        hardDiskId = [string]$disk.Id
+        before = Convert-FirmwareBootOrderEvidence -BootOrder (Get-FirmwareBootOrderEntries -Firmware $before)
+        after = Convert-FirmwareBootOrderEvidence -BootOrder (Get-FirmwareBootOrderEntries -Firmware $after)
+    }) | Out-Null
+    Start-VM -Name $VmName -ErrorAction Stop | Out-Null
+}
+
 function Get-FirstValue {
     param(
         $Value,
@@ -1504,10 +1539,12 @@ function Test-ClientTerminalFailureText {
 function Wait-FleetCompletion {
     param(
         [Parameter(Mandatory)][string[]] $VmNames,
-        [Parameter(Mandatory)][int] $TimeoutMinutes
+        [Parameter(Mandatory)][int] $TimeoutMinutes,
+        [switch] $PreferDeployedDisk
     )
 
     $deadline = [DateTimeOffset]::Now.AddMinutes($TimeoutMinutes)
+    $deployedDiskPrepared = @{}
     do {
         $clientText = Get-LatestClientStatusText
         if (Test-ClientTerminalFailureText -Text $clientText) {
@@ -1523,6 +1560,16 @@ function Wait-FleetCompletion {
         $failures = @($relevant | Where-Object { [string] $_.status -in @('failed', 'stale') })
         if ($failures.Count -gt 0) {
             throw "Fleet reported failure: $($failures[0].runId)"
+        }
+        if ($PreferDeployedDisk) {
+            for ($index = 0; $index -lt $VmNames.Count; $index++) {
+                $vmName = $VmNames[$index]
+                $run = $relevant | Where-Object { [string]$_.latestStage -eq 'rebooting' } | Select-Object -First 1
+                if ($run -and -not $deployedDiskPrepared.ContainsKey($vmName)) {
+                    Set-LabDeployedDiskFirst -VmName $vmName -Reason 'router-bootstrap-post-winpe'
+                    $deployedDiskPrepared[$vmName] = $true
+                }
+            }
         }
         $runText = @($relevant | ForEach-Object { [string] $_.latestMessage }) -join "`n"
         if (Test-ClientTerminalFailureText -Text $runText) {
@@ -1633,7 +1680,7 @@ function Invoke-LabRound {
     Start-LabServices | Out-Null
     try {
         Start-LabVms -VmNames $VmNames
-        $fleet = Wait-FleetCompletion -VmNames $VmNames -TimeoutMinutes ([int] $script:Config.timeouts.deploymentMinutes)
+        $fleet = Wait-FleetCompletion -VmNames $VmNames -TimeoutMinutes ([int] $script:Config.timeouts.deploymentMinutes) -PreferDeployedDisk:$KeepGuest
         $guest = New-Object System.Collections.Generic.List[object]
         foreach ($vmName in $VmNames) {
             $result = Get-GuestEvidence -VmName $vmName -Credential $Credential
