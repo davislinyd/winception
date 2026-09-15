@@ -191,6 +191,16 @@ test('Fleet wait heartbeat accepts an empty Fleet snapshot while services start'
   `);
   assert.deepEqual(JSON.parse(output),{phase:'fleet-wait',runCount:0,vmCount:1,heartbeat:''});
 });
+test('Fleet wait heartbeat reads a single Hyper-V Heartbeat service safely',()=>{
+  const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Write-FleetWaitHeartbeat'],`
+    function Get-VM {param($Name) [pscustomobject]@{State='Running'} }
+    function Get-VMIntegrationService {param($VMName,$Name) [pscustomobject]@{PrimaryStatusDescription='OK'} }
+    function Write-Evidence {param($Name,$Value) $script:written=$Value }
+    Write-FleetWaitHeartbeat -VmNames @('owned-vm') -Runs @()
+    $script:written.vms[0].heartbeat
+  `);
+  assert.equal(output,'OK');
+});
 test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`
     $script:foreign=$false;$script:checkpoint=$true;$script:vmId='owned'

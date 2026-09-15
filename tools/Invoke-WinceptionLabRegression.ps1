@@ -1622,11 +1622,9 @@ function Write-FleetWaitHeartbeat {
 
     $vmSnapshot = @($VmNames | ForEach-Object {
         $vm = Get-VM -Name $_ -ErrorAction SilentlyContinue
-        $heartbeatService = if ($vm) {
-            @(Get-VMIntegrationService -VMName $_ -Name 'Heartbeat' -ErrorAction SilentlyContinue | Select-Object -First 1)
-        }
-        else {
-            @()
+        $heartbeatService = @()
+        if ($vm) {
+            $heartbeatService = @(Get-VMIntegrationService -VMName $_ -Name 'Heartbeat' -ErrorAction SilentlyContinue | Select-Object -First 1)
         }
         $heartbeatText = ''
         if ($heartbeatService.Count -gt 0) {
