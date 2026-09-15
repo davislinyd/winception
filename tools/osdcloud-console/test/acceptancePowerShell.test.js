@@ -83,6 +83,8 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(fn,/Router LAN\/WAN MAC was not assigned before guest NAT setup/);
   assert.match(fn,/Set-VMProcessor -VMName \$name -Count 2 -ExposeVirtualizationExtensions \$true/);
   assert.match(fn,/router-processor-before\.json/);
+  assert.match(fn,/Set-VMFirmware -VMName \$name -FirstBootDevice \$hardDisk -ErrorAction Stop/);
+  assert.match(fn,/Router guest setup must boot the deployed hard disk, not PXE/);
   assert.match(fn,/Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All -NoRestart/);
   assert.match(fn,/shutdown\.exe \/r \/t 0 \/f/);
   assert.match(fn,/if \(\$restartState -eq 'Off'\)/);

@@ -1,18 +1,18 @@
 # Agent handoff — 2026-09-15 16:49
 
-## Active task — Router Hyper-V restart must recover an Off VM; network matrix blocked
+## Active task — Router guest setup must switch from PXE to deployed disk; network matrix blocked
 
-Codex executed the one authorized `20260915f` BootstrapRouter from `codex/easier-onboarding` at source commit `efa9052`. PXE and Fleet `windows-desktop-ready` passed; the owned Router was stopped, set to two vCPUs with nested virtualization On, and guest Hyper-V feature servicing ran. Its guest restart left the VM Off, so PowerShell Direct timed out after ten minutes. Cleanup and elevated post-cleanup ValidateOnly passed. Router Ready was not created, so `-Mode All -NetworkAcceptance` was not started. Commit `1ba36eb` now starts only the owned Router when that controlled restart leaves it Off and records `router-hyperv-restart.json`; this follow-up is not live-proven yet. Do **not** Create the router or retry deployment without a new explicit run decision. No master push, Release, or package. Physical/human remain independent.
+Codex executed the authorized `20260915g` BootstrapRouter from `codex/easier-onboarding` at source commit `1ba36eb`. Fleet and PowerShell Direct reached `windows-desktop-ready`; Router guest setup then stopped the owned VM, configured two vCPUs and nested virtualization, and failed to reconnect. The deployment round deliberately left firmware Network-first, so the guest setup restart returned to PXE instead of the deployed disk. `20260915g` is `Failed`, `cleanup=Passed`; Router Ready was not created and `-Mode All -NetworkAcceptance` was not started. Source now changes only the owned Router to its deployed hard disk before guest setup and verifies that boot source. This follow-up is not live-proven yet. Do **not** Create the router or retry deployment without a new explicit run decision. No master push, Release, or package. Physical/human remain independent.
 
 ### Git / workspace
 
-- Branch `codex/easier-onboarding`. `efa9052` is the restorable source commit used by `20260915f`; it adds guarded nested Hyper-V/WinNAT prerequisites. The restart recovery and current evidence/docs form the latest scoped source change; 30 focused Router/Lab tests and full Source acceptance pass. Keep `.ai/` untracked.
+- Branch `codex/easier-onboarding`. `1ba36eb` is the restorable source commit used by `20260915g`; it adds guarded nested Hyper-V/WinNAT prerequisites. The deployed-disk boot-source correction and current evidence/docs are the latest scoped source change; 30 focused Router/Lab tests and full Source acceptance pass. Keep `.ai/` untracked.
 - Local `master` `bdbe5ce` is one commit ahead of `origin/master` `847b79f`. Preserve it. Do not push master.
 - Baseline: `codex/baseline-acceptance-20260914` / onboarding baseline `bdbe5ce`. Lab orchestrator runs from the **clone**, not HostTools App.
 
 ### Live host (re-read immediately before any Lab)
 
-Verified after `20260915f` cleanup at 2026-09-15 16:48 +08. Elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` passed. Mutex **free**. Profile **IZVZO7PU**. All four deployment services stopped. Fleet retains the completed bootstrap run, with no active client. `bootMode=secureboot`. Endpoint `192.168.177.1/24` Server `.200–.250`. Current Preflight has 29 passing checks.
+Verified after `20260915g` cleanup at 2026-09-15 20:08 +08. Console is idle. Profile **IZVZO7PU**. All four deployment services stopped. `bootMode=secureboot`. Endpoint `192.168.177.1/24` Server `.200–.250`. Re-run elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` before any subsequent Lab.
 - Six VMs Off. Resting firmware: `01..04` SB On + TPM On; iPXE SB Off + TPM Off; router SB On + TPM On.
 - Checkpoints: **Winception-Clean only**. `Winception-Router-Ready` is still missing. `ValidateOnly -RequireRouter` will fail until bootstrap creates it.
 - Installed App last reload **`14e0f82`** (backup `HostTools-State-20260915-020746-801`). That load has the OOBE Apps/`selected-profile.json` fix in `boot.wim`. Current Router changes are Lab-script only (`tools/lib/LabRouter.ps1`); do not reload HostTools for them.
@@ -20,9 +20,9 @@ Verified after `20260915f` cleanup at 2026-09-15 16:48 +08. Elevated `Initialize
 
 ### Exact next steps
 
-1. Do not run `-RequireRouter` or the network matrix: `Winception-Router-Ready` is absent. Preserve `acceptance-router-bootstrap-20260915f` as failed evidence (`status=Failed`, `cleanup=Passed`).
-2. Run focused PowerShell/Lab tests and `npm run acceptance:source` for the restart recovery. Review and commit only scoped source/docs; keep `.ai/` untracked.
-3. A future explicitly authorized bootstrap must use a new evidence root. It may start only the owned Router if Hyper-V feature servicing leaves it Off, then must prove guest feature Enabled, `MSFT_NetNat`, LAN `.254`, WAN Default Switch, WinNAT/DHCP, Router Ready, and cleanup. Zero automatic retry.
+1. Do not run `-RequireRouter` or the network matrix: `Winception-Router-Ready` is absent. Preserve `acceptance-router-bootstrap-20260915g` as failed evidence (`status=Failed`, `cleanup=Passed`).
+2. Review and commit the deployed-disk boot-source correction after its focused tests and `npm run acceptance:source`; keep `.ai/` untracked.
+3. A future explicitly authorized bootstrap must use a new evidence root. It must first prove the owned Router booted the deployed disk, then prove guest feature Enabled, `MSFT_NetNat`, LAN `.254`, WAN Default Switch, WinNAT/DHCP, Router Ready, and cleanup. Zero automatic retry.
 4. After Router Ready exists: elevated `Initialize-WinceptionLab.ps1 -ValidateOnly -RequireRouter`, then a new unique evidence root for `-Mode All -NetworkAcceptance` (original seven firmware deployments + Proxy/Server two + rejection; zero retries). Physical/human stay NotRun/Blocked.
 
 ### Paid-for pitfalls (do not regress)
@@ -30,7 +30,7 @@ Verified after `20260915f` cleanup at 2026-09-15 16:48 +08. Elevated `Initialize
 - Cleanup `POST /api/endpoint` must use `Get-ConsoleTimeoutSec` and `Wait-ConsoleIdle` before boot-mode/status (`9dcc164`). The 20260914 23:05/`00:11` `cleanup=Failed` was a 30s vs ~81s `boot.wim` remount race; live host was restored.
 - After checkpoint restore, assign collision-checked static MAC then **re-apply Network FirstBootDevice** even if Network is already first (`5b183b2`). Otherwise firmware path stays `MAC(000000000000)` and PXE can miss WinPE (20260915b).
 - WinPE `Invoke-OobeCustomization.ps1`: copy Apps **before** `Get-TestAutoLogonCount`; missing Winlogon `reg.exe delete` must not terminate under Stop (`1a9fb85`). Prefer an Apps tree that contains **`selected-profile.json`** over `X:\OSDCloud\Apps` (`14e0f82`). 20260915a died on `reg.exe`; 20260915c applied Windows then sat at logon for an hour.
-- Router guest NAT: `34ede0c` proved that ignoring `Get-NetNat Invalid class` is insufficient. `efa9052` enabled nested virtualization and guest Hyper-V, but `20260915f` proved guest feature servicing can leave the VM Off instead of automatically returning to Running. Future runs must record the controlled host start and collect NAT diagnostics before cleanup. Do not alter any foreign VM or host networking.
+- Router guest NAT: `34ede0c` proved that ignoring `Get-NetNat Invalid class` is insufficient. `20260915g` proved guest setup cannot start with the deployment round's Network-first firmware; it must switch only the owned Router to its deployed disk before PowerShell Direct. Future runs must record the controlled boot source, restart and NAT diagnostics before cleanup. Do not alter any foreign VM or host networking.
 - Lab mutex `Global\Winception-AutoLab`. Do not start a second Lab while it is held. Do not kill elevated runners to make a gate pass. Grok/Codex shells are usually unelevated; Hyper-V TPM / `npm run reload` / ValidateOnly need `Start-Process -Verb RunAs`. Do not use a 10-minute wrapper timeout around `Start-Process -Wait` (it can kill the job object).
 - `.ai/` helpers and evidence configs stay untracked. Secrets stay out of Git.
 
@@ -45,8 +45,9 @@ Verified after `20260915f` cleanup at 2026-09-15 16:48 +08. Elevated `Initialize
 | 20260915d | `14e0f82` wim | **desktop-ready** 344s; guest NAT `Invalid class`; cleanup Passed | Get-NetNat under Stop. Run `20260915-101359`. Profile `X4FO83YV`. |
 | 20260915e | `6937f23` worktree / `34ede0c` NAT code | **desktop-ready**; guest `New-NetNat Invalid class`; **cleanup Passed** | Run `20260915-115114`; profile `HDTYAZI0`; Router Ready absent. |
 | 20260915f | `efa9052` | **desktop-ready**; nested On; guest Hyper-V restart left VM Off; **cleanup Passed** | Run `20260915-161816`; PowerShell Direct restart timeout; Router Ready absent. |
+| 20260915g | `1ba36eb` | **desktop-ready**; guest setup re-entered PXE; **cleanup Passed** | Run `20260915-193921`; PowerShell Direct timeout before feature/CIM setup; Router Ready absent. |
 
-Current evidence: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260915f`. The result is `Failed`, `cleanup=Passed`; it failed before the post-restart feature/CIM probe and NAT configuration. Do not reuse this evidence root.
+Current evidence: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260915g`. The result is `Failed`, `cleanup=Passed`; it failed before the feature/CIM probe and NAT configuration. Do not reuse this evidence root.
 
 ## Previous completed milestone — One laptop, anywhere onboarding
 

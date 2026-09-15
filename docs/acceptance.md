@@ -32,7 +32,7 @@
 
 master 不自動建立 router，缺少 ready checkpoint 則 Blocked。專用 runner 工作上限 240 分鐘、單次部署 60 分鐘、零自動重試；共享既有 Global\Winception-AutoLab mutex，禁止並行實體／VM 部署。
 
-winception-autolab-router 為 Gen2、固定 4 GiB、Secure Boot／TPM On；LAN 接 Internal Winception-AutoLab、192.168.177.254/24，WAN 只接 Default Switch 作上游。明確 bootstrap 會在 owned VM 關機時設定兩顆 vCPU 與 nested virtualization，於 guest 啟用 Hyper-V 並受控重開機；若 feature servicing 讓 VM 停在 Off，runner 只啟動這台 owned VM 並保存 restart 證據。`MSFT_NetNat` 存在後才可建立 WinNAT／Ready checkpoint。ownership 綁定 VM GUID、State-owned VHD parent chain、介面、DHCP 工具 hash、Winception-Clean／Winception-Router-Ready。未知 VM、外来 DHCP、錯誤 endpoint、缺 checkpoint 阻擋，不修復 foreign 網路。
+winception-autolab-router 為 Gen2、固定 4 GiB、Secure Boot／TPM On；LAN 接 Internal Winception-AutoLab、192.168.177.254/24，WAN 只接 Default Switch 作上游。明確 bootstrap 會在 owned VM 關機時設定兩顆 vCPU 與 nested virtualization，將 firmware 暫時改為部署後硬碟後才進入 guest setup，於 guest 啟用 Hyper-V 並受控重開機；若 feature servicing 讓 VM 停在 Off，runner 只啟動這台 owned VM 並保存 restart 證據。`MSFT_NetNat` 存在後才可建立 WinNAT／Ready checkpoint。ownership 綁定 VM GUID、State-owned VHD parent chain、介面、DHCP 工具 hash、Winception-Clean／Winception-Router-Ready。未知 VM、外来 DHCP、錯誤 endpoint、缺 checkpoint 阻擋，不修復 foreign 網路。
 
 首次使用既有映像、test-only profile 部署 router，PowerShell Direct 安裝獨立 DHCP／guest NAT 並建立 ready checkpoint。guest NAT 失敗時，在還原 VM 前保存 WinNat service、`MSFT_NetNat` CIM class、相關 Windows feature、網卡／IPv4 與 System events。獨立 DHCP 不提供 PXE 選項，分配 .100–.149；Proxy 核准限本輪指定 VM 的 MAC、新 boot request 與來源 IP。另測拒絕後無憑證／開始安裝。Server 輪必須停止獨立 DHCP，由 Winception 分配 .200–.250。兩輪 gateway .254、DNS 1.1.1.1/8.8.8.8，停止部署服務後仍須 DNS／有效憑證 HTTPS 成功。
 

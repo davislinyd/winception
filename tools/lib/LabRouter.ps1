@@ -80,6 +80,12 @@ function Initialize-LabRouterGuest {
     if ($processor.Count -lt 2 -or -not $processor.ExposeVirtualizationExtensions) {
         throw 'Router nested virtualization could not be enabled.'
     }
+    $hardDisk = Get-VMHardDiskDrive -VMName $name -ErrorAction Stop
+    Set-VMFirmware -VMName $name -FirstBootDevice $hardDisk -ErrorAction Stop
+    $firmware = Get-VMFirmware -VMName $name -ErrorAction Stop
+    if (-not $firmware.BootOrder -or $firmware.BootOrder[0].Device.Id -ne $hardDisk.Id) {
+        throw 'Router guest setup must boot the deployed hard disk, not PXE.'
+    }
     Start-VM -Name $name -ErrorAction Stop
     $session = New-LabRouterPSSession -VmName $name -Credential $Credential
     try {
