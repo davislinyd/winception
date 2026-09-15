@@ -37,6 +37,7 @@ $script:AcceptanceOriginalProfile = $null
 $script:AcceptanceSavedState = $null
 $script:MutationStarted = $false
 $script:RoundClientMacs = @()
+$script:LastFleetWaitHeartbeatAt = [DateTimeOffset]::MinValue
 $script:SavedEnvironment = @{}
 $script:SelectedVms = @()
 

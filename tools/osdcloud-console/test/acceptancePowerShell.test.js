@@ -183,7 +183,6 @@ test('Fleet wait emits bounded redacted heartbeat evidence for active monitoring
 });
 test('Fleet wait heartbeat accepts an empty Fleet snapshot while services start',()=>{
   const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Write-FleetWaitHeartbeat'],`
-    $script:LastFleetWaitHeartbeatAt=[DateTimeOffset]::MinValue
     function Get-VM {param($Name) [pscustomobject]@{State='Off'} }
     function Get-VMIntegrationService {param($VMName,$Name) [pscustomobject]@{PrimaryStatusDescription='OK'} }
     function Write-Evidence {param($Name,$Value) $script:written=$Value }
