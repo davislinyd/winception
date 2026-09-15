@@ -1622,13 +1622,23 @@ function Write-FleetWaitHeartbeat {
 
     $vmSnapshot = @($VmNames | ForEach-Object {
         $vm = Get-VM -Name $_ -ErrorAction SilentlyContinue
+        $heartbeatService = if ($vm) {
+            @(Get-VMIntegrationService -VMName $_ -Name 'Heartbeat' -ErrorAction SilentlyContinue | Select-Object -First 1)
+        }
+        else {
+            @()
+        }
+        $heartbeatText = ''
+        if ($heartbeatService.Count -gt 0) {
+            $heartbeatProperty = $heartbeatService[0].PSObject.Properties['PrimaryStatusDescription']
+            if ($heartbeatProperty) {
+                $heartbeatText = [string] $heartbeatProperty.Value
+            }
+        }
         [ordered]@{
             vmName = $_
             state = if ($vm) { [string] $vm.State } else { 'Missing' }
-            heartbeat = if ($vm) {
-                [string] ((Get-VMIntegrationService -VMName $_ -Name 'Heartbeat' -ErrorAction SilentlyContinue | Select-Object -First 1).PrimaryStatusDescription)
-            }
-            else { '' }
+            heartbeat = $heartbeatText
         }
     })
     $runSnapshot = @($Runs | ForEach-Object {
