@@ -2,11 +2,11 @@
 
 ## Active task — one BootstrapRouter after guest NAT CIM fix (`34ede0c`)
 
-Codex continues `codex/easier-onboarding` at **`34ede0c`**. Router PXE deploy now reaches `windows-desktop-ready`. The last failure is guest `Get-NetNat`/`New-NetNat` `Invalid class` after desktop-ready. That source fix is committed and **not yet Lab-proven**. Do **not** Create the router. Zero retries. No master push, Release, or package. Physical/human remain independent.
+Codex continues `codex/easier-onboarding` at **`40e9508`**; executable NAT fix is **`34ede0c`**. Router PXE deploy now reaches `windows-desktop-ready`. The last failure is guest `Get-NetNat`/`New-NetNat` `Invalid class` after desktop-ready. That source fix is committed and **not yet Lab-proven**. Do **not** Create the router. Zero retries. No master push, Release, or package. Physical/human remain independent.
 
 ### Git / workspace
 
-- Branch `codex/easier-onboarding`. HEAD `34ede0c` `fix: tolerate missing NetNat class in router guest`.
+- Branch `codex/easier-onboarding`. HEAD `40e9508` is the Grok handoff rewrite; executable NAT fix `34ede0c` remains not Lab-proven.
 - Worktree clean except untracked `.ai/`. Do not commit `.ai/`.
 - Local `master` `bdbe5ce` is one commit ahead of `origin/master` `847b79f`. Preserve it. Do not push master.
 - Baseline: `codex/baseline-acceptance-20260914` / onboarding baseline `bdbe5ce`. Lab orchestrator runs from the **clone**, not HostTools App.
