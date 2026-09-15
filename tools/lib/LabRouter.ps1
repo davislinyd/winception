@@ -52,43 +52,80 @@ function Initialize-LabRouterGuest {
         $node = (Get-Command node.exe -ErrorAction Stop).Source
         Copy-Item -LiteralPath $node -Destination 'C:\ProgramData\WinceptionLabRouter\node.exe' -ToSession $session
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'tools\acceptance\router-dhcp.mjs') -Destination 'C:\ProgramData\WinceptionLabRouter\router-dhcp.mjs' -ToSession $session
-        Invoke-Command -Session $session -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
-            param($LanMac,$WanMac)
-            $ErrorActionPreference = 'Stop'
-            $deadline = [DateTime]::UtcNow.AddSeconds(30)
-            $lan = $null
-            $wan = $null
-            do {
-                $lan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $LanMac}
-                $wan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $WanMac}
-                if ($lan -and $wan) { break }
-                Start-Sleep -Seconds 2
-            } while ([DateTime]::UtcNow -lt $deadline)
-            if (-not $lan -or -not $wan) { throw 'Router guest adapters missing' }
-            Get-NetIPAddress -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue|Remove-NetIPAddress -Confirm:$false
-            Set-NetIPInterface -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -Dhcp Disabled -Forwarding Enabled
-            New-NetIPAddress -InterfaceIndex $lan.ifIndex -IPAddress 192.168.177.254 -PrefixLength 24 | Out-Null
-            Set-NetIPInterface -InterfaceIndex $wan.ifIndex -AddressFamily IPv4 -Forwarding Enabled
-            Set-DnsClientServerAddress -InterfaceIndex $lan.ifIndex -ServerAddresses @('1.1.1.1','8.8.8.8')
-            Get-Service -Name WinNat -ErrorAction SilentlyContinue | Start-Service -ErrorAction SilentlyContinue
-            $existingNat = @()
-            try {
-                $existingNat = @(Get-NetNat -ErrorAction Stop)
-            } catch {
-                if ($_.Exception.Message -notmatch 'Invalid class') { throw }
+        try {
+            Invoke-Command -Session $session -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
+                param($LanMac,$WanMac)
+                $ErrorActionPreference = 'Stop'
+                $deadline = [DateTime]::UtcNow.AddSeconds(30)
+                $lan = $null
+                $wan = $null
+                do {
+                    $lan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $LanMac}
+                    $wan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $WanMac}
+                    if ($lan -and $wan) { break }
+                    Start-Sleep -Seconds 2
+                } while ([DateTime]::UtcNow -lt $deadline)
+                if (-not $lan -or -not $wan) { throw 'Router guest adapters missing' }
+                Get-NetIPAddress -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue|Remove-NetIPAddress -Confirm:$false
+                Set-NetIPInterface -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -Dhcp Disabled -Forwarding Enabled
+                New-NetIPAddress -InterfaceIndex $lan.ifIndex -IPAddress 192.168.177.254 -PrefixLength 24 | Out-Null
+                Set-NetIPInterface -InterfaceIndex $wan.ifIndex -AddressFamily IPv4 -Forwarding Enabled
+                Set-DnsClientServerAddress -InterfaceIndex $lan.ifIndex -ServerAddresses @('1.1.1.1','8.8.8.8')
+                Get-Service -Name WinNat -ErrorAction SilentlyContinue | Start-Service -ErrorAction SilentlyContinue
+                $existingNat = @()
+                try {
+                    $existingNat = @(Get-NetNat -ErrorAction Stop)
+                } catch {
+                    if ($_.Exception.Message -notmatch 'Invalid class') { throw }
+                }
+                if ($existingNat.Count) { throw 'Router guest contains unexpected NAT' }
+                try {
+                    New-NetNat -Name WinceptionLabRouterNAT -InternalIPInterfaceAddressPrefix '192.168.177.0/24'|Out-Null
+                } catch {
+                    throw "Router New-NetNat failed: $($_.Exception.Message.Trim())"
+                }
+                $broadcast=Get-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -ErrorAction SilentlyContinue
+                if($broadcast){$broadcast|Set-NetRoute -RouteMetric 1}else{New-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -NextHop '0.0.0.0' -RouteMetric 1|Out-Null}
+                New-NetFirewallRule -Name WinceptionLabRouterDHCP -Direction Inbound -Action Allow -Protocol UDP -LocalPort 67 -InterfaceAlias $lan.Name|Out-Null
+                @{serverIp='192.168.177.254';dnsServers=@('1.1.1.1','8.8.8.8');leasePath='C:\ProgramData\WinceptionLabRouter\leases.json'}|ConvertTo-Json|Set-Content C:\ProgramData\WinceptionLabRouter\dhcp.json
+                Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue
+                Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -ErrorAction SilentlyContinue
             }
-            if ($existingNat.Count) { throw 'Router guest contains unexpected NAT' }
+        } catch {
+            $setupError = $_
             try {
-                New-NetNat -Name WinceptionLabRouterNAT -InternalIPInterfaceAddressPrefix '192.168.177.0/24'|Out-Null
+                $diagnostics = Invoke-Command -Session $session -ScriptBlock {
+                    $service = Get-CimInstance Win32_Service -Filter "Name='WinNat'" -ErrorAction SilentlyContinue
+                    $cimError = ''
+                    $cimClass = $null
+                    try {
+                        $cimClass = Get-CimClass -Namespace root/StandardCimv2 -ClassName MSFT_NetNat -ErrorAction Stop
+                    } catch {
+                        $cimError = $_.Exception.Message
+                    }
+                    [pscustomobject]@{
+                        capturedAt = [DateTimeOffset]::Now.ToString('o')
+                        winNatService = if ($service) { [pscustomobject]@{ state = $service.State; startMode = $service.StartMode; exitCode = $service.ExitCode } } else { $null }
+                        cimClassPresent = [bool]$cimClass
+                        cimClassError = $cimError
+                        netNatModule = @(Get-Module -ListAvailable NetNat | Select-Object Name, Version)
+                        optionalFeatures = @(@('Microsoft-Hyper-V-All', 'Containers') | ForEach-Object {
+                            Get-WindowsOptionalFeature -Online -FeatureName $_ -ErrorAction SilentlyContinue |
+                                Select-Object FeatureName, State
+                        })
+                        adapters = @(Get-NetAdapter | Select-Object Name, Status, MacAddress, InterfaceIndex)
+                        addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object InterfaceIndex, IPAddress, PrefixLength)
+                        systemEvents = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; StartTime = (Get-Date).AddMinutes(-15) } -ErrorAction SilentlyContinue |
+                            Where-Object { $_.ProviderName -match 'WinNat|HNS|Tcpip|NetworkProfile' } |
+                            Select-Object -First 50 TimeCreated, Id, LevelDisplayName, ProviderName, Message)
+                    }
+                }
+                $diagnostics | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-nat-diagnostics.json') -Encoding UTF8
             } catch {
-                throw "Router New-NetNat failed: $($_.Exception.Message.Trim())"
+                [pscustomobject]@{ capturedAt = [DateTimeOffset]::Now.ToString('o'); error = 'Guest NAT diagnostics could not be collected.' } |
+                    ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-nat-diagnostics.json') -Encoding UTF8
             }
-            $broadcast=Get-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -ErrorAction SilentlyContinue
-            if($broadcast){$broadcast|Set-NetRoute -RouteMetric 1}else{New-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -NextHop '0.0.0.0' -RouteMetric 1|Out-Null}
-            New-NetFirewallRule -Name WinceptionLabRouterDHCP -Direction Inbound -Action Allow -Protocol UDP -LocalPort 67 -InterfaceAlias $lan.Name|Out-Null
-            @{serverIp='192.168.177.254';dnsServers=@('1.1.1.1','8.8.8.8');leasePath='C:\ProgramData\WinceptionLabRouter\leases.json'}|ConvertTo-Json|Set-Content C:\ProgramData\WinceptionLabRouter\dhcp.json
-            Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue
-            Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -ErrorAction SilentlyContinue
+            throw $setupError
         }
     } finally { Remove-PSSession $session }
     Stop-VM -Name $name -Force -ErrorAction Stop

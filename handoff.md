@@ -1,19 +1,19 @@
-# Agent handoff — 2026-09-15 10:45
+# Agent handoff — 2026-09-15 12:12
 
-## Active task — one BootstrapRouter after guest NAT CIM fix (`34ede0c`)
+## Active task — Router guest lacks usable `MSFT_NetNat`; network matrix blocked
 
-Codex continues `codex/easier-onboarding` at **`40e9508`**; executable NAT fix is **`34ede0c`**. Router PXE deploy now reaches `windows-desktop-ready`. The last failure is guest `Get-NetNat`/`New-NetNat` `Invalid class` after desktop-ready. That source fix is committed and **not yet Lab-proven**. Do **not** Create the router. Zero retries. No master push, Release, or package. Physical/human remain independent.
+Codex executed the one authorized `20260915e` BootstrapRouter from `codex/easier-onboarding`. PXE, Fleet `windows-desktop-ready` and PowerShell Direct passed, but guest `New-NetNat` still failed with the expected prefix: **`Router New-NetNat failed: Invalid class`**. Cleanup passed. Router Ready was not created, so `-Mode All -NetworkAcceptance` was not started. Do **not** Create the router or retry this deployment without a new explicit run decision. No master push, Release, or package. Physical/human remain independent.
 
 ### Git / workspace
 
-- Branch `codex/easier-onboarding`. HEAD `40e9508` is the Grok handoff rewrite; executable NAT fix `34ede0c` remains not Lab-proven.
-- Worktree clean except untracked `.ai/`. Do not commit `.ai/`.
+- Branch `codex/easier-onboarding`. Baseline before this run record was `6937f23`; executable NAT change under test was `34ede0c`.
+- Source now collects guest NAT diagnostics before cleanup on any future failure. Focused PowerShell/Lab tests pass. Verify the final scoped commit and keep `.ai/` untracked.
 - Local `master` `bdbe5ce` is one commit ahead of `origin/master` `847b79f`. Preserve it. Do not push master.
 - Baseline: `codex/baseline-acceptance-20260914` / onboarding baseline `bdbe5ce`. Lab orchestrator runs from the **clone**, not HostTools App.
 
 ### Live host (re-read immediately before any Lab)
 
-Verified 2026-09-15 10:45 +08. Mutex **free**. Profile **IZVZO7PU**. HTTP/DHCP stopped. Fleet 0. `bootMode=secureboot`. Endpoint `192.168.177.1/24` Server `.200–.250`. Last op completed Clearing status files.
+Verified after cleanup at 2026-09-15 12:11 +08. Elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` passed. Mutex **free**. Profile **IZVZO7PU**. All four deployment services stopped. Fleet 0. `bootMode=secureboot`. Endpoint `192.168.177.1/24` Server `.200–.250`. Current Preflight has 29 passing checks.
 - Six VMs Off. Resting firmware: `01..04` SB On + TPM On; iPXE SB Off + TPM Off; router SB On + TPM On.
 - Checkpoints: **Winception-Clean only**. `Winception-Router-Ready` is still missing. `ValidateOnly -RequireRouter` will fail until bootstrap creates it.
 - Installed App last reload **`14e0f82`** (backup `HostTools-State-20260915-020746-801`). That load has the OOBE Apps/`selected-profile.json` fix in `boot.wim`. **`34ede0c` is Lab-script only** (`tools/lib/LabRouter.ps1`); do not reload HostTools for it.
@@ -21,17 +21,17 @@ Verified 2026-09-15 10:45 +08. Mutex **free**. Profile **IZVZO7PU**. HTTP/DHCP s
 
 ### Exact next steps
 
-1. Re-read live adapter/API/VMs/mutex. Host must be idle. Elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` (not `-RequireRouter`). Unique ignored config + evidence root **`acceptance-router-bootstrap-20260915e`**. One `Invoke-WinceptionLabRegression.ps1 -BootstrapRouter`. Do not Create the router VM.
-2. Require: Fleet `windows-desktop-ready` + PowerShell Direct (same bar as 20260915d), then `Initialize-LabRouterGuest` success: LAN `.254/24`, WAN Default Switch, WinNAT, independent DHCP tools, **Winception-Router-Ready**, cleanupPassed. If `New-NetNat` still fails, stop and diagnose the prefixed `Router New-NetNat failed:` message. No automatic retry.
-3. Only after Ready exists: `Initialize-WinceptionLab.ps1 -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance` with another unique evidence root (original 7 firmware positives + Proxy/Server 2 + rejection; zero retries).
-4. Update result JSON/HTML, TEST-RESULT/manuals if behavior changed, this handoff, `.ai/status.json`, scoped commits on `codex/easier-onboarding`. Physical/human stay NotRun/Blocked (no present Ethernet/USB Ethernet NIC / disposable client window). Foreign host ICS and NAT 77/88 stay untouched.
+1. Do not run `-RequireRouter` or the network matrix: `Winception-Router-Ready` is absent. Preserve `acceptance-router-bootstrap-20260915e` as the failed/current evidence root.
+2. Resolve the guest prerequisite before another deployment. Microsoft documents Hyper-V as a WinNAT requirement; the deployed Windows 11 Pro router profile did not explicitly enable Hyper-V. Decide and implement a guarded bootstrap phase that proves the required feature/provider and handles its reboot, including nested-virtualization requirements, or select another supported router implementation. Do not infer the cause from `Invalid class` alone.
+3. The next authorized failure must emit `router-nat-diagnostics.json` before cleanup with WinNat service state, `MSFT_NetNat`, feature state, adapters/IPs and relevant System events. Only a successful single bootstrap may create `Winception-Router-Ready`.
+4. After Router Ready exists: elevated `Initialize-WinceptionLab.ps1 -ValidateOnly -RequireRouter`, then a new unique evidence root for `-Mode All -NetworkAcceptance` (original seven firmware deployments + Proxy/Server two + rejection; zero retries). Physical/human stay NotRun/Blocked.
 
 ### Paid-for pitfalls (do not regress)
 
 - Cleanup `POST /api/endpoint` must use `Get-ConsoleTimeoutSec` and `Wait-ConsoleIdle` before boot-mode/status (`9dcc164`). The 20260914 23:05/`00:11` `cleanup=Failed` was a 30s vs ~81s `boot.wim` remount race; live host was restored.
 - After checkpoint restore, assign collision-checked static MAC then **re-apply Network FirstBootDevice** even if Network is already first (`5b183b2`). Otherwise firmware path stays `MAC(000000000000)` and PXE can miss WinPE (20260915b).
 - WinPE `Invoke-OobeCustomization.ps1`: copy Apps **before** `Get-TestAutoLogonCount`; missing Winlogon `reg.exe delete` must not terminate under Stop (`1a9fb85`). Prefer an Apps tree that contains **`selected-profile.json`** over `X:\OSDCloud\Apps` (`14e0f82`). 20260915a died on `reg.exe`; 20260915c applied Windows then sat at logon for an hour.
-- Router guest NAT: wait for real LAN/WAN MACs (not `000000000000`), start WinNat, catch Get-NetNat `Invalid class`, prefix New-NetNat failures (`34ede0c`). 20260915d desktop-ready then died here. Cleanup does **not** restore the router VM; the next round start does.
+- Router guest NAT: `34ede0c` proved that ignoring `Get-NetNat Invalid class` is insufficient; `New-NetNat` also fails because `MSFT_NetNat` is unavailable. Future runs collect diagnostics before finally cleanup. Do not enable host/guest features or nested virtualization implicitly.
 - Lab mutex `Global\Winception-AutoLab`. Do not start a second Lab while it is held. Do not kill elevated runners to make a gate pass. Grok/Codex shells are usually unelevated; Hyper-V TPM / `npm run reload` / ValidateOnly need `Start-Process -Verb RunAs`. Do not use a 10-minute wrapper timeout around `Start-Process -Wait` (it can kill the job object).
 - `.ai/` helpers and evidence configs stay untracked. Secrets stay out of Git.
 
@@ -44,9 +44,9 @@ Verified 2026-09-15 10:45 +08. Mutex **free**. Profile **IZVZO7PU**. HTTP/DHCP s
 | 20260915b | `1a9fb85` in wim | Fleet 0 for 60 min | PXE never reached WinPE; firmware MAC zeros |
 | 20260915c | `5b183b2` clone | PXE+apply; awaiting-logon; Fleet timeout | Copied `X:\OSDCloud\Apps` without `selected-profile.json` |
 | 20260915d | `14e0f82` wim | **desktop-ready** 344s; guest NAT `Invalid class`; cleanup Passed | Get-NetNat under Stop. Run `20260915-101359`. Profile `X4FO83YV`. |
-| 20260915e | **next** `34ede0c` clone | not run | NAT CIM + MAC wait |
+| 20260915e | `6937f23` worktree / `34ede0c` NAT code | **desktop-ready**; guest `New-NetNat Invalid class`; **cleanup Passed** | Run `20260915-115114`; profile `HDTYAZI0`; Router Ready absent. |
 
-Ignored launcher pattern: `.ai/acceptance-continue-20260915d.ps1` + unique `*-config.json`. Copy to `20260915e`. Do not reuse an evidence root.
+Evidence: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260915e`. The result is `Failed`, `cleanup=Passed`; this run predates the new guest diagnostic collector, so WinNat/CIM/feature/event detail is unavailable after VM restore. Do not reuse this evidence root.
 
 ## Previous completed milestone — One laptop, anywhere onboarding
 

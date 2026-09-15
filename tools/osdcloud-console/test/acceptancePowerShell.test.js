@@ -85,6 +85,10 @@ test('router guest NAT setup waits for MACs and does not let Get-NetNat Invalid 
   assert.match(fn,/Invalid class/);
   assert.match(fn,/Get-NetNat -ErrorAction Stop/);
   assert.match(fn,/Router New-NetNat failed/);
+  assert.match(fn,/Get-CimClass -Namespace root\/StandardCimv2 -ClassName MSFT_NetNat/);
+  assert.match(fn,/Get-WindowsOptionalFeature -Online/);
+  assert.match(fn,/router-nat-diagnostics\.json/);
+  assert.match(fn,/Get-WinEvent -FilterHashtable/);
 });
 test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`
