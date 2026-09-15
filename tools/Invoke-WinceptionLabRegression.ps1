@@ -1212,6 +1212,9 @@ function Restore-LabCheckpoint {
         try {
             $startedAt = Get-Date
             if ([string] (Get-VM -Name $vmName -ErrorAction Stop).State -ne 'Off') { throw 'VM is not Off.' }
+            # Hyper-V may still be committing the preceding stop/configuration transaction.
+            # Let VMMS settle before asking it to switch checkpoint storage.
+            Start-Sleep -Seconds 2
             Restore-VMSnapshot -VMName $vmName -Name ([string] $script:Config.checkpointName) -Confirm:$false -ErrorAction Stop
             $settled = $false
             $previousSource = ''

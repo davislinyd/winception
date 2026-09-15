@@ -352,6 +352,7 @@ function Stop-LabRouter {
     if (Get-VM -Name winception-autolab-router -ErrorAction SilentlyContinue) {
         Assert-LabRouterOwnership $Config | Out-Null
         Stop-VM -Name winception-autolab-router -TurnOff -Force -Confirm:$false
+        Start-Sleep -Seconds 2
         if (Get-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -ErrorAction SilentlyContinue) {
             Restore-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -Confirm:$false
             Set-VMFirmware -VMName winception-autolab-router -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice (Get-VMHardDiskDrive -VMName winception-autolab-router)
@@ -361,6 +362,7 @@ function Stop-LabRouter {
             $wan = Get-VMNetworkAdapter -VMName winception-autolab-router -Name WAN -ErrorAction SilentlyContinue
             if ($wan) {
                 Remove-VMNetworkAdapter -VMName winception-autolab-router -Name WAN -Confirm:$false -ErrorAction Stop
+                Start-Sleep -Seconds 2
             }
             Restore-LabCheckpoint -VmNames @('winception-autolab-router')
             $processorEvidence = Join-Path $Config.evidenceRoot 'router-processor-before.json'
