@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Router guest NAT setup waits for real LAN/WAN MACs, starts WinNat, and treats a missing `Get-NetNat` CIM class as empty instead of a terminating `Invalid class` error.
+
 - WinPE OOBE customization prefers an Apps source that contains `selected-profile.json` (the published SMB payload) over the template `X:\OSDCloud\Apps` tree, so test-only auto-logon is actually injected.
 
 - Lab rounds re-apply the current-adapter Network firmware source as first boot after assigning the collision-checked static MAC, even when Network is already first, so PXE is not left bound to `MAC(000000000000)` from checkpoint restore.

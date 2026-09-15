@@ -33,26 +33,56 @@ function Initialize-LabRouterGuest {
     $name = 'winception-autolab-router'
     Assert-LabRouterOwnership $Config | Out-Null
     if (-not (Get-VMNetworkAdapter -VMName $name -Name WAN -ErrorAction SilentlyContinue)) { Add-VMNetworkAdapter -VMName $name -Name WAN -SwitchName 'Default Switch' }
-    $nics = @(Get-VMNetworkAdapter -VMName $name)
+    $wanMac = ''
+    $lanMac = ''
+    $nicDeadline = [DateTime]::UtcNow.AddSeconds(20)
+    do {
+        $nics = @(Get-VMNetworkAdapter -VMName $name)
+        $lanMac = [string]($nics | Where-Object Name -eq LAN).MacAddress
+        $wanMac = [string]($nics | Where-Object Name -eq WAN).MacAddress
+        if ($lanMac -and $wanMac -and $lanMac -ne '000000000000' -and $wanMac -ne '000000000000') { break }
+        Start-Sleep -Seconds 1
+    } while ([DateTime]::UtcNow -lt $nicDeadline)
+    if (-not $lanMac -or -not $wanMac -or $lanMac -eq '000000000000' -or $wanMac -eq '000000000000') {
+        throw 'Router LAN/WAN MAC was not assigned before guest NAT setup.'
+    }
     $session = New-PSSession -VMName $name -Credential $Credential -ErrorAction Stop
     try {
         Invoke-Command -Session $session -ScriptBlock { New-Item C:\ProgramData\WinceptionLabRouter -ItemType Directory -Force | Out-Null }
         $node = (Get-Command node.exe -ErrorAction Stop).Source
         Copy-Item -LiteralPath $node -Destination 'C:\ProgramData\WinceptionLabRouter\node.exe' -ToSession $session
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'tools\acceptance\router-dhcp.mjs') -Destination 'C:\ProgramData\WinceptionLabRouter\router-dhcp.mjs' -ToSession $session
-        Invoke-Command -Session $session -ArgumentList @([string]($nics|Where-Object Name -eq LAN).MacAddress,[string]($nics|Where-Object Name -eq WAN).MacAddress) -ScriptBlock {
+        Invoke-Command -Session $session -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
             param($LanMac,$WanMac)
             $ErrorActionPreference = 'Stop'
-            $lan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $LanMac}
-            $wan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $WanMac}
+            $deadline = [DateTime]::UtcNow.AddSeconds(30)
+            $lan = $null
+            $wan = $null
+            do {
+                $lan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $LanMac}
+                $wan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $WanMac}
+                if ($lan -and $wan) { break }
+                Start-Sleep -Seconds 2
+            } while ([DateTime]::UtcNow -lt $deadline)
             if (-not $lan -or -not $wan) { throw 'Router guest adapters missing' }
             Get-NetIPAddress -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue|Remove-NetIPAddress -Confirm:$false
             Set-NetIPInterface -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -Dhcp Disabled -Forwarding Enabled
             New-NetIPAddress -InterfaceIndex $lan.ifIndex -IPAddress 192.168.177.254 -PrefixLength 24 | Out-Null
             Set-NetIPInterface -InterfaceIndex $wan.ifIndex -AddressFamily IPv4 -Forwarding Enabled
             Set-DnsClientServerAddress -InterfaceIndex $lan.ifIndex -ServerAddresses @('1.1.1.1','8.8.8.8')
-            if (@(Get-NetNat -ErrorAction SilentlyContinue).Count) { throw 'Router guest contains unexpected NAT' }
-            New-NetNat -Name WinceptionLabRouterNAT -InternalIPInterfaceAddressPrefix '192.168.177.0/24'|Out-Null
+            Get-Service -Name WinNat -ErrorAction SilentlyContinue | Start-Service -ErrorAction SilentlyContinue
+            $existingNat = @()
+            try {
+                $existingNat = @(Get-NetNat -ErrorAction Stop)
+            } catch {
+                if ($_.Exception.Message -notmatch 'Invalid class') { throw }
+            }
+            if ($existingNat.Count) { throw 'Router guest contains unexpected NAT' }
+            try {
+                New-NetNat -Name WinceptionLabRouterNAT -InternalIPInterfaceAddressPrefix '192.168.177.0/24'|Out-Null
+            } catch {
+                throw "Router New-NetNat failed: $($_.Exception.Message.Trim())"
+            }
             $broadcast=Get-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -ErrorAction SilentlyContinue
             if($broadcast){$broadcast|Set-NetRoute -RouteMetric 1}else{New-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -NextHop '0.0.0.0' -RouteMetric 1|Out-Null}
             New-NetFirewallRule -Name WinceptionLabRouterDHCP -Direction Inbound -Action Allow -Protocol UDP -LocalPort 67 -InterfaceAlias $lan.Name|Out-Null

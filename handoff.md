@@ -1,6 +1,6 @@
-# Agent handoff — 2026-09-15 09:55
+# Agent handoff — 2026-09-15 10:40
 
-## Active task — 20260915c reached Windows logon then Fleet timeout; auto-logon source fix ready
+## Active task — 20260915d desktop-ready then guest NAT Invalid class; cleanup Passed
 
 User-approved reload of `1a9fb85` + Endpoint Sync + one `-BootstrapRouter` finished. PXE/WinPE never posted status. Cleanup **Passed**. Do not Create the router. Zero retries. No master push, Release or package. Physical/human remain independent.
 
@@ -47,9 +47,15 @@ User approved the cleanup timeout fix, then continuation. Source now waits out a
 - Result: `ok=false`, `status=Failed`, **`cleanup=Passed`**, Fleet timeout 09:49. Mutex free. Profile IZVZO7PU. Services stopped. Router still only Clean (cleanup does not restore the router VM; next round start will).
 - Cause: shutdown Apps copy preferred `X:\OSDCloud\Apps` (has `Install-Apps.ps1`, no `selected-profile.json`) over `Z:\OSDCloud\Apps`. `Get-TestAutoLogonCount` stayed 0, so no AutoLogon; guest sat at the logon screen for the rest of the hour.
 
+### 20260915d result
+
+- Reload `14e0f82` + Endpoint Sync + ValidateOnly passed. Run `20260915-101359`. **Fleet `windows-desktop-ready`** at 10:31 (344s). Guest: Explorer, profile `X4FO83YV`, Chrome/7-Zip/script/Notepad++ succeeded, TPM, build 26200, Windows 11. Auto-logon/PXE/OOBE fixes held.
+- Then `Initialize-LabRouterGuest` failed: `detail=Invalid class` at LabRouter.ps1:43 (guest `Get-NetNat`/`New-NetNat` under Stop). No Ready checkpoint. Cleanup **Passed**. Mutex free. IZVZO7PU. Router Clean only.
+- Source: wait for real LAN/WAN MACs, start WinNat, catch `Invalid class` on Get-NetNat, rethrow New-NetNat with a prefix. No HostTools reload needed for this Lab-script fix.
+
 ### Exact next steps
 
-1. Source prefers an Apps tree that contains `selected-profile.json`. Reload + Endpoint Sync so `boot.wim` has it, then **one** new unique-root `-BootstrapRouter`. Do not Create the router. Zero retries.
+1. One unique-root `-BootstrapRouter` after the NAT fix. Do not Create the router. Zero retries. Lab runs from the clone.
 2. After cleanupPassed and Ready exists: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance`.
 3. Physical/human remain NotRun/Blocked. No Release/package/master push.
 

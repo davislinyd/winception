@@ -77,6 +77,15 @@ test('physical configuration refuses unsafe pool subnet and WAN settings',()=>{
   `);
   assert.equal(Number(output),5);
 });
+test('router guest NAT setup waits for MACs and does not let Get-NetNat Invalid class terminate',()=>{
+  const source=fs.readFileSync('tools/lib/LabRouter.ps1','utf8');
+  const fn=source.slice(source.indexOf('function Initialize-LabRouterGuest'),source.indexOf('function Enable-LabRouterTpm'));
+  assert.match(fn,/Router LAN\/WAN MAC was not assigned before guest NAT setup/);
+  assert.match(fn,/Start-Service -ErrorAction SilentlyContinue/);
+  assert.match(fn,/Invalid class/);
+  assert.match(fn,/Get-NetNat -ErrorAction Stop/);
+  assert.match(fn,/Router New-NetNat failed/);
+});
 test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`
     $script:foreign=$false;$script:checkpoint=$true;$script:vmId='owned'
