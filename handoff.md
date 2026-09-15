@@ -6,13 +6,13 @@ Codex executed the authorized `20260915g` BootstrapRouter from `codex/easier-onb
 
 ### Git / workspace
 
-- Branch `codex/easier-onboarding`. `1ba36eb` is the restorable source commit used by `20260915g`; it adds guarded nested Hyper-V/WinNAT prerequisites. The deployed-disk boot-source correction and current evidence/docs are the latest scoped source change; 30 focused Router/Lab tests and full Source acceptance pass. Keep `.ai/` untracked.
+- Branch `codex/easier-onboarding`. `42cd4d0` is the latest restorable source commit; it switches only the owned Router to the deployed hard disk before guest setup. `1ba36eb` was used by `20260915g` and adds guarded nested Hyper-V/WinNAT prerequisites. The boot-source correction has 30 focused Router/Lab tests and full Source acceptance pass, but no live proof. Keep `.ai/` untracked.
 - Local `master` `bdbe5ce` is one commit ahead of `origin/master` `847b79f`. Preserve it. Do not push master.
 - Baseline: `codex/baseline-acceptance-20260914` / onboarding baseline `bdbe5ce`. Lab orchestrator runs from the **clone**, not HostTools App.
 
 ### Live host (re-read immediately before any Lab)
 
-Verified after `20260915g` cleanup at 2026-09-15 20:08 +08. Console is idle. Profile **IZVZO7PU**. All four deployment services stopped. `bootMode=secureboot`. Endpoint `192.168.177.1/24` Server `.200–.250`. Re-run elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` before any subsequent Lab.
+Verified after `20260915g` cleanup at 2026-09-15 20:13 +08. Elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` passed. Mutex **free**. Console is idle. Profile **IZVZO7PU**. All four deployment services stopped. `bootMode=secureboot`. Endpoint `192.168.177.1/24` Server `.200–.250`.
 - Six VMs Off. Resting firmware: `01..04` SB On + TPM On; iPXE SB Off + TPM Off; router SB On + TPM On.
 - Checkpoints: **Winception-Clean only**. `Winception-Router-Ready` is still missing. `ValidateOnly -RequireRouter` will fail until bootstrap creates it.
 - Installed App last reload **`14e0f82`** (backup `HostTools-State-20260915-020746-801`). That load has the OOBE Apps/`selected-profile.json` fix in `boot.wim`. Current Router changes are Lab-script only (`tools/lib/LabRouter.ps1`); do not reload HostTools for them.
@@ -21,7 +21,7 @@ Verified after `20260915g` cleanup at 2026-09-15 20:08 +08. Console is idle. Pro
 ### Exact next steps
 
 1. Do not run `-RequireRouter` or the network matrix: `Winception-Router-Ready` is absent. Preserve `acceptance-router-bootstrap-20260915g` as failed evidence (`status=Failed`, `cleanup=Passed`).
-2. Review and commit the deployed-disk boot-source correction after its focused tests and `npm run acceptance:source`; keep `.ai/` untracked.
+2. The deployed-disk boot-source correction is committed at `42cd4d0`; preserve `.ai/` untracked.
 3. A future explicitly authorized bootstrap must use a new evidence root. It must first prove the owned Router booted the deployed disk, then prove guest feature Enabled, `MSFT_NetNat`, LAN `.254`, WAN Default Switch, WinNAT/DHCP, Router Ready, and cleanup. Zero automatic retry.
 4. After Router Ready exists: elevated `Initialize-WinceptionLab.ps1 -ValidateOnly -RequireRouter`, then a new unique evidence root for `-Mode All -NetworkAcceptance` (original seven firmware deployments + Proxy/Server two + rejection; zero retries). Physical/human stay NotRun/Blocked.
 
