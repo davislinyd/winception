@@ -121,19 +121,28 @@ test('physical cleanup refuses HTTP success when a deployment service is still r
 test('round credential MAC scope is fixed after checkpoint restore and rejects collisions',()=>{
   const source=fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1','utf8');
   assert.match(source,/Restore-LabCheckpoint -VmNames \$VmNames -RoundFirmware[\s\S]*?Set-LabRoundClientScope -VmNames \$VmNames/);
+  assert.match(source,/Set-VMNetworkAdapter -VMNetworkAdapter \$nic\[0\] -StaticMacAddress \$mac[\s\S]*?Sync-LabNetworkBootAfterMac -VmName \$vm\.Name/);
+  const scopeFn=source.slice(source.indexOf('function Set-LabRoundClientScope'),source.indexOf('function Invoke-LabRound'));
+  assert.match(scopeFn,/Sync-LabNetworkBootAfterMac -VmName \$vm\.Name/);
   const block='Set-LabRoundClientScope -VmNames $VmNames';
-  const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Set-LabRoundClientScope'],`
-    $VmNames=@('winception-autolab-router');$script:collision=$false;$script:assigned=''
+  const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',[
+    'Set-LabRoundClientScope','Sync-LabNetworkBootAfterMac','Get-FirmwareBootOrderEntries','Get-FirmwareNetworkBootSource','Get-FirmwareBootDeviceId','Get-FirmwareBootType','Test-FirmwareNetworkFirst','Get-OptionalProperty','ConvertTo-ObjectList'
+  ],`
+    $VmNames=@('winception-autolab-router');$script:collision=$false;$script:assigned='';$script:firstBoot=$false
     $vm=[pscustomobject]@{Name=$VmNames[0];State='Off';Id=[guid]'12345678-1234-1234-1234-123456789012'}
+    $nicId='Microsoft:12345678-1234-1234-1234-123456789012\\nic'
+    $network=[pscustomobject]@{BootType='Network';Device=[pscustomobject]@{Id=$nicId}}
     function Get-VM {param($Name) if($Name){$vm}else{[pscustomobject]@{Name='foreign'}}}
-    function Get-VMNetworkAdapter {param($VMName,[Parameter(ValueFromPipeline)]$InputObject) process {if($VMName){[pscustomobject]@{VMName=$VMName;SwitchName='Winception-AutoLab';MacAddress='000000000000'}}else{[pscustomobject]@{VMName='foreign';MacAddress=$(if($script:collision){'00155D123456'}else{'00155DAABBCC'})}}}}
+    function Get-VMNetworkAdapter {param($VMName,[Parameter(ValueFromPipeline)]$InputObject) process {if($VMName){[pscustomobject]@{VMName=$VMName;SwitchName='Winception-AutoLab';MacAddress='000000000000';Id=$nicId}}else{[pscustomobject]@{VMName='foreign';MacAddress=$(if($script:collision){'00155D123456'}else{'00155DAABBCC'})}}}}
     function Set-VMNetworkAdapter {param($VMNetworkAdapter,$StaticMacAddress) $script:assigned=$StaticMacAddress}
+    function Get-VMFirmware {param($VMName) [pscustomobject]@{BootOrder=@($network)}}
+    function Set-VMFirmware {param($VMName,$FirstBootDevice) if($FirstBootDevice){$script:firstBoot=$true}}
     ${block}
     $expectedMac=$script:RoundClientMacs[0];$script:collision=$true;$rejected=$false
     try {${block}}catch{$rejected=$true}
-    @{mac=$expectedMac;assigned=$script:assigned;collisionRejected=$rejected}|ConvertTo-Json -Compress
+    @{mac=$expectedMac;assigned=$script:assigned;collisionRejected=$rejected;firstBoot=$script:firstBoot}|ConvertTo-Json -Compress
   `);
-  assert.deepEqual(JSON.parse(output),{mac:'00-15-5D-12-34-56',assigned:'00155D123456',collisionRejected:true});
+  assert.deepEqual(JSON.parse(output),{mac:'00-15-5D-12-34-56',assigned:'00155D123456',collisionRejected:true,firstBoot:true});
 });
 
 test('stopping deployment services aborts Fleet wait without retry',()=>{

@@ -1566,6 +1566,28 @@ function Assert-IpxeArtifacts {
     $evidence
 }
 
+function Sync-LabNetworkBootAfterMac {
+    param([Parameter(Mandatory)][string] $VmName)
+
+    $adapter = @(Get-VMNetworkAdapter -VMName $VmName -ErrorAction Stop | Where-Object { $_.SwitchName -eq 'Winception-AutoLab' })
+    if ($adapter.Count -ne 1) {
+        throw "$VmName has no unique Winception-AutoLab adapter after MAC assign."
+    }
+    $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
+    $networkSource = Get-FirmwareNetworkBootSource -BootOrder (Get-FirmwareBootOrderEntries -Firmware $firmware)
+    if (-not $networkSource) {
+        throw "$VmName has no Network firmware boot source after MAC assign."
+    }
+    if ((Get-FirmwareBootDeviceId -Entry $networkSource) -ne [string] $adapter[0].Id) {
+        throw "$VmName firmware Network source does not match its current adapter after MAC assign."
+    }
+    Set-VMFirmware -VMName $VmName -FirstBootDevice $networkSource -ErrorAction Stop
+    $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
+    if (-not (Test-FirmwareNetworkFirst -BootOrder (Get-FirmwareBootOrderEntries -Firmware $firmware))) {
+        throw "$VmName is not Network-first after MAC assign."
+    }
+}
+
 function Set-LabRoundClientScope {
     param([string[]]$VmNames)
     $script:RoundClientMacs=@($VmNames|ForEach-Object {
@@ -1575,6 +1597,7 @@ function Set-LabRoundClientScope {
         $mac='00155D'+$vm.Id.ToString('N').Substring(0,6).ToUpperInvariant()
         if(@(Get-VM|Get-VMNetworkAdapter|Where-Object {$_.VMName -ne $vm.Name -and $_.MacAddress -eq $mac}).Count){throw 'Deterministic Lab MAC collides with another VM'}
         Set-VMNetworkAdapter -VMNetworkAdapter $nic[0] -StaticMacAddress $mac
+        Sync-LabNetworkBootAfterMac -VmName $vm.Name
         $mac -replace '(.{2})(?!$)','$1-'
     })
 }

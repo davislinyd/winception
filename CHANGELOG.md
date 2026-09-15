@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Lab rounds re-apply the current-adapter Network firmware source as first boot after assigning the collision-checked static MAC, even when Network is already first, so PXE is not left bound to `MAC(000000000000)` from checkpoint restore.
+
 - WinPE `Invoke-OobeCustomization.ps1` copies the published Apps payload before reading `selected-profile.json`, and missing offline Winlogon values are no longer a terminating `reg.exe` error under `$ErrorActionPreference = 'Stop'`.
 
 - Lab finally cleanup now restores the original profile and endpoint with the preflight timeout (at least 60 seconds) and waits until the Web Console operation is idle before restoring `secureboot` and clearing Fleet status. A 30-second REST timeout can no longer mark cleanup Failed while `boot.wim` remount is still finishing.

@@ -1,6 +1,6 @@
-# Agent handoff — 2026-09-15 03:30
+# Agent handoff — 2026-09-15 03:40
 
-## Active task — BootstrapRouter 20260915b Fleet timeout; cleanup Passed; no retry
+## Active task — MAC-after-restore firmware refresh; next one BootstrapRouter 20260915c
 
 User-approved reload of `1a9fb85` + Endpoint Sync + one `-BootstrapRouter` finished. PXE/WinPE never posted status. Cleanup **Passed**. Do not Create the router. Zero retries. No master push, Release or package. Physical/human remain independent.
 
@@ -40,11 +40,16 @@ User approved the cleanup timeout fix, then continuation. Source now waits out a
 - During the run the router adapter was static `00155DC243AA`; firmware Network path stayed `MAC(000000000000)`. After cleanup the adapter is dynamic `000000000000` again. `C:\OSDCloud\logs\host-services.log` last write is 2026-09-14 23:26, so this run left no DHCP/TFTP lines there.
 - Leading reading: client never entered WinPE (PXE/firmware identity or disk fallback). Not the previous 403, and not the Winlogon `reg.exe delete`.
 
+### Firmware source fix (in progress)
+
+- `Sync-LabNetworkBootAfterMac` re-applies `Set-VMFirmware -FirstBootDevice` after the round static MAC, even when Network is already first. Lab runs this from the clone; no HostTools reload is required for this fix. `boot.wim` already has `1a9fb85` OOBE script.
+- `host-services.log` still last written 2026-09-14 23:26; not fixed in this pass.
+- Next: one unique evidence root `acceptance-router-bootstrap-20260915c` `-BootstrapRouter`. Do not Create the router. Zero retries.
+
 ### Exact next steps
 
-1. Do **not** start another Lab until the user approves. Optional source work: after `Set-LabRoundClientScope`, refresh Network-first firmware so the boot path binds the static MAC; restore host-services logging after reload. Then one new unique evidence root `-BootstrapRouter`.
-2. After cleanupPassed and Ready exists: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance`.
-3. Physical/human remain NotRun/Blocked. No Release/package/master push.
+1. After 20260915c cleanupPassed and Ready exists: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance`.
+2. Physical/human remain NotRun/Blocked. No Release/package/master push.
 
 ### Step 1 inspection (kept)
 
