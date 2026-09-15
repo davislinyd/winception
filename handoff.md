@@ -7,7 +7,7 @@ Codex executed the one authorized `20260915e` BootstrapRouter from `codex/easier
 ### Git / workspace
 
 - Branch `codex/easier-onboarding`. Baseline before this run record was `6937f23`; executable NAT change under test was `34ede0c`.
-- Source now collects guest NAT diagnostics before cleanup on any future failure. Focused PowerShell/Lab tests pass. Verify the final scoped commit and keep `.ai/` untracked.
+- Commit `8302146` records `20260915e` and collects guest NAT diagnostics before cleanup on any future failure. Focused PowerShell/Lab tests and full Source acceptance pass. Keep `.ai/` untracked.
 - Local `master` `bdbe5ce` is one commit ahead of `origin/master` `847b79f`. Preserve it. Do not push master.
 - Baseline: `codex/baseline-acceptance-20260914` / onboarding baseline `bdbe5ce`. Lab orchestrator runs from the **clone**, not HostTools App.
 
