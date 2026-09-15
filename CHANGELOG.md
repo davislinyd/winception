@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Router guest NAT setup waits for real LAN/WAN MACs, starts WinNat, and treats a missing `Get-NetNat` CIM class as empty instead of a terminating `Invalid class` error. A guest NAT failure now preserves WinNat service state, `MSFT_NetNat` availability, optional-feature state, adapters, IPv4 addresses and relevant System events before cleanup.
+- Router guest NAT bootstrap configures two vCPUs and host-scoped nested virtualization on the owned VM, enables guest Hyper-V with a controlled restart, and requires `MSFT_NetNat` before creating WinNAT. Failure restores the prior processor settings and preserves WinNat service state, CIM/feature state, adapters, IPv4 addresses and relevant System events before cleanup.
 
 - WinPE OOBE customization prefers an Apps source that contains `selected-profile.json` (the published SMB payload) over the template `X:\OSDCloud\Apps` tree, so test-only auto-logon is actually injected.
 

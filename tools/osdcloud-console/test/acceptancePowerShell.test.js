@@ -77,10 +77,16 @@ test('physical configuration refuses unsafe pool subnet and WAN settings',()=>{
   `);
   assert.equal(Number(output),5);
 });
-test('router guest NAT setup waits for MACs and does not let Get-NetNat Invalid class terminate',()=>{
+test('router guest NAT setup enables guarded nested Hyper-V before creating WinNAT',()=>{
   const source=fs.readFileSync('tools/lib/LabRouter.ps1','utf8');
   const fn=source.slice(source.indexOf('function Initialize-LabRouterGuest'),source.indexOf('function Enable-LabRouterTpm'));
   assert.match(fn,/Router LAN\/WAN MAC was not assigned before guest NAT setup/);
+  assert.match(fn,/Set-VMProcessor -VMName \$name -Count 2 -ExposeVirtualizationExtensions \$true/);
+  assert.match(fn,/router-processor-before\.json/);
+  assert.match(fn,/Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All -NoRestart/);
+  assert.match(fn,/shutdown\.exe \/r \/t 0 \/f/);
+  assert.match(fn,/Router MSFT_NetNat is unavailable after Hyper-V enablement/);
+  assert.match(fn,/router-hyperv-prerequisite\.json/);
   assert.match(fn,/Start-Service -ErrorAction SilentlyContinue/);
   assert.match(fn,/Invalid class/);
   assert.match(fn,/Get-NetNat -ErrorAction Stop/);
@@ -89,6 +95,11 @@ test('router guest NAT setup waits for MACs and does not let Get-NetNat Invalid 
   assert.match(fn,/Get-WindowsOptionalFeature -Online/);
   assert.match(fn,/router-nat-diagnostics\.json/);
   assert.match(fn,/Get-WinEvent -FilterHashtable/);
+  const ownership=source.slice(source.indexOf('function Assert-LabRouterOwnership'),source.indexOf('function New-LabRouterPSSession'));
+  assert.match(ownership,/Router ready processor prerequisites are missing/);
+  const cleanup=source.slice(source.indexOf('function Stop-LabRouter'));
+  assert.match(cleanup,/router-processor-before\.json/);
+  assert.match(cleanup,/ExposeVirtualizationExtensions \(\[bool\]\$processorBefore\.exposeVirtualizationExtensions\)/);
 });
 test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`

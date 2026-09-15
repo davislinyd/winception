@@ -24,8 +24,31 @@ function Assert-LabRouterOwnership {
     if($diskPath -ne $owner.vhdxPath -or -not (Get-VMSnapshot -VMName $name -Name 'Winception-Clean' -ErrorAction SilentlyContinue)){throw 'Router disk or clean checkpoint ownership mismatch.'}
     if ((Get-VMFirmware -VMName $name).SecureBoot -ne 'On' -or -not (Get-VMSecurity -VMName $name).TpmEnabled) { throw 'Router firmware mismatch.' }
     if ($Ready -and (@($nics).Count -ne 2 -or -not (Get-VMSnapshot -VMName $name -Name 'Winception-Router-Ready' -ErrorAction SilentlyContinue))) { throw 'Router ready checkpoint is missing.' }
+    if ($Ready) {
+        $processor = Get-VMProcessor -VMName $name
+        if ($processor.Count -lt 2 -or -not $processor.ExposeVirtualizationExtensions) { throw 'Router ready processor prerequisites are missing.' }
+    }
     if($Ready -and $owner.dhcpSourceHash -ne (Get-FileHash (Join-Path $PSScriptRoot '..\acceptance\router-dhcp.mjs')).Hash){throw 'Router DHCP tools changed; explicit bootstrap required.'}
     $vm
+}
+
+function New-LabRouterPSSession {
+    param([string]$VmName, [pscredential]$Credential, [int]$TimeoutSec = 600)
+    $session = $null
+    $sessionOption = New-PSSessionOption -OperationTimeout 1200000
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
+    do {
+        try {
+            if ((Get-VM -Name $VmName -ErrorAction Stop).State -eq 'Running') {
+                $session = New-PSSession -VMName $VmName -Credential $Credential -SessionOption $sessionOption -ErrorAction Stop
+            }
+        } catch {
+            $session = $null
+        }
+        if (-not $session) { Start-Sleep -Seconds 5 }
+    } while (-not $session -and [DateTime]::UtcNow -lt $deadline)
+    if (-not $session) { throw 'Router PowerShell Direct timed out after guest restart.' }
+    $session
 }
 
 function Initialize-LabRouterGuest {
@@ -46,13 +69,64 @@ function Initialize-LabRouterGuest {
     if (-not $lanMac -or -not $wanMac -or $lanMac -eq '000000000000' -or $wanMac -eq '000000000000') {
         throw 'Router LAN/WAN MAC was not assigned before guest NAT setup.'
     }
-    $session = New-PSSession -VMName $name -Credential $Credential -ErrorAction Stop
+    $processorBefore = Get-VMProcessor -VMName $name -ErrorAction Stop
+    [pscustomobject]@{
+        count = [int]$processorBefore.Count
+        exposeVirtualizationExtensions = [bool]$processorBefore.ExposeVirtualizationExtensions
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-processor-before.json') -Encoding UTF8
+    Stop-VM -Name $name -Force -ErrorAction Stop
+    Set-VMProcessor -VMName $name -Count 2 -ExposeVirtualizationExtensions $true -ErrorAction Stop
+    $processor = Get-VMProcessor -VMName $name -ErrorAction Stop
+    if ($processor.Count -lt 2 -or -not $processor.ExposeVirtualizationExtensions) {
+        throw 'Router nested virtualization could not be enabled.'
+    }
+    Start-VM -Name $name -ErrorAction Stop
+    $session = New-LabRouterPSSession -VmName $name -Credential $Credential
     try {
         Invoke-Command -Session $session -ScriptBlock { New-Item C:\ProgramData\WinceptionLabRouter -ItemType Directory -Force | Out-Null }
         $node = (Get-Command node.exe -ErrorAction Stop).Source
         Copy-Item -LiteralPath $node -Destination 'C:\ProgramData\WinceptionLabRouter\node.exe' -ToSession $session
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'tools\acceptance\router-dhcp.mjs') -Destination 'C:\ProgramData\WinceptionLabRouter\router-dhcp.mjs' -ToSession $session
         try {
+            $featureBefore = Invoke-Command -Session $session -ScriptBlock {
+                $feature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction Stop
+                $cimClass = Get-CimClass -Namespace root/StandardCimv2 -ClassName MSFT_NetNat -ErrorAction SilentlyContinue
+                [pscustomobject]@{ featureName = $feature.FeatureName; featureState = [string]$feature.State; cimClassPresent = [bool]$cimClass }
+            }
+            $featureEnabled = $false
+            if ($featureBefore.featureState -ne 'Enabled') {
+                Invoke-Command -Session $session -ScriptBlock {
+                    $ErrorActionPreference = 'Stop'
+                    Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All -NoRestart | Out-Null
+                }
+                $featureEnabled = $true
+                Invoke-Command -Session $session -ScriptBlock { shutdown.exe /r /t 0 /f | Out-Null }
+                Remove-PSSession $session
+                $session = $null
+                Start-Sleep -Seconds 10
+                $session = New-LabRouterPSSession -VmName $name -Credential $Credential
+            }
+            $featureAfter = Invoke-Command -Session $session -ScriptBlock {
+                $deadline = [DateTime]::UtcNow.AddSeconds(120)
+                do {
+                    $feature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction Stop
+                    $cimClass = Get-CimClass -Namespace root/StandardCimv2 -ClassName MSFT_NetNat -ErrorAction SilentlyContinue
+                    if ($feature.State -eq 'Enabled' -and $cimClass) { break }
+                    Start-Sleep -Seconds 5
+                } while ([DateTime]::UtcNow -lt $deadline)
+                [pscustomobject]@{ featureName = $feature.FeatureName; featureState = [string]$feature.State; cimClassPresent = [bool]$cimClass }
+            }
+            [pscustomobject]@{
+                capturedAt = [DateTimeOffset]::Now.ToString('o')
+                processorCount = [int]$processor.Count
+                nestedVirtualization = [bool]$processor.ExposeVirtualizationExtensions
+                featureEnabledThisRun = $featureEnabled
+                before = $featureBefore
+                after = $featureAfter
+            } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-hyperv-prerequisite.json') -Encoding UTF8
+            if ($featureAfter.featureState -ne 'Enabled' -or -not $featureAfter.cimClassPresent) {
+                throw 'Router MSFT_NetNat is unavailable after Hyper-V enablement.'
+            }
             Invoke-Command -Session $session -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
                 param($LanMac,$WanMac)
                 $ErrorActionPreference = 'Stop'
@@ -127,7 +201,7 @@ function Initialize-LabRouterGuest {
             }
             throw $setupError
         }
-    } finally { Remove-PSSession $session }
+    } finally { if ($session) { Remove-PSSession $session } }
     Stop-VM -Name $name -Force -ErrorAction Stop
     Set-VMFirmware -VMName $name -FirstBootDevice (Get-VMHardDiskDrive -VMName $name)
     Checkpoint-VM -Name $name -SnapshotName 'Winception-Router-Ready' | Out-Null
@@ -150,11 +224,10 @@ function Start-LabRouter {
     if ((Get-VM -Name $name).State -ne 'Off') { throw 'Router must be Off before restore' }
     Restore-VMSnapshot -VMName $name -Name 'Winception-Router-Ready' -Confirm:$false
     Set-VMFirmware -VMName $name -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice (Get-VMHardDiskDrive -VMName $name)
+    Set-VMProcessor -VMName $name -Count 2 -ExposeVirtualizationExtensions $true
     Enable-LabRouterTpm
     Start-VM -Name $name
-    $session = $null; $deadline = [DateTime]::UtcNow.AddSeconds(120)
-    do {try {$session=New-PSSession -VMName $name -Credential $Credential -ErrorAction Stop} catch {Start-Sleep 2}} while (-not $session -and [DateTime]::UtcNow -lt $deadline)
-    if (-not $session) { throw 'Router PowerShell Direct timed out' }
+    $session = New-LabRouterPSSession -VmName $name -Credential $Credential
     try {
         Invoke-Command -Session $session -ArgumentList $Dhcp -ScriptBlock {
             param($Dhcp)
@@ -178,9 +251,15 @@ function Stop-LabRouter {
         if (Get-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -ErrorAction SilentlyContinue) {
             Restore-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -Confirm:$false
             Set-VMFirmware -VMName winception-autolab-router -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice (Get-VMHardDiskDrive -VMName winception-autolab-router)
+            Set-VMProcessor -VMName winception-autolab-router -Count 2 -ExposeVirtualizationExtensions $true
             Enable-LabRouterTpm
         } else {
             Restore-LabCheckpoint -VmNames @('winception-autolab-router')
+            $processorEvidence = Join-Path $Config.evidenceRoot 'router-processor-before.json'
+            if (Test-Path -LiteralPath $processorEvidence) {
+                $processorBefore = Get-Content -LiteralPath $processorEvidence -Raw | ConvertFrom-Json
+                Set-VMProcessor -VMName winception-autolab-router -Count ([int]$processorBefore.count) -ExposeVirtualizationExtensions ([bool]$processorBefore.exposeVirtualizationExtensions)
+            }
         }
     }
 }
