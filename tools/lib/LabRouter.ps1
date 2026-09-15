@@ -122,6 +122,42 @@ function New-LabRouterPSSession {
     $session
 }
 
+function Invoke-LabRouterGuestCommand {
+    param(
+        [Parameter(Mandatory)]$Session,
+        [Parameter(Mandatory)][scriptblock]$ScriptBlock,
+        [object[]]$ArgumentList,
+        [Parameter(Mandatory)][string]$Name,
+        [int]$TimeoutSec = 90,
+        [string]$EvidencePath
+    )
+    $job = $null
+    try {
+        $job = Invoke-Command -Session $Session -ScriptBlock $ScriptBlock -ArgumentList $ArgumentList -AsJob -ErrorAction Stop
+        if (-not (Wait-Job -Job $job -Timeout $TimeoutSec)) {
+            if ($EvidencePath) {
+                [ordered]@{
+                    capturedAt = [DateTimeOffset]::Now.ToString('o')
+                    phase = $Name
+                    timeoutSec = $TimeoutSec
+                    error = 'Router guest command timed out.'
+                } | ConvertTo-Json | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
+            }
+            throw "Router guest command timed out during $Name."
+        }
+        if ($job.State -eq 'Failed') {
+            throw "Router guest command failed during $Name."
+        }
+        Receive-Job -Job $job -ErrorAction Stop
+    }
+    finally {
+        if ($job) {
+            Stop-Job -Job $job -ErrorAction SilentlyContinue
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Initialize-LabRouterGuest {
     param($Config, [pscredential]$Credential, [string]$SourceRoot)
     $name = 'winception-autolab-router'
@@ -174,24 +210,24 @@ function Initialize-LabRouterGuest {
         firmware = Get-LabRouterFirmwareEvidence -VmName $name
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-guest-session.json') -Encoding UTF8
     try {
-        Invoke-Command -Session $session -ScriptBlock { New-Item C:\ProgramData\WinceptionLabRouter -ItemType Directory -Force | Out-Null }
+        Invoke-LabRouterGuestCommand -Session $session -Name 'stage-router-files' -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ScriptBlock { New-Item C:\ProgramData\WinceptionLabRouter -ItemType Directory -Force | Out-Null }
         $node = (Get-Command node.exe -ErrorAction Stop).Source
         Copy-Item -LiteralPath $node -Destination 'C:\ProgramData\WinceptionLabRouter\node.exe' -ToSession $session
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'tools\acceptance\router-dhcp.mjs') -Destination 'C:\ProgramData\WinceptionLabRouter\router-dhcp.mjs' -ToSession $session
         try {
-            $featureBefore = Invoke-Command -Session $session -ScriptBlock {
+            $featureBefore = Invoke-LabRouterGuestCommand -Session $session -Name 'inspect-hyperv-prerequisite' -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ScriptBlock {
                 $feature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction Stop
                 $cimClass = Get-CimClass -Namespace root/StandardCimv2 -ClassName MSFT_NetNat -ErrorAction SilentlyContinue
                 [pscustomobject]@{ featureName = $feature.FeatureName; featureState = [string]$feature.State; cimClassPresent = [bool]$cimClass }
             }
             $featureEnabled = $false
             if ($featureBefore.featureState -ne 'Enabled') {
-                Invoke-Command -Session $session -ScriptBlock {
+                Invoke-LabRouterGuestCommand -Session $session -Name 'enable-hyperv-prerequisite' -TimeoutSec 120 -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ScriptBlock {
                     $ErrorActionPreference = 'Stop'
                     Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All -NoRestart | Out-Null
                 }
                 $featureEnabled = $true
-                Invoke-Command -Session $session -ScriptBlock { shutdown.exe /r /t 0 /f | Out-Null }
+                Invoke-LabRouterGuestCommand -Session $session -Name 'restart-after-hyperv-enable' -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ScriptBlock { shutdown.exe /r /t 0 /f | Out-Null }
                 Remove-PSSession $session
                 $session = $null
                 Start-Sleep -Seconds 10
@@ -210,7 +246,7 @@ function Initialize-LabRouterGuest {
                 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-hyperv-restart.json') -Encoding UTF8
                 $session = New-LabRouterPSSession -VmName $name -Credential $Credential -Phase 'after-hyperv-restart' -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-session-failure.json')
             }
-            $featureAfter = Invoke-Command -Session $session -ScriptBlock {
+            $featureAfter = Invoke-LabRouterGuestCommand -Session $session -Name 'wait-hyperv-prerequisite' -TimeoutSec 150 -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ScriptBlock {
                 $deadline = [DateTime]::UtcNow.AddSeconds(120)
                 do {
                     $feature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction Stop
@@ -231,7 +267,7 @@ function Initialize-LabRouterGuest {
             if ($featureAfter.featureState -ne 'Enabled' -or -not $featureAfter.cimClassPresent) {
                 throw 'Router MSFT_NetNat is unavailable after Hyper-V enablement.'
             }
-            Invoke-Command -Session $session -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
+            Invoke-LabRouterGuestCommand -Session $session -Name 'configure-router-network' -TimeoutSec 120 -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
                 param($LanMac,$WanMac)
                 $ErrorActionPreference = 'Stop'
                 $deadline = [DateTime]::UtcNow.AddSeconds(30)
@@ -272,7 +308,7 @@ function Initialize-LabRouterGuest {
         } catch {
             $setupError = $_
             try {
-                $diagnostics = Invoke-Command -Session $session -ScriptBlock {
+                $diagnostics = Invoke-LabRouterGuestCommand -Session $session -Name 'collect-router-nat-diagnostics' -TimeoutSec 60 -ScriptBlock {
                     $service = Get-CimInstance Win32_Service -Filter "Name='WinNat'" -ErrorAction SilentlyContinue
                     $cimError = ''
                     $cimClass = $null
@@ -333,7 +369,7 @@ function Start-LabRouter {
     Start-VM -Name $name
     $session = New-LabRouterPSSession -VmName $name -Credential $Credential
     try {
-        Invoke-Command -Session $session -ArgumentList $Dhcp -ScriptBlock {
+        Invoke-LabRouterGuestCommand -Session $session -Name 'verify-router-upstream' -TimeoutSec 90 -ArgumentList $Dhcp -ScriptBlock {
             param($Dhcp)
             $ErrorActionPreference='Stop'
             Resolve-DnsName www.microsoft.com -DnsOnly -QuickTimeout -ErrorAction Stop|Out-Null

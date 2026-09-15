@@ -79,6 +79,10 @@ test('physical configuration refuses unsafe pool subnet and WAN settings',()=>{
 });
 test('router guest NAT setup enables guarded nested Hyper-V before creating WinNAT',()=>{
   const source=fs.readFileSync('tools/lib/LabRouter.ps1','utf8');
+  assert.match(source,/function Invoke-LabRouterGuestCommand/);
+  assert.match(source,/Invoke-Command -Session \$Session[\s\S]*-AsJob/);
+  assert.match(source,/Wait-Job -Job \$job -Timeout \$TimeoutSec/);
+  assert.match(source,/router-guest-command-timeout\.json/);
   const fn=source.slice(source.indexOf('function Initialize-LabRouterGuest'),source.indexOf('function Enable-LabRouterTpm'));
   assert.match(fn,/Router LAN\/WAN MAC was not assigned before guest NAT setup/);
   assert.match(fn,/Set-VMProcessor -VMName \$name -Count 2 -ExposeVirtualizationExtensions \$true/);
