@@ -613,6 +613,8 @@ test('Lab cleanup uses the preflight timeout and waits for an idle console after
     }
     $script:endpointTimeout = 0
     $script:profileTimeout = 0
+    $script:deleteTimeout = 0
+    $script:events = New-Object System.Collections.Generic.List[string]
     $script:polls = 0
     $script:mode = ''
     $script:cleared = $false
@@ -625,12 +627,13 @@ test('Lab cleanup uses the preflight timeout and waits for an idle console after
     function Test-WebConsoleHealthy { $true }
     function Get-ConsoleState {
       $script:polls++
+      $script:events.Add('state')
       [pscustomobject]@{ operation = [pscustomobject]@{ running = ($script:polls -lt 2) } }
     }
     function Invoke-ConsoleJson {
       param($Method, $Path, $Body, [int] $TimeoutSec = 30)
-      if ($Path -eq '/api/profile') { $script:profileTimeout = $TimeoutSec; return @{ ok = $true } }
-      if ($Path -eq '/api/profiles/delete') { return @{ ok = $true } }
+      if ($Path -eq '/api/profile') { $script:profileTimeout = $TimeoutSec; $script:events.Add('profile'); return @{ ok = $true } }
+      if ($Path -eq '/api/profiles/delete') { $script:deleteTimeout = $TimeoutSec; $script:events.Add('delete'); return @{ ok = $true } }
       if ($Path -eq '/api/endpoint') { $script:endpointTimeout = $TimeoutSec; throw 'Synthetic endpoint timeout' }
       throw "Unexpected $Path"
     }
@@ -640,6 +643,8 @@ test('Lab cleanup uses the preflight timeout and waits for an idle console after
     Invoke-LabCleanup
     @{
       profileTimeout = $script:profileTimeout
+      deleteTimeout = $script:deleteTimeout
+      events = @($script:events)
       endpointTimeout = $script:endpointTimeout
       polls = $script:polls
       mode = $script:mode
@@ -650,6 +655,9 @@ test('Lab cleanup uses the preflight timeout and waits for an idle console after
   );
   const result = JSON.parse(output.slice(output.indexOf('{')));
   assert.equal(result.profileTimeout, 900);
+  assert.equal(result.deleteTimeout, 900);
+  assert.ok(result.events.indexOf('profile') < result.events.indexOf('delete'));
+  assert.ok(result.events.indexOf('state') > result.events.indexOf('profile') && result.events.indexOf('state') < result.events.indexOf('delete'), 'profile restore must settle before delete');
   assert.equal(result.endpointTimeout, 900);
   assert.ok(result.polls >= 2, 'cleanup must poll until the console operation is idle');
   assert.equal(result.mode, 'secureboot');

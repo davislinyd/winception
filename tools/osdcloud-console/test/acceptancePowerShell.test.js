@@ -280,6 +280,16 @@ test('stopping deployment services aborts Fleet wait without retry',()=>{
   `),/Aborted/);
 });
 
+test('terminal WinPE detector ignores normal apply-image logs but catches explicit unattend failures',()=>{
+  const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Test-ClientTerminalFailureText'],`
+    $normal = @('apply-image','X:\\Windows\\Logs\\DISM\\dism.log :: Initializing wimgapi.','X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: Client apps source: Z:\\OSDCloud\\Apps','X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: Client apps target: C:\\ProgramData\\OSDCloud\\Apps','X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: unattended answer file will be used after reboot') -join [Environment]::NewLine
+    $setup = 'Windows Setup encountered an internal error while loading or searching for an unattend answer file.'
+    $custom = 'post-apply-customization-error'
+    @{normal=(Test-ClientTerminalFailureText $normal);setup=(Test-ClientTerminalFailureText $setup);custom=(Test-ClientTerminalFailureText $custom)} | ConvertTo-Json -Compress
+  `);
+  assert.deepEqual(JSON.parse(output),{normal:false,setup:true,custom:true});
+});
+
 test('Proxy rejection accepts port-qualified denial evidence and refuses issued credentials',()=>{
   const output=runPowerShell('tools/lib/LabNetworkAcceptance.ps1',['Invoke-LabProxyRejection'],`
     $script:Config=@{secureBootVms=@('owned-vm')};$script:reads=0;$script:issued=$false;$script:scope=$false;$script:written=$null

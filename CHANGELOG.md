@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Lab fleet wait now ignores ordinary WinPE log-tail mentions of unattended files while retaining explicit Setup answer-file and customization error markers. Acceptance cleanup waits for the restored profile operation before deleting its test-only profile and uses the full preflight timeout for both requests.
+
 - Router guest NAT bootstrap configures two vCPUs and host-scoped nested virtualization on the owned VM, changes only its firmware to the deployed hard disk before guest setup, enables guest Hyper-V with a controlled restart, starts the owned VM when feature servicing leaves it Off, and requires `MSFT_NetNat` before creating WinNAT. Failure restores the prior processor settings and preserves WinNat service state, CIM/feature state, adapters, IPv4 addresses and relevant System events before cleanup.
 
 - WinPE OOBE customization prefers an Apps source that contains `selected-profile.json` (the published SMB payload) over the template `X:\OSDCloud\Apps` tree, so test-only auto-logon is actually injected.
