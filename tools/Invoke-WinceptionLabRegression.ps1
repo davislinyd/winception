@@ -1609,7 +1609,7 @@ function Test-ClientTerminalFailureText {
 function Write-FleetWaitHeartbeat {
     param(
         [Parameter(Mandatory)][string[]] $VmNames,
-        [Parameter(Mandatory)][object[]] $Runs
+        [AllowEmptyCollection()][Parameter(Mandatory)][object[]] $Runs
     )
 
     if (-not $script:LastFleetWaitHeartbeatAt) {

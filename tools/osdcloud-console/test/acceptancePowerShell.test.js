@@ -177,8 +177,20 @@ test('Fleet wait emits bounded redacted heartbeat evidence for active monitoring
   const source=fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1','utf8');
   assert.match(source,/function Write-FleetWaitHeartbeat/);
   assert.match(source,/fleet-wait-heartbeat\.json/);
+  assert.match(source,/\[AllowEmptyCollection\(\)\]\[Parameter\(Mandatory\)\]\[object\[\]\] \$Runs/);
   const waitFn=source.slice(source.indexOf('function Wait-FleetCompletion'),source.indexOf('function Acquire-LabLock'));
   assert.match(waitFn,/Write-FleetWaitHeartbeat -VmNames \$VmNames -Runs \$relevant/);
+});
+test('Fleet wait heartbeat accepts an empty Fleet snapshot while services start',()=>{
+  const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Write-FleetWaitHeartbeat'],`
+    $script:LastFleetWaitHeartbeatAt=[DateTimeOffset]::MinValue
+    function Get-VM {param($Name) [pscustomobject]@{State='Off'} }
+    function Get-VMIntegrationService {param($VMName,$Name) [pscustomobject]@{PrimaryStatusDescription='OK'} }
+    function Write-Evidence {param($Name,$Value) $script:written=$Value }
+    Write-FleetWaitHeartbeat -VmNames @('owned-vm') -Runs @()
+    @{phase=$script:written.phase;runCount=@($script:written.runs).Count;vmCount=@($script:written.vms).Count}|ConvertTo-Json -Compress
+  `);
+  assert.deepEqual(JSON.parse(output),{phase:'fleet-wait',runCount:0,vmCount:1});
 });
 test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`
