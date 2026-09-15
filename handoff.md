@@ -1,6 +1,6 @@
-# Agent handoff — 2026-09-15 03:40
+# Agent handoff — 2026-09-15 09:55
 
-## Active task — MAC-after-restore firmware refresh; next one BootstrapRouter 20260915c
+## Active task — 20260915c reached Windows logon then Fleet timeout; auto-logon source fix ready
 
 User-approved reload of `1a9fb85` + Endpoint Sync + one `-BootstrapRouter` finished. PXE/WinPE never posted status. Cleanup **Passed**. Do not Create the router. Zero retries. No master push, Release or package. Physical/human remain independent.
 
@@ -40,16 +40,18 @@ User approved the cleanup timeout fix, then continuation. Source now waits out a
 - During the run the router adapter was static `00155DC243AA`; firmware Network path stayed `MAC(000000000000)`. After cleanup the adapter is dynamic `000000000000` again. `C:\OSDCloud\logs\host-services.log` last write is 2026-09-14 23:26, so this run left no DHCP/TFTP lines there.
 - Leading reading: client never entered WinPE (PXE/firmware identity or disk fallback). Not the previous 403, and not the Winlogon `reg.exe delete`.
 
-### Firmware source fix (in progress)
+### 20260915c result
 
-- `Sync-LabNetworkBootAfterMac` re-applies `Set-VMFirmware -FirstBootDevice` after the round static MAC, even when Network is already first. Lab runs this from the clone; no HostTools reload is required for this fix. `boot.wim` already has `1a9fb85` OOBE script.
-- `host-services.log` still last written 2026-09-14 23:26; not fixed in this pass.
-- Next: one unique evidence root `acceptance-router-bootstrap-20260915c` `-BootstrapRouter`. Do not Create the router. Zero retries.
+- `5b183b2` Network-firmware-after-MAC ran from the clone. PXE worked. Run `20260915-083404-3833-6458-5439-4386-0617-9856-93`.
+- WinPE started 08:34. `Invoke-OSDCloud` **succeeded** (`osdcloud-finished` 08:43) — the Winlogon `reg.exe delete` crash is gone. SetupComplete `windows-setupcomplete-awaiting-logon` 08:46. No later `windows-start` / `windows-desktop-ready`.
+- Result: `ok=false`, `status=Failed`, **`cleanup=Passed`**, Fleet timeout 09:49. Mutex free. Profile IZVZO7PU. Services stopped. Router still only Clean (cleanup does not restore the router VM; next round start will).
+- Cause: shutdown Apps copy preferred `X:\OSDCloud\Apps` (has `Install-Apps.ps1`, no `selected-profile.json`) over `Z:\OSDCloud\Apps`. `Get-TestAutoLogonCount` stayed 0, so no AutoLogon; guest sat at the logon screen for the rest of the hour.
 
 ### Exact next steps
 
-1. After 20260915c cleanupPassed and Ready exists: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance`.
-2. Physical/human remain NotRun/Blocked. No Release/package/master push.
+1. Source prefers an Apps tree that contains `selected-profile.json`. Reload + Endpoint Sync so `boot.wim` has it, then **one** new unique-root `-BootstrapRouter`. Do not Create the router. Zero retries.
+2. After cleanupPassed and Ready exists: `Initialize-WinceptionLab -ValidateOnly -RequireRouter`, then `-Mode All -NetworkAcceptance`.
+3. Physical/human remain NotRun/Blocked. No Release/package/master push.
 
 ### Step 1 inspection (kept)
 

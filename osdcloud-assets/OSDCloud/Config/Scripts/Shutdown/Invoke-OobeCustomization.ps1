@@ -170,8 +170,13 @@ try {
         ForEach-Object { "$($_.Name):\OSDCloud\Apps" }
 
     $sourceApps = $appCandidates |
-        Where-Object { $_ -and (Test-Path (Join-Path $_ 'Install-Apps.ps1') -PathType Leaf) } |
+        Where-Object { $_ -and (Test-Path (Join-Path $_ 'selected-profile.json') -PathType Leaf) } |
         Select-Object -First 1
+    if (-not $sourceApps) {
+        $sourceApps = $appCandidates |
+            Where-Object { $_ -and (Test-Path (Join-Path $_ 'Install-Apps.ps1') -PathType Leaf) } |
+            Select-Object -First 1
+    }
 
     if ($sourceApps) {
         $targetApps = Join-Path $windowsRoot 'ProgramData\OSDCloud\Apps'

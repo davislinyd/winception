@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- WinPE OOBE customization prefers an Apps source that contains `selected-profile.json` (the published SMB payload) over the template `X:\OSDCloud\Apps` tree, so test-only auto-logon is actually injected.
+
 - Lab rounds re-apply the current-adapter Network firmware source as first boot after assigning the collision-checked static MAC, even when Network is already first, so PXE is not left bound to `MAC(000000000000)` from checkpoint restore.
 
 - WinPE `Invoke-OobeCustomization.ps1` copies the published Apps payload before reading `selected-profile.json`, and missing offline Winlogon values are no longer a terminating `reg.exe` error under `$ErrorActionPreference = 'Stop'`.

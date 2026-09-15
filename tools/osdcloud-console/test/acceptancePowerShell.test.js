@@ -21,6 +21,9 @@ test('WinPE OOBE customization copies Apps before auto-logon lookup and ignores 
   const copyApps=source.indexOf("Copy-Item -Path (Join-Path $sourceApps '*')");
   const countCall=source.indexOf('$testAutoLogonCount = Get-TestAutoLogonCount');
   assert.ok(copyApps>=0 && countCall>copyApps, 'selected-profile.json must be copied before auto-logon lookup');
+  const profilePick=source.indexOf("Test-Path (Join-Path $_ 'selected-profile.json')");
+  const installerPick=source.lastIndexOf("Test-Path (Join-Path $_ 'Install-Apps.ps1')");
+  assert.ok(profilePick>=0 && installerPick>profilePick, 'published selected-profile.json must win over WinPE template Apps');
   const deleteAt=source.indexOf("reg.exe delete 'HKLM\\OSD_OFF_SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon'");
   const continueAt=source.lastIndexOf("$ErrorActionPreference = 'Continue'", deleteAt);
   assert.ok(deleteAt>0 && continueAt>=0 && continueAt<deleteAt, 'missing Winlogon values must not terminate under Stop');
