@@ -1,5 +1,6 @@
+import fs from 'node:fs';
 import path from 'node:path';
-import { applyProjectRoot, applyServiceEndpoint, assertRuntimeRootAllowed, deploymentEndpointMissing, isDeploymentEndpointConfigured, loadConfig, maxTorrentSeedMinutes, mediaHttpServerConfig, runtimeRootForConfig, saveConfig, torrentServerConfig, webServerConfig, workspaceInfo } from '../config.js';
+import { applyProjectRoot, applyServiceEndpoint, assertRuntimeRootAllowed, deploymentEndpointMissing, isDeploymentEndpointConfigured, loadConfig, maxTorrentSeedMinutes, mediaHttpServerConfig, osTorrentManifestName, runtimeRootForConfig, saveConfig, torrentServerConfig, webServerConfig, workspaceInfo } from '../config.js';
 import { DhcpResponder } from '../dhcp.js';
 import { summarizeDriverPackCache } from '../driverPackCache.js';
 import { MediaHttpServer } from '../httpServer.js';
@@ -907,7 +908,7 @@ export class ServiceController extends EventEmitter {
   // Best-effort (re)generation of the active OS image .torrent + sidecar manifest.
   // Called after profile publish and endpoint sync (announce/webseed URLs embed
   // the service IP). Never throws: torrent is optional and falls back to SMB.
-  async regenerateOsTorrent() {
+  async regenerateOsTorrent(options = {}) {
     if (this.config.torrent?.enabled === false) {
       return null;
     }
@@ -921,6 +922,27 @@ export class ServiceController extends EventEmitter {
     const fileName = active?.fileName;
     if (!fileName || !String(fileName).toLowerCase().endsWith('.wim') || !active.cached) {
       return null;
+    }
+    const cacheRoot = torrentServerConfig(this.config).osCacheRoot;
+    if (!cacheRoot) {
+      return null;
+    }
+    const wimPath = path.join(cacheRoot, fileName);
+    if (options.skipIfUnchanged === true) {
+      const activeHash = String(active.sha256 ?? '').trim().toUpperCase();
+      const manifestPath = path.join(cacheRoot, osTorrentManifestName);
+      const torrentPath = `${wimPath}.torrent`;
+      if (activeHash && fs.existsSync(torrentPath) && fs.existsSync(manifestPath)) {
+        try {
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          if (String(manifest.fileName) === fileName && String(manifest.wimSha256).toUpperCase() === activeHash) {
+            this.addLog(`Reused OS image torrent for ${fileName} (matching WIM hash).`);
+            return { ...manifest, wimPath, torrentPath };
+          }
+        } catch {
+          // A malformed or stale manifest must fall through to regeneration.
+        }
+      }
     }
     try {
       this.addLog(`Generating OS image torrent for ${fileName} (hashing WIM, may take a few minutes)...`);
@@ -1087,7 +1109,7 @@ export class ServiceController extends EventEmitter {
         if (result.osImage?.image) {
           this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
         }
-        await this.regenerateOsTorrent();
+        await this.regenerateOsTorrent({ skipIfUnchanged: true });
         this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
           onCheck: (result) => {
             this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);
@@ -1657,7 +1679,7 @@ export class ServiceController extends EventEmitter {
         if (result.osImage?.image) {
           this.addLog(`Published OS image ${result.osImage.image.id}: ${formatOsImageLabel(result.osImage.image)}`);
         }
-        await this.regenerateOsTorrent();
+        await this.regenerateOsTorrent({ skipIfUnchanged: true });
         this.preflightResults = await this.dependencies.runPreflight(this.config, this.services, {
           onCheck: (result) => {
             this.addLog(`[PREFLIGHT] ${result.ok ? 'ok' : 'FAIL'} ${result.name}: ${result.detail}`);

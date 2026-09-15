@@ -729,6 +729,39 @@ test('selecting a legacy profile backfills missing international settings before
   }
 });
 
+test('profile publish reuses a matching OS torrent instead of hashing the WIM again', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-torrent-reuse-'));
+  try {
+    const cacheRoot = path.join(root, 'OS');
+    fs.mkdirSync(cacheRoot, { recursive: true });
+    const fileName = 'install.wim';
+    const wimPath = path.join(cacheRoot, fileName);
+    const wimSha256 = 'ABCDEF0123456789';
+    fs.writeFileSync(wimPath, 'wim');
+    fs.writeFileSync(path.join(cacheRoot, `${fileName}.torrent`), 'torrent');
+    fs.writeFileSync(path.join(cacheRoot, 'os-torrent.json'), `${JSON.stringify({ fileName, wimSha256, torrentSha256: 'TORRENT' })}\n`);
+    let generated = 0;
+    const { controller, config } = makeController(root, { dependencies: {
+      resolveOsImageState: () => ({
+        activeImageId: 'WIM',
+        activeImage: { id: 'WIM', name: 'WIM', fileName, filePath: wimPath, cached: true, sha256: wimSha256 },
+        images: [{ id: 'WIM', name: 'WIM', fileName, filePath: wimPath, cached: true, sha256: wimSha256 }],
+        cacheRoot,
+      }),
+      createOsImageTorrent: async () => { generated += 1; throw new Error('torrent should be reused'); },
+    } });
+    config.osImage.cacheRoot = cacheRoot;
+
+    const result = await controller.regenerateOsTorrent({ skipIfUnchanged: true });
+
+    assert.equal(generated, 0);
+    assert.equal(result.fileName, fileName);
+    assert.equal(result.wimSha256, wimSha256);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('deployment profile management actions create, update active software, and delete inactive profiles', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-controller-profiles-'));
   try {
