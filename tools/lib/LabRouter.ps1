@@ -104,6 +104,19 @@ function Initialize-LabRouterGuest {
                 Remove-PSSession $session
                 $session = $null
                 Start-Sleep -Seconds 10
+                $restartState = (Get-VM -Name $name -ErrorAction Stop).State.ToString()
+                $hostStartRequired = $false
+                if ($restartState -eq 'Off') {
+                    Start-VM -Name $name -ErrorAction Stop
+                    $hostStartRequired = $true
+                } elseif ($restartState -ne 'Running') {
+                    throw "Router guest restart left VM in unsupported state: $restartState"
+                }
+                [pscustomobject]@{
+                    capturedAt = [DateTimeOffset]::Now.ToString('o')
+                    stateAfterGuestRestart = $restartState
+                    hostStartRequired = $hostStartRequired
+                } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-hyperv-restart.json') -Encoding UTF8
                 $session = New-LabRouterPSSession -VmName $name -Credential $Credential
             }
             $featureAfter = Invoke-Command -Session $session -ScriptBlock {

@@ -85,6 +85,9 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(fn,/router-processor-before\.json/);
   assert.match(fn,/Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All -NoRestart/);
   assert.match(fn,/shutdown\.exe \/r \/t 0 \/f/);
+  assert.match(fn,/if \(\$restartState -eq 'Off'\)/);
+  assert.match(fn,/Start-VM -Name \$name -ErrorAction Stop/);
+  assert.match(fn,/router-hyperv-restart\.json/);
   assert.match(fn,/Router MSFT_NetNat is unavailable after Hyper-V enablement/);
   assert.match(fn,/router-hyperv-prerequisite\.json/);
   assert.match(fn,/Start-Service -ErrorAction SilentlyContinue/);

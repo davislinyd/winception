@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Router guest NAT bootstrap configures two vCPUs and host-scoped nested virtualization on the owned VM, enables guest Hyper-V with a controlled restart, and requires `MSFT_NetNat` before creating WinNAT. Failure restores the prior processor settings and preserves WinNat service state, CIM/feature state, adapters, IPv4 addresses and relevant System events before cleanup.
+- Router guest NAT bootstrap configures two vCPUs and host-scoped nested virtualization on the owned VM, enables guest Hyper-V with a controlled restart, starts the owned VM when guest feature servicing leaves it Off, and requires `MSFT_NetNat` before creating WinNAT. Failure restores the prior processor settings and preserves WinNat service state, CIM/feature state, adapters, IPv4 addresses and relevant System events before cleanup.
 
 - WinPE OOBE customization prefers an Apps source that contains `selected-profile.json` (the published SMB payload) over the template `X:\OSDCloud\Apps` tree, so test-only auto-logon is actually injected.
 

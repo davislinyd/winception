@@ -23,6 +23,8 @@ Final draft review added authenticated Console calls, shared router-create mutex
 
 12:11 +08 的提升權限 post-cleanup `ValidateOnly` 通過：mutex free；profile `IZVZO7PU`；endpoint `vEthernet (Winception-AutoLab)` / `192.168.177.1/24`；Server DHCP `.200–.250`；六台 VM 全 Off，resting Secure Boot／TPM 正確且只有 `Winception-Clean`；四個部署服務停止、Fleet 0、29 項 Preflight 全部通過。依本輪零重試規則停止。實體三場景與真人上手仍為 NotRun。
 
+2026-09-15 16:13–16:47 +08，以 `efa9052` 執行新的唯一一次 `acceptance-router-bootstrap-20260915f`。前置 ValidateOnly 通過；Fleet run `20260915-161816-3833-6458-5439-4386-0617-9856-93` 成功到達 `windows-desktop-ready`，nested virtualization 也已在 Router 關機時設為兩顆 vCPU／On。Guest Hyper-V feature servicing 後 VM 停在 Off，PowerShell Direct 等待十分鐘後以 `Router PowerShell Direct timed out after guest restart.` 失敗，未進入 `MSFT_NetNat`／WinNAT 建立，`Winception-Router-Ready` 仍不存在。報告為 `status=Failed`、`cleanup=Passed`，證據位於 `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260915f`。16:48 +08 的提升權限 post-cleanup ValidateOnly 再次通過：原 profile `IZVZO7PU` 與 endpoint 已還原、服務停止、mutex free、六台 VM 全 Off，Router processor 亦回復一顆 vCPU／nested Off。依零自動重試規則未執行完整網路矩陣；Source 後續補上 feature servicing 留在 Off 時只啟動 owned Router VM 並保存 `router-hyperv-restart.json`。30 個相關 Router／Lab tests、`npm run acceptance:source`（486 tests，483 passed／3 skipped）與 smoke 通過；此後續尚未再次部署驗證。
+
 ## One laptop, anywhere acceptance — 2026-09-14
 
 Implementation is on `codex/easier-onboarding`, based on `bdbe5ce`; baseline branch is `codex/baseline-onboarding-20260914`. Source, isolated preview, installed service, physical network and human usability evidence are separate. No new physical deployment or human usability pass is claimed by this implementation record.
