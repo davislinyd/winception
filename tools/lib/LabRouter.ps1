@@ -32,22 +32,93 @@ function Assert-LabRouterOwnership {
     $vm
 }
 
+function Get-LabRouterFirmwareEvidence {
+    param([Parameter(Mandatory)][string]$VmName)
+    $firmware = Get-VMFirmware -VMName $VmName -ErrorAction Stop
+    $bootOrder = New-Object System.Collections.Generic.List[object]
+    foreach ($entry in @($firmware.BootOrder)) {
+        $device = $entry.Device
+        $bootOrder.Add([ordered]@{
+            bootType = [string]$entry.BootType
+            deviceId = if ($device) { [string]$device.Id } else { '' }
+            description = if ($device) { [string]$device.Description } else { '' }
+        })
+    }
+    [ordered]@{
+        secureBoot = [string]$firmware.SecureBoot
+        secureBootTemplate = [string]$firmware.SecureBootTemplate
+        bootOrder = @($bootOrder)
+    }
+}
+
+function Write-LabRouterSessionFailure {
+    param(
+        [Parameter(Mandatory)][string]$VmName,
+        [Parameter(Mandatory)][string]$Phase,
+        [Parameter(Mandatory)][string]$EvidencePath,
+        [Parameter(Mandatory)][int]$Attempts,
+        [string]$LastError
+    )
+    try {
+        $vm = Get-VM -Name $VmName -ErrorAction Stop
+        $firmware = Get-LabRouterFirmwareEvidence -VmName $VmName
+        $integration = @(Get-VMIntegrationService -VMName $VmName -ErrorAction SilentlyContinue |
+            Select-Object Name, Enabled, PrimaryStatusDescription, SecondaryStatusDescription)
+        $evidence = [ordered]@{
+            capturedAt = [DateTimeOffset]::Now.ToString('o')
+            vmName = $VmName
+            phase = $Phase
+            attempts = $Attempts
+            vmState = [string]$vm.State
+            heartbeat = @($integration | Where-Object { $_.Name -eq 'Heartbeat' } | Select-Object -First 1)
+            firmware = $firmware
+            lastError = [string]$LastError
+        }
+    }
+    catch {
+        $evidence = [ordered]@{
+            capturedAt = [DateTimeOffset]::Now.ToString('o')
+            vmName = $VmName
+            phase = $Phase
+            attempts = $Attempts
+            lastError = [string]$LastError
+            diagnosticError = 'Host VM diagnostics could not be collected.'
+        }
+    }
+    $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
+}
+
 function New-LabRouterPSSession {
-    param([string]$VmName, [pscredential]$Credential, [int]$TimeoutSec = 600)
+    param(
+        [string]$VmName,
+        [pscredential]$Credential,
+        [int]$TimeoutSec = 600,
+        [string]$Phase = 'guest-boot',
+        [string]$EvidencePath
+    )
     $session = $null
+    $attempts = 0
+    $lastError = ''
     $sessionOption = New-PSSessionOption -OperationTimeout 1200000
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
     do {
+        $attempts++
         try {
             if ((Get-VM -Name $VmName -ErrorAction Stop).State -eq 'Running') {
                 $session = New-PSSession -VMName $VmName -Credential $Credential -SessionOption $sessionOption -ErrorAction Stop
             }
         } catch {
             $session = $null
+            $lastError = [string]$_.Exception.Message
         }
         if (-not $session) { Start-Sleep -Seconds 5 }
     } while (-not $session -and [DateTime]::UtcNow -lt $deadline)
-    if (-not $session) { throw 'Router PowerShell Direct timed out after guest restart.' }
+    if (-not $session) {
+        if ($EvidencePath) {
+            Write-LabRouterSessionFailure -VmName $VmName -Phase $Phase -EvidencePath $EvidencePath -Attempts $attempts -LastError $lastError
+        }
+        throw "Router PowerShell Direct timed out during $Phase."
+    }
     $session
 }
 
@@ -86,8 +157,22 @@ function Initialize-LabRouterGuest {
     if (-not $firmware.BootOrder -or $firmware.BootOrder[0].Device.Id -ne $hardDisk.Id) {
         throw 'Router guest setup must boot the deployed hard disk, not PXE.'
     }
+    [ordered]@{
+        capturedAt = [DateTimeOffset]::Now.ToString('o')
+        vmName = $name
+        vmStateBeforeStart = [string](Get-VM -Name $name -ErrorAction Stop).State
+        hardDiskId = [string]$hardDisk.Id
+        firmware = Get-LabRouterFirmwareEvidence -VmName $name
+        processor = [ordered]@{ count = [int]$processor.Count; nestedVirtualization = [bool]$processor.ExposeVirtualizationExtensions }
+    } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-guest-boot.json') -Encoding UTF8
     Start-VM -Name $name -ErrorAction Stop
-    $session = New-LabRouterPSSession -VmName $name -Credential $Credential
+    $session = New-LabRouterPSSession -VmName $name -Credential $Credential -Phase 'after-deployed-disk-boot' -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-session-failure.json')
+    [ordered]@{
+        capturedAt = [DateTimeOffset]::Now.ToString('o')
+        vmName = $name
+        phase = 'after-deployed-disk-boot'
+        firmware = Get-LabRouterFirmwareEvidence -VmName $name
+    } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-guest-session.json') -Encoding UTF8
     try {
         Invoke-Command -Session $session -ScriptBlock { New-Item C:\ProgramData\WinceptionLabRouter -ItemType Directory -Force | Out-Null }
         $node = (Get-Command node.exe -ErrorAction Stop).Source
@@ -123,7 +208,7 @@ function Initialize-LabRouterGuest {
                     stateAfterGuestRestart = $restartState
                     hostStartRequired = $hostStartRequired
                 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-hyperv-restart.json') -Encoding UTF8
-                $session = New-LabRouterPSSession -VmName $name -Credential $Credential
+                $session = New-LabRouterPSSession -VmName $name -Credential $Credential -Phase 'after-hyperv-restart' -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-session-failure.json')
             }
             $featureAfter = Invoke-Command -Session $session -ScriptBlock {
                 $deadline = [DateTime]::UtcNow.AddSeconds(120)

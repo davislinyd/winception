@@ -99,12 +99,27 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(fn,/Get-CimClass -Namespace root\/StandardCimv2 -ClassName MSFT_NetNat/);
   assert.match(fn,/Get-WindowsOptionalFeature -Online/);
   assert.match(fn,/router-nat-diagnostics\.json/);
+  assert.match(fn,/router-guest-boot\.json/);
+  assert.match(fn,/router-guest-session-failure\.json/);
+  assert.match(fn,/after-deployed-disk-boot/);
+  assert.match(fn,/after-hyperv-restart/);
   assert.match(fn,/Get-WinEvent -FilterHashtable/);
   const ownership=source.slice(source.indexOf('function Assert-LabRouterOwnership'),source.indexOf('function New-LabRouterPSSession'));
   assert.match(ownership,/Router ready processor prerequisites are missing/);
   const cleanup=source.slice(source.indexOf('function Stop-LabRouter'));
   assert.match(cleanup,/router-processor-before\.json/);
   assert.match(cleanup,/ExposeVirtualizationExtensions \(\[bool\]\$processorBefore\.exposeVirtualizationExtensions\)/);
+});
+
+test('router PowerShell Direct timeout evidence records the phase and host boot state',()=>{
+  const source=fs.readFileSync('tools/lib/LabRouter.ps1','utf8');
+  const session=source.slice(source.indexOf('function New-LabRouterPSSession'),source.indexOf('function Initialize-LabRouterGuest'));
+  assert.match(session,/Write-LabRouterSessionFailure -VmName \$VmName -Phase \$Phase/);
+  assert.match(session,/Router PowerShell Direct timed out during \$Phase/);
+  const evidence=source.slice(source.indexOf('function Write-LabRouterSessionFailure'),source.indexOf('function New-LabRouterPSSession'));
+  assert.match(evidence,/Get-VMIntegrationService -VMName \$VmName/);
+  assert.match(evidence,/vmState = \[string\]\$vm\.State/);
+  assert.match(evidence,/lastError = \[string\]\$LastError/);
 });
 test('router ownership refuses foreign disk chains changed VM and absent checkpoints',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Assert-LabRouterOwnership'],`
