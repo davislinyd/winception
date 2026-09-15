@@ -127,6 +127,7 @@ test('router PowerShell Direct timeout evidence records the phase and host boot 
   const session=source.slice(source.indexOf('function New-LabRouterPSSession'),source.indexOf('function Initialize-LabRouterGuest'));
   assert.match(session,/Write-LabRouterSessionFailure -VmName \$VmName -Phase \$Phase/);
   assert.match(session,/Router PowerShell Direct timed out during \$Phase/);
+  assert.doesNotMatch(session,/-SessionOption \$sessionOption/);
   const evidence=source.slice(source.indexOf('function Write-LabRouterSessionFailure'),source.indexOf('function New-LabRouterPSSession'));
   assert.match(evidence,/Get-VMIntegrationService -VMName \$VmName/);
   assert.match(evidence,/vmState = \[string\]\$vm\.State/);

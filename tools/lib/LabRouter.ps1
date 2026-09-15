@@ -99,13 +99,13 @@ function New-LabRouterPSSession {
     $session = $null
     $attempts = 0
     $lastError = ''
-    $sessionOption = New-PSSessionOption -OperationTimeout 1200000
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
     do {
         $attempts++
         try {
             if ((Get-VM -Name $VmName -ErrorAction Stop).State -eq 'Running') {
-                $session = New-PSSession -VMName $VmName -Credential $Credential -SessionOption $sessionOption -ErrorAction Stop
+                # PowerShell Direct's VMName parameter set does not accept SessionOption.
+                $session = New-PSSession -VMName $VmName -Credential $Credential -ErrorAction Stop
             }
         } catch {
             $session = $null
