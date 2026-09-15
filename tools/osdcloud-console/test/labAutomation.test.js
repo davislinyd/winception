@@ -50,10 +50,14 @@ function runLabPowerShell(functionNames, command) {
 }
 
 test('Lab guest evidence persists host firmware and requires the published guest profile', () => {
-  const output = runLabPowerShell(['Get-GuestEvidence', 'Assert-GuestEvidence', 'Get-WindowsFamilyFromBuild', 'Get-OptionalProperty'], `
+  const output = runLabPowerShell(['Get-GuestEvidence', 'Invoke-LabGuestEvidenceCommand', 'Write-GuestEvidenceHeartbeat', 'Assert-GuestEvidence', 'Get-WindowsFamilyFromBuild', 'Get-OptionalProperty'], `
     function New-PSSession { [CmdletBinding()] param($VmName, $Credential) [pscustomobject]@{ vm = $VmName } }
     function Remove-PSSession { [CmdletBinding()] param($Session) }
-    function Invoke-Command { param($Session, $ArgumentList, $ScriptBlock) & $ScriptBlock @ArgumentList }
+    function Invoke-Command { [CmdletBinding()] param($Session, $ArgumentList, $ScriptBlock, [switch]$AsJob) $value = & $ScriptBlock @ArgumentList; if ($AsJob) { [pscustomobject]@{ State = 'Completed'; Value = $value } } else { $value } }
+    function Wait-Job { [CmdletBinding()] param($Job, $Timeout) $true }
+    function Receive-Job { [CmdletBinding()] param($Job) $Job.Value }
+    function Stop-Job { [CmdletBinding()] param($Job) }
+    function Remove-Job { [CmdletBinding()] param($Job, [switch]$Force) }
     function Test-Path { param($LiteralPath) $true }
     function Get-Content {
       param($LiteralPath, [switch]$Raw)

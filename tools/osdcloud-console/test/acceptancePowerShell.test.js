@@ -116,6 +116,16 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(cleanup,/Remove-VMNetworkAdapter -VMName winception-autolab-router -Name WAN/);
 });
 
+test('guest evidence commands are bounded and expose a live heartbeat',()=>{
+  const source=fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1','utf8');
+  assert.match(source,/function Write-GuestEvidenceHeartbeat/);
+  assert.match(source,/function Invoke-LabGuestEvidenceCommand/);
+  assert.match(source,/Invoke-Command -Session \$Session[\s\S]*-AsJob/);
+  assert.match(source,/Wait-Job -Job \$job -Timeout \$TimeoutSec/);
+  assert.match(source,/guest-evidence-heartbeat\.json/);
+  assert.match(source,/Guest evidence command timed out/);
+});
+
 test('router firmware evidence tolerates Hyper-V entries without descriptions',()=>{
   const output=runPowerShell('tools/lib/LabRouter.ps1',['Get-LabRouterFirmwareEvidence'],`
     function Get-VMFirmware { [pscustomobject]@{ SecureBoot='On'; SecureBootTemplate='MicrosoftWindows'; BootOrder=@([pscustomobject]@{ BootType='Drive'; Device=[pscustomobject]@{ Id='disk' } }, [pscustomobject]@{ BootType='Network'; Device=[pscustomobject]@{ Id='net' } }) } }

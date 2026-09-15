@@ -1318,15 +1318,74 @@ function Get-FirstValue {
     $Default
 }
 
+function Write-GuestEvidenceHeartbeat {
+    param(
+        [Parameter(Mandatory)][string] $VmName,
+        [Parameter(Mandatory)][string] $Phase,
+        [int] $Attempt = 0,
+        [int] $ElapsedSeconds = 0,
+        [string] $Stage = '',
+        [bool] $SessionEstablished = $false
+    )
+
+    $evidenceRoot = Get-Variable -Name EvidenceRoot -Scope Script -ErrorAction SilentlyContinue
+    if (-not $evidenceRoot -or [string]::IsNullOrWhiteSpace([string] $evidenceRoot.Value) -or
+        -not (Get-Command Write-Evidence -ErrorAction SilentlyContinue)) {
+        return
+    }
+    Write-Evidence -Name 'guest-evidence-heartbeat.json' -Value ([ordered]@{
+        capturedAt = [DateTimeOffset]::Now.ToString('o')
+        vmName = $VmName
+        phase = $Phase
+        attempt = $Attempt
+        elapsedSeconds = $ElapsedSeconds
+        stage = $Stage
+        sessionEstablished = $SessionEstablished
+    }) | Out-Null
+}
+
+function Invoke-LabGuestEvidenceCommand {
+    param(
+        [Parameter(Mandatory)] $Session,
+        [Parameter(Mandatory)][scriptblock] $ScriptBlock,
+        [object[]] $ArgumentList,
+        [Parameter(Mandatory)][string] $VmName,
+        [int] $TimeoutSec = 60
+    )
+
+    $job = $null
+    try {
+        $job = Invoke-Command -Session $Session -ScriptBlock $ScriptBlock -ArgumentList $ArgumentList -AsJob -ErrorAction Stop
+        if (-not (Wait-Job -Job $job -Timeout $TimeoutSec)) {
+            Write-GuestEvidenceHeartbeat -VmName $VmName -Phase 'guest-command-timeout' -Stage 'windows-awaiting' -SessionEstablished $true
+            throw "Guest evidence command timed out: $VmName"
+        }
+        if ($job.State -eq 'Failed') {
+            throw "Guest evidence command failed: $VmName"
+        }
+        Receive-Job -Job $job -ErrorAction Stop
+    }
+    finally {
+        if ($job) {
+            Stop-Job -Job $job -ErrorAction SilentlyContinue
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Get-GuestEvidence {
     param(
         [Parameter(Mandatory)][string] $VmName,
         [Parameter(Mandatory)][pscredential] $Credential
     )
 
-    $deadline = [DateTimeOffset]::Now.AddMinutes([int] $script:Config.timeouts.guestMinutes)
+    $startedAt = [DateTimeOffset]::Now
+    $deadline = $startedAt.AddMinutes([int] $script:Config.timeouts.guestMinutes)
     $session = $null
+    $attempt = 0
     do {
+        $attempt++
+        Write-GuestEvidenceHeartbeat -VmName $VmName -Phase 'powershell-direct-session' -Attempt $attempt -ElapsedSeconds ([int](([DateTimeOffset]::Now - $startedAt).TotalSeconds))
         try {
             $session = New-PSSession -VMName $VmName -Credential $Credential -ErrorAction Stop
             break
@@ -1340,9 +1399,17 @@ function Get-GuestEvidence {
     }
 
     try {
+        $result = $null
+        $attempt = 0
         do {
+            $attempt++
+            $heartbeatStage = 'windows-awaiting'
+            if ($result) {
+                $heartbeatStage = [string] $result.stage
+            }
+            Write-GuestEvidenceHeartbeat -VmName $VmName -Phase 'desktop-readiness' -Attempt $attempt -ElapsedSeconds ([int](([DateTimeOffset]::Now - $startedAt).TotalSeconds)) -Stage $heartbeatStage -SessionEstablished $true
             try {
-                $result = Invoke-Command -Session $session -ArgumentList ([string] $script:Secrets.windowsUsername) -ScriptBlock {
+                $result = Invoke-LabGuestEvidenceCommand -VmName $VmName -Session $session -ArgumentList ([string] $script:Secrets.windowsUsername) -ScriptBlock {
                 param([string] $TargetUser)
                 $statusPath = 'C:\ProgramData\OSDCloud\DeploymentStatus.json'
                 $progressPath = 'C:\ProgramData\OSDCloud\deployment-progress.json'
