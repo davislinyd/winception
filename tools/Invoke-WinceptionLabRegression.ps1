@@ -2028,8 +2028,6 @@ try {
     Ensure-WebConsole
     $state = Save-ConsoleStateEvidence -Name 'state-after-start.json'
     $state = Set-ConsoleEndpoint
-    $state = Publish-ActiveProfile -State $state
-    $profileId = Get-ActiveProfileId -State $state
     $profileId = New-LabAcceptanceProfile
 
     $rounds = New-Object System.Collections.Generic.List[object]

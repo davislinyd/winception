@@ -5,6 +5,12 @@ function New-LabAcceptanceProfile {
     $script:AcceptanceProfileId=[string]$response.result.profile.id
     $response=Invoke-ConsoleJson -Method POST -Path '/api/profile' -Body @{profileId=$script:AcceptanceProfileId}
     if ($response.state.profile.activeProfile.acceptance.testOnly -ne $true) {throw 'Installed App does not support test-only acceptance profiles; update it before Lab deployment.'}
+    Write-Evidence -Name 'published-profile.json' -Value @{
+        profileId = $script:AcceptanceProfileId
+        profile = $response.result.profile
+        osImage = $response.result.osImage
+        preflight = @($response.result.preflight)
+    } | Out-Null
     $script:AcceptanceProfileId
 }
 
