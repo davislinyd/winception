@@ -103,8 +103,9 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   const source=fs.readFileSync('tools/lib/LabRouter.ps1','utf8');
   assert.match(source,/function Invoke-LabRouterGuestCommand/);
   assert.match(source,/Invoke-Command -Session \$Session[\s\S]*-AsJob/);
-  assert.match(source,/Wait-Job -Job \$job -Timeout \$TimeoutSec/);
-  assert.match(source,/Receive-Job -Job \$job -ErrorAction SilentlyContinue 2>&1/);
+  assert.doesNotMatch(source,/Wait-Job -Job \$job/);
+  assert.match(source,/\$states -contains 'Blocked'/);
+  assert.match(source,/\[DateTime\]::UtcNow\.AddSeconds\(\$TimeoutSec\)/);
   assert.match(source,/Router guest command blocked during/);
   assert.match(source,/router-guest-command-timeout\.json/);
   const fn=source.slice(source.indexOf('function Initialize-LabRouterGuest'),source.indexOf('function Enable-LabRouterTpm'));

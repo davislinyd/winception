@@ -134,20 +134,23 @@ function Invoke-LabRouterGuestCommand {
     $job = $null
     try {
         $job = Invoke-Command -Session $Session -ScriptBlock $ScriptBlock -ArgumentList $ArgumentList -AsJob -ErrorAction Stop
-        try {
-            $completedJob = Wait-Job -Job $job -Timeout $TimeoutSec -ErrorAction Stop
-        }
-        catch {
-            $blockedOutput = @(
-                Receive-Job -Job $job -ErrorAction SilentlyContinue 2>&1 |
-                    ForEach-Object { $_.ToString() }
-            ) -join [Environment]::NewLine
-            if ($blockedOutput) {
+        $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
+        do {
+            $states = @($job.State) + @($job.ChildJobs | ForEach-Object State)
+            if ($states -contains 'Blocked') {
+                $blockedOutput = @(
+                    $job.ChildJobs | ForEach-Object {
+                        if ($_.JobStateInfo.Reason) { $_.JobStateInfo.Reason.Message }
+                        $_.Error | ForEach-Object { $_.ToString() }
+                    }
+                ) -join [Environment]::NewLine
+                if (-not $blockedOutput) { $blockedOutput = 'Remote job requested interactive input.' }
                 throw "Router guest command blocked during ${Name}: $blockedOutput"
             }
-            throw
-        }
-        if (-not $completedJob) {
+            if ($job.State -in @('Completed','Failed','Stopped','Disconnected')) { break }
+            Start-Sleep -Milliseconds 500
+        } while ([DateTime]::UtcNow -lt $deadline)
+        if ($job.State -notin @('Completed','Failed','Stopped','Disconnected')) {
             if ($EvidencePath) {
                 [ordered]@{
                     capturedAt = [DateTimeOffset]::Now.ToString('o')
@@ -160,6 +163,9 @@ function Invoke-LabRouterGuestCommand {
         }
         if ($job.State -eq 'Failed') {
             throw "Router guest command failed during $Name."
+        }
+        if ($job.State -ne 'Completed') {
+            throw "Router guest command ended in state $($job.State) during $Name."
         }
         Receive-Job -Job $job -ErrorAction Stop
     }
