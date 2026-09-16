@@ -1,8 +1,24 @@
-# Agent handoff — 2026-09-15 16:49
+# Agent handoff — 2026-09-16 12:52
 
-## Active task — Router guest setup must switch from PXE to deployed disk; network matrix blocked
+## Active task — WinPE metadata ordering fixed; Router Ready and network matrix remain blocked
 
-Codex executed the authorized `20260915g` BootstrapRouter from `codex/easier-onboarding` at source commit `1ba36eb`. Fleet and PowerShell Direct reached `windows-desktop-ready`; Router guest setup then stopped the owned VM, configured two vCPUs and nested virtualization, and failed to reconnect. The deployment round deliberately left firmware Network-first, so the guest setup restart returned to PXE instead of the deployed disk. `20260915g` is `Failed`, `cleanup=Passed`; Router Ready was not created and `-Mode All -NetworkAcceptance` was not started. Source now changes only the owned Router to its deployed hard disk before guest setup and verifies that boot source. This follow-up is not live-proven yet. Do **not** Create the router or retry deployment without a new explicit run decision. No master push, Release, or package. Physical/human remain independent.
+Current HEAD is `745dcb4` on `codex/easier-onboarding`. The authorized Router bootstrap `20260916m` reached WinPE `osdcloud-start`, then correctly exposed a real failure: `Save-DeploymentStatusMetadata` ran before `Invoke-OSDCloud`, when no deployed Windows volume existed. It emitted `windows-metadata-error`, Fleet stopped safely, and `cleanup=Passed`. `745dcb4` moves metadata writing after Windows is applied and before post-apply customization verification; its focused tests, PowerShell parser, and Source acceptance (496 passed / 3 skipped / 0 failed) pass. Router Ready is absent; do not start `-RequireRouter` or the network matrix yet.
+
+### Immediate continuation
+
+1. Re-read live Console, mutex, endpoint, profile, six VM states and router checkpoints. Expected clean state: profile `IZVZO7PU`, AutoLab `192.168.177.1/24` Server `.200-.250`, services stopped, six VMs Off, router `Winception-Clean` only.
+2. Run elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` with a new ignored config/evidence root (for example `acceptance-router-bootstrap-20260916n`).
+3. Run exactly one `-BootstrapRouter` from the clone at `745dcb4`; do not use `-Create` or automatic retry. Start `Get-WinceptionLabAcceptanceStatus.ps1 -Follow` and actively poll Console operation, Fleet/latest stage, VM state/firmware, mutex and evidence at bounded intervals.
+4. Require `windows-desktop-ready`, deployed-disk firmware switch, guest PowerShell Direct, two vCPUs/nested virtualization, guest Hyper-V/`MSFT_NetNat`, LAN `.254`, Default Switch WAN, test DHCP, `Winception-Router-Ready`, and `cleanup=Passed`. On any failure, preserve evidence, let finally clean up, diagnose and commit a narrow source fix before another run.
+5. Only after Router Ready: elevated `-ValidateOnly -RequireRouter`, then a separate `-Mode All -NetworkAcceptance` root. No master push, Release/package, or physical/human claim.
+
+### Latest evidence and fixes
+
+- `acceptance-router-bootstrap-20260916l`: `Failed`, `cleanup=Failed`. The original test profile publish no longer timed out, but status evidence was collected from the wrong path and cleanup profile restore raced Console activity. `706949c` waits for idle before profile restore and captures `PXE-HttpRoot\\status`; manual cleanup restored `IZVZO7PU` and deleted the test profile.
+- `acceptance-router-bootstrap-20260916m`: `Failed`, `cleanup=Passed`. Evidence now retains `runtime\\PXE-HttpRoot\\status\\...latest.json`, which proves the real `windows-metadata-error` rather than a detector false positive. The profile, endpoint, services and all six VMs were restored.
+- `706949c` is the evidence/cleanup repair. `745dcb4` is the current WinPE metadata-order repair. `2a7218c` remains installed in HostTools for torrent reuse; no HostTools reload is required for the two newer clone-runner/WinPE template changes because endpoint sync publishes the source template during the next Lab run.
+
+## Historical continuation — Router guest setup must switch from PXE to deployed disk; network matrix blocked
 
 ### Git / workspace
 
