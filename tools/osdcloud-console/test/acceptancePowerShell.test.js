@@ -19,10 +19,11 @@ test('new acceptance scripts parse in Windows PowerShell without invoking host o
 test('Lab admission treats an absent Console operation as idle',()=>{
   const output=runPowerShell('tools/Invoke-WinceptionLabRegression.ps1',['Get-OptionalProperty','Test-ConsoleIsIdle'],`
     $idle=[pscustomobject]@{operation=$null;fleet=[pscustomobject]@{runs=@()};services=[pscustomobject]@{http=[pscustomobject]@{running=$false}}}
+    $missing=[pscustomobject]@{operation=$null;fleet=[pscustomobject]@{};services=$null}
     $busy=[pscustomobject]@{operation=$null;fleet=[pscustomobject]@{runs=@([pscustomobject]@{status='running'})};services=[pscustomobject]@{http=[pscustomobject]@{running=$false}}}
-    @{idle=(Test-ConsoleIsIdle -State $idle);busy=(Test-ConsoleIsIdle -State $busy)}|ConvertTo-Json -Compress
+    @{idle=(Test-ConsoleIsIdle -State $idle);missing=(Test-ConsoleIsIdle -State $missing);busy=(Test-ConsoleIsIdle -State $busy)}|ConvertTo-Json -Compress
   `);
-  assert.deepEqual(JSON.parse(output),{idle:true,busy:false});
+  assert.deepEqual(JSON.parse(output),{idle:true,missing:true,busy:false});
 });
 test('WinPE OOBE customization copies Apps before auto-logon lookup and ignores missing Winlogon values',()=>{
   const source=fs.readFileSync('osdcloud-assets/OSDCloud/WinPE/OSDCloud/Config/Scripts/Shutdown/Invoke-OobeCustomization.ps1','utf8');

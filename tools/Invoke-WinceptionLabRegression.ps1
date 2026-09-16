@@ -64,14 +64,14 @@ function Test-ConsoleIsIdle {
     $fleet = Get-OptionalProperty -Object $State -Name 'fleet'
     $services = Get-OptionalProperty -Object $State -Name 'services'
     $operationRunning = [bool] (Get-OptionalProperty -Object $operation -Name 'running')
-    $activeRuns = @((Get-OptionalProperty -Object $fleet -Name 'runs') | Where-Object { $_.status -in @('running','awaiting-windows','windows-running') })
+    $activeRuns = [object[]] @((Get-OptionalProperty -Object $fleet -Name 'runs') | Where-Object { $_.status -in @('running','awaiting-windows','windows-running') })
     $runningServices = if ($services) {
-        @($services.PSObject.Properties | Where-Object { [bool] (Get-OptionalProperty -Object $_.Value -Name 'running') })
+        [object[]] @($services.PSObject.Properties | Where-Object { [bool] (Get-OptionalProperty -Object $_.Value -Name 'running') })
     }
     else {
-        @()
+        [object[]] @()
     }
-    -not $operationRunning -and $activeRuns.Count -eq 0 -and $runningServices.Count -eq 0
+    -not $operationRunning -and (@($activeRuns).Count -eq 0) -and (@($runningServices).Count -eq 0)
 }
 
 function ConvertTo-ObjectList {
