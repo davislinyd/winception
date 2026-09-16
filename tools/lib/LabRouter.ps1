@@ -192,9 +192,19 @@ function Wait-LabRouterConfigurationSettled {
                 ForEach-Object Name |
                 Sort-Object
         )
-        $fingerprint = "$(($vm.State).ToString())|$($adapterNames -join ',')|$((Get-VMHardDiskDrive -VMName winception-autolab-router -ErrorAction Stop).Path)"
+        $diskPath = [string](Get-VMHardDiskDrive -VMName winception-autolab-router -ErrorAction Stop).Path
+        $diskReady = $false
+        if (Test-Path -LiteralPath $diskPath -PathType Leaf) {
+            try {
+                $diskReady = [bool](Get-VHD -Path $diskPath -ErrorAction Stop)
+            } catch {
+                $diskReady = $false
+            }
+        }
+        $fingerprint = "$(($vm.State).ToString())|$($adapterNames -join ',')|$diskPath"
         if ($vm.State -eq 'Off' -and @($adapterNames | Where-Object { $_ -notin $ExpectedAdapterNames }).Count -eq 0 -and
-            @($ExpectedAdapterNames | Where-Object { $_ -notin $adapterNames }).Count -eq 0 -and $fingerprint -eq $previous) {
+            @($ExpectedAdapterNames | Where-Object { $_ -notin $adapterNames }).Count -eq 0 -and $diskReady -and
+            $fingerprint -eq $previous) {
             return
         }
         $previous = $fingerprint
