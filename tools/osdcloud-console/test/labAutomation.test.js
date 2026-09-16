@@ -589,7 +589,7 @@ test('Lab regression gates DHCP behind preflight and always cleans known resourc
   assert.match(script, /A Lab service port is already occupied/);
 });
 
-test('Lab cleanup uses the preflight timeout and waits for an idle console after endpoint restore', () => {
+test('Lab cleanup waits for an idle Console before restoring or deleting the test profile', () => {
   const output = runLabPowerShell(
     ['Invoke-LabCleanup', 'Wait-ConsoleIdle', 'Get-ConsoleTimeoutSec', 'Get-OptionalProperty'],
     `
@@ -656,13 +656,20 @@ test('Lab cleanup uses the preflight timeout and waits for an idle console after
   const result = JSON.parse(output.slice(output.indexOf('{')));
   assert.equal(result.profileTimeout, 900);
   assert.equal(result.deleteTimeout, 900);
+  assert.ok(result.events.indexOf('state') < result.events.indexOf('profile'), 'profile restore must wait for a prior Console operation');
   assert.ok(result.events.indexOf('profile') < result.events.indexOf('delete'));
-  assert.ok(result.events.indexOf('state') > result.events.indexOf('profile') && result.events.indexOf('state') < result.events.indexOf('delete'), 'profile restore must settle before delete');
+  assert.ok(result.events.slice(result.events.indexOf('profile') + 1, result.events.indexOf('delete')).includes('state'), 'profile restore must settle before delete');
   assert.equal(result.endpointTimeout, 900);
   assert.ok(result.polls >= 2, 'cleanup must poll until the console operation is idle');
   assert.equal(result.mode, 'secureboot');
   assert.equal(result.cleared, true);
   assert.deepEqual(result.errors, ['Endpoint restoration failed.']);
+});
+
+test('Lab evidence collects the actual PXE status directory', () => {
+  const script = fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1', 'utf8');
+  assert.match(script, /PXE-HttpRoot\\status/);
+  assert.doesNotMatch(script, /PXE-HttpRoot\\osdcloud\\status/);
 });
 
 test('Lab port occupancy ignores ICS on another adapter and treats wildcard binds as conflicts', () => {

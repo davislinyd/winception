@@ -425,7 +425,7 @@ function Collect-SafeRuntimeEvidence {
     }
     $sourceRoots = @(
         (Join-Path $script:RuntimeRoot 'logs'),
-        (Join-Path $script:RuntimeRoot 'PXE-HttpRoot\osdcloud\status')
+        (Join-Path $script:RuntimeRoot 'PXE-HttpRoot\status')
     )
     $destinationRoot = Join-Path $script:EvidenceRoot 'runtime'
     foreach ($sourceRoot in $sourceRoots) {
@@ -1897,6 +1897,7 @@ function Invoke-LabCleanup {
     if ($script:Config) {try {Stop-LabRouter -Config $script:Config} catch {$script:CleanupErrors.Add('Router cleanup failed.')|Out-Null}}
     if ($script:AcceptanceProfileId) {
         try {
+            Wait-ConsoleIdle
             Invoke-ConsoleJson -Method POST -Path '/api/profile' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{profileId=$script:AcceptanceOriginalProfile}|Out-Null
             Wait-ConsoleIdle
             Invoke-ConsoleJson -Method POST -Path '/api/profiles/delete' -TimeoutSec (Get-ConsoleTimeoutSec) -Body @{profileId=$script:AcceptanceProfileId}|Out-Null
