@@ -833,6 +833,8 @@ test('reload stops the Web console tray gracefully before process fallback', () 
   assert.match(script, /function Wait-WebPortClosed/);
   assert.match(script, /function Stop-WebConsoleFallback/);
   assert.match(script, /function Stop-WebPortOwner/);
+  assert.match(script, /ReloadFromInstalledApp/);
+  assert.match(script, /without reinstalling it from itself/);
   assert.match(script, /function Clear-DiagnosticsState/);
   assert.match(script, /Removing prior diagnostics:/);
   assert.match(script, /web-console-tray\.json/);

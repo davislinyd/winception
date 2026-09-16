@@ -9,7 +9,9 @@ $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 
-$SourceRoot = Split-Path -Parent $PSScriptRoot
+$SourceRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd('\\')
+$NormalizedAppRoot = [System.IO.Path]::GetFullPath($AppRoot).TrimEnd('\\')
+$ReloadFromInstalledApp = $SourceRoot -ieq $NormalizedAppRoot
 $HostToolsRoot = Split-Path -Parent $AppRoot
 $StateRoot = Join-Path $HostToolsRoot 'State'
 $RunRoot = Join-Path $HostToolsRoot 'State\run'
@@ -201,21 +203,26 @@ else {
     Stop-WebConsoleFallback
 }
 
-Write-Host "Installing filtered $((Get-InstallChannel)) HostTools App from $SourceRoot..."
-# Install-HostManagementBundle's production allowlist copies docs\winception-operations-manual.html,
-# docs\manual-assets, and New-WinceptionUsbInstaller.cmd without mirroring development state.
-$installScript = Join-Path $SourceRoot 'tools\Install-HostManagementBundle.ps1'
-if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
-    throw "Missing HostTools installer: $installScript"
+if ($ReloadFromInstalledApp) {
+    Write-Host 'Reloading installed HostTools App without reinstalling it from itself.'
 }
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installScript `
-    -SourceRoot $SourceRoot `
-    -AppRoot $AppRoot `
-    -StateRoot $StateRoot `
-    -Channel (Get-InstallChannel) `
-    -Force
-if ($LASTEXITCODE -ne 0) {
-    throw "HostTools App reload failed with exit code $LASTEXITCODE"
+else {
+    Write-Host "Installing filtered $((Get-InstallChannel)) HostTools App from $SourceRoot..."
+    # Install-HostManagementBundle's production allowlist copies docs\winception-operations-manual.html,
+    # docs\manual-assets, and New-WinceptionUsbInstaller.cmd without mirroring development state.
+    $installScript = Join-Path $SourceRoot 'tools\Install-HostManagementBundle.ps1'
+    if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
+        throw "Missing HostTools installer: $installScript"
+    }
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installScript `
+        -SourceRoot $SourceRoot `
+        -AppRoot $AppRoot `
+        -StateRoot $StateRoot `
+        -Channel (Get-InstallChannel) `
+        -Force
+    if ($LASTEXITCODE -ne 0) {
+        throw "HostTools App reload failed with exit code $LASTEXITCODE"
+    }
 }
 Clear-DiagnosticsState
 
