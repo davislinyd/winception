@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- WinPE writes deployment status metadata only after `Invoke-OSDCloud` has applied Windows, so a fresh target volume is discoverable before metadata and post-apply customization checks run.
+
 - AutoLab cleanup now waits for an idle Console before restoring its original profile, and its redacted runtime evidence includes the live PXE status directory for terminal-failure diagnosis.
 
 - Lab fleet wait now ignores ordinary WinPE log-tail mentions of unattended files while retaining explicit Setup answer-file and customization error markers. Acceptance cleanup waits for the restored profile operation before deleting its test-only profile and uses the full preflight timeout for both requests.

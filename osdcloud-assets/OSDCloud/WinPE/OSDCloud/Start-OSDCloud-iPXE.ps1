@@ -1516,8 +1516,8 @@ try {
     }
     Send-DeploymentStatus -Stage 'osdcloud-start' -Message 'Invoke-OSDCloud starting.' -Extra (New-NoRedownloadEvidence -SelectedOs $SelectedOs -ImagePath $imagePath -ImageFile $imageFile)
     Send-Screenshot -Stage 'osdcloud-start'
-    Save-DeploymentStatusMetadata
     Invoke-OSDCloud
+    Save-DeploymentStatusMetadata
     Wait-DeploymentCustomization | Out-Null
     $deploymentSucceeded = $true
     if ($torrentTransfer) {

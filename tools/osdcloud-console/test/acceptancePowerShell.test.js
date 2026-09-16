@@ -39,7 +39,7 @@ test('WinPE verifies durable customization artifacts before reboot',()=>{
   assert.match(source,/function Get-DeploymentCustomizationCheck/);
   assert.match(source,/function Wait-DeploymentCustomization/);
   assert.match(source,/post-apply-customization-error/);
-  assert.match(source,/Save-DeploymentStatusMetadata\s+Invoke-OSDCloud\s+Wait-DeploymentCustomization/);
+  assert.match(source,/Invoke-OSDCloud\s+Save-DeploymentStatusMetadata\s+Wait-DeploymentCustomization/);
   assert.match(source,/Write-DeploymentTextFileDurably -Path \$metadataPath/);
 });
 test('WinPE auto-logon accepts only an integer limited test-only profile',()=>{
