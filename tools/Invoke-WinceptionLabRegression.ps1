@@ -43,7 +43,7 @@ $script:SelectedVms = @()
 
 function Get-OptionalProperty {
     param(
-        [Parameter(Mandatory)] $Object,
+        [Parameter(Mandatory)][AllowNull()] $Object,
         [Parameter(Mandatory)][string] $Name
     )
 
@@ -55,6 +55,23 @@ function Get-OptionalProperty {
         return $property.Value
     }
     return $null
+}
+
+function Test-ConsoleIsIdle {
+    param([Parameter(Mandatory)] $State)
+
+    $operation = Get-OptionalProperty -Object $State -Name 'operation'
+    $fleet = Get-OptionalProperty -Object $State -Name 'fleet'
+    $services = Get-OptionalProperty -Object $State -Name 'services'
+    $operationRunning = [bool] (Get-OptionalProperty -Object $operation -Name 'running')
+    $activeRuns = @((Get-OptionalProperty -Object $fleet -Name 'runs') | Where-Object { $_.status -in @('running','awaiting-windows','windows-running') })
+    $runningServices = if ($services) {
+        @($services.PSObject.Properties | Where-Object { [bool] (Get-OptionalProperty -Object $_.Value -Name 'running') })
+    }
+    else {
+        @()
+    }
+    -not $operationRunning -and $activeRuns.Count -eq 0 -and $runningServices.Count -eq 0
 }
 
 function ConvertTo-ObjectList {
@@ -1984,8 +2001,7 @@ try {
         $stateBackup=New-AcceptanceStateBackup $script:StateRoot
         if(-not (Test-WebConsoleHealthy)){throw 'Installed Console must be ready before preserving the acceptance endpoint.'}
         $script:AcceptanceSavedState=Get-ConsoleState
-        if($script:AcceptanceSavedState.operation.running -or @($script:AcceptanceSavedState.fleet.runs|Where-Object status -in @('running','awaiting-windows','windows-running')).Count -or
-            @($script:AcceptanceSavedState.services.psobject.Properties|Where-Object {$_.Value.running}).Count){throw 'Installed host must be idle before acceptance mutation.'}
+        if (-not (Test-ConsoleIsIdle -State $script:AcceptanceSavedState)) { throw 'Installed host must be idle before acceptance mutation.' }
         $script:MutationStarted=$true
         Stop-LabServices
         Restore-LabCheckpoint -VmNames $script:SelectedVms
