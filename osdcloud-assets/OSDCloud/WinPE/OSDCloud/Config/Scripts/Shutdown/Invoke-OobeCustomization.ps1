@@ -308,7 +308,7 @@ try {
         Write-Host "Client apps target: $targetApps"
 
         $targetProfilePath = Join-Path $targetApps 'selected-profile.json'
-        if (Test-Path -LiteralPath $targetProfilePath -PathType Leaf -and -not (Test-OobeProfileManifest -Path $targetProfilePath)) {
+        if ((Test-Path -LiteralPath $targetProfilePath -PathType Leaf) -and -not (Test-OobeProfileManifest -Path $targetProfilePath)) {
             throw 'Published selected-profile.json was not copied as a readable profile manifest.'
         }
 

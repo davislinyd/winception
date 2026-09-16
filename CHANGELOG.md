@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- WinPE OOBE customization now parenthesizes its profile-file existence check before combining it with `-and`, preventing `Test-Path` from treating the boolean operator as a parameter. The source and WinPE mirror stay byte-identical.
+
 - WinPE writes deployment status metadata only after `Invoke-OSDCloud` has applied Windows, so a fresh target volume is discoverable before metadata and post-apply customization checks run.
 
 - AutoLab cleanup now waits for an idle Console before restoring its original profile, and its redacted runtime evidence includes the live PXE status directory for terminal-failure diagnosis.

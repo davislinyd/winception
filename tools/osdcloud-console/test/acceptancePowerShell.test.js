@@ -24,6 +24,7 @@ test('WinPE OOBE customization copies Apps before auto-logon lookup and ignores 
   const profilePick=source.indexOf("Test-OobeProfileManifest -Path (Join-Path $_ 'selected-profile.json')");
   const installerPick=source.lastIndexOf("Test-OobeUsableFile -Path (Join-Path $_ 'Install-Apps.ps1')");
   assert.ok(profilePick>=0 && installerPick>profilePick, 'published selected-profile.json must win over WinPE template Apps');
+  assert.match(source,/\(Test-Path -LiteralPath \$targetProfilePath -PathType Leaf\) -and/);
   assert.match(source,/function Write-OobeTextFileDurably/);
   assert.match(source,/function Copy-OobeFileDurably/);
   assert.match(source,/FileOptions\]::WriteThrough/);
