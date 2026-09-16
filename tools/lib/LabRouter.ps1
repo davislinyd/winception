@@ -134,7 +134,20 @@ function Invoke-LabRouterGuestCommand {
     $job = $null
     try {
         $job = Invoke-Command -Session $Session -ScriptBlock $ScriptBlock -ArgumentList $ArgumentList -AsJob -ErrorAction Stop
-        if (-not (Wait-Job -Job $job -Timeout $TimeoutSec)) {
+        try {
+            $completedJob = Wait-Job -Job $job -Timeout $TimeoutSec -ErrorAction Stop
+        }
+        catch {
+            $blockedOutput = @(
+                Receive-Job -Job $job -ErrorAction SilentlyContinue 2>&1 |
+                    ForEach-Object { $_.ToString() }
+            ) -join [Environment]::NewLine
+            if ($blockedOutput) {
+                throw "Router guest command blocked during ${Name}: $blockedOutput"
+            }
+            throw
+        }
+        if (-not $completedJob) {
             if ($EvidencePath) {
                 [ordered]@{
                     capturedAt = [DateTimeOffset]::Now.ToString('o')
@@ -156,6 +169,33 @@ function Invoke-LabRouterGuestCommand {
             Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
         }
     }
+}
+
+function Wait-LabRouterConfigurationSettled {
+    param(
+        [Parameter(Mandatory)][string[]]$ExpectedAdapterNames,
+        [int]$TimeoutSec = 20
+    )
+
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
+    $previous = ''
+    do {
+        $vm = Get-VM -Name winception-autolab-router -ErrorAction Stop
+        $adapterNames = @(
+            Get-VMNetworkAdapter -VMName winception-autolab-router -ErrorAction Stop |
+                ForEach-Object Name |
+                Sort-Object
+        )
+        $fingerprint = "$(($vm.State).ToString())|$($adapterNames -join ',')|$((Get-VMHardDiskDrive -VMName winception-autolab-router -ErrorAction Stop).Path)"
+        if ($vm.State -eq 'Off' -and @($adapterNames | Where-Object { $_ -notin $ExpectedAdapterNames }).Count -eq 0 -and
+            @($ExpectedAdapterNames | Where-Object { $_ -notin $adapterNames }).Count -eq 0 -and $fingerprint -eq $previous) {
+            return
+        }
+        $previous = $fingerprint
+        Start-Sleep -Seconds 1
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    throw "Router VM configuration did not settle with adapters: $($ExpectedAdapterNames -join ', ')."
 }
 
 function Initialize-LabRouterGuest {
@@ -267,7 +307,8 @@ function Initialize-LabRouterGuest {
             if ($featureAfter.featureState -ne 'Enabled' -or -not $featureAfter.cimClassPresent) {
                 throw 'Router MSFT_NetNat is unavailable after Hyper-V enablement.'
             }
-            Invoke-LabRouterGuestCommand -Session $session -Name 'configure-router-network' -TimeoutSec 120 -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
+            try {
+                Invoke-LabRouterGuestCommand -Session $session -Name 'configure-router-network' -TimeoutSec 120 -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
                 param($LanMac,$WanMac)
                 $ErrorActionPreference = 'Stop'
                 $deadline = [DateTime]::UtcNow.AddSeconds(30)
@@ -304,6 +345,14 @@ function Initialize-LabRouterGuest {
                 @{serverIp='192.168.177.254';dnsServers=@('1.1.1.1','8.8.8.8');leasePath='C:\ProgramData\WinceptionLabRouter\leases.json'}|ConvertTo-Json|Set-Content C:\ProgramData\WinceptionLabRouter\dhcp.json
                 Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue
                 Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -ErrorAction SilentlyContinue
+                }
+            } catch {
+                [ordered]@{
+                    capturedAt = [DateTimeOffset]::Now.ToString('o')
+                    stage = 'configure-router-network'
+                    error = $_.Exception.Message
+                } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Config.evidenceRoot 'router-nat-error.json') -Encoding UTF8
+                throw
             }
         } catch {
             $setupError = $_
@@ -388,8 +437,9 @@ function Stop-LabRouter {
     if (Get-VM -Name winception-autolab-router -ErrorAction SilentlyContinue) {
         Assert-LabRouterOwnership $Config | Out-Null
         Stop-VM -Name winception-autolab-router -TurnOff -Force -Confirm:$false
-        Start-Sleep -Seconds 2
-        if (Get-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -ErrorAction SilentlyContinue) {
+        $hasReadyCheckpoint = [bool](Get-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -ErrorAction SilentlyContinue)
+        Wait-LabRouterConfigurationSettled -ExpectedAdapterNames @('LAN','WAN')
+        if ($hasReadyCheckpoint) {
             Restore-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -Confirm:$false
             Set-VMFirmware -VMName winception-autolab-router -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice (Get-VMHardDiskDrive -VMName winception-autolab-router)
             Set-VMProcessor -VMName winception-autolab-router -Count 2 -ExposeVirtualizationExtensions $true
@@ -398,7 +448,7 @@ function Stop-LabRouter {
             $wan = Get-VMNetworkAdapter -VMName winception-autolab-router -Name WAN -ErrorAction SilentlyContinue
             if ($wan) {
                 Remove-VMNetworkAdapter -VMName winception-autolab-router -Name WAN -Confirm:$false -ErrorAction Stop
-                Start-Sleep -Seconds 2
+                Wait-LabRouterConfigurationSettled -ExpectedAdapterNames @('LAN')
             }
             Restore-LabCheckpoint -VmNames @('winception-autolab-router')
             $processorEvidence = Join-Path $Config.evidenceRoot 'router-processor-before.json'
