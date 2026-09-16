@@ -1,14 +1,14 @@
-# Agent handoff — 2026-09-16 12:52
+# Agent handoff — 2026-09-16 15:51
 
-## Active task — WinPE metadata ordering fixed; Router Ready and network matrix remain blocked
+## Active task — OOBE profile condition fixed; Router Ready and network matrix remain blocked
 
-Current HEAD is `745dcb4` on `codex/easier-onboarding`. The authorized Router bootstrap `20260916m` reached WinPE `osdcloud-start`, then correctly exposed a real failure: `Save-DeploymentStatusMetadata` ran before `Invoke-OSDCloud`, when no deployed Windows volume existed. It emitted `windows-metadata-error`, Fleet stopped safely, and `cleanup=Passed`. `745dcb4` moves metadata writing after Windows is applied and before post-apply customization verification; its focused tests, PowerShell parser, and Source acceptance (496 passed / 3 skipped / 0 failed) pass. Router Ready is absent; do not start `-RequireRouter` or the network matrix yet.
+Current HEAD is `fabdfee` on `codex/easier-onboarding`. The authorized Router bootstrap `20260916n` proved the metadata-order repair passed that earlier point, then preserved the next real terminal status: OOBE customization called `Test-Path -LiteralPath $targetProfilePath -PathType Leaf -and ...`, so PowerShell treated `-and` as a nonexistent Test-Path parameter. `fabdfee` parenthesizes the Test-Path expression in both source and WinPE mirror (matching hashes), and its focused tests, parser, and Source acceptance (496 passed / 3 skipped / 0 failed) pass. Runner cleanup marked Failed only because profile restoration returned HTTP 500; the operator flow manually restored `IZVZO7PU` and deleted test profile `QCV0QQSQ`. Router Ready is absent; do not start `-RequireRouter` or the network matrix yet.
 
 ### Immediate continuation
 
 1. Re-read live Console, mutex, endpoint, profile, six VM states and router checkpoints. Expected clean state: profile `IZVZO7PU`, AutoLab `192.168.177.1/24` Server `.200-.250`, services stopped, six VMs Off, router `Winception-Clean` only.
-2. Run elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` with a new ignored config/evidence root (for example `acceptance-router-bootstrap-20260916n`).
-3. Run exactly one `-BootstrapRouter` from the clone at `745dcb4`; do not use `-Create` or automatic retry. Start `Get-WinceptionLabAcceptanceStatus.ps1 -Follow` and actively poll Console operation, Fleet/latest stage, VM state/firmware, mutex and evidence at bounded intervals.
+2. Run elevated `Initialize-WinceptionLab.ps1 -ValidateOnly` with a new ignored config/evidence root (for example `acceptance-router-bootstrap-20260916o`).
+3. Run exactly one `-BootstrapRouter` from the clone at `fabdfee`; do not use `-Create` or automatic retry. Start `Get-WinceptionLabAcceptanceStatus.ps1 -Follow` and actively poll Console operation, Fleet/latest stage, VM state/firmware, mutex and evidence at bounded intervals.
 4. Require `windows-desktop-ready`, deployed-disk firmware switch, guest PowerShell Direct, two vCPUs/nested virtualization, guest Hyper-V/`MSFT_NetNat`, LAN `.254`, Default Switch WAN, test DHCP, `Winception-Router-Ready`, and `cleanup=Passed`. On any failure, preserve evidence, let finally clean up, diagnose and commit a narrow source fix before another run.
 5. Only after Router Ready: elevated `-ValidateOnly -RequireRouter`, then a separate `-Mode All -NetworkAcceptance` root. No master push, Release/package, or physical/human claim.
 
@@ -17,6 +17,7 @@ Current HEAD is `745dcb4` on `codex/easier-onboarding`. The authorized Router bo
 - `acceptance-router-bootstrap-20260916l`: `Failed`, `cleanup=Failed`. The original test profile publish no longer timed out, but status evidence was collected from the wrong path and cleanup profile restore raced Console activity. `706949c` waits for idle before profile restore and captures `PXE-HttpRoot\\status`; manual cleanup restored `IZVZO7PU` and deleted the test profile.
 - `acceptance-router-bootstrap-20260916m`: `Failed`, `cleanup=Passed`. Evidence now retains `runtime\\PXE-HttpRoot\\status\\...latest.json`, which proves the real `windows-metadata-error` rather than a detector false positive. The profile, endpoint, services and all six VMs were restored.
 - `706949c` is the evidence/cleanup repair. `745dcb4` is the current WinPE metadata-order repair. `2a7218c` remains installed in HostTools for torrent reuse; no HostTools reload is required for the two newer clone-runner/WinPE template changes because endpoint sync publishes the source template during the next Lab run.
+- `acceptance-router-bootstrap-20260916n`: `Failed`, `cleanup=Failed`; status evidence proves `PS>TerminatingError(Test-Path): A parameter cannot be found that matches parameter name 'and'.` from OOBE customization after Windows image application. `fabdfee` fixes that condition and mirrors it into WinPE. Host was manually restored: `IZVZO7PU`, no test profile, services stopped, six VMs Off.
 
 ## Historical continuation — Router guest setup must switch from PXE to deployed disk; network matrix blocked
 
