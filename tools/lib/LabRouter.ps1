@@ -410,7 +410,7 @@ function Initialize-LabRouterGuest {
                 $broadcast=Get-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -ErrorAction SilentlyContinue
                 if($broadcast){$broadcast|Set-NetRoute -RouteMetric 1 -Confirm:$false}else{New-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -NextHop '0.0.0.0' -RouteMetric 1 -Confirm:$false|Out-Null}
                 Write-Output 'router-phase:configure-firewall'
-                New-NetFirewallRule -Name WinceptionLabRouterDHCP -Direction Inbound -Action Allow -Protocol UDP -LocalPort 67 -InterfaceAlias $lan.Name -Confirm:$false|Out-Null
+                New-NetFirewallRule -Name WinceptionLabRouterDHCP -DisplayName 'Winception Lab Router DHCP' -Direction Inbound -Action Allow -Protocol UDP -LocalPort 67 -InterfaceAlias $lan.Name -Confirm:$false|Out-Null
                 Write-Output 'router-phase:write-dhcp-config'
                 @{serverIp='192.168.177.254';dnsServers=@('1.1.1.1','8.8.8.8');leasePath='C:\ProgramData\WinceptionLabRouter\leases.json'}|ConvertTo-Json|Set-Content C:\ProgramData\WinceptionLabRouter\dhcp.json
                 Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue
