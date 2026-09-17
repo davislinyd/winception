@@ -1,28 +1,32 @@
-# Agent handoff — 2026-09-17 10:30
+# Agent handoff — 2026-09-17 17:35
 
-## Active task — Router deployment passes; guest network command still blocks before WinNAT
+## Active task — fix the AutoLab matrix failure, then rerun from a clean baseline
 
-Current source HEAD before this handoff is `106e2b8` on `codex/easier-onboarding`; `.ai/` remains untracked. PID 4160 was explicitly authorized and force-terminated. The host is now clean: Console profile `IZVZO7PU`, deployment services stopped, AutoLab endpoint `192.168.177.1/24`, mutex free, all six VMs Off, and Router restored to `Winception-Clean` with LAN only, 1 vCPU, nested virtualization Off, Secure Boot On and TPM On. Elevated post-cleanup `Initialize-WinceptionLab.ps1 -ValidateOnly` passed.
+Source HEAD is `04a1177` on `codex/easier-onboarding`; `.ai/` remains untracked. PID 4160 was explicitly authorized and was already absent when checked. Latest elevated HostTools reload completed successfully from this source; backup is `C:\OSDCloud\HostTools\Backups\HostTools-State-20260917-092952-275`.
 
-Two new bootstrap deployments, `acceptance-router-bootstrap-20260917u` and `acceptance-router-bootstrap-20260917v`, both reached current-run `windows-desktop-ready` and produced Fleet plus PowerShell Direct evidence. `5f12f6d` fixed the post-Hyper-V-restart session race: two bounded session probes now pass, and `router-hyperv-prerequisite.json` proves Hyper-V Enabled plus `MSFT_NetNat` present. `085aa36` made every Router network cmdlet explicitly noninteractive. Despite that, both runs entered PowerShell job state `Blocked` during `configure-router-network`, after LAN `192.168.177.254/24` was assigned and before WinNAT was created. This is the third similar interactive block including the earlier run, so the repository Loop Breaker applies: do not start another deployment until the exact cmdlet is identified.
+Router bootstrap is now proven: `Winception-Router-Ready` exists and the scoped live cleanup proof `.ai/acceptance-router-ready-cleanup-proof-20260917y.json` is green (Router Off, Secure Boot On, `MicrosoftWindows`, TPM On, 2 vCPU, nested virtualization On). Elevated `Initialize-WinceptionLab.ps1 -ValidateOnly -RequireRouter` passed before the matrix. Services are currently stopped, profile is `IZVZO7PU`, endpoint is AutoLab `192.168.177.1/24`, and all six VMs are Off.
+
+The only matrix run `acceptance-mode-all-network-20260917y` is Failed and must not be called green. Three VMs reached deployment stages, but `winception-autolab-03` showed WinPE `Ephemeral boot session negotiation failed ... (403) Forbidden`; HTTP evidence identifies `POST /osdcloud/boot-session 403 rejected=nonce is invalid` for `192.168.177.202`. The cause was a valid Base64URL nonce beginning with `-` or `_` rejected by `safeClientValue`. Cleanup initially also failed when restoring Router Ready because Hyper-V forbids rewriting `SecureBootTemplate` after TPM key-protector initialization; the current source fix was manually proven green after restoring TPM.
+
+### Changes already committed
+
+- `0e4d55d fix: accept base64url boot nonces` allows `-`/`_` as legal first characters and tests both vectors. Focused commercialization tests passed.
+- `04a1177 fix: restore router ready firmware safely` validates the existing `MicrosoftWindows` template, disables TPM only when enabled, and avoids rewriting the template during Ready restore. Focused PowerShell acceptance passed 23/23; full Source acceptance passed 500 tests (497 passed, 3 skipped), check and smoke.
 
 ### Exact continuation
 
-1. Keep the current clean host baseline. Do not run `-RequireRouter` or the network matrix: `Winception-Router-Ready` is absent.
-2. Add redacted phase markers around each command inside `configure-router-network`, and include the last child-job output marker in Blocked evidence without calling `Receive-Job`. Test the marker/error extraction in source.
-3. Diagnose with a bounded, isolated PowerShell Direct command against the already deployed Router only if it can be done without another PXE deployment; otherwise stop and ask before a new bootstrap because the Loop Breaker has fired.
-4. Once the exact blocking cmdlet is fixed, run Source acceptance, reload via `tools/Reload-Console.ps1`, elevated ValidateOnly, then one new uniquely named BootstrapRouter with active monitoring. Require WinNAT, DHCP, `Winception-Router-Ready`, original profile/endpoint restoration and `cleanup=Passed`.
-5. Only after Router Ready: `ValidateOnly -RequireRouter`, then a new `-Mode All -NetworkAcceptance` root. Physical and human acceptance remain NotRun/Blocked. Do not push master or create a Release/package.
+1. Recheck Git, Console, mutex, services, profile/endpoint, six VMs, Router Ready ownership and installed/source hashes. Keep the failed matrix evidence at `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-mode-all-network-20260917y`.
+2. Run elevated `Initialize-WinceptionLab.ps1 -ValidateOnly -RequireRouter`; do not reuse the `20260917y` root. Use a new evidence root for the rerun, with active monitor polling Fleet, `latest.json`, VM state/screenshots, services and runner evidence.
+3. Run exactly one new `-Mode All -NetworkAcceptance` attempt. Require all seven firmware deployments, Proxy and Server network rounds, Proxy rejection, post-stop DNS/HTTPS, Fleet plus PowerShell Direct, and `cleanup=Passed`. Stop immediately on any failed round or cleanup failure; no automatic retry.
+4. If another failure occurs, preserve redacted JSON/HTML and diagnose the exact stage before any rerun. Do not claim full acceptance from the previous historical green run. Physical three scenarios and human onboarding remain `NotRun/Blocked`.
+5. After a fully green matrix, update `TEST-RESULT.md`, `handoff.md`, and `.ai/status.json`; scan evidence for secrets/tokens/envelopes; commit scoped source/docs only. Do not push master or create a Release/package.
 
-### Evidence and fixes
+### Evidence paths
 
-- `acceptance-router-bootstrap-20260917u`: deployment completed at `windows-desktop-ready`; Hyper-V/CIM passed; network command Blocked; cleanup report Failed, followed by successful scoped manual restore in `.ai/acceptance-router-bootstrap-20260917u-cleanup.json`.
-- `acceptance-router-bootstrap-20260917v`: deployment completed at `windows-desktop-ready` with 86 Fleet events; Hyper-V/CIM passed; network command still Blocked after `$ConfirmPreference='None'` and explicit `-Confirm:$false`; cleanup report Failed. Manual restore did apply but its settle check timed out. Direct state inspection and elevated post-cleanup ValidateOnly prove the final clean baseline.
-- Evidence roots: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260917u` and `...\acceptance-router-bootstrap-20260917v`.
-- `5f12f6d`: stable post-restart PowerShell Direct session probes and detailed Failed-job evidence.
-- `085aa36`: noninteractive Router networking and longer storage stability requirement.
-- `106e2b8`: pairs 15 stable observations with a 45-second settle timeout. Focused PowerShell tests pass 23/23. Full Source acceptance at `085aa36` passed 500 tests (497 passed, 3 skipped), check and smoke; the final timeout-only commit has focused coverage.
-- Installed source at the last run matched `085aa36`; State backup: `C:\OSDCloud\HostTools\Backups\HostTools-State-20260917-015833-407`. `106e2b8` is source-only and does not need installation until the next authorized live run.
+- Router bootstrap success: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260917x`.
+- Router cleanup proof: `C:\winception\.ai\acceptance-router-ready-cleanup-proof-20260917y.json`.
+- Failed matrix: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-mode-all-network-20260917y` and runner log `.ai/acceptance-mode-all-network-20260917y-runner.log`.
+- VM03 diagnostic screenshot: `.ai/vm03-thumb.bmp` (WinPE 403 nonce error; ignored evidence only).
 
 ---
 # Agent handoff — 2026-09-16 21:49
