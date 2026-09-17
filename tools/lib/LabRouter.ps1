@@ -232,7 +232,7 @@ function Wait-LabRouterConfigurationSettled {
             @($ExpectedAdapterNames | Where-Object { $_ -notin $adapterNames }).Count -eq 0 -and $diskReady -and
             $fingerprint -eq $previous) {
             $stableObservations++
-            if ($stableObservations -ge 5) { return }
+                    if ($stableObservations -ge 15) { return }
         } else {
             $stableObservations = 0
         }
@@ -356,6 +356,8 @@ function Initialize-LabRouterGuest {
                 Invoke-LabRouterGuestCommand -Session $session -Name 'configure-router-network' -TimeoutSec 120 -EvidencePath (Join-Path $Config.evidenceRoot 'router-guest-command-timeout.json') -ArgumentList @($lanMac,$wanMac) -ScriptBlock {
                 param($LanMac,$WanMac)
                 $ErrorActionPreference = 'Stop'
+                $ConfirmPreference = 'None'
+                $ProgressPreference = 'SilentlyContinue'
                 $deadline = [DateTime]::UtcNow.AddSeconds(30)
                 $lan = $null
                 $wan = $null
@@ -367,10 +369,10 @@ function Initialize-LabRouterGuest {
                 } while ([DateTime]::UtcNow -lt $deadline)
                 if (-not $lan -or -not $wan) { throw 'Router guest adapters missing' }
                 Get-NetIPAddress -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue|Remove-NetIPAddress -Confirm:$false
-                Set-NetIPInterface -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -Dhcp Disabled -Forwarding Enabled
-                New-NetIPAddress -InterfaceIndex $lan.ifIndex -IPAddress 192.168.177.254 -PrefixLength 24 | Out-Null
-                Set-NetIPInterface -InterfaceIndex $wan.ifIndex -AddressFamily IPv4 -Forwarding Enabled
-                Set-DnsClientServerAddress -InterfaceIndex $lan.ifIndex -ServerAddresses @('1.1.1.1','8.8.8.8')
+                Set-NetIPInterface -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -Dhcp Disabled -Forwarding Enabled -Confirm:$false
+                New-NetIPAddress -InterfaceIndex $lan.ifIndex -IPAddress 192.168.177.254 -PrefixLength 24 -Confirm:$false | Out-Null
+                Set-NetIPInterface -InterfaceIndex $wan.ifIndex -AddressFamily IPv4 -Forwarding Enabled -Confirm:$false
+                Set-DnsClientServerAddress -InterfaceIndex $lan.ifIndex -ServerAddresses @('1.1.1.1','8.8.8.8') -Confirm:$false
                 Get-Service -Name WinNat -ErrorAction SilentlyContinue | Start-Service -ErrorAction SilentlyContinue
                 $existingNat = @()
                 try {
@@ -380,13 +382,13 @@ function Initialize-LabRouterGuest {
                 }
                 if ($existingNat.Count) { throw 'Router guest contains unexpected NAT' }
                 try {
-                    New-NetNat -Name WinceptionLabRouterNAT -InternalIPInterfaceAddressPrefix '192.168.177.0/24'|Out-Null
+                    New-NetNat -Name WinceptionLabRouterNAT -InternalIPInterfaceAddressPrefix '192.168.177.0/24' -Confirm:$false|Out-Null
                 } catch {
                     throw "Router New-NetNat failed: $($_.Exception.Message.Trim())"
                 }
                 $broadcast=Get-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -ErrorAction SilentlyContinue
-                if($broadcast){$broadcast|Set-NetRoute -RouteMetric 1}else{New-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -NextHop '0.0.0.0' -RouteMetric 1|Out-Null}
-                New-NetFirewallRule -Name WinceptionLabRouterDHCP -Direction Inbound -Action Allow -Protocol UDP -LocalPort 67 -InterfaceAlias $lan.Name|Out-Null
+                if($broadcast){$broadcast|Set-NetRoute -RouteMetric 1 -Confirm:$false}else{New-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -NextHop '0.0.0.0' -RouteMetric 1 -Confirm:$false|Out-Null}
+                New-NetFirewallRule -Name WinceptionLabRouterDHCP -Direction Inbound -Action Allow -Protocol UDP -LocalPort 67 -InterfaceAlias $lan.Name -Confirm:$false|Out-Null
                 @{serverIp='192.168.177.254';dnsServers=@('1.1.1.1','8.8.8.8');leasePath='C:\ProgramData\WinceptionLabRouter\leases.json'}|ConvertTo-Json|Set-Content C:\ProgramData\WinceptionLabRouter\dhcp.json
                 Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue
                 Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -ErrorAction SilentlyContinue

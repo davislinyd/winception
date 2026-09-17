@@ -145,7 +145,9 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(cleanup,/Remove-VMNetworkAdapter -VMName winception-autolab-router -Name WAN/);
   assert.match(cleanup,/Wait-LabRouterConfigurationSettled -ExpectedAdapterNames @\('LAN'\)/);
   assert.match(source,/function Wait-LabRouterConfigurationSettled/);
-  assert.match(source,/stableObservations -ge 5/);
+  assert.match(source,/stableObservations -ge 15/);
+  assert.match(fn,/\$ConfirmPreference = 'None'/);
+  assert.match(fn,/New-NetNat[^\r\n]+-Confirm:\$false/);
   assert.match(source,/Test-Path -LiteralPath \$diskPath -PathType Leaf/);
   assert.match(source,/Get-VHD -Path \$diskPath -ErrorAction Stop/);
 });
