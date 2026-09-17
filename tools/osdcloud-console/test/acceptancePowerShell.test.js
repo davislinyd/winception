@@ -108,6 +108,9 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(source,/\[DateTime\]::UtcNow\.AddSeconds\(\$TimeoutSec\)/);
   assert.match(source,/Router guest command blocked during/);
   assert.match(source,/router-guest-command-timeout\.json/);
+  assert.match(source,/session-probe-\$probe/);
+  assert.match(source,/Remote job failed without an error record/);
+  assert.match(source,/JobStateInfo\.Reason\.Message/);
   const fn=source.slice(source.indexOf('function Initialize-LabRouterGuest'),source.indexOf('function Enable-LabRouterTpm'));
   assert.match(fn,/Router LAN\/WAN MAC was not assigned before guest NAT setup/);
   assert.match(fn,/Set-VMProcessor -VMName \$name -Count 2 -ExposeVirtualizationExtensions \$true/);
@@ -142,6 +145,7 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(cleanup,/Remove-VMNetworkAdapter -VMName winception-autolab-router -Name WAN/);
   assert.match(cleanup,/Wait-LabRouterConfigurationSettled -ExpectedAdapterNames @\('LAN'\)/);
   assert.match(source,/function Wait-LabRouterConfigurationSettled/);
+  assert.match(source,/stableObservations -ge 5/);
   assert.match(source,/Test-Path -LiteralPath \$diskPath -PathType Leaf/);
   assert.match(source,/Get-VHD -Path \$diskPath -ErrorAction Stop/);
 });

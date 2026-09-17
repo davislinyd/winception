@@ -106,8 +106,15 @@ function New-LabRouterPSSession {
             if ((Get-VM -Name $VmName -ErrorAction Stop).State -eq 'Running') {
                 # PowerShell Direct's VMName parameter set does not accept SessionOption.
                 $session = New-PSSession -VMName $VmName -Credential $Credential -ErrorAction Stop
+                # A session can open while the guest is still completing a reboot and then
+                # disconnect on its first command. Require two successful probes before use.
+                foreach ($probe in 1..2) {
+                    Invoke-LabRouterGuestCommand -Session $session -Name "$Phase-session-probe-$probe" -TimeoutSec 15 -ScriptBlock { 'ready' } | Out-Null
+                    if ($probe -eq 1) { Start-Sleep -Seconds 2 }
+                }
             }
         } catch {
+            if ($session) { Remove-PSSession $session -ErrorAction SilentlyContinue }
             $session = $null
             $lastError = [string]$_.Exception.Message
         }
@@ -162,7 +169,25 @@ function Invoke-LabRouterGuestCommand {
             throw "Router guest command timed out during $Name."
         }
         if ($job.State -eq 'Failed') {
-            throw "Router guest command failed during $Name."
+            $failureOutput = @(
+                if ($job.JobStateInfo.Reason) { $job.JobStateInfo.Reason.Message }
+                $job.Error | ForEach-Object { $_.ToString() }
+                $job.ChildJobs | ForEach-Object {
+                    if ($_.JobStateInfo.Reason) { $_.JobStateInfo.Reason.Message }
+                    $_.Error | ForEach-Object { $_.ToString() }
+                }
+            ) | Where-Object { $_ } | Select-Object -Unique
+            $failureDetail = ($failureOutput -join [Environment]::NewLine).Trim()
+            if (-not $failureDetail) { $failureDetail = 'Remote job failed without an error record.' }
+            if ($EvidencePath) {
+                [ordered]@{
+                    capturedAt = [DateTimeOffset]::Now.ToString('o')
+                    phase = $Name
+                    state = [string]$job.State
+                    error = $failureDetail
+                } | ConvertTo-Json | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
+            }
+            throw "Router guest command failed during ${Name}: $failureDetail"
         }
         if ($job.State -ne 'Completed') {
             throw "Router guest command ended in state $($job.State) during $Name."
@@ -185,6 +210,7 @@ function Wait-LabRouterConfigurationSettled {
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
     $previous = ''
+    $stableObservations = 0
     do {
         $vm = Get-VM -Name winception-autolab-router -ErrorAction Stop
         $adapterNames = @(
@@ -205,7 +231,10 @@ function Wait-LabRouterConfigurationSettled {
         if ($vm.State -eq 'Off' -and @($adapterNames | Where-Object { $_ -notin $ExpectedAdapterNames }).Count -eq 0 -and
             @($ExpectedAdapterNames | Where-Object { $_ -notin $adapterNames }).Count -eq 0 -and $diskReady -and
             $fingerprint -eq $previous) {
-            return
+            $stableObservations++
+            if ($stableObservations -ge 5) { return }
+        } else {
+            $stableObservations = 0
         }
         $previous = $fingerprint
         Start-Sleep -Seconds 1
