@@ -596,6 +596,7 @@ test('Lab cleanup waits for an idle Console before restoring or deleting the tes
     $script:CleanupComplete = $false
     $ValidateOnly = $false
     $script:MutationStarted = $true
+    $script:RouterReadyCreatedThisRun = $false
     $script:CleanupErrors = New-Object System.Collections.Generic.List[string]
     $script:WebBaseUri = 'http://127.0.0.1:8080'
     $script:Config = @{
@@ -619,7 +620,7 @@ test('Lab cleanup waits for an idle Console before restoring or deleting the tes
     $script:mode = ''
     $script:cleared = $false
     function Stop-LabServices {}
-    function Stop-LabRouter { param($Config) }
+    function Stop-LabRouter { param($Config, [switch]$SkipReadyRestore) }
     function Restore-LabCheckpoint { param($VmNames) }
     function Restore-SecretEnvironment {}
     function Release-LabLock {}
