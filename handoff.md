@@ -1,3 +1,30 @@
+# Agent handoff — 2026-09-17 10:30
+
+## Active task — Router deployment passes; guest network command still blocks before WinNAT
+
+Current source HEAD before this handoff is `106e2b8` on `codex/easier-onboarding`; `.ai/` remains untracked. PID 4160 was explicitly authorized and force-terminated. The host is now clean: Console profile `IZVZO7PU`, deployment services stopped, AutoLab endpoint `192.168.177.1/24`, mutex free, all six VMs Off, and Router restored to `Winception-Clean` with LAN only, 1 vCPU, nested virtualization Off, Secure Boot On and TPM On. Elevated post-cleanup `Initialize-WinceptionLab.ps1 -ValidateOnly` passed.
+
+Two new bootstrap deployments, `acceptance-router-bootstrap-20260917u` and `acceptance-router-bootstrap-20260917v`, both reached current-run `windows-desktop-ready` and produced Fleet plus PowerShell Direct evidence. `5f12f6d` fixed the post-Hyper-V-restart session race: two bounded session probes now pass, and `router-hyperv-prerequisite.json` proves Hyper-V Enabled plus `MSFT_NetNat` present. `085aa36` made every Router network cmdlet explicitly noninteractive. Despite that, both runs entered PowerShell job state `Blocked` during `configure-router-network`, after LAN `192.168.177.254/24` was assigned and before WinNAT was created. This is the third similar interactive block including the earlier run, so the repository Loop Breaker applies: do not start another deployment until the exact cmdlet is identified.
+
+### Exact continuation
+
+1. Keep the current clean host baseline. Do not run `-RequireRouter` or the network matrix: `Winception-Router-Ready` is absent.
+2. Add redacted phase markers around each command inside `configure-router-network`, and include the last child-job output marker in Blocked evidence without calling `Receive-Job`. Test the marker/error extraction in source.
+3. Diagnose with a bounded, isolated PowerShell Direct command against the already deployed Router only if it can be done without another PXE deployment; otherwise stop and ask before a new bootstrap because the Loop Breaker has fired.
+4. Once the exact blocking cmdlet is fixed, run Source acceptance, reload via `tools/Reload-Console.ps1`, elevated ValidateOnly, then one new uniquely named BootstrapRouter with active monitoring. Require WinNAT, DHCP, `Winception-Router-Ready`, original profile/endpoint restoration and `cleanup=Passed`.
+5. Only after Router Ready: `ValidateOnly -RequireRouter`, then a new `-Mode All -NetworkAcceptance` root. Physical and human acceptance remain NotRun/Blocked. Do not push master or create a Release/package.
+
+### Evidence and fixes
+
+- `acceptance-router-bootstrap-20260917u`: deployment completed at `windows-desktop-ready`; Hyper-V/CIM passed; network command Blocked; cleanup report Failed, followed by successful scoped manual restore in `.ai/acceptance-router-bootstrap-20260917u-cleanup.json`.
+- `acceptance-router-bootstrap-20260917v`: deployment completed at `windows-desktop-ready` with 86 Fleet events; Hyper-V/CIM passed; network command still Blocked after `$ConfirmPreference='None'` and explicit `-Confirm:$false`; cleanup report Failed. Manual restore did apply but its settle check timed out. Direct state inspection and elevated post-cleanup ValidateOnly prove the final clean baseline.
+- Evidence roots: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260917u` and `...\acceptance-router-bootstrap-20260917v`.
+- `5f12f6d`: stable post-restart PowerShell Direct session probes and detailed Failed-job evidence.
+- `085aa36`: noninteractive Router networking and longer storage stability requirement.
+- `106e2b8`: pairs 15 stable observations with a 45-second settle timeout. Focused PowerShell tests pass 23/23. Full Source acceptance at `085aa36` passed 500 tests (497 passed, 3 skipped), check and smoke; the final timeout-only commit has focused coverage.
+- Installed source at the last run matched `085aa36`; State backup: `C:\OSDCloud\HostTools\Backups\HostTools-State-20260917-015833-407`. `106e2b8` is source-only and does not need installation until the next authorized live run.
+
+---
 # Agent handoff — 2026-09-16 21:49
 
 ## Active task — old Router runner is stuck; source fix committed, cleanup and rerun required

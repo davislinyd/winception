@@ -1,3 +1,8 @@
+# Current AutoLab acceptance status — 2026-09-17
+
+Router bootstrap is not yet accepted. Runs `acceptance-router-bootstrap-20260917u` and `20260917v` both completed PXE deployment through `windows-desktop-ready` with Fleet and PowerShell Direct evidence, and both enabled guest Hyper-V with `MSFT_NetNat` present. Guest network configuration then entered PowerShell job state `Blocked` before WinNAT creation. `Winception-Router-Ready` is absent, so `-Mode All -NetworkAcceptance` has not run. Final scoped cleanup and elevated ValidateOnly passed; services are stopped and all six VMs are Off. Physical three-scenario and unfamiliar-user acceptance remain NotRun/Blocked.
+
+---
 # Deployment Test Result
 
 ## Layered automated acceptance — Source milestone 2026-09-14
