@@ -504,17 +504,21 @@ function Start-LabRouter {
 }
 
 function Stop-LabRouter {
-    param($Config)
+    param($Config, [switch]$SkipReadyRestore)
     if (Get-VM -Name winception-autolab-router -ErrorAction SilentlyContinue) {
         Assert-LabRouterOwnership $Config | Out-Null
         Stop-VM -Name winception-autolab-router -TurnOff -Force -Confirm:$false
         $hasReadyCheckpoint = [bool](Get-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -ErrorAction SilentlyContinue)
         Wait-LabRouterConfigurationSettled -ExpectedAdapterNames @('LAN','WAN')
         if ($hasReadyCheckpoint) {
-            Restore-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -Confirm:$false
-            Set-VMFirmware -VMName winception-autolab-router -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice (Get-VMHardDiskDrive -VMName winception-autolab-router)
-            Set-VMProcessor -VMName winception-autolab-router -Count 2 -ExposeVirtualizationExtensions $true
-            Enable-LabRouterTpm
+            if ($SkipReadyRestore) {
+                Assert-LabRouterOwnership -Config $Config -Ready | Out-Null
+            } else {
+                Restore-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -Confirm:$false
+                Set-VMFirmware -VMName winception-autolab-router -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice (Get-VMHardDiskDrive -VMName winception-autolab-router)
+                Set-VMProcessor -VMName winception-autolab-router -Count 2 -ExposeVirtualizationExtensions $true
+                Enable-LabRouterTpm
+            }
         } else {
             $wan = Get-VMNetworkAdapter -VMName winception-autolab-router -Name WAN -ErrorAction SilentlyContinue
             if ($wan) {

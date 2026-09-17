@@ -36,6 +36,7 @@ $script:AcceptanceProfileId = $null
 $script:AcceptanceOriginalProfile = $null
 $script:AcceptanceSavedState = $null
 $script:MutationStarted = $false
+$script:RouterReadyCreatedThisRun = $false
 $script:RoundClientMacs = @()
 $script:LastFleetWaitHeartbeatAt = [DateTimeOffset]::MinValue
 $script:SavedEnvironment = @{}
@@ -1911,7 +1912,7 @@ function Invoke-LabCleanup {
         return
     }
     try { Stop-LabServices } catch { $script:CleanupErrors.Add('service cleanup failed.') | Out-Null }
-    if ($script:Config) {try {Stop-LabRouter -Config $script:Config} catch {$script:CleanupErrors.Add('Router cleanup failed.')|Out-Null}}
+    if ($script:Config) {try {Stop-LabRouter -Config $script:Config -SkipReadyRestore:$script:RouterReadyCreatedThisRun} catch {$script:CleanupErrors.Add('Router cleanup failed.')|Out-Null}}
     if ($script:AcceptanceProfileId) {
         try {
             Wait-ConsoleIdle
@@ -2052,6 +2053,7 @@ try {
     if ($BootstrapRouter) {
         $rounds.Add((Invoke-LabRound -RoundId router-bootstrap -BootMode secureboot -VmNames @('winception-autolab-router') -SecureBoot $true -Tpm $true -Credential $credential -ProfileId $profileId -KeepGuest))
         Initialize-LabRouterGuest -Config $script:Config -Credential $credential -SourceRoot $script:RepoRoot
+        $script:RouterReadyCreatedThisRun = $true
     }
     if (-not $BootstrapRouter -and $Mode -in @('All', 'SecureBoot')) {
         $rounds.Add((Invoke-LabRound -RoundId 'secureboot-tpm-on' -BootMode 'secureboot' -VmNames @($script:Config.secureBootVms) -SecureBoot $true -Tpm $true -Credential $credential -ProfileId $profileId))

@@ -101,6 +101,7 @@ test('physical configuration refuses unsafe pool subnet and WAN settings',()=>{
 });
 test('router guest NAT setup enables guarded nested Hyper-V before creating WinNAT',()=>{
   const source=fs.readFileSync('tools/lib/LabRouter.ps1','utf8');
+  const runner=fs.readFileSync('tools/Invoke-WinceptionLabRegression.ps1','utf8');
   assert.match(source,/function Invoke-LabRouterGuestCommand/);
   assert.match(source,/Invoke-Command -Session \$Session[\s\S]*-AsJob/);
   assert.doesNotMatch(source,/Wait-Job -Job \$job/);
@@ -148,6 +149,10 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(cleanup,/ExposeVirtualizationExtensions \(\[bool\]\$processorBefore\.exposeVirtualizationExtensions\)/);
   assert.match(cleanup,/Remove-VMNetworkAdapter -VMName winception-autolab-router -Name WAN/);
   assert.match(cleanup,/Wait-LabRouterConfigurationSettled -ExpectedAdapterNames @\('LAN'\)/);
+  assert.match(cleanup,/\[switch\]\$SkipReadyRestore/);
+  assert.match(cleanup,/Assert-LabRouterOwnership -Config \$Config -Ready/);
+  assert.match(runner,/SkipReadyRestore:\$script:RouterReadyCreatedThisRun/);
+  assert.match(runner,/\$script:RouterReadyCreatedThisRun = \$true/);
   assert.match(source,/function Wait-LabRouterConfigurationSettled/);
   assert.match(source,/stableObservations -ge 15/);
   assert.match(source,/\[int\]\$TimeoutSec = 45/);
