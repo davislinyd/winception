@@ -111,6 +111,9 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(source,/session-probe-\$probe/);
   assert.match(source,/Remote job failed without an error record/);
   assert.match(source,/JobStateInfo\.Reason\.Message/);
+  assert.match(source,/lastMarker = \$markerText/);
+  assert.match(source,/router-phase:create-nat/);
+  assert.match(source,/router-phase:configure-firewall/);
   const fn=source.slice(source.indexOf('function Initialize-LabRouterGuest'),source.indexOf('function Enable-LabRouterTpm'));
   assert.match(fn,/Router LAN\/WAN MAC was not assigned before guest NAT setup/);
   assert.match(fn,/Set-VMProcessor -VMName \$name -Count 2 -ExposeVirtualizationExtensions \$true/);

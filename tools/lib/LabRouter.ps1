@@ -145,6 +145,10 @@ function Invoke-LabRouterGuestCommand {
         do {
             $states = @($job.State) + @($job.ChildJobs | ForEach-Object State)
             if ($states -contains 'Blocked') {
+                $phaseMarker = @(
+                    $job.Output
+                    $job.ChildJobs | ForEach-Object { $_.Output }
+                ) | ForEach-Object { $_.ToString() } | Where-Object { $_ -match '^router-phase:[a-z0-9-]+$' } | Select-Object -Last 1
                 $blockedOutput = @(
                     $job.ChildJobs | ForEach-Object {
                         if ($_.JobStateInfo.Reason) { $_.JobStateInfo.Reason.Message }
@@ -152,7 +156,17 @@ function Invoke-LabRouterGuestCommand {
                     }
                 ) -join [Environment]::NewLine
                 if (-not $blockedOutput) { $blockedOutput = 'Remote job requested interactive input.' }
-                throw "Router guest command blocked during ${Name}: $blockedOutput"
+                $markerText = if ($phaseMarker) { [string]$phaseMarker } else { 'router-phase:unknown' }
+                if ($EvidencePath) {
+                    [ordered]@{
+                        capturedAt = [DateTimeOffset]::Now.ToString('o')
+                        phase = $Name
+                        state = 'Blocked'
+                        lastMarker = $markerText
+                        error = $blockedOutput
+                    } | ConvertTo-Json | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
+                }
+                throw "Router guest command blocked during ${Name} after ${markerText}: $blockedOutput"
             }
             if ($job.State -in @('Completed','Failed','Stopped','Disconnected')) { break }
             Start-Sleep -Milliseconds 500
@@ -361,6 +375,7 @@ function Initialize-LabRouterGuest {
                 $deadline = [DateTime]::UtcNow.AddSeconds(30)
                 $lan = $null
                 $wan = $null
+                Write-Output 'router-phase:adapter-discovery'
                 do {
                     $lan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $LanMac}
                     $wan = Get-NetAdapter|Where-Object {($_.MacAddress -replace '[-:]','') -eq $WanMac}
@@ -368,11 +383,15 @@ function Initialize-LabRouterGuest {
                     Start-Sleep -Seconds 2
                 } while ([DateTime]::UtcNow -lt $deadline)
                 if (-not $lan -or -not $wan) { throw 'Router guest adapters missing' }
+                Write-Output 'router-phase:remove-lan-addresses'
                 Get-NetIPAddress -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue|Remove-NetIPAddress -Confirm:$false
+                Write-Output 'router-phase:configure-lan-interface'
                 Set-NetIPInterface -InterfaceIndex $lan.ifIndex -AddressFamily IPv4 -Dhcp Disabled -Forwarding Enabled -Confirm:$false
                 New-NetIPAddress -InterfaceIndex $lan.ifIndex -IPAddress 192.168.177.254 -PrefixLength 24 -Confirm:$false | Out-Null
+                Write-Output 'router-phase:configure-wan-interface'
                 Set-NetIPInterface -InterfaceIndex $wan.ifIndex -AddressFamily IPv4 -Forwarding Enabled -Confirm:$false
                 Set-DnsClientServerAddress -InterfaceIndex $lan.ifIndex -ServerAddresses @('1.1.1.1','8.8.8.8') -Confirm:$false
+                Write-Output 'router-phase:inspect-nat'
                 Get-Service -Name WinNat -ErrorAction SilentlyContinue | Start-Service -ErrorAction SilentlyContinue
                 $existingNat = @()
                 try {
@@ -381,17 +400,22 @@ function Initialize-LabRouterGuest {
                     if ($_.Exception.Message -notmatch 'Invalid class') { throw }
                 }
                 if ($existingNat.Count) { throw 'Router guest contains unexpected NAT' }
+                Write-Output 'router-phase:create-nat'
                 try {
                     New-NetNat -Name WinceptionLabRouterNAT -InternalIPInterfaceAddressPrefix '192.168.177.0/24' -Confirm:$false|Out-Null
                 } catch {
                     throw "Router New-NetNat failed: $($_.Exception.Message.Trim())"
                 }
+                Write-Output 'router-phase:configure-broadcast-route'
                 $broadcast=Get-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -ErrorAction SilentlyContinue
                 if($broadcast){$broadcast|Set-NetRoute -RouteMetric 1 -Confirm:$false}else{New-NetRoute -DestinationPrefix '255.255.255.255/32' -InterfaceIndex $lan.ifIndex -NextHop '0.0.0.0' -RouteMetric 1 -Confirm:$false|Out-Null}
+                Write-Output 'router-phase:configure-firewall'
                 New-NetFirewallRule -Name WinceptionLabRouterDHCP -Direction Inbound -Action Allow -Protocol UDP -LocalPort 67 -InterfaceAlias $lan.Name -Confirm:$false|Out-Null
+                Write-Output 'router-phase:write-dhcp-config'
                 @{serverIp='192.168.177.254';dnsServers=@('1.1.1.1','8.8.8.8');leasePath='C:\ProgramData\WinceptionLabRouter\leases.json'}|ConvertTo-Json|Set-Content C:\ProgramData\WinceptionLabRouter\dhcp.json
                 Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue
                 Remove-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -ErrorAction SilentlyContinue
+                Write-Output 'router-phase:complete'
                 }
             } catch {
                 [ordered]@{
