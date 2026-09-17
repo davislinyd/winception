@@ -205,7 +205,7 @@ function Invoke-LabRouterGuestCommand {
 function Wait-LabRouterConfigurationSettled {
     param(
         [Parameter(Mandatory)][string[]]$ExpectedAdapterNames,
-        [int]$TimeoutSec = 20
+        [int]$TimeoutSec = 45
     )
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)

@@ -146,6 +146,7 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(cleanup,/Wait-LabRouterConfigurationSettled -ExpectedAdapterNames @\('LAN'\)/);
   assert.match(source,/function Wait-LabRouterConfigurationSettled/);
   assert.match(source,/stableObservations -ge 15/);
+  assert.match(source,/\[int\]\$TimeoutSec = 45/);
   assert.match(fn,/\$ConfirmPreference = 'None'/);
   assert.match(fn,/New-NetNat[^\r\n]+-Confirm:\$false/);
   assert.match(source,/Test-Path -LiteralPath \$diskPath -PathType Leaf/);
