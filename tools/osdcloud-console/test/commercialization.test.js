@@ -159,12 +159,17 @@ test('boot-session uses an ephemeral bound envelope and revokes terminal session
     });
     assert.equal(response.status, 401);
 
-    const secondRequest = { ...request, nonce: 'nonce-two', bootId: 'boot-two', runId: 'run-two' };
+    const secondRequest = { ...request, nonce: '-nonce-two', bootId: 'boot-two', runId: 'run-two' };
     response = await postJson(base, '/osdcloud/boot-session', secondRequest);
     assert.equal(response.status, 201);
     const secondSession = await response.json();
     response = await postJson(base, '/osdcloud/boot-session', secondRequest);
     assert.equal(response.status, 403);
+
+    response = await postJson(base, '/osdcloud/boot-session', {
+      ...request, nonce: '_nonce-three', bootId: 'boot-three', runId: 'run-three',
+    });
+    assert.equal(response.status, 201);
 
     leaseActive = false;
     response = await postJson(base, '/osdcloud/status', { runId: 'run-two', clientId: 'client-one', stage: 'winpe-start' }, {

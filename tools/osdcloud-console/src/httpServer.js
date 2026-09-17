@@ -63,7 +63,7 @@ function isIpInRange(ip, startIp, endIp) {
 
 function safeClientValue(value, label) {
   const text = String(value ?? '').trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/u.test(text)) {
+  if (!/^[A-Za-z0-9_-][A-Za-z0-9._:-]{0,119}$/u.test(text)) {
     throw new Error(`${label} is invalid`);
   }
   return text;
