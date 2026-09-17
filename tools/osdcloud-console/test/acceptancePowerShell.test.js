@@ -151,6 +151,11 @@ test('router guest NAT setup enables guarded nested Hyper-V before creating WinN
   assert.match(cleanup,/Wait-LabRouterConfigurationSettled -ExpectedAdapterNames @\('LAN'\)/);
   assert.match(cleanup,/\[switch\]\$SkipReadyRestore/);
   assert.match(cleanup,/Assert-LabRouterOwnership -Config \$Config -Ready/);
+  const readyHostState=source.slice(source.indexOf('function Set-LabRouterReadyHostState'),source.indexOf('function Start-LabRouter'));
+  assert.match(readyHostState,/SecureBootTemplate[\s\S]*MicrosoftWindows[\s\S]*Get-VMSecurity[\s\S]*TpmEnabled[\s\S]*Disable-VMTPM[\s\S]*Set-VMFirmware[\s\S]*Enable-LabRouterTpm/);
+  assert.doesNotMatch(readyHostState,/Set-VMFirmware[^\r\n]*-SecureBootTemplate/);
+  assert.match(source.slice(source.indexOf('function Start-LabRouter'),source.indexOf('function Stop-LabRouter')),/Restore-VMSnapshot[\s\S]*Set-LabRouterReadyHostState/);
+  assert.match(cleanup,/Restore-VMSnapshot[\s\S]*Set-LabRouterReadyHostState/);
   assert.match(runner,/SkipReadyRestore:\$script:RouterReadyCreatedThisRun/);
   assert.match(runner,/\$script:RouterReadyCreatedThisRun = \$true/);
   assert.match(source,/function Wait-LabRouterConfigurationSettled/);

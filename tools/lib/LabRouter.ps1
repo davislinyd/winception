@@ -477,15 +477,27 @@ function Enable-LabRouterTpm {
     Enable-VMTPM -VMName winception-autolab-router
 }
 
+function Set-LabRouterReadyHostState {
+    $name = 'winception-autolab-router'
+    $firmware = Get-VMFirmware -VMName $name -ErrorAction Stop
+    if ([string]$firmware.SecureBootTemplate -ne 'MicrosoftWindows') {
+        throw 'Router Ready Secure Boot template mismatch.'
+    }
+    if ((Get-VMSecurity -VMName $name -ErrorAction Stop).TpmEnabled) {
+        Disable-VMTPM -VMName $name -ErrorAction Stop
+    }
+    Set-VMFirmware -VMName $name -EnableSecureBoot On -FirstBootDevice (Get-VMHardDiskDrive -VMName $name) -ErrorAction Stop
+    Set-VMProcessor -VMName $name -Count 2 -ExposeVirtualizationExtensions $true -ErrorAction Stop
+    Enable-LabRouterTpm
+}
+
 function Start-LabRouter {
     param($Config, [pscredential]$Credential, [bool]$Dhcp)
     Assert-LabRouterOwnership $Config -Ready | Out-Null
     $name = 'winception-autolab-router'
     if ((Get-VM -Name $name).State -ne 'Off') { throw 'Router must be Off before restore' }
     Restore-VMSnapshot -VMName $name -Name 'Winception-Router-Ready' -Confirm:$false
-    Set-VMFirmware -VMName $name -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice (Get-VMHardDiskDrive -VMName $name)
-    Set-VMProcessor -VMName $name -Count 2 -ExposeVirtualizationExtensions $true
-    Enable-LabRouterTpm
+    Set-LabRouterReadyHostState
     Start-VM -Name $name
     $session = New-LabRouterPSSession -VmName $name -Credential $Credential
     try {
@@ -515,9 +527,7 @@ function Stop-LabRouter {
                 Assert-LabRouterOwnership -Config $Config -Ready | Out-Null
             } else {
                 Restore-VMSnapshot -VMName winception-autolab-router -Name Winception-Router-Ready -Confirm:$false
-                Set-VMFirmware -VMName winception-autolab-router -EnableSecureBoot On -SecureBootTemplate MicrosoftWindows -FirstBootDevice (Get-VMHardDiskDrive -VMName winception-autolab-router)
-                Set-VMProcessor -VMName winception-autolab-router -Count 2 -ExposeVirtualizationExtensions $true
-                Enable-LabRouterTpm
+                Set-LabRouterReadyHostState
             }
         } else {
             $wan = Get-VMNetworkAdapter -VMName winception-autolab-router -Name WAN -ErrorAction SilentlyContinue
