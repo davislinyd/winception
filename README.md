@@ -41,7 +41,7 @@ Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在�
 
 ### 02. 部署主機安裝
 
-自動驗收：[分層入口與操作規則](docs/acceptance.md)。Source／UI、AutoLab、實體網路及真人上手各自記錄狀態。實體入口預設唯讀；重灌需明確指定可重灌 MAC。一般 profile 預設不自動登入，登入目標帳號後完成 Windows finalizer；有限次數自動登入只供明確 test-only profile。
+自動驗收：[分層入口與操作規則](docs/acceptance.md)。Source／UI、AutoLab、實體網路及真人上手各自記錄狀態。實體入口預設唯讀；重灌需明確指定可重灌 MAC。第一次 Windows 開機仍由 SetupComplete 寫入 AutoLogon（`AutoLogonCount` 5），讓 post-logon finalizer 在目標使用者桌面執行；terminal state 後清除 AutoLogon／Unattend／`ProgramData\OSDCloud\secrets.json`，cleanup 失敗不得視為 `windows-desktop-ready`。Unattend 額外的有限次數自動登入只供明確 test-only profile。正式交機時第一次登入也不自動登入，仍屬未完成項目，見 [`docs/debugging-todo.md`](docs/debugging-todo.md)。
 
 從系統管理員 PowerShell 執行：
 
@@ -179,16 +179,18 @@ C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json
 
 ### 05. 部署前準備
 
-Web Console 的頂部工作區是 **開始部署** / **部署活動**，並可用 **引導 / 控制台** 切換密度。第一次造訪預設為引導模式：依目前 state 只提供一個下一步按鈕，順序會在基本設定、選擇 Windows、檢查主機、啟動服務與查看電腦進度之間切換。所有有副作用的動作仍沿用既有確認視窗、Preflight 門檻與 DHCP 安全規則。需要調整技術設定或取得證據時，切換到 **控制台** 即可看到 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。**部署活動** 則保留完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions。第一次開啟 Web Console 時，按首頁的 `完成基本設定`，在可關閉的 Guided Setup dialog 內完成：
+Web Console 的頂部工作區是 **開始部署** / **部署活動**，並可用 **引導 / 控制台** 切換密度。第一次造訪預設為引導模式：依目前 state 只提供一個下一步按鈕，順序會在基本設定、選擇 Windows、檢查主機、啟動服務與查看電腦進度之間切換。所有有副作用的動作仍沿用既有確認視窗、Preflight 門檻與 DHCP 安全規則。需要調整技術設定或取得證據時，切換到 **控制台** 即可看到 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。**部署活動** 則保留完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions。第一次開啟 Web Console 時，按首頁的 `完成基本設定`，在可關閉的 Guided Setup dialog 內完成十個步驟（畫面寫「查看所有 10 個部署步驟」）。首次使用的五個階段精靈會另外插入接線場景選擇；完整檢查清單是：
 
 1. Project root：確認 deployment root，預設可用 `C:\OSDCloud`。
-2. Deployment secrets：輸入目標 Windows local account 與 SMB account secret。
-3. Prepare runtime：建立 runtime skeleton、SMB account/share、boot artifacts 與 WinPE。
-4. Select endpoint：選定要服務目標電腦的主機介面與 IP。
-5. OS Image Cache：下載或匯入 Windows 11 source，選 DISM index，匯出 deployable WIM。
-6. Deployment Profile：選 OS image、語言/區域/時區、software、custom scripts 與執行順序。
-7. Run preflight：確認所有 blocking checks 通過。
-8. Start services：由技術人員明確啟動服務。
+2. Web service IP：確認本機 Web Console 的 host 與 port。
+3. Deployment secrets：輸入目標 Windows local account；SMB 密碼由系統準備。
+4. Prepare runtime：建立 runtime skeleton、SMB account/share、boot artifacts 與 WinPE。
+5. PXE/service endpoint：選定要服務目標電腦的主機介面與 IP，並同步端點。
+6. OS Image Cache：下載或匯入 Windows 11 source，選 DISM index，匯出 deployable WIM。
+7. Publish profile：選 OS image、語言/區域/時區、software、custom scripts 與執行順序，並發布。
+8. Run preflight：確認所有 blocking checks 通過。
+9. Start services：由技術人員明確啟動 HTTP、TFTP 與 DHCP。
+10. Boot client：目標電腦選 UEFI IPv4 PXE；既有 DHCP 時核對配對碼，再查看部署活動。
 
 每次成功部署或 reload HostTools 都會清除舊的 diagnostics summary 與 ZIP，避免新 Console 把前次主機失敗誤顯示為目前狀態。請按 `Run diagnostics` 建立本次主機的新證據包；若既有摘要的 ZIP 已不在本機，Console 會停用下載並要求重新產生。
 
@@ -204,7 +206,7 @@ WinPE Torrent 網路準備逐步回報進度；CIM 與防火牆命令最多執�
 
 Winception 的自動化分成兩條 GitHub Actions 流程：
 
-- pull_request 使用 self-hosted / windows / winception-lab runner，只執行 Node、Web/API、PowerShell parser、npm run check、npm test 與 npm run smoke。Checkout 與 npm cache 留在 runner workspace，不會寫入 C:\OSDCloud，也不會執行 Endpoint Sync、profile publish、服務啟停或 DHCP。
+- pull_request 使用 self-hosted / windows / winception-lab runner。Checkout 與 npm cache 留在 runner workspace，並確認不在 `C:\OSDCloud` 底下。流程安裝 Node 24 與 `npm ci`，對 tracked `*.js`/`*.mjs` 跑 `node --check`，對 tracked `*.ps1` 做 PowerShell parser 語法檢查，再執行 `npm run acceptance:source`、針對 `webUi.test.js` / `beginner.test.js` / `labAutomation.test.js` 的 `node --test`，以及 Playwright `npm run acceptance:ui`。不會寫入 `C:\OSDCloud`，也不會執行 Endpoint Sync、profile publish、服務啟停或 DHCP。不跑完整 `npm test`、`npm run check` 或 `npm run smoke`。
 - master push 使用 self-hosted / windows / hyperv / winception-lab runner，建立目前 commit 的 allowlisted Release HostTools bundle，驗證 bundle-manifest.json，安裝空白包後再由 runner 明確 seed Development fixture，然後在固定的 Winception-AutoLab Internal switch（192.168.177.0/24，service 192.168.177.1）執行 `winception-autolab-01..04` 與 `winception-autolab-ipxe-01` 的 PXE 回歸（預設：四台 Secure Boot On + TPM On，一台 iPXE Secure Boot Off + TPM Off；`Mode All` 另證 Secure Boot On + TPM Off 與 iPXE Secure Boot Off + TPM On）。這些名字不得重用歷史 `winception-client-01..04`。成功或失敗都會停止服務、關閉 VM、還原 Winception-Clean checkpoint 並上傳去秘密化 evidence。`Winception-Clean` 不含 Hyper-V TPM；還原後 Lab 腳本依該輪的 `-SecureBoot` / `-Tpm` 重套韌體。
 
 第一次只需在專用 runner 執行一次性 bootstrap、建立五台 Gen2 VM/checkpoint、配置受 ACL 保護的 C:\OSDCloud\HostTools\State\config\osdcloud-secrets.json 與 runner labels。日常 PR/merge job 不需要人類介入；runner guard 會拒絕 external switch、非指定 adapter、running/stale VM、缺 checkpoint、Windows DHCP Server 綁在非 Lab 介面，以及 Lab 服務 IP 或 `0.0.0.0` 上已被佔用的 port。其他網卡上的 ICS／DHCP（例如 Default Switch UDP/67）不是 Lab 佔用。Initialize-WinceptionLab.ps1 -ValidateOnly 可在不改變主機的情況下驗證前置條件（含預設韌體：SB VM 為 TPM On，iPXE 為 TPM Off）。
@@ -285,9 +287,9 @@ Boot mode 決策：
 3. 不使用外部安裝媒體，不手動點選 OOBE。
 4. 在 Web Console 觀察 Client Fleet、Activity、Validation Evidence 與 System Log。
 5. 目標電腦完成 WinPE image apply 後會自動重新開機。
-6. Windows 第一次開機後會自動登入 `<windowsUsername>`。
+6. Windows 第一次開機後會自動登入 `<windowsUsername>`。這是目前 `SetupComplete.ps1` 的行為（`AutoAdminLogon`、`AutoLogonCount` 5），讓 finalizer 能在目標使用者桌面執行；不是已完成的「正式交機不自動登入」。
 7. Windows finalizer 會執行 active profile 的 software/custom script sequence。
-8. 成功後 Web Console 會收到 `windows-desktop-ready`。
+8. 成功後 Web Console 會收到 `windows-desktop-ready`。terminal state 會清除 AutoLogon；cleanup 失敗則不發 desktop-ready。
 
 若需要離線媒體而不是 PXE，可在 `Deploy` 主畫面的 `Offline ISO` 卡片按 `Create ISO`。這會在主機端建立 immutable snapshot ISO，輸出到 `<deployment-root>\Exports`，並在畫面顯示 `Output folder` 與完整 `ISO file` 路徑。這條路徑不提供瀏覽器下載，也不替代 PXE readiness 證據。
 
@@ -403,7 +405,7 @@ Last completed run : <run-id>
 
 ### 10. 參考文件
 
-- [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)：中英雙語圖解操作手冊。
+- [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)：中英雙語圖解操作手冊（現行）。安裝後也可在 Console 用 **使用手冊** 開啟 `/manual/`。公開 [GitHub.io](https://davislinyd.github.io/winception/) 仍是 2026-07-17 的 v1.0.3 快照；更新計畫見 [`docs/agent-reference/repo-workflow.md`](docs/agent-reference/repo-workflow.md)。
 - [`docs/diagrams/technical-flow.md`](docs/diagrams/technical-flow.md)：系統架構與資料流圖。
 - [`docs/diagrams/user-flow.md`](docs/diagrams/user-flow.md)：Web Console 操作流程圖。
 - [`osdcloud-assets/README.md`](osdcloud-assets/README.md)：versioned runtime mirror 的用途與邊界。
@@ -411,7 +413,7 @@ Last completed run : <run-id>
 
 ## English
 
-See [layered acceptance](docs/acceptance.md) for isolated Source/UI, owned-router AutoLab and explicit disposable-client physical testing. Cleanup and post-stop Internet must pass independently. Normal profiles require target-account sign-in for finalization; bounded auto-login is test-only.
+See [layered acceptance](docs/acceptance.md) for isolated Source/UI, owned-router AutoLab and explicit disposable-client physical testing. Cleanup and post-stop Internet must pass independently. First Windows boot still AutoLogons as `<windowsUsername>` via SetupComplete (`AutoLogonCount` 5) so the post-logon finalizer can run on the target desktop; terminal state then clears AutoLogon, Unattend, and `ProgramData\OSDCloud\secrets.json`. Extra bounded Unattend auto-login is test-only. Removing first-boot AutoLogon for production handoff is unfinished; see [`docs/debugging-todo.md`](docs/debugging-todo.md).
 
 ### 01. Product Overview
 
@@ -586,16 +588,18 @@ Rules:
 
 ### 05. Pre-Deployment Preparation
 
-The Web Console top bar has **Start deployment** / **Activity**, plus a **Guided / Console** density toggle. First visit defaults to Guided: one state-derived next action, the selected deployment content, a four-stage flow, and a short deployment summary. Console mode is the in-page ops board for Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log. Activity remains the full Fleet workspace. Actions with side effects keep the existing confirmation dialogs, Preflight gates, and DHCP safety rules. On first launch, choose `Complete basic setup` and complete Guided Setup in its closable dialog:
+The Web Console top bar has **Start deployment** / **Activity**, plus a **Guided / Console** density toggle. First visit defaults to Guided: one state-derived next action, the selected deployment content, a four-stage flow, and a short deployment summary. Console mode is the in-page ops board for Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log. Activity remains the full Fleet workspace. Actions with side effects keep the existing confirmation dialogs, Preflight gates, and DHCP safety rules. On first launch, choose `完成基本設定` and complete Guided Setup in its closable dialog (the UI says “查看所有 10 個部署步驟”). The five-stage first-use wizard also inserts a wiring-scene choice; the full checklist is:
 
 1. Project root: confirm the deployment root; `C:\OSDCloud` is the default option.
-2. Deployment secrets: enter the target Windows local account and SMB account secret.
-3. Prepare runtime: create runtime skeleton, SMB account/share, boot artifacts, and WinPE.
-4. Select endpoint: choose the host interface and IP that will serve target computers.
-5. OS Image Cache: download or import a Windows 11 source, choose a DISM index, and export a deployable WIM.
-6. Deployment Profile: choose OS image, language/region/time zone, software, custom scripts, and execution order.
-7. Run preflight: confirm all blocking checks pass.
-8. Start services: a technician explicitly starts services.
+2. Web service IP: confirm the local Web Console host and port.
+3. Deployment secrets: enter the target Windows local account; the SMB password is prepared by the host.
+4. Prepare runtime: create runtime skeleton, SMB account/share, boot artifacts, and WinPE.
+5. PXE/service endpoint: choose the host interface and IP that will serve target computers, then sync the endpoint.
+6. OS Image Cache: download or import a Windows 11 source, choose a DISM index, and export a deployable WIM.
+7. Publish profile: choose OS image, language/region/time zone, software, custom scripts, and execution order, then publish.
+8. Run preflight: confirm all blocking checks pass.
+9. Start services: a technician explicitly starts HTTP, TFTP, and DHCP.
+10. Boot client: select UEFI IPv4 PXE on the target; approve the pairing code when using existing DHCP, then watch Activity.
 
 Each successful HostTools deployment or reload clears the prior diagnostics summary and ZIP so a new Console does not present an earlier host failure as current. Select `Run diagnostics` to create fresh host evidence; if an existing summary's ZIP is no longer local, Console disables its download and asks you to generate diagnostics again.
 
@@ -603,7 +607,7 @@ Each successful HostTools deployment or reload clears the prior diagnostics summ
 
 Winception automation is split into two GitHub Actions workflows:
 
-- pull_request runs on self-hosted / windows / winception-lab and performs Node, Web/API, PowerShell parser, npm run check, npm test, and npm run smoke. Checkout and npm cache stay in the runner workspace; the job does not write C:\OSDCloud, run Endpoint Sync, publish profiles, start services, or touch DHCP.
+- pull_request runs on self-hosted / windows / winception-lab. Checkout and npm cache stay in the runner workspace, which must not be under `C:\OSDCloud`. The job installs Node 24 and `npm ci`, runs `node --check` on tracked `*.js`/`*.mjs`, parses tracked `*.ps1` with the PowerShell parser, then runs `npm run acceptance:source`, `node --test` on `webUi.test.js` / `beginner.test.js` / `labAutomation.test.js`, and Playwright `npm run acceptance:ui`. It does not write `C:\OSDCloud`, run Endpoint Sync, publish profiles, start services, or touch DHCP. It does not run full `npm test`, `npm run check`, or `npm run smoke`.
 - A master push runs on self-hosted / windows / hyperv / winception-lab, creates and verifies an allowlisted Release HostTools bundle, installs the empty bundle, explicitly seeds the Development fixture into runner State, and executes `winception-autolab-01..04` plus `winception-autolab-ipxe-01` on the fixed Winception-AutoLab Internal switch (192.168.177.0/24, service 192.168.177.1). Default firmware is four Secure Boot On + TPM On VMs and one iPXE Secure Boot Off + TPM Off VM; `Mode All` also proves Secure Boot On + TPM Off and iPXE Secure Boot Off + TPM On. Those names must not reuse historical `winception-client-01..04`. Success and failure both stop services, power off VMs, restore the Winception-Clean checkpoint, and upload de-secretized evidence. `Winception-Clean` does not keep Hyper-V TPM; Lab restore reapplies `-SecureBoot` and `-Tpm` per round.
 
 Lab green requires the published guest profile ID, host/guest firmware evidence, and successful cleanup. A checkpoint restore failure fails the test.
@@ -692,9 +696,9 @@ After preparation is complete in the Web Console:
 3. Do not use external installation media and do not click through OOBE manually.
 4. Watch Client Fleet, Activity, Validation Evidence, and System Log in the Web Console.
 5. The target computer automatically reboots after WinPE image apply finishes.
-6. Windows automatically signs in as `<windowsUsername>` on first boot.
+6. Windows automatically signs in as `<windowsUsername>` on first boot. That is current `SetupComplete.ps1` behavior (`AutoAdminLogon`, `AutoLogonCount` 5) so the finalizer can run on the target-user desktop; it is not the unfinished “no AutoLogon at production handoff” work.
 7. The Windows finalizer runs the active profile software/custom script sequence.
-8. The Web Console receives `windows-desktop-ready` on success.
+8. The Web Console receives `windows-desktop-ready` on success. Terminal state clears AutoLogon; a cleanup failure withholds desktop-ready.
 
 If you need offline media instead of PXE, use the `Offline ISO` card on the `Deploy` dashboard. `Create ISO` builds an immutable host-side ISO snapshot under `<deployment-root>\Exports` and shows the `Output folder` plus full `ISO file` path in the UI. This path does not offer browser download and does not replace PXE readiness evidence.
 
@@ -811,7 +815,7 @@ Last completed run : <run-id>
 
 ### 10. Reference Documents
 
-- [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html): illustrated bilingual operations manual.
+- [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html): illustrated bilingual operations manual (current). After installation, the Console **使用手冊** link opens `/manual/`. The public [GitHub.io](https://davislinyd.github.io/winception/) site is still the 2026-07-17 v1.0.3 snapshot; the republish plan is in [`docs/agent-reference/repo-workflow.md`](docs/agent-reference/repo-workflow.md).
 - [`docs/diagrams/technical-flow.md`](docs/diagrams/technical-flow.md): system architecture and data-flow diagram.
 - [`docs/diagrams/user-flow.md`](docs/diagrams/user-flow.md): Web Console operator-flow diagram.
 - [`osdcloud-assets/README.md`](osdcloud-assets/README.md): purpose and boundaries of the versioned runtime mirror.

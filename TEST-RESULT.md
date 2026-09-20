@@ -37,7 +37,7 @@ Branch codex/easier-onboarding; restorable acceptance baseline codex/baseline-ac
 | Expanded AutoLab | Firmware Passed; NetworkAcceptance paused / Failed | Firmware Mode All e remains green. Router Ready later existed (`20260917x`). Network matrix `20260917y` Failed and is frozen; see the 2026-09-20 status above. |
 | Physical / human | NotRun | Three physical scenes and unfamiliar-PXE usability remain independent; missing-site readonly entry reports Blocked with deployment/network/cleanup NotRun |
 
-Final draft review added authenticated Console calls, shared router-create mutex, live workspace runtimeRoot lookup and strict service-stop checks. Focused validation follows those edits; no live service/network mutation occurred in this Source milestone. Ordinary profiles now require target-account login; only bounded TEST ONLY profiles allow auto-login. No disk rollback is promised for physical reinstallation.
+Final draft review added authenticated Console calls, shared router-create mutex, live workspace runtimeRoot lookup and strict service-stop checks. Focused validation follows those edits; no live service/network mutation occurred in this Source milestone. No disk rollback is promised for physical reinstallation. Product docs correction 2026-09-21: first Windows boot still AutoLogons via SetupComplete (`AutoLogonCount` 5) so the post-logon finalizer can run; extra Unattend auto-login is test-only. Removing first-boot AutoLogon for production handoff remains unfinished (`docs/debugging-todo.md`).
 
 ## Router bootstrap `20260915e` — Failed, cleanup Passed
 

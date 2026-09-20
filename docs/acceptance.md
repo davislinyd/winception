@@ -50,7 +50,7 @@ Scenario：ExistingDhcp、WinceptionDhcp、LaptopNat。預設唯讀產出 JSON/H
 
 沿用 Console-auth API、Endpoint Sync、Preflight、服務控制，不手動修補 runtime。只有指定 MAC 可取得部署憑證。重灌覆寫 client Windows／磁碟，不承諾磁碟還原。
 
-一般 profile 預設不自動登入，登入目標帳號後才完成 Windows finalizer。獨立 TEST ONLY profile 明確 opt-in acceptance.testOnly true、autoLogonCount 1–3；结束或失敗移除測試 script/task/自動登入並還原原 profile。Client 沒有清理回報不能算清理通過。
+第一次 Windows 開機仍由 SetupComplete 寫入 AutoLogon（`AutoLogonCount` 5），讓 post-logon finalizer 在目標使用者桌面執行；terminal state 後清除 AutoLogon／Unattend／`ProgramData\OSDCloud\secrets.json`，cleanup 失敗不得視為 `windows-desktop-ready`。Unattend 額外的有限次數自動登入只供獨立 TEST ONLY profile（`acceptance.testOnly` true、`autoLogonCount` 1–3）。結束或失敗移除測試 script/task/自動登入並還原原 profile。正式交機時第一次登入也不自動登入，仍屬未完成項目。Client 沒有清理回報不能算清理通過。
 
 獨立 collector 的短效 report-only ticket 綁定 MAC、SMBIOS UUID、來源 IP、驗收 run／部署 run／boot；不授予部署或 Console 權限。票據只透過本輪 test-only profile 發布，禁止 Git、Release、一般日誌。Collector 留到停止部署服務後第二次網路及清理回報結束。DNS／HTTPS 預設 www.microsoft.com，HTTPS 單次 30 秒並保留憑證驗證。
 
@@ -66,4 +66,4 @@ Each layer reports Passed/Failed/Blocked/NotRun independently. Source/UI use iso
 
 On master, Source/UI precede installed changes and the locked AutoLab matrix. Router bootstrap is explicit: owned Gen2 4 GiB Secure Boot/TPM VM, Internal LAN .254, Default Switch WAN only. Independent DHCP .100–.149 has no PXE options for Proxy and must stop for Winception Server .200–.250. Both require current Fleet desktop-ready, PowerShell Direct, exact network and certificate-validated DNS/HTTPS before and after service stop.
 
-Physical defaults to validation only. An ignored site manifest, disposable MAC/SMBIOS UUID, confirmed DHCP-free window where required and explicit Execute authorize reinstallation; no disk rollback is promised. LaptopNat requires distinct physical NICs and no foreign ICS/NAT conflict. Normal profiles require target-account sign-in; bounded auto-login is explicitly test-only. Report tickets bind client/source/run/boot and grant no deployment/Console access. Require client cleanup and post-stop Internet, restore original profile/endpoint and remove only owned test resources. Physical/human acceptance remains independent.
+Physical defaults to validation only. An ignored site manifest, disposable MAC/SMBIOS UUID, confirmed DHCP-free window where required and explicit Execute authorize reinstallation; no disk rollback is promised. LaptopNat requires distinct physical NICs and no foreign ICS/NAT conflict. First boot still AutoLogons via SetupComplete so the finalizer can run; extra bounded Unattend auto-login is test-only. Removing first-boot AutoLogon for production handoff is unfinished. Report tickets bind client/source/run/boot and grant no deployment/Console access. Require client cleanup and post-stop Internet, restore original profile/endpoint and remove only owned test resources. Physical/human acceptance remains independent.

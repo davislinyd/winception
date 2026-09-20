@@ -480,9 +480,9 @@ cd '&lt;repo-root&gt;'
             <li>在 Web Console 開啟 <strong>管理 → 服務控制</strong>，確認 Preflight 與 DHCP 安全條件後按 <strong>啟動部署服務</strong>。</li>
             <li>目標電腦選擇 UEFI IPv4 PXE boot。</li>
             <li>WinPE 掛載 SMB share，讀取 selected manifests，套用 Windows image。</li>
-            <li>Windows 第一次開機後自動登入 <code>&lt;windowsUsername&gt;</code>。</li>
+            <li>Windows 第一次開機後自動登入 <code>&lt;windowsUsername&gt;</code>。這是目前 SetupComplete 的行為（<code>AutoAdminLogon</code>、<code>AutoLogonCount</code> 5），讓 finalizer 能在目標使用者桌面執行；正式交機時第一次登入也不自動登入仍屬未完成項目。</li>
             <li>Windows finalizer 執行 active profile 的 software/custom scripts。</li>
-            <li>Web Console 收到 <code>windows-desktop-ready</code>。</li>
+            <li>Web Console 收到 <code>windows-desktop-ready</code>。terminal state 會清除 AutoLogon；cleanup 失敗則不發 desktop-ready。</li>
           </ol>
           <div class="callout"><strong>Client 網路邊界</strong>WinPE、OSDCloud、OOBE injection 與 SetupComplete staging 只需要連到 Winception server，不需要外部 Internet。Dual NIC NAT 會讓 client 全程具有路由，但 WinPE 仍不依賴它；post-logon finalizer 才是 software/custom scripts 的預期外網使用階段。NAT 不修改 WAN IP/gateway/DNS 或關閉 firewall，停止 HTTP/TFTP/DHCP 也不會停止 NAT。</div>
           <div class="callout"><strong>新增 Client Software</strong>在 <code>Profiles → Software Catalog → Add software</code> 依序完成 Package、Installation、Requirements &amp; review。所有必填欄位都有紅色 <code>*</code>；已選 payload 即使重新開啟檔案選擇器後按取消也會保留。一般 MSI/EXE 選 Guided installer；Custom PowerShell 仍需附帶 payload，並以 SYSTEM、非互動方式執行受信任的 <code>install.ps1</code>。先選 payload 後可載入 MSI/EXE 參考範本；syntax preflight 採 Windows PowerShell 5.1，因為 client 實際就是以內建 <code>powershell.exe</code> 執行，不是 sandbox 或實機測試。預設使用 host 預載 payload；只有該 client 步驟確實要連外時才設定 DNS probe host。加入 catalog 不會選取 profile 或發布 Apps，請在 Deployment profile 加入後再 publish。</div>
@@ -538,7 +538,7 @@ Active profile     : &lt;profile-id&gt;
 Last completed run : &lt;run-id&gt;</code></pre>
         </section>
 
-        <section id="automated-acceptance"><p class="section-kicker">分層驗收</p><h2>自動驗收與測試機</h2><p>Source/UI、AutoLab、實體網路、真人上手各自記錄 Passed／Failed／Blocked／NotRun。機器操作成功不能代替新手理解；設備、外網或清理失敗不能算完整通過。</p><p>實體入口 Invoke-WinceptionAcceptance.ps1 預設唯讀；用忽略的現場設定記錄 client MAC／SMBIOS UUID、DHCP、subnet、gateway、DNS，只有明確 Execute 與可重灌 MAC 才重灌。LaptopNat 要兩张不同實體 NIC；foreign ICS/NAT 由擁有者處理。</p><p>一般 profile 登入目標帳號後完成 finalizer；有限次數自動登入只供 TEST ONLY profile。測試須取得本輪 Fleet desktop-ready、停止服務前後 DNS／有效憑證 HTTPS 與清理回報；回復原 profile，清除測試 ticket/task/自動登入，不承諾 client 磁碟還原。</p></section>
+        <section id="automated-acceptance"><p class="section-kicker">分層驗收</p><h2>自動驗收與測試機</h2><p>Source/UI、AutoLab、實體網路、真人上手各自記錄 Passed／Failed／Blocked／NotRun。機器操作成功不能代替新手理解；設備、外網或清理失敗不能算完整通過。</p><p>實體入口 Invoke-WinceptionAcceptance.ps1 預設唯讀；用忽略的現場設定記錄 client MAC／SMBIOS UUID、DHCP、subnet、gateway、DNS，只有明確 Execute 與可重灌 MAC 才重灌。LaptopNat 要兩张不同實體 NIC；foreign ICS/NAT 由擁有者處理。</p><p>第一次 Windows 開機仍由 SetupComplete 寫入 AutoLogon（<code>AutoLogonCount</code> 5），讓 post-logon finalizer 在目標使用者桌面執行；terminal state 後清除 AutoLogon。Unattend 額外的有限次數自動登入只供 TEST ONLY profile。正式交機不自動登入仍屬未完成項目。測試須取得本輪 Fleet desktop-ready、停止服務前後 DNS／有效憑證 HTTPS 與清理回報；回復原 profile，清除測試 ticket/task/自動登入，不承諾 client 磁碟還原。</p></section>
 <section id="references">
           <p class="section-kicker">11 · References</p>
           <h2>參考文件</h2>
@@ -722,9 +722,9 @@ cd '&lt;repo-root&gt;'
             <li>Open <strong>Console → service controls</strong>, confirm Preflight and DHCP safety, then click <strong>Start deployment services</strong>.</li>
             <li>Select UEFI IPv4 PXE boot on the target computer.</li>
             <li>WinPE mounts the SMB share, reads selected manifests, and applies the Windows image.</li>
-            <li>Windows automatically signs in as <code>&lt;windowsUsername&gt;</code> on first boot.</li>
+            <li>Windows automatically signs in as <code>&lt;windowsUsername&gt;</code> on first boot. That is current SetupComplete behavior (<code>AutoAdminLogon</code>, <code>AutoLogonCount</code> 5) so the finalizer can run on the target-user desktop; removing first-boot AutoLogon for production handoff is unfinished.</li>
             <li>The Windows finalizer runs the active profile software/custom scripts.</li>
-            <li>The Web Console receives <code>windows-desktop-ready</code>.</li>
+            <li>The Web Console receives <code>windows-desktop-ready</code>. Terminal state clears AutoLogon; a cleanup failure withholds desktop-ready.</li>
           </ol>
           <div class="callout"><strong>Client network boundary</strong>WinPE, OSDCloud, OOBE injection, and SetupComplete staging only need the Winception server and do not require external Internet. Dual NIC NAT gives clients a route throughout deployment without making WinPE depend on it; post-logon finalizer is the intended software/custom-script Internet phase. NAT does not change WAN IP/gateway/DNS or disable firewall profiles, and stopping HTTP/TFTP/DHCP does not stop NAT.</div>
           <div class="callout"><strong>Add Client Software</strong>Use <code>Profiles → Software Catalog → Add software</code> and complete Package, Installation, then Requirements &amp; review. Every required field has a red <code>*</code>; reopening the picker and cancelling keeps an already selected payload. Choose Guided installer for normal MSI/EXE payloads. Custom PowerShell still includes a payload and runs a trusted <code>install.ps1</code> as non-interactive SYSTEM. After choosing a payload, load the MSI/EXE reference template as a starting point; its Windows PowerShell 5.1 syntax preflight matches the inbox <code>powershell.exe</code> that executes on the client and is not a sandbox or installation test. Host-prefetched payload is the default; specify a DNS probe host only when that client step truly needs external Internet. Adding to the catalog neither selects a profile nor publishes Apps; add the software to a Deployment profile and publish afterward.</div>
@@ -780,7 +780,7 @@ Active profile     : &lt;profile-id&gt;
 Last completed run : &lt;run-id&gt;</code></pre>
         </section>
 
-        <section id="en-automated-acceptance"><p class="section-kicker">Layered acceptance</p><h2>Automated acceptance and disposable clients</h2><p>Source/UI, AutoLab, physical networking and human usability have independent Passed/Failed/Blocked/NotRun results. Missing equipment, Internet failure or failed cleanup cannot yield complete acceptance.</p><p>Physical entry defaults to readonly; an ignored site manifest, exact disposable MAC/SMBIOS UUID and explicit Execute authorize reinstalling. LaptopNat requires distinct physical NICs; foreign ICS/NAT belongs to its owner. Normal profiles require target-account sign-in; limited auto-login is test-only.</p><p>Require current Fleet desktop-ready, DNS/certificate-validated HTTPS before and after service stop, and client cleanup acknowledgements. Restore the original profile, clear test tickets/tasks/login; client disk rollback is not promised.</p></section>
+        <section id="en-automated-acceptance"><p class="section-kicker">Layered acceptance</p><h2>Automated acceptance and disposable clients</h2><p>Source/UI, AutoLab, physical networking and human usability have independent Passed/Failed/Blocked/NotRun results. Missing equipment, Internet failure or failed cleanup cannot yield complete acceptance.</p><p>Physical entry defaults to readonly; an ignored site manifest, exact disposable MAC/SMBIOS UUID and explicit Execute authorize reinstalling. LaptopNat requires distinct physical NICs; foreign ICS/NAT belongs to its owner. First boot still AutoLogons via SetupComplete so the finalizer can run; extra bounded Unattend auto-login is test-only. Removing first-boot AutoLogon for production handoff is unfinished.</p><p>Require current Fleet desktop-ready, DNS/certificate-validated HTTPS before and after service stop, and client cleanup acknowledgements. Restore the original profile, clear test tickets/tasks/login; client disk rollback is not promised.</p></section>
 <section id="en-references">
           <p class="section-kicker">11 · References</p>
           <h2>Reference Documents</h2>
