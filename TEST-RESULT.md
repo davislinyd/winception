@@ -1,6 +1,21 @@
-# Current AutoLab acceptance status — 2026-09-17
+# Current acceptance status — 2026-09-20
 
-Router bootstrap is not yet accepted. Runs `acceptance-router-bootstrap-20260917u` and `20260917v` both completed PXE deployment through `windows-desktop-ready` with Fleet and PowerShell Direct evidence, and both enabled guest Hyper-V with `MSFT_NetNat` present. Guest network configuration then entered PowerShell job state `Blocked` before WinNAT creation. `Winception-Router-Ready` is absent, so `-Mode All -NetworkAcceptance` has not run. Final scoped cleanup and elevated ValidateOnly passed; services are stopped and all six VMs are Off. Physical three-scenario and unfamiliar-user acceptance remain NotRun/Blocked.
+AutoLab `-Mode All -NetworkAcceptance` is **paused as a product gate**. Do not treat a matrix rerun as the next required task. Firmware Mode All e (2026-09-13/14) remains the last green AutoLab fleet evidence. Router Ready exists from `acceptance-router-bootstrap-20260917x`. The only network-matrix attempt, `acceptance-mode-all-network-20260917y`, is Failed (`cleanup=Failed`) and must not be called green.
+
+Product-facing boot-session nonce (`0e4d55d`) and Router Ready firmware restore (`04a1177`) are in source and match the installed HostTools App hashes. They were not re-proven by a second matrix. Physical three-scenario and unfamiliar-PXE human acceptance remain NotRun/Blocked. The host currently has Wi-Fi only (no Ethernet / USB Ethernet). Foreign ICS and two leftover NATs are present and must not be auto-repaired.
+
+| Layer | Status | Current evidence |
+| --- | --- | --- |
+| Source / UI | Last Passed (re-verify only if requested) | 2026-09-14 Source/UI plus later Lab-era 2026-09-17 run: 500 tests / 497 passed / 3 skipped, check, smoke |
+| AutoLab firmware Mode All | Historical Passed | `mode-all-20260913e`: four rounds / seven deployments to `windows-desktop-ready`, cleanup Passed. Internal `192.168.177.1` only |
+| Router Ready | Present; lab-only | `Winception-Router-Ready` checkpoint; evidence `acceptance-router-bootstrap-20260917x` |
+| AutoLab NetworkAcceptance | Paused / Failed | `acceptance-mode-all-network-20260917y`: nonce 403 on autolab-03 then Router cleanup Failed. Frozen 2026-09-20 |
+| Installed App | Source hashes match; console stopped | Last reload backup `HostTools-State-20260917-092952-275`. Overlay still AutoLab `.1/24`, profile `IZVZO7PU`. `bootMode=secureboot` but `bootFile` remains `snponly.efi` — do not start PXE from this snapshot |
+| Physical / human | NotRun / Blocked | No present Ethernet; no `acceptance.local.json` onsite run; ICS/`PXE-Lab-NAT`/`OSDCloud-PhysicalClient-NAT` retained. ExistingDhcp is the first physical candidate after the operator supplies NIC, disposable client, and site file |
+
+Operator next tracks (named explicitly; none started by this freeze): Source/UI re-verify in the clone; ExistingDhcp `ValidateOnly` after the physical checklist in `handoff.md`; or a later unattended NetworkAcceptance that still cannot prove physical/human. No Release, package, or master push.
+
+Historical 2026-09-17 morning note below is superseded: Router Ready **does** exist after `20260917x`; `20260917u`/`v` were earlier Blocked-job failures, not the final router state.
 
 ---
 # Deployment Test Result
@@ -15,7 +30,7 @@ Branch codex/easier-onboarding; restorable acceptance baseline codex/baseline-ac
 | UI | Passed | 9 cases at 390/1024/1366/1920 px, one worker/no retries, owned State cleanup Passed; local Chrome, not downloaded Chromium; test-results/acceptance-ui-report/result.json and HTML |
 | Windows PowerShell / safety | Passed | Changed scripts parse; limited auto-login; actual WinPE/server pairing vectors; exact DHCP packets; unsafe site/pool/WAN guards; router VHD ownership; no mutation on early guard; partial stop fails cleanup |
 | Installed App / WinPE | Passed | Source dae06b2 installed via guarded reload; HTTP hash matches; State backup HostTools-State-20260914-145854-135; Endpoint Sync and 29 Preflight checks passed; WinPE published SHA256 EFE3AFE948B177BC8624A4EA7B8E20D66015F3F021DF2FA1ECA3BB0AC8BF7CE4; services stopped |
-| Expanded AutoLab | Failed / cleanup Passed | `20260915g` reached Fleet and PowerShell Direct `windows-desktop-ready`, then guest setup restarted into PXE because deployment firmware remained Network-first. The original profile, endpoint, processor state, services and six VMs were restored; elevated post-cleanup ValidateOnly passed. Deployed-disk boot correction is committed at `42cd4d0` but not live-proven; Router Ready and the network matrix remain blocked. |
+| Expanded AutoLab | Firmware Passed; NetworkAcceptance paused / Failed | Firmware Mode All e remains green. Router Ready later existed (`20260917x`). Network matrix `20260917y` Failed and is frozen; see the 2026-09-20 status above. |
 | Physical / human | NotRun | Three physical scenes and unfamiliar-PXE usability remain independent; missing-site readonly entry reports Blocked with deployment/network/cleanup NotRun |
 
 Final draft review added authenticated Console calls, shared router-create mutex, live workspace runtimeRoot lookup and strict service-stop checks. Focused validation follows those edits; no live service/network mutation occurred in this Source milestone. Ordinary profiles now require target-account login; only bounded TEST ONLY profiles allow auto-login. No disk rollback is promised for physical reinstallation.

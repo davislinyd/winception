@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- AutoLab `-Mode All -NetworkAcceptance` is paused as a product ship gate. The last green firmware matrix remains 2026-09-14 Mode All e; the 2026-09-17 network-matrix attempt stays Failed. Next product path is physical ExistingDhcp after site prerequisites, not another nested-router rerun.
+
 - WinPE OOBE customization now parenthesizes its profile-file existence check before combining it with `-and`, preventing `Test-Path` from treating the boolean operator as a parameter. The source and WinPE mirror stay byte-identical.
 
 - WinPE writes deployment status metadata only after `Invoke-OSDCloud` has applied Windows, so a fresh target volume is discoverable before metadata and post-apply customization checks run.

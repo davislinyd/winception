@@ -1,32 +1,102 @@
-# Agent handoff — 2026-09-17 17:35
+# Agent handoff — 2026-09-20
 
-## Active task — fix the AutoLab matrix failure, then rerun from a clean baseline
+## Active task — NetworkAcceptance is frozen; wait for the operator before the next track
 
-Source HEAD is `04a1177` on `codex/easier-onboarding`; `.ai/` remains untracked. PID 4160 was explicitly authorized and was already absent when checked. Latest elevated HostTools reload completed successfully from this source; backup is `C:\OSDCloud\HostTools\Backups\HostTools-State-20260917-092952-275`.
+Do **not** rerun `-Mode All -NetworkAcceptance`. Do **not** bootstrap the router again. Do **not** start DHCP, Endpoint Sync, Preflight mutation, or any Lab runner unless the operator explicitly names that track.
 
-Router bootstrap is now proven: `Winception-Router-Ready` exists and the scoped live cleanup proof `.ai/acceptance-router-ready-cleanup-proof-20260917y.json` is green (Router Off, Secure Boot On, `MicrosoftWindows`, TPM On, 2 vCPU, nested virtualization On). Elevated `Initialize-WinceptionLab.ps1 -ValidateOnly -RequireRouter` passed before the matrix. Services are currently stopped, profile is `IZVZO7PU`, endpoint is AutoLab `192.168.177.1/24`, and all six VMs are Off.
+The 2026-09-14 through 2026-09-17 Codex continuation burned a nested-Hyper-V router ladder (39 evidence roots; bootstrap letters through `20260917x`; one Failed network matrix) without moving physical or human acceptance. Operator chose plan A: freeze that gate, keep the product fixes, and decide the next track after this freeze is in Git.
 
-The only matrix run `acceptance-mode-all-network-20260917y` is Failed and must not be called green. Three VMs reached deployment stages, but `winception-autolab-03` showed WinPE `Ephemeral boot session negotiation failed ... (403) Forbidden`; HTTP evidence identifies `POST /osdcloud/boot-session 403 rejected=nonce is invalid` for `192.168.177.202`. The cause was a valid Base64URL nonce beginning with `-` or `_` rejected by `safeClientValue`. Cleanup initially also failed when restoring Router Ready because Hyper-V forbids rewriting `SecureBootTemplate` after TPM key-protector initialization; the current source fix was manually proven green after restoring TPM.
-
-### Changes already committed
-
-- `0e4d55d fix: accept base64url boot nonces` allows `-`/`_` as legal first characters and tests both vectors. Focused commercialization tests passed.
-- `04a1177 fix: restore router ready firmware safely` validates the existing `MicrosoftWindows` template, disables TPM only when enabled, and avoids rewriting the template during Ready restore. Focused PowerShell acceptance passed 23/23; full Source acceptance passed 500 tests (497 passed, 3 skipped), check and smoke.
+`.ai/` remains untracked. Do not push `master`, create a Release/package, or treat AutoLab green as physical proof.
 
 ### Exact continuation
 
-1. Recheck Git, Console, mutex, services, profile/endpoint, six VMs, Router Ready ownership and installed/source hashes. Keep the failed matrix evidence at `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-mode-all-network-20260917y`.
-2. Run elevated `Initialize-WinceptionLab.ps1 -ValidateOnly -RequireRouter`; do not reuse the `20260917y` root. Use a new evidence root for the rerun, with active monitor polling Fleet, `latest.json`, VM state/screenshots, services and runner evidence.
-3. Run exactly one new `-Mode All -NetworkAcceptance` attempt. Require all seven firmware deployments, Proxy and Server network rounds, Proxy rejection, post-stop DNS/HTTPS, Fleet plus PowerShell Direct, and `cleanup=Passed`. Stop immediately on any failed round or cleanup failure; no automatic retry.
-4. If another failure occurs, preserve redacted JSON/HTML and diagnose the exact stage before any rerun. Do not claim full acceptance from the previous historical green run. Physical three scenarios and human onboarding remain `NotRun/Blocked`.
-5. After a fully green matrix, update `TEST-RESULT.md`, `handoff.md`, and `.ai/status.json`; scan evidence for secrets/tokens/envelopes; commit scoped source/docs only. Do not push master or create a Release/package.
+1. Re-read Git, this file, live Web/API/config, adapter/DHCP/NAT, and Hyper-V before any later track. The 2026-09-17 “rerun the matrix” steps below are historical and must not be followed.
+2. Stop. Report current freeze status. Wait for the operator to pick one of: Source/UI re-verify (plan B), physical ExistingDhcp `ValidateOnly` after site prerequisites (plan C), or a later unattended NetworkAcceptance (plan D).
+3. If the operator has not picked a track, do not invent work in Lab scripts, router guest NAT, or another evidence root.
 
-### Evidence paths
+### Live host snapshot (2026-09-20, re-verify before acting)
 
-- Router bootstrap success: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260917x`.
-- Router cleanup proof: `C:\winception\.ai\acceptance-router-ready-cleanup-proof-20260917y.json`.
-- Failed matrix: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-mode-all-network-20260917y` and runner log `.ai/acceptance-mode-all-network-20260917y-runner.log`.
-- VM03 diagnostic screenshot: `.ai/vm03-thumb.bmp` (WinPE 403 nonce error; ignored evidence only).
+| Item | Value |
+| --- | --- |
+| Clone HEAD | `e27192f` on `codex/easier-onboarding` (docs freeze commit follows this snapshot) |
+| Tracked tree | Clean except untracked `.ai/` |
+| `master` | Local `bdbe5ce`, one commit ahead of `origin/master` `847b79f`; preserve it |
+| Installed App | `httpServer.js` and `tools/lib/LabRouter.ps1` SHA-256 match source; last elevated reload backup `HostTools-State-20260917-092952-275` |
+| Console | **Not listening** on `127.0.0.1:8080`; Lab mutex free |
+| Endpoint snapshot | State overlay AutoLab `vEthernet (Winception-AutoLab)` / `192.168.177.1/24`, Server `.200–.250`, router `.1`, DNS `1.1.1.1,8.8.8.8`, `dhcpMode=server` |
+| Boot-mode drift | Overlay `dhcp.bootMode=secureboot` and `secureBootFile=bootmgfw.efi`, but live `dhcp.bootFile` is still `ipxeboot/x86_64-sb/snponly.efi`. Do not start PXE from this snapshot. Re-read and Endpoint Sync only after the operator selects a live endpoint. |
+| Active profile | `IZVZO7PU` (All in One, Windows 11 25H2) |
+| AutoLab VMs | All six Off. `01..04` Secure Boot On + `MicrosoftWindows` + TPM On; iPXE Secure Boot Off + TPM Off |
+| Router | Off; checkpoints `Winception-Clean` and `Winception-Router-Ready`; 2 vCPU; nested virtualization On; TPM On; Secure Boot On / `MicrosoftWindows`; LAN on `Winception-AutoLab`; WAN still on Default Switch |
+| Physical NICs | Wi-Fi Up only. No present Ethernet / USB Ethernet. A disconnected Bluetooth PAN is not a client NIC. |
+| Foreign network | `SharedAccess` Running; `PXE-Lab-NAT` `192.168.77.0/24`; `OSDCloud-PhysicalClient-NAT` `192.168.88.0/24`. LaptopNat is Blocked. Do not auto-repair ICS/NAT. |
+| Last matrix | `acceptance-mode-all-network-20260917y`: `status=Failed`, `cleanup=Failed`. Keep that evidence root. |
+
+Treat `config\osdcloud-console.json` in State as a last-synced snapshot, not guaranteed production truth.
+
+### Layer freeze
+
+| Layer | Status | Rule |
+| --- | --- | --- |
+| Source / UI | Last recorded Passed (9/14 plus later Lab-era tests; 9/17 source run 500 tests / 497 passed / 3 skipped) | Optional re-verify only if the operator asks (plan B) |
+| AutoLab firmware Mode All | Historical green: `mode-all-20260913e` (seven deployments, cleanup Passed) | Do not discard this evidence; do not rerun to “make NetworkAcceptance count” |
+| Router Ready | Present (`20260917x`); nested guest NAT is lab-only | Do not rebuild unless the operator later authorizes plan D |
+| AutoLab NetworkAcceptance | **Paused / Failed** (`20260917y`) | Not a product ship gate. A later green still would not prove physical or human acceptance. |
+| Physical / human | NotRun / Blocked | Actual remaining product work; ExistingDhcp is first if the operator picks plan C |
+
+### Product fixes to keep vs lab-only harness
+
+Keep as product (physical PXE can hit these):
+
+- `0e4d55d` Base64URL boot nonce may start with `-` or `_` (`safeClientValue`)
+- `fabdfee` / `745dcb4` OOBE `Test-Path` grouping and WinPE metadata-after-apply
+- `14e0f82` / `1a9fb85` published Apps / `selected-profile.json` copy order; missing Winlogon `reg.exe` must not Stop
+- `9dcc164` cleanup waits for Console idle and uses `Get-ConsoleTimeoutSec`
+- Onboarding wizard, pairing, site/DHCP/NAT guards (`084a1f0` and follow-ups)
+
+Lab-only unless a physical failure reproduces them:
+
+- Router nested Hyper-V / WinNAT / `Wait-Job` / deployed-disk boot source / TPM `SecureBootTemplate` rewrite (`42cd4d0`, `bf9db48`, `04a1177`, and the 9/15–9/17 router ladder)
+- AutoLab static MAC rebind after checkpoint (`5b183b2`) is lab firmware, not a laptop BIOS setting
+
+### Physical ExistingDhcp checklist (plan C, not started)
+
+Do not run `-Execute` or start DHCP from this freeze. `ValidateOnly` stays blocked until the operator supplies site facts.
+
+Required before ExistingDhcp `ValidateOnly`:
+
+1. A present, connected Ethernet or USB Ethernet on the **existing client LAN** (this host currently has Wi-Fi only).
+2. Ignored `config\acceptance.local.json` copied from `config\acceptance.example.json`, with host service interface/IP, client MAC, SMBIOS UUID, expected subnet/gateway/DHCP/DNS.
+3. `client.disposableConfirmed=true` for a machine that may be wiped. No disk rollback is promised.
+4. Web-selected live endpoint switched **off** AutoLab `192.168.177.1` onto that physical interface. Re-read `bootMode` and `bootFile` after sync; do not boot while they disagree.
+5. Existing LAN DHCP stays up (PXE Proxy). Do not start Winception DHCP Server on that segment.
+6. Console running; Preflight green; deployment services stopped until the operator starts them.
+7. AutoLab VMs remain Off. Do not use VM evidence as physical evidence.
+
+Expected Blocked cases (operator decides; agent does not repair):
+
+- Missing Ethernet / missing `acceptance.local.json` / disposable not confirmed
+- Foreign ICS (`SharedAccess`) or leftover `PXE-Lab-NAT` / `OSDCloud-PhysicalClient-NAT` if the physical entry treats them as conflicts
+- LaptopNat: needs two distinct physical NICs and no foreign ICS/NAT; out of scope until the operator handles those objects
+
+WinceptionDhcp needs a separate confirmed DHCP-free window. Human usability needs an unfamiliar-PXE operator and is independent of agent browser checks.
+
+### Optional later tracks (operator must name one)
+
+- **B** — Source/UI re-verify in the clone only (`npm run acceptance:source` / `acceptance:ui`). No `C:\OSDCloud` writes.
+- **C** — ExistingDhcp `ValidateOnly`, then explicit `-Execute -ConfirmDisposableClient <MAC>` after the checklist is true.
+- **D** — One unattended `-Mode All -NetworkAcceptance` on a **new** evidence root, fail-closed, no agent-watched retry. Not a substitute for C.
+
+### Historical 2026-09-17 matrix (do not continue)
+
+HEAD at that handoff was `04a1177`; docs commit `e27192f` followed. PID 4160 was already gone. Router Ready existed. `acceptance-mode-all-network-20260917y` failed: WinPE `POST /osdcloud/boot-session 403 rejected=nonce is invalid` on `winception-autolab-03` / `192.168.177.202` because a valid Base64URL nonce began with `-` or `_`. Cleanup then failed restoring Router Ready (Hyper-V refuses rewriting `SecureBootTemplate` after TPM key-protector init). Source fixes `0e4d55d` and `04a1177` are committed and present in the installed App hashes. The matrix was **not** rerun.
+
+Evidence to keep:
+
+- Router bootstrap success: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-router-bootstrap-20260917x`
+- Router cleanup proof: `.ai/acceptance-router-ready-cleanup-proof-20260917y.json`
+- Failed matrix: `C:\OSDCloud\HostTools\State\lab\evidence\acceptance-mode-all-network-20260917y` and `.ai/acceptance-mode-all-network-20260917y-runner.log`
+- VM03 screenshot: `.ai/vm03-thumb.bmp` (ignored evidence only)
 
 ---
 # Agent handoff — 2026-09-16 21:49
