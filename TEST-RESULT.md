@@ -13,7 +13,7 @@ Product-facing boot-session nonce (`0e4d55d`) and Router Ready firmware restore 
 | Router Ready | Present; lab-only | `Winception-Router-Ready` checkpoint; evidence `acceptance-router-bootstrap-20260917x` |
 | AutoLab NetworkAcceptance | Paused / Failed | `acceptance-mode-all-network-20260917y`: nonce 403 on autolab-03 then Router cleanup Failed. Frozen 2026-09-20 |
 | AutoLab SecureBoot four-VM | Failed / cleanup Failed | `secureboot-20260920a`: four clients at apply-image; torrent telemetry false fail-closed. Profile restored to `IZVZO7PU`. Detector fix not live-proven |
-| Installed App | Source hashes match; console stopped | Last reload backup `HostTools-State-20260917-092952-275`. Overlay still AutoLab `.1/24`, profile `IZVZO7PU`. `bootMode=secureboot` but `bootFile` remains `snponly.efi` — do not start PXE from this snapshot |
+| Installed App | Source hashes match; Console listening after restore | Last Lab State backup `HostTools-State-20260920-131653-986`. Overlay AutoLab `.1/24`, profile `IZVZO7PU`. `bootMode=secureboot` but `bootFile` remains `snponly.efi` — do not start PXE from this snapshot |
 | Physical / human | NotRun / Blocked | No present Ethernet; no `acceptance.local.json` onsite run; ICS/`PXE-Lab-NAT`/`OSDCloud-PhysicalClient-NAT` retained. ExistingDhcp is the first physical candidate after the operator supplies NIC, disposable client, and site file |
 
 Operator next tracks (named explicitly; none started by this freeze): Source/UI re-verify in the clone; ExistingDhcp `ValidateOnly` after the physical checklist in `handoff.md`; or a later unattended NetworkAcceptance that still cannot prove physical/human. No Release, package, or master push.
