@@ -110,13 +110,9 @@ Calling Grok Build from Grok Bot typically spends **both** Grok Bot weekly usage
 
 ## Git leftover (2026-09-21 hygiene)
 
-Repo default is `master`, not `main`. PR #3 merged (fast-forward `847b79f` → `63e23d6`).
+Repo default is `master`, not `main`. Only `master` remains (local and origin). PR #3 merged (fast-forward `847b79f` → `63e23d6`).
 
-**Keep:** current `master`; `codex/easier-onboarding` (same history through `63e23d6`); `codex/v1-v2-reference-hardening` (local-only v1e `1.0.4-enhanced.2` — do not merge into 1.1.0 unless named).
-
-**Left on origin, not merged as unique work:** `codex/v1-pages` (Pages was merged then reverted); `release/v1` (v1.0.1 patch already on master); `codex/v2-rewrite` and `codex/v2-familiar-ux-alpha15` (abandoned v2). Delete only if the operator names them.
-
-**Deleted this session:** local leftovers (`console-motion-polish`, `master-v1.0.1-release`, `master-v2-alpha5-link`, `release-v1.1.0`, `feature/torrent-p2p-deployment`, `refactor/module-structure`, two 20260914 baseline snapshots); prunable worktree `winception-v110-phaseA`; `origin/codex/release-v1.1.0`.
+**Deleted (operator-named cleanup):** `codex/easier-onboarding` (identical to master after PR #3); `codex/v1-pages` (Pages merged then reverted); `release/v1` (v1.0.1 patch already on master; tags `v1.0.1` / `v1.0.3` remain); `codex/v2-rewrite` and `codex/v2-familiar-ux-alpha15` (abandoned v2; `v2.0.0-alpha.*` tags remain); local-only `codex/v1-v2-reference-hardening` (unmerged v1e `1.0.4-enhanced.2`, not revived). Earlier leftovers: `console-motion-polish`, `master-v1.0.1-release`, `master-v2-alpha5-link`, `release-v1.1.0`, `feature/torrent-p2p-deployment`, `refactor/module-structure`, two 20260914 baseline snapshots, prunable worktree `winception-v110-phaseA`, `origin/codex/release-v1.1.0`.
 
 ---
 
