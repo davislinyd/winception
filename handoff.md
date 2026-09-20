@@ -2,7 +2,7 @@
 
 Please read this first, then `AGENTS.md`. Do **not** resume 9/16–9/17 “finish NetworkAcceptance” instructions; those steps are obsolete.
 
-**One line:** Hyper-V SecureBoot four-VM is **Passed** on `secureboot-20260920e` (source `9960aad`). `codex/easier-onboarding` is on origin as backup (not merged to `master`). NetworkAcceptance stays **frozen**. Physical ExistingDhcp stays **Blocked**. Wait for the operator to name the next track — do not invent Lab work.
+**One line:** Hyper-V SecureBoot four-VM is **Passed** on `secureboot-20260920e` (source `9960aad`). `codex/easier-onboarding` is **fast-forwarded onto `origin/master`** via PR #3 (`63e23d6`). No Release / no `v1.1.0` tag. NetworkAcceptance stays **frozen**. Physical ExistingDhcp stays **Blocked**. Wait for the operator to name the next track — do not invent Lab work.
 
 ---
 
@@ -10,7 +10,7 @@ Please read this first, then `AGENTS.md`. Do **not** resume 9/16–9/17 “finis
 
 Wait for the operator to name the next track. Default is **stop and report** if unnamed.
 
-Done this session (2026-09-21 branch hygiene; not a Lab track): local leftover branches deleted; `codex/easier-onboarding` pushed to origin; `origin/codex/release-v1.1.0` deleted (already in `origin/master`). Do **not** merge or push `master` until named.
+Done this session: branch hygiene, then operator authorized merge. PR https://github.com/davislinyd/winception/pull/3 fast-forwarded `63e23d6` onto `origin/master`. Product SHAs kept (`9960aad`, `0e4d55d`, `084a1f0`). Still no tag / Release / `lab-deploy.yml`.
 
 Reasonable tracks **if named**:
 
@@ -28,7 +28,7 @@ Operator preference so far: Hyper-V-only testing over physical ExistingDhcp. Tha
 - Do **not** run `-Mode All -NetworkAcceptance` or `-BootstrapRouter`.
 - Do **not** reuse evidence roots `secureboot-20260920a`..`d` or `acceptance-mode-all-network-20260917y`.
 - Do **not** auto-retry. Zero retries after any Failed round or cleanup Failed.
-- Do **not** push `master`, create a Release/package/tag, or start `.github/workflows/lab-deploy.yml`. Pushing `codex/easier-onboarding` is allowed.
+- Do **not** create a Release/package/tag, or start `.github/workflows/lab-deploy.yml`. Do **not** force-push `master`.
 - Do **not** patch `C:\OSDCloud` by hand. Clone is `C:\winception`; runtime is product-managed.
 - Do **not** commit `.ai/`, secrets, WIMs, logs, screenshots.
 - Do **not** kill an elevated Lab PID to make a gate pass.
@@ -38,7 +38,7 @@ Operator preference so far: Hyper-V-only testing over physical ExistingDhcp. Tha
 - Grok/agent shells are usually **unelevated**. Hyper-V TPM, ValidateOnly, Lab, and `npm run reload` need `Start-Process -Verb RunAs`. Do not wrap `Start-Process -Wait` in a ~10 minute job-object timeout.
 - If stuck (disk full / PausedCritical / UAC / idle gate): **ask the operator promptly** — do not wait endlessly.
 
-`.ai/` stays untracked. Local `master` `bdbe5ce` is one commit ahead of `origin/master` `847b79f`; preserve it. Do **not** push that stale handoff commit.
+`.ai/` stays untracked. Default branch is `origin/master` at the easier-onboarding fast-forward (`63e23d6` plus later docs on this file).
 
 ---
 
@@ -80,7 +80,7 @@ Operator asked Grok Bot to take over calling Grok Build for `C:\winception`. Ses
 | `9960aad` | **Grok Build:** also strip that TerminatingError when joined fleet text has peer `Uploading to:` / `Downloading from:` `[Peer]` progress; naked Invoke-RestMethod still terminal; `acceptancePowerShell` 23/23 |
 | `9cdcfd7` | docs: SecureBoot four-VM Passed on `secureboot-20260920e` |
 
-Branch: `codex/easier-onboarding` (tracks `origin/codex/easier-onboarding`). Not merged or pushed to `master`.
+Branch: merged to `master` via PR #3 fast-forward at `63e23d6`.
 
 ### Lab rounds
 
@@ -110,9 +110,9 @@ Calling Grok Build from Grok Bot typically spends **both** Grok Bot weekly usage
 
 ## Git leftover (2026-09-21 hygiene)
 
-Repo default is `master`, not `main`. Open PRs: none.
+Repo default is `master`, not `main`. PR #3 merged (fast-forward `847b79f` → `63e23d6`).
 
-**Keep:** `codex/easier-onboarding` (current, on origin, 84 commits not in `origin/master`); local `master` `bdbe5ce` (do not push); `codex/v1-v2-reference-hardening` (local-only v1e `1.0.4-enhanced.2` — do not merge into 1.1.0 unless named).
+**Keep:** current `master`; `codex/easier-onboarding` (same history through `63e23d6`); `codex/v1-v2-reference-hardening` (local-only v1e `1.0.4-enhanced.2` — do not merge into 1.1.0 unless named).
 
 **Left on origin, not merged as unique work:** `codex/v1-pages` (Pages was merged then reverted); `release/v1` (v1.0.1 patch already on master); `codex/v2-rewrite` and `codex/v2-familiar-ux-alpha15` (abandoned v2). Delete only if the operator names them.
 
@@ -124,9 +124,9 @@ Repo default is `master`, not `main`. Open PRs: none.
 
 | Item | Value |
 | --- | --- |
-| Clone | `C:\winception` on `codex/easier-onboarding` tracking `origin/codex/easier-onboarding` (detector `9960aad`; use `git log -1`) |
+| Clone | `C:\winception` on `master` tracking `origin/master` (detector `9960aad`; merge tip `63e23d6`; use `git log -1`) |
 | Tracked tree | Clean except untracked `.ai/` |
-| `master` | Local `bdbe5ce`, ahead of `origin/master` `847b79f` by one — **do not push** |
+| `master` | `origin/master` fast-forwarded through PR #3 to `63e23d6` |
 | Installed App | `C:\OSDCloud\HostTools\App` — Lab `20260920e` recorded installed/WinPE hashes in `result.json` |
 | Lab script | Clone `tools\Invoke-WinceptionLabRegression.ps1` (includes `9960aad` detector) |
 | Console | Listening `127.0.0.1:8080`; profile **`IZVZO7PU`**; Lab mutex **free** (as of handoff write — re-check) |
@@ -198,8 +198,8 @@ Not started. Do not `-Execute`. `ValidateOnly` stays blocked until:
 | Installed Web console | `C:\OSDCloud\HostTools\App` — `:8080` |
 | Host-only state | `C:\OSDCloud\HostTools\State` |
 | Runtime | `C:\OSDCloud` |
-| Branch | `codex/easier-onboarding` tracking origin (code peak `9960aad`; 84 commits ahead of `origin/master`) |
-| Product version | `package.json` `1.1.0`; **no** `v1.1.0` tag on origin. Formal tags: `v1.0.1`, `v1.0.3`, `v2.0.0-alpha.1..5` |
+| Branch | `master` @ merge tip `63e23d6` (code peak `9960aad`) |
+| Product version | `package.json` `1.1.0` on `origin/master`; **no** `v1.1.0` tag. Formal tags: `v1.0.1`, `v1.0.3`, `v2.0.0-alpha.1..5` |
 | Grok CLI | `C:\Users\Davis\.grok\bin\grok.exe` |
 
 Untracked helpers under `.ai/` (do not commit): configs/logs/diagnoses for `20260920b`–`e`, Grok prompts, etc.
