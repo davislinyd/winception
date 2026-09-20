@@ -32,7 +32,7 @@ Git clone directories are installation and configuration sources only. Deploymen
 
 Public site: https://davislinyd.github.io/winception/
 
-Current live site is still the 2026-07-17 **Operations Manual · v1.0.3** snapshot until an operator-named `workflow_dispatch` of `.github/workflows/publish-pages.yml` succeeds.
+Live site is **Operations Manual · v1.1.0**, published from `master` by `workflow_dispatch` of `.github/workflows/publish-pages.yml` (run https://github.com/davislinyd/winception/actions/runs/35532334721). It is not bound to a Git tag.
 
 Builder and workflow on `master`:
 
@@ -41,9 +41,9 @@ Builder and workflow on `master`:
 - `.github/workflows/publish-pages.yml` is **workflow_dispatch-only** on `ubuntu-latest`. It must not run on `push` to `master` (`lab-deploy.yml` already does) and must not bind to `v1.*` tags.
 - Do **not** create a Git tag or GitHub Release just to refresh Pages.
 
-Dispatch once the operator has reviewed the builder and workflow. After the first successful deploy, verify the live page shows v1.1.0, pairing, boot-session, Guided mode, and first-boot AutoLogon as current SetupComplete behavior, then point README references at the live URL.
+To refresh the public site, dispatch `.github/workflows/publish-pages.yml` after the operator reviews the builder and workflow. Do not bind it to `push` on `master`. After deploy, confirm the live page still shows the current `package.json` version, pairing, boot-session, Guided mode, and first-boot AutoLogon as current SetupComplete behavior.
 
-Until that deploy, technicians should use the in-repo HTML or Console `/manual/`.
+Technicians can also use the in-repo HTML or Console `/manual/`.
 
 ## Development And Workspace Flow
 

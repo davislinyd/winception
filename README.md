@@ -405,7 +405,7 @@ Last completed run : <run-id>
 
 ### 10. 參考文件
 
-- [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)：中英雙語圖解操作手冊（現行）。安裝後也可在 Console 用 **使用手冊** 開啟 `/manual/`。公開 [GitHub.io](https://davislinyd.github.io/winception/) 仍是 2026-07-17 的 v1.0.3 快照，直到操作員 dispatch `.github/workflows/publish-pages.yml`。
+- [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)：中英雙語圖解操作手冊（現行）。安裝後也可在 Console 用 **使用手冊** 開啟 `/manual/`。公開手冊：<https://davislinyd.github.io/winception/>（v1.1.0；以 `workflow_dispatch` 更新，見 `.github/workflows/publish-pages.yml`）。
 - [`docs/diagrams/technical-flow.md`](docs/diagrams/technical-flow.md)：系統架構與資料流圖。
 - [`docs/diagrams/user-flow.md`](docs/diagrams/user-flow.md)：Web Console 操作流程圖。
 - [`osdcloud-assets/README.md`](osdcloud-assets/README.md)：versioned runtime mirror 的用途與邊界。
@@ -815,7 +815,7 @@ Last completed run : <run-id>
 
 ### 10. Reference Documents
 
-- [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html): illustrated bilingual operations manual (current). After installation, the Console **使用手冊** link opens `/manual/`. The public [GitHub.io](https://davislinyd.github.io/winception/) site is still the 2026-07-17 v1.0.3 snapshot until an operator dispatches `.github/workflows/publish-pages.yml`.
+- [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html): illustrated bilingual operations manual (current). After installation, the Console **使用手冊** link opens `/manual/`. Public manual: <https://davislinyd.github.io/winception/> (v1.1.0; refresh with `workflow_dispatch` of `.github/workflows/publish-pages.yml`).
 - [`docs/diagrams/technical-flow.md`](docs/diagrams/technical-flow.md): system architecture and data-flow diagram.
 - [`docs/diagrams/user-flow.md`](docs/diagrams/user-flow.md): Web Console operator-flow diagram.
 - [`osdcloud-assets/README.md`](osdcloud-assets/README.md): purpose and boundaries of the versioned runtime mirror.

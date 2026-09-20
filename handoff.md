@@ -14,7 +14,7 @@ Done this session: branch hygiene, then operator authorized merge. PR https://gi
 
 Docs-only correction on master (no Lab, no Pages deploy): README PR checks match `pr.yml`; Guided Setup lists 10 initialization steps; first-boot AutoLogon is documented as current SetupComplete behavior.
 
-Pages builder and `workflow_dispatch`-only `.github/workflows/publish-pages.yml` are on master. Do **not** dispatch until the operator reviews them. Public GitHub.io remains the 2026-07-17 v1.0.3 snapshot. No tag / Release / `lab-deploy.yml`.
+Pages builder and `workflow_dispatch`-only `.github/workflows/publish-pages.yml` are on master. Public GitHub.io is **v1.1.0** after dispatch of run `35532334721`. No tag / Release. The operator `git push origin master` also started `lab-deploy.yml` (run `35532253313`, conclusion failure); do not retry Lab unless named.
 
 Reasonable tracks **if named**:
 
