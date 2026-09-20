@@ -1622,7 +1622,11 @@ function Test-ClientTerminalFailureText {
     if ([string]::IsNullOrWhiteSpace($Text)) {
         return $false
     }
-    $Text -match '(?i)selected-os\.json did not produce|usable OS selection|TerminatingError\(|ParameterArgumentValidationErrorNullNotAllowed|SMB map to Z: failed|OS root path is empty|selected-os\.json not found|Boot session did not provide|System error 86|post-apply-customization-error|windows-metadata-error|UnattendSearchExplicitPath:[^\r\n]*(?:unable to deserialize|error)|Callback_Unattend_InitEngine:[^\r\n]*(?:internal error|error occurred)|Windows Setup encountered an internal error[^\r\n]*unattend answer file'
+    $normalized = $Text
+    if ($normalized -match 'Torrent progress telemetry unavailable; download continues') {
+        $normalized = [regex]::Replace($normalized, '(?m)^.*TerminatingError\(Invoke-RestMethod\).*$(\r?\n)?', '')
+    }
+    $normalized -match '(?i)selected-os\.json did not produce|usable OS selection|TerminatingError\(|ParameterArgumentValidationErrorNullNotAllowed|SMB map to Z: failed|OS root path is empty|selected-os\.json not found|Boot session did not provide|System error 86|post-apply-customization-error|windows-metadata-error|UnattendSearchExplicitPath:[^\r\n]*(?:unable to deserialize|error)|Callback_Unattend_InitEngine:[^\r\n]*(?:internal error|error occurred)|Windows Setup encountered an internal error[^\r\n]*unattend answer file'
 }
 
 function Write-FleetWaitHeartbeat {

@@ -324,9 +324,17 @@ test('terminal WinPE detector ignores normal apply-image logs but catches explic
     $normal = @('apply-image','X:\\Windows\\Logs\\DISM\\dism.log :: Initializing wimgapi.','X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: Client apps source: Z:\\OSDCloud\\Apps','X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: Client apps target: C:\\ProgramData\\OSDCloud\\Apps','X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: unattended answer file will be used after reboot') -join [Environment]::NewLine
     $setup = 'Windows Setup encountered an internal error while loading or searching for an unattend answer file.'
     $custom = 'post-apply-customization-error'
-    @{normal=(Test-ClientTerminalFailureText $normal);setup=(Test-ClientTerminalFailureText $setup);custom=(Test-ClientTerminalFailureText $custom)} | ConvertTo-Json -Compress
+    $telemetry = @(
+      'apply-image',
+      'X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: Downloading from: 192.168.177.1:6881 [Peer]',
+      'X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: PS>TerminatingError(Invoke-RestMethod): "The request was aborted: The operation has timed out."',
+      'X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: >> TerminatingError(Invoke-RestMethod): "The request was aborted: The operation has timed out."',
+      'X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: WARNING: Torrent progress telemetry unavailable; download continues. The request was aborted: The operation has timed out.'
+    ) -join [Environment]::NewLine
+    $realStop = 'X:\\OSDCloud\\Logs\\Start-OSDCloud-iPXE.log :: PS>TerminatingError(Test-Path): A parameter cannot be found that matches parameter name ''and''.'
+    @{normal=(Test-ClientTerminalFailureText $normal);setup=(Test-ClientTerminalFailureText $setup);custom=(Test-ClientTerminalFailureText $custom);telemetry=(Test-ClientTerminalFailureText $telemetry);realStop=(Test-ClientTerminalFailureText $realStop)} | ConvertTo-Json -Compress
   `);
-  assert.deepEqual(JSON.parse(output),{normal:false,setup:true,custom:true});
+  assert.deepEqual(JSON.parse(output),{normal:false,setup:true,custom:true,telemetry:false,realStop:true});
 });
 
 test('Proxy rejection accepts port-qualified denial evidence and refuses issued credentials',()=>{

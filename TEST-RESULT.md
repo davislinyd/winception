@@ -1,6 +1,8 @@
 # Current acceptance status — 2026-09-20
 
-AutoLab `-Mode All -NetworkAcceptance` is **paused as a product gate**. Do not treat a matrix rerun as the next required task. Firmware Mode All e (2026-09-13/14) remains the last green AutoLab fleet evidence. Router Ready exists from `acceptance-router-bootstrap-20260917x`. The only network-matrix attempt, `acceptance-mode-all-network-20260917y`, is Failed (`cleanup=Failed`) and must not be called green.
+AutoLab `-Mode All -NetworkAcceptance` is **paused as a product gate**. Operator then authorized Hyper-V `-Mode SecureBoot` only. Run `secureboot-20260920a` is **Failed / cleanup Failed**: four VMs reached WinPE `apply-image` (SMB mapped, torrent peers; nonce 403 did not recur), then Fleet false fail-closed on torrent progress telemetry timeouts logged as `TerminatingError(Invoke-RestMethod)` while the client warned that download continues. Console was down during cleanup; leftover test profile `HI67E59T` was later restored to `IZVZO7PU`. Detector fix is in source (23 focused PowerShell tests). No automatic retry. Not physical evidence.
+
+Firmware Mode All e (2026-09-13/14) remains the last green AutoLab fleet evidence. Router Ready exists from `acceptance-router-bootstrap-20260917x`. The only network-matrix attempt, `acceptance-mode-all-network-20260917y`, is Failed (`cleanup=Failed`) and must not be called green.
 
 Product-facing boot-session nonce (`0e4d55d`) and Router Ready firmware restore (`04a1177`) are in source and match the installed HostTools App hashes. They were not re-proven by a second matrix. Physical three-scenario and unfamiliar-PXE human acceptance remain NotRun/Blocked. The host currently has Wi-Fi only (no Ethernet / USB Ethernet). Foreign ICS and two leftover NATs are present and must not be auto-repaired.
 
@@ -10,6 +12,7 @@ Product-facing boot-session nonce (`0e4d55d`) and Router Ready firmware restore 
 | AutoLab firmware Mode All | Historical Passed | `mode-all-20260913e`: four rounds / seven deployments to `windows-desktop-ready`, cleanup Passed. Internal `192.168.177.1` only |
 | Router Ready | Present; lab-only | `Winception-Router-Ready` checkpoint; evidence `acceptance-router-bootstrap-20260917x` |
 | AutoLab NetworkAcceptance | Paused / Failed | `acceptance-mode-all-network-20260917y`: nonce 403 on autolab-03 then Router cleanup Failed. Frozen 2026-09-20 |
+| AutoLab SecureBoot four-VM | Failed / cleanup Failed | `secureboot-20260920a`: four clients at apply-image; torrent telemetry false fail-closed. Profile restored to `IZVZO7PU`. Detector fix not live-proven |
 | Installed App | Source hashes match; console stopped | Last reload backup `HostTools-State-20260917-092952-275`. Overlay still AutoLab `.1/24`, profile `IZVZO7PU`. `bootMode=secureboot` but `bootFile` remains `snponly.efi` — do not start PXE from this snapshot |
 | Physical / human | NotRun / Blocked | No present Ethernet; no `acceptance.local.json` onsite run; ICS/`PXE-Lab-NAT`/`OSDCloud-PhysicalClient-NAT` retained. ExistingDhcp is the first physical candidate after the operator supplies NIC, disposable client, and site file |
 

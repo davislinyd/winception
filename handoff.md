@@ -1,3 +1,21 @@
+# Agent handoff — 2026-09-20 (SecureBoot four-VM)
+
+## Active task — wait for operator before a new SecureBoot evidence root
+
+Do **not** rerun `-Mode All -NetworkAcceptance`. Do **not** bootstrap the router. Do **not** start a second Lab while reporting this freeze. Physical ExistingDhcp stays Blocked (no Ethernet).
+
+Operator chose Hyper-V `-Mode SecureBoot` only. `secureboot-20260920a` is **Failed / cleanup Failed** and must not be called green. Four VMs reached WinPE `apply-image` with SMB mapped and torrent peers; Fleet then false fail-closed on torrent progress telemetry (`TerminatingError(Invoke-RestMethod)` + “download continues”). Boot-session nonce 403 did **not** recur.
+
+Cleanup left test profile `HI67E59T` active because the Web Console was already down. Manual restore reactivated `IZVZO7PU` and deleted `HI67E59T`. Mutex is free; six AutoLab VMs Off.
+
+Source now ignores that telemetry noise in `Test-ClientTerminalFailureText` while still fail-closing real `TerminatingError(` (focused tests 23/23). **Zero automatic retry.** A later `-Mode SecureBoot` must use a **new** evidence root (suggested `secureboot-20260920b`) only after the operator names it. Lab orchestrator runs from the clone, so the detector fix does not need HostTools reload.
+
+### Exact continuation
+
+1. Re-read Git, this file, live overlay/profile, mutex, VMs. Do not reuse `secureboot-20260920a`.
+2. Stop unless the operator authorizes one new `-Mode SecureBoot` (no `-NetworkAcceptance`).
+3. If authorized: elevated `Initialize-WinceptionLab.ps1 -ValidateOnly`, then one `Invoke-WinceptionLabRegression.ps1 -Mode SecureBoot` with a unique evidence root. Fail-closed; no retry.
+
 # Agent handoff — 2026-09-20
 
 ## Active task — NetworkAcceptance is frozen; wait for the operator before the next track
