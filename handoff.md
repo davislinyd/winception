@@ -1,4 +1,4 @@
-# Agent handoff — 2026-09-20 (Grok Bot takeover)
+# Agent handoff — 2026-09-21 (SecureBoot four-VM Passed)
 
 接手請先讀這份，再讀 `AGENTS.md`。不要跟著 9/16–9/17 的「重跑 NetworkAcceptance」文字走。那些步驟已作廢。
 
@@ -8,9 +8,14 @@
 
 ## Active task
 
-Wait for the operator to name the next track. Default next Lab, **if named**, is one new `-Mode SecureBoot` on a **new** evidence root (suggested `secureboot-20260920b`). Do not invent work.
+SecureBoot four-VM live proof **Passed** on `secureboot-20260920e` (source `9960aad`, cleanup Passed, profile restored to `IZVZO7PU`).
 
-Operator already chose Hyper-V-only testing over physical ExistingDhcp for now. That does not authorize NetworkAcceptance, router bootstrap, Mode All, or a retry of `secureboot-20260920a`.
+Wait for the operator to name the next track. Do not invent work. Do not auto-retry Lab.
+
+Reasonable next tracks if named: optional Source/UI re-verify; physical ExistingDhcp only after checklist; NetworkAcceptance stays frozen.
+
+Operator already chose Hyper-V-only testing over physical ExistingDhcp for now. That does not authorize NetworkAcceptance, router bootstrap, Mode All, or a retry of failed roots `secureboot-20260920a`..`d`.
+
 
 ## Hard no
 
@@ -83,7 +88,7 @@ Treat State `osdcloud-console.json` / overlay as last-synced snapshot, not guara
 | --- | --- | --- |
 | Source / UI | Last Passed | 9/14 Source/UI; 9/17 full source 500/497/3 skipped; 9/20 B-lite check=0, 68 focused tests, smoke=0. Optional full `acceptance:source` / `acceptance:ui` only if asked |
 | AutoLab firmware Mode All | Historical Passed | `mode-all-20260913e`, seven deployments, cleanup Passed. Do not discard; do not rerun to “make NetworkAcceptance count” |
-| AutoLab SecureBoot four-VM | **Failed / cleanup Failed** | `C:\OSDCloud\HostTools\State\lab\evidence\secureboot-20260920a`. Detector fix **not live-proven** |
+| AutoLab SecureBoot four-VM | **Passed** | `C:\OSDCloud\HostTools\State\lab\evidence\secureboot-20260920e` on `9960aad`. Four VMs `windows-desktop-ready`, Fleet + cleanup Passed, profile `IZVZO7PU`. Detector fixes `f4628e1`/`9960aad` live-proven. |
 | Router Ready | Present; lab-only | `acceptance-router-bootstrap-20260917x`. Do not rebuild |
 | AutoLab NetworkAcceptance | **Paused / Failed** | `acceptance-mode-all-network-20260917y`. Not a ship gate |
 | Physical / human | NotRun / Blocked | No Ethernet; no site file. VM results are not physical proof |

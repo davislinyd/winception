@@ -1,24 +1,25 @@
-# Current acceptance status — 2026-09-20
+# Current acceptance status — 2026-09-21
 
-AutoLab `-Mode All -NetworkAcceptance` is **paused as a product gate**. Operator then authorized Hyper-V `-Mode SecureBoot` only. Run `secureboot-20260920a` is **Failed / cleanup Failed**: four VMs reached WinPE `apply-image` (SMB mapped, torrent peers; nonce 403 did not recur), then Fleet false fail-closed on torrent progress telemetry timeouts logged as `TerminatingError(Invoke-RestMethod)` while the client warned that download continues. Console was down during cleanup; leftover test profile `HI67E59T` was later restored to `IZVZO7PU`. Detector fix is in source (23 focused PowerShell tests). No automatic retry. Not physical evidence.
+AutoLab `-Mode SecureBoot` four-VM live proof **Passed** on evidence root `secureboot-20260920e` (source commit `9960aad`, cleanup Passed, profile restored to `IZVZO7PU`).
 
-Firmware Mode All e (2026-09-13/14) remains the last green AutoLab fleet evidence. Router Ready exists from `acceptance-router-bootstrap-20260917x`. The only network-matrix attempt, `acceptance-mode-all-network-20260917y`, is Failed (`cleanup=Failed`) and must not be called green.
+Path to green: `20260920a` Failed/cleanup Failed (torrent telemetry false positive) → `f4628e1`; `20260920b` Blocked (stale fleet idle); `20260920c` Failed/cleanup Passed (joined peer TerminatingError) → `9960aad`; `20260920d` Failed/cleanup Passed (C: disk-full PausedCritical then fleet timeout); `20260920e` Passed with `deploymentMinutes=90`.
 
-Product-facing boot-session nonce (`0e4d55d`) and Router Ready firmware restore (`04a1177`) are in source and match the installed HostTools App hashes. They were not re-proven by a second matrix. Physical three-scenario and unfamiliar-PXE human acceptance remain NotRun/Blocked. The host currently has Wi-Fi only (no Ethernet / USB Ethernet). Foreign ICS and two leftover NATs are present and must not be auto-repaired.
+NetworkAcceptance remains **paused / not a ship gate**. Physical / human remain **NotRun / Blocked** (no Ethernet / no `acceptance.local.json`).
 
 | Layer | Status | Current evidence |
 | --- | --- | --- |
-| Source / UI | Last Passed (re-verify only if requested) | 2026-09-14 Source/UI plus later Lab-era 2026-09-17 run: 500 tests / 497 passed / 3 skipped, check, smoke |
-| AutoLab firmware Mode All | Historical Passed | `mode-all-20260913e`: four rounds / seven deployments to `windows-desktop-ready`, cleanup Passed. Internal `192.168.177.1` only |
-| Router Ready | Present; lab-only | `Winception-Router-Ready` checkpoint; evidence `acceptance-router-bootstrap-20260917x` |
-| AutoLab NetworkAcceptance | Paused / Failed | `acceptance-mode-all-network-20260917y`: nonce 403 on autolab-03 then Router cleanup Failed. Frozen 2026-09-20 |
-| AutoLab SecureBoot four-VM | Failed / cleanup Failed | `secureboot-20260920a`: four clients at apply-image; torrent telemetry false fail-closed. Profile restored to `IZVZO7PU`. Detector fix not live-proven |
-| Installed App | Source hashes match; Console listening after restore | Last Lab State backup `HostTools-State-20260920-131653-986`. Overlay AutoLab `.1/24`, profile `IZVZO7PU`. `bootMode=secureboot` but `bootFile` remains `snponly.efi` — do not start PXE from this snapshot |
-| Physical / human | NotRun / Blocked | No present Ethernet; no `acceptance.local.json` onsite run; ICS/`PXE-Lab-NAT`/`OSDCloud-PhysicalClient-NAT` retained. ExistingDhcp is the first physical candidate after the operator supplies NIC, disposable client, and site file |
+| Source / UI | Last Passed (re-verify only if requested) | 2026-09-14 Source/UI; 2026-09-17 full source; 2026-09-20 B-lite |
+| AutoLab firmware Mode All | Historical Passed | `mode-all-20260913e` |
+| Router Ready | Present; lab-only | `acceptance-router-bootstrap-20260917x` |
+| AutoLab NetworkAcceptance | Paused / Failed | `acceptance-mode-all-network-20260917y` — frozen |
+| AutoLab SecureBoot four-VM | **Passed** | `secureboot-20260920e` on `9960aad`; four `windows-desktop-ready`; cleanup Passed |
+| Installed App | Hashes recorded in Lab result; Console healthy after cleanup | Profile `IZVZO7PU` |
+| Physical / human | NotRun / Blocked | No Ethernet; no onsite site file |
 
-Operator next tracks (named explicitly; none started by this freeze): Source/UI re-verify in the clone; ExistingDhcp `ValidateOnly` after the physical checklist in `handoff.md`; or a later unattended NetworkAcceptance that still cannot prove physical/human. No Release, package, or master push.
+Operator next tracks (named explicitly): optional Source/UI re-verify; ExistingDhcp after physical checklist; leave NetworkAcceptance frozen unless explicitly unfrozen.
 
-Historical 2026-09-17 morning note below is superseded: Router Ready **does** exist after `20260917x`; `20260917u`/`v` were earlier Blocked-job failures, not the final router state.
+---
+
 
 ---
 # Deployment Test Result
