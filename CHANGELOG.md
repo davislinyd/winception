@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restored `tools/Build-GitHubPages.ps1` to publish the current operations manual from `master` (no Git tag). Added `.github/workflows/publish-pages.yml` as `workflow_dispatch`-only. The public GitHub.io site remains the 2026-07-17 v1.0.3 snapshot until that workflow is dispatched.
+
 - Docs: README PR checks now match `.github/workflows/pr.yml` (`node --check`, PowerShell parser, `acceptance:source`, targeted Node tests, `acceptance:ui`; not full `npm test` / `check` / `smoke`). Guided Setup lists the ten initialization steps, including Web service IP and Boot client. First-boot AutoLogon is documented as current SetupComplete behavior (`AutoLogonCount` 5, then clear); removing it for production handoff remains unfinished. GitHub Pages republish plan is in `docs/agent-reference/repo-workflow.md`; the public site remains the 2026-07-17 v1.0.3 snapshot until an operator-named Pages deploy.
 
 - AutoLab Fleet wait no longer treats WinPE torrent progress telemetry timeouts as a terminal client failure when the joined text includes “download continues” or `Uploading to:` / `Downloading from:` `[Peer]` progress. A naked `Invoke-RestMethod` TerminatingError still fail-closes; other `TerminatingError(` stops and unattend/customization markers remain terminal.

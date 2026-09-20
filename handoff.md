@@ -12,7 +12,9 @@ Wait for the operator to name the next track. Default is **stop and report** if 
 
 Done this session: branch hygiene, then operator authorized merge. PR https://github.com/davislinyd/winception/pull/3 fast-forwarded `63e23d6` onto `origin/master`. Product SHAs kept (`9960aad`, `0e4d55d`, `084a1f0`). Still no tag / Release / `lab-deploy.yml`.
 
-Docs-only correction on master (no Lab, no Pages deploy): README PR checks match `pr.yml`; Guided Setup lists 10 initialization steps; first-boot AutoLogon is documented as current SetupComplete behavior; GitHub Pages republish plan is in `docs/agent-reference/repo-workflow.md`. Public GitHub.io remains the 2026-07-17 v1.0.3 snapshot until the operator names a Pages deploy.
+Docs-only correction on master (no Lab, no Pages deploy): README PR checks match `pr.yml`; Guided Setup lists 10 initialization steps; first-boot AutoLogon is documented as current SetupComplete behavior.
+
+Pages builder and `workflow_dispatch`-only `.github/workflows/publish-pages.yml` are on master. Do **not** dispatch until the operator reviews them. Public GitHub.io remains the 2026-07-17 v1.0.3 snapshot. No tag / Release / `lab-deploy.yml`.
 
 Reasonable tracks **if named**:
 

@@ -28,28 +28,22 @@ For portability/setup changes, update the README handoff/fresh-clone flow, `osdc
 
 Git clone directories are installation and configuration sources only. Deployment runtime files must be created under the Web-selected runtime root, with `C:\OSDCloud` as the proven default, and never written back into the clone. The runtime root must stay outside the clone and outside `C:\OSDCloud\HostTools`. After `Setup-DeploymentServer.cmd` installs `C:\OSDCloud\HostTools\App` and `C:\OSDCloud\HostTools\State`, the deployment host may delete the original clone and keep operating from the installed bundle.
 
-## GitHub Pages republish (plan only)
+## GitHub Pages
 
 Public site: https://davislinyd.github.io/winception/
 
-Current state:
+Current live site is still the 2026-07-17 **Operations Manual · v1.0.3** snapshot until an operator-named `workflow_dispatch` of `.github/workflows/publish-pages.yml` succeeds.
 
-- Last successful deploy: 2026-07-17, commit `040bc57`, labeled **Operations Manual · v1.0.3**.
-- GitHub Pages `build_type` is `workflow`; the live site is a frozen artifact.
-- `tools/Build-GitHubPages.ps1` and `.github/workflows/publish-v1-pages.yml` were added in `040bc57` and reverted in `903c3da`. They are not on `HEAD`.
-- The old workflow published only stable `v1.*` tags and required `package.json` version to match the tag. There is no `v1.1.0` tag, so the public page never moved past v1.0.3.
-- Current product manual is `docs/winception-operations-manual.html` plus `docs/manual-assets/`. Installed Web Console already serves it at `/manual/`.
+Builder and workflow on `master`:
 
-Do **not** republish until the operator names this track. Do **not** create a Git tag or GitHub Release just to refresh Pages.
+- `tools/Build-GitHubPages.ps1` copies `docs/winception-operations-manual.html` to `index.html`, copies `docs/manual-assets/`, writes `.nojekyll`, and rewrites reference links to `https://github.com/davislinyd/winception/blob/master/...`.
+- It reads `package.json` version and requires the manual markers `Operations Manual · v{version}` and `Web v{version}`. It does **not** require a Git tag.
+- `.github/workflows/publish-pages.yml` is **workflow_dispatch-only** on `ubuntu-latest`. It must not run on `push` to `master` (`lab-deploy.yml` already does) and must not bind to `v1.*` tags.
+- Do **not** create a Git tag or GitHub Release just to refresh Pages.
 
-When authorized, recommended steps (no tag, no Release, no `lab-deploy.yml`):
+Dispatch once the operator has reviewed the builder and workflow. After the first successful deploy, verify the live page shows v1.1.0, pairing, boot-session, Guided mode, and first-boot AutoLogon as current SetupComplete behavior, then point README references at the live URL.
 
-1. Restore and adapt `tools/Build-GitHubPages.ps1` so it copies `docs/winception-operations-manual.html` to `index.html`, copies `docs/manual-assets/`, writes `.nojekyll`, and rewrites reference links to `https://github.com/davislinyd/winception/blob/master/...`. Stop requiring `package.json` version to match a release tag. Keep the manual version markers (`Operations Manual · v1.1.0` / `Web v1.1.0`).
-2. Add a **workflow_dispatch-only** Pages workflow on `ubuntu-latest` using `actions/upload-pages-artifact` and `actions/deploy-pages`. Do not bind it to `v1.*` tags and do not run it on every `master` push (`lab-deploy.yml` already fires on master).
-3. Confirm the GitHub Pages source remains GitHub Actions. Dispatch once. Verify the live page shows v1.1.0, pairing, boot-session, Guided mode, and first-boot AutoLogon as current SetupComplete behavior.
-4. After the first successful deploy, point README references at the live URL.
-
-Until then, technicians should use the in-repo HTML or Console `/manual/`, not the public GitHub.io snapshot.
+Until that deploy, technicians should use the in-repo HTML or Console `/manual/`.
 
 ## Development And Workspace Flow
 
