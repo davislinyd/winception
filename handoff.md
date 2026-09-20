@@ -2,13 +2,15 @@
 
 Please read this first, then `AGENTS.md`. Do **not** resume 9/16–9/17 “finish NetworkAcceptance” instructions; those steps are obsolete.
 
-**One line:** Hyper-V SecureBoot four-VM is **Passed** on `secureboot-20260920e` (source `9960aad` / docs `9cdcfd7`). NetworkAcceptance stays **frozen** (not a ship gate). Physical ExistingDhcp stays **Blocked**. Wait for the operator to name the next track — do not invent Lab work.
+**One line:** Hyper-V SecureBoot four-VM is **Passed** on `secureboot-20260920e` (source `9960aad`). `codex/easier-onboarding` is on origin as backup (not merged to `master`). NetworkAcceptance stays **frozen**. Physical ExistingDhcp stays **Blocked**. Wait for the operator to name the next track — do not invent Lab work.
 
 ---
 
 ## Active task
 
 Wait for the operator to name the next track. Default is **stop and report** if unnamed.
+
+Done this session (2026-09-21 branch hygiene; not a Lab track): local leftover branches deleted; `codex/easier-onboarding` pushed to origin; `origin/codex/release-v1.1.0` deleted (already in `origin/master`). Do **not** merge or push `master` until named.
 
 Reasonable tracks **if named**:
 
@@ -26,7 +28,7 @@ Operator preference so far: Hyper-V-only testing over physical ExistingDhcp. Tha
 - Do **not** run `-Mode All -NetworkAcceptance` or `-BootstrapRouter`.
 - Do **not** reuse evidence roots `secureboot-20260920a`..`d` or `acceptance-mode-all-network-20260917y`.
 - Do **not** auto-retry. Zero retries after any Failed round or cleanup Failed.
-- Do **not** push `master`, create a Release/package/tag, or start `.github/workflows/lab-deploy.yml`.
+- Do **not** push `master`, create a Release/package/tag, or start `.github/workflows/lab-deploy.yml`. Pushing `codex/easier-onboarding` is allowed.
 - Do **not** patch `C:\OSDCloud` by hand. Clone is `C:\winception`; runtime is product-managed.
 - Do **not** commit `.ai/`, secrets, WIMs, logs, screenshots.
 - Do **not** kill an elevated Lab PID to make a gate pass.
@@ -36,7 +38,7 @@ Operator preference so far: Hyper-V-only testing over physical ExistingDhcp. Tha
 - Grok/agent shells are usually **unelevated**. Hyper-V TPM, ValidateOnly, Lab, and `npm run reload` need `Start-Process -Verb RunAs`. Do not wrap `Start-Process -Wait` in a ~10 minute job-object timeout.
 - If stuck (disk full / PausedCritical / UAC / idle gate): **ask the operator promptly** — do not wait endlessly.
 
-`.ai/` stays untracked. Local `master` `bdbe5ce` is one commit ahead of `origin/master` `847b79f`; preserve it.
+`.ai/` stays untracked. Local `master` `bdbe5ce` is one commit ahead of `origin/master` `847b79f`; preserve it. Do **not** push that stale handoff commit.
 
 ---
 
@@ -78,7 +80,7 @@ Operator asked Grok Bot to take over calling Grok Build for `C:\winception`. Ses
 | `9960aad` | **Grok Build:** also strip that TerminatingError when joined fleet text has peer `Uploading to:` / `Downloading from:` `[Peer]` progress; naked Invoke-RestMethod still terminal; `acceptancePowerShell` 23/23 |
 | `9cdcfd7` | docs: SecureBoot four-VM Passed on `secureboot-20260920e` |
 
-Branch: `codex/easier-onboarding`. Not pushed to master.
+Branch: `codex/easier-onboarding` (tracks `origin/codex/easier-onboarding`). Not merged or pushed to `master`.
 
 ### Lab rounds
 
@@ -106,13 +108,25 @@ Calling Grok Build from Grok Bot typically spends **both** Grok Bot weekly usage
 
 ---
 
+## Git leftover (2026-09-21 hygiene)
+
+Repo default is `master`, not `main`. Open PRs: none.
+
+**Keep:** `codex/easier-onboarding` (current, on origin, 84 commits not in `origin/master`); local `master` `bdbe5ce` (do not push); `codex/v1-v2-reference-hardening` (local-only v1e `1.0.4-enhanced.2` — do not merge into 1.1.0 unless named).
+
+**Left on origin, not merged as unique work:** `codex/v1-pages` (Pages was merged then reverted); `release/v1` (v1.0.1 patch already on master); `codex/v2-rewrite` and `codex/v2-familiar-ux-alpha15` (abandoned v2). Delete only if the operator names them.
+
+**Deleted this session:** local leftovers (`console-motion-polish`, `master-v1.0.1-release`, `master-v2-alpha5-link`, `release-v1.1.0`, `feature/torrent-p2p-deployment`, `refactor/module-structure`, two 20260914 baseline snapshots); prunable worktree `winception-v110-phaseA`; `origin/codex/release-v1.1.0`.
+
+---
+
 ## Live host snapshot (re-verify before acting)
 
 | Item | Value |
 | --- | --- |
-| Clone | `C:\winception` HEAD **`9cdcfd7`** on `codex/easier-onboarding` (detector code at `9960aad`; docs at `9cdcfd7`) |
+| Clone | `C:\winception` on `codex/easier-onboarding` tracking `origin/codex/easier-onboarding` (detector `9960aad`; use `git log -1`) |
 | Tracked tree | Clean except untracked `.ai/` |
-| `master` | Local `bdbe5ce`, ahead of `origin/master` `847b79f` by one |
+| `master` | Local `bdbe5ce`, ahead of `origin/master` `847b79f` by one — **do not push** |
 | Installed App | `C:\OSDCloud\HostTools\App` — Lab `20260920e` recorded installed/WinPE hashes in `result.json` |
 | Lab script | Clone `tools\Invoke-WinceptionLabRegression.ps1` (includes `9960aad` detector) |
 | Console | Listening `127.0.0.1:8080`; profile **`IZVZO7PU`**; Lab mutex **free** (as of handoff write — re-check) |
@@ -184,8 +198,8 @@ Not started. Do not `-Execute`. `ValidateOnly` stays blocked until:
 | Installed Web console | `C:\OSDCloud\HostTools\App` — `:8080` |
 | Host-only state | `C:\OSDCloud\HostTools\State` |
 | Runtime | `C:\OSDCloud` |
-| Branch | `codex/easier-onboarding` @ `9cdcfd7` (code peak `9960aad`) |
-| Product version | `1.1.0` tagged on origin; this branch is unreleased |
+| Branch | `codex/easier-onboarding` tracking origin (code peak `9960aad`; 84 commits ahead of `origin/master`) |
+| Product version | `package.json` `1.1.0`; **no** `v1.1.0` tag on origin. Formal tags: `v1.0.1`, `v1.0.3`, `v2.0.0-alpha.1..5` |
 | Grok CLI | `C:\Users\Davis\.grok\bin\grok.exe` |
 
 Untracked helpers under `.ai/` (do not commit): configs/logs/diagnoses for `20260920b`–`e`, Grok prompts, etc.
