@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- AutoLab Fleet wait no longer treats WinPE torrent progress telemetry timeouts (`TerminatingError(Invoke-RestMethod)` plus “download continues”) as a terminal client failure. Real `TerminatingError(` stops and unattend/customization markers still fail closed.
+- AutoLab Fleet wait no longer treats WinPE torrent progress telemetry timeouts as a terminal client failure when the joined text includes “download continues” or `Uploading to:` / `Downloading from:` `[Peer]` progress. A naked `Invoke-RestMethod` TerminatingError still fail-closes; other `TerminatingError(` stops and unattend/customization markers remain terminal.
 
 - AutoLab `-Mode All -NetworkAcceptance` is paused as a product ship gate. The last green firmware matrix remains 2026-09-14 Mode All e; the 2026-09-17 network-matrix attempt stays Failed. Next product path is physical ExistingDhcp after site prerequisites, not another nested-router rerun.
 
