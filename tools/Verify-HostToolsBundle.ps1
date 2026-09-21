@@ -110,7 +110,8 @@ foreach ($record in $records) {
     if ($relative -match $forbiddenDataPathPattern -or
         $relative -match '(^|\\)([^\\]*secret[^\\]*|[^\\]*\.local\.json)$' -and $relative -notmatch 'osdcloud-secrets\.example\.json$' -or
         $relative -match '\.(iso|wim|esd|vhd|vhdx|avhdx|log|etl|evtx|png|jpg|jpeg|msi|exe|pcapng)$' -and
-        $relative -notmatch '^docs\\manual-assets\\') {
+        $relative -notmatch '^docs\\manual-assets\\' -and
+        $relative -notmatch '^tools\\osdcloud-console\\web\\') {
         Add-Failure "forbidden release path is present: $relative"
     }
 }

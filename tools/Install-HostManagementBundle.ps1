@@ -147,7 +147,8 @@ function Test-ExcludedProductPath {
         return -not ($normalized -match 'osdcloud-secrets\.example\.json$')
     }
     if ($normalized -match '\.(iso|wim|esd|vhd|vhdx|avhdx|log|etl|evtx|png|jpg|jpeg|msi|exe|pcapng)$' -and
-        $normalized -notmatch '^docs\\manual-assets\\') {
+        $normalized -notmatch '^docs\\manual-assets\\' -and
+        $normalized -notmatch '^tools\\osdcloud-console\\web\\') {
         return $true
     }
     if ($normalized -match '(^|\\)(config\\lab-regression\.example\.json|osdcloud-assets\\manifest\.json)$') {

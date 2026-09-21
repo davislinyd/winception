@@ -130,7 +130,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /class="shell"/);
   assert.match(html, /class="topbar"/);
   assert.match(html, /class="topbar-nav"/);
-  assert.match(html, /class="brand-mark"/);
+  assert.match(html, /class="brand-mark" src="logo\.png"/);
   assert.match(html, /id="manual-link"[^>]*href="\/manual\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
   assert.match(html, /id="update-check-button"[^>]*data-action="update-check"/);
   assert.match(html, /id="update-status" role="status">檢查更新/);

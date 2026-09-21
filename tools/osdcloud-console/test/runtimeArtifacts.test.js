@@ -87,6 +87,11 @@ function createSetupSourceFixture(root) {
     path.join(process.cwd(), 'tools', 'osdcloud-console', 'web', 'logo.ico'),
     path.join(root, 'tools', 'osdcloud-console', 'web', 'logo.ico'),
   );
+  fs.copyFileSync(
+    path.join(process.cwd(), 'tools', 'osdcloud-console', 'web', 'logo.png'),
+    path.join(root, 'tools', 'osdcloud-console', 'web', 'logo.png'),
+  );
+  fs.writeFileSync(path.join(root, 'tools', 'osdcloud-console', 'src', 'debug.png'), 'png\n', 'utf8');
   fs.writeFileSync(path.join(root, 'Softwares', 'Install-Apps.ps1'), "Write-Host 'fixture'\n", 'utf8');
   fs.writeFileSync(path.join(root, 'Softwares', 'Show-DeploymentProgress.ps1'), "Write-Host 'fixture viewer'\n", 'utf8');
   fs.writeFileSync(path.join(root, 'Setup-DeploymentServer.cmd'), '@echo off\r\n', 'utf8');
@@ -611,6 +616,8 @@ test('setup seeds installed host bundle state and writes the Web local overlay',
     assert.equal(fs.existsSync(stateSecrets), false);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'Start-InstalledWebConsole.ps1')), true);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'osdcloud-console', 'web', 'logo.ico')), true);
+    assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'osdcloud-console', 'web', 'logo.png')), true);
+    assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'osdcloud-console', 'src', 'debug.png')), false);
     assert.equal(fs.existsSync(path.join(appRoot, 'New-WinceptionUsbInstaller.cmd')), true);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'New-WinceptionUsbInstaller.ps1')), true);
     assert.equal(fs.existsSync(path.join(appRoot, 'docs', 'winception-operations-manual.html')), true);

@@ -45,6 +45,8 @@ test('Release install is fresh, upgrades preserve State, and migration failure i
     assert.equal(fs.existsSync(path.join(stateRoot, 'fixtures')), false);
     assert.equal(fs.existsSync(path.join(appRoot, 'fixtures', 'development')), false);
     assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'Seed-DevelopmentFixture.ps1')), false);
+    assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'osdcloud-console', 'web', 'logo.png')), true);
+    assert.equal(fs.existsSync(path.join(appRoot, 'tools', 'osdcloud-console', 'web', 'logo.ico')), true);
 
     const profilePath = path.join(stateRoot, 'config', 'deployment-profiles', 'customer-profile.json');
     const softwarePath = path.join(stateRoot, 'config', 'software-catalog.json');
@@ -137,5 +139,7 @@ test('installer ordering backs up State before app replacement and never seeds D
   assert.match(script, /Run the installer from an elevated PowerShell session/);
   assert.ok(script.indexOf('Invoke-StateMigration') < script.indexOf('Clear-DiagnosticsState'), 'migration must complete before diagnostics cleanup');
   assert.doesNotMatch(script, /Seed-DevelopmentFixture\.ps1.*&/s, 'Release installer must not call Development seed implicitly');
+  assert.match(script, /tools\\\\osdcloud-console\\\\web\\\\/);
+  assert.match(fs.readFileSync(path.join(repoRoot, 'tools', 'Verify-HostToolsBundle.ps1'), 'utf8'), /tools\\\\osdcloud-console\\\\web\\\\/);
   assert.match(fs.readFileSync(path.join(repoRoot, 'tools', 'Setup-DeploymentServer.ps1'), 'utf8'), /SeedDevelopmentFixture/);
 });

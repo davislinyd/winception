@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- HostTools setup, reload, and bundle export now keep the Console brand `tools/osdcloud-console/web/logo.png`. The binary-extension filter still drops other PNG/JPEG artifacts, with the same curated exceptions as `docs/manual-assets`. Live `http://127.0.0.1:8080/` was 404ing the top-bar mark because HTML already referenced `logo.png` while the installed App only received `logo.ico`.
+
 - Restored `tools/Build-GitHubPages.ps1` to publish the current operations manual from `master` (no Git tag). Added `.github/workflows/publish-pages.yml` as `workflow_dispatch`-only. Public GitHub.io now serves Operations Manual v1.1.0 at https://davislinyd.github.io/winception/.
 
 - Docs: README PR checks now match `.github/workflows/pr.yml` (`node --check`, PowerShell parser, `acceptance:source`, targeted Node tests, `acceptance:ui`; not full `npm test` / `check` / `smoke`). Guided Setup lists the ten initialization steps, including Web service IP and Boot client. First-boot AutoLogon is documented as current SetupComplete behavior (`AutoLogonCount` 5, then clear); removing it for production handoff remains unfinished. GitHub Pages republish plan is in `docs/agent-reference/repo-workflow.md`; the public site remains the 2026-07-17 v1.0.3 snapshot until an operator-named Pages deploy.

@@ -342,6 +342,7 @@ test('HostTools exporter has allowlist, tracked-file, path, hash, manifest, and 
   assert.match(script, /secret/);
   assert.match(script, /osdcloud-secrets/);
   assert.match(script, /iso\|wim\|esd/);
+  assert.match(script, /tools\\\\osdcloud-console\\\\web\\\\/);
 });
 
 test('shared path guard rejects bundle traversal', () => {
@@ -401,7 +402,9 @@ test('HostTools exporter emits verifiable hashes and excludes untracked secrets'
       'config/scripts-catalog.json',
       'config/deployment-profiles/.gitkeep',
       'tools/osdcloud-console/src/tracked.js',
+      'tools/osdcloud-console/src/debug.png',
       'tools/osdcloud-console/web/tracked.js',
+      'tools/osdcloud-console/web/logo.png',
       'osdcloud-assets/OSDCloud/Config/tracked.ps1',
       'osdcloud-assets/OSDCloud/WinPE/tracked.ps1',
     ]) {
@@ -446,7 +449,9 @@ test('HostTools exporter emits verifiable hashes and excludes untracked secrets'
     const manifest = JSON.parse(fs.readFileSync(path.join(output, 'HostTools', 'bundle-manifest.json'), 'utf8'));
     const paths = manifest.files.map((entry) => entry.path);
     assert.ok(paths.includes('tools/osdcloud-console/src/tracked.js'));
+    assert.ok(paths.includes('tools/osdcloud-console/web/logo.png'));
     assert.ok(paths.includes('config/osdcloud-secrets.example.json'));
+    assert.ok(!paths.includes('tools/osdcloud-console/src/debug.png'));
     assert.ok(!paths.includes('config/osdcloud-secrets.json'));
     assert.ok(!paths.includes('tools/untracked.ps1'));
     for (const record of manifest.files) {
