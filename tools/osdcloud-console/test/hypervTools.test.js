@@ -21,3 +21,14 @@ test('Hyper-V restart helper preserves enough fixed memory for concurrent WinPE 
   const startAt = restartScript.indexOf('Start-VM -Name $vmName');
   assert.ok(stopAt >= 0 && stopAt < memoryAt && memoryAt < startAt);
 });
+
+test('Hyper-V restart helper defaults to AutoLab clients and optional Clean restore', () => {
+  assert.match(restartScript, /\[string\]\$VmPrefix = 'winception-autolab-'/);
+  assert.match(restartScript, /\[int\]\$EndIndex = 4/);
+  assert.match(restartScript, /\[string\]\$CheckpointName = 'Winception-Clean'/);
+  assert.match(restartScript, /\[switch\]\$RestoreCheckpoint/);
+  assert.match(restartScript, /\[switch\]\$NoStart/);
+  assert.match(restartScript, /winception-autolab-router/);
+  assert.match(restartScript, /Enable-VMTPM -VMName \$VmName/);
+  assert.equal(restartScript.includes("VmPrefix = 'winception-client-'"), false);
+});
