@@ -21,11 +21,10 @@
       --surface: #FFFDF8;
       --surface-low: #F6F1E8;
       --term: #2A2520;
-      --on-clay: #fff;
-      --shadow: 0 18px 40px rgba(51, 46, 41, .08);
       --font: "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
       --serif: Georgia, "Palatino Linotype", "Noto Serif TC", serif;
       --mono: Consolas, "Cascadia Mono", "Noto Sans Mono", monospace;
+      --slide-ms: 180ms;
     }
     * { box-sizing: border-box; }
     html, body {
@@ -36,6 +35,8 @@
       font-family: var(--font);
     }
     body { overflow: hidden; }
+    html[lang="en"] .zh { display: none !important; }
+    html:not([lang="en"]) .en { display: none !important; }
     .stage {
       width: 100vw;
       height: 100vh;
@@ -43,19 +44,55 @@
       place-items: center;
       background: var(--term);
     }
+    .deck {
+      width: 1280px;
+      height: 720px;
+      position: relative;
+      background: var(--paper);
+      overflow: hidden;
+      transform-origin: center center;
+    }
     .slide {
       width: 1280px;
       height: 720px;
       background: var(--paper);
       color: var(--ink);
       position: absolute;
-      display: none;
+      inset: 0;
+      display: flex;
       flex-direction: column;
-      padding: 44px 56px 56px;
+      justify-content: center;
+      padding: 52px 56px 58px;
       overflow: hidden;
-      transform-origin: center center;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateX(0);
+      transition: opacity var(--slide-ms) ease, transform var(--slide-ms) ease, visibility var(--slide-ms);
+      z-index: 0;
     }
-    .slide.active { display: flex; }
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateX(0);
+      z-index: 2;
+    }
+    .slide.enter-right { transform: translateX(28px); }
+    .slide.enter-left { transform: translateX(-28px); }
+    .slide.exit-left {
+      opacity: 0;
+      visibility: visible;
+      transform: translateX(-28px);
+      z-index: 1;
+    }
+    .slide.exit-right {
+      opacity: 0;
+      visibility: visible;
+      transform: translateX(28px);
+      z-index: 1;
+    }
+    .body { width: 100%; }
     .kicker {
       font-size: 13px;
       font-weight: 700;
@@ -146,6 +183,7 @@
       width: 100%;
       border-collapse: collapse;
       font-size: 14px;
+      margin-top: 16px;
     }
     th, td {
       text-align: left;
@@ -172,6 +210,7 @@
       align-items: center;
       font-size: 12px;
       color: var(--muted);
+      z-index: 4;
     }
     .brand {
       display: flex;
@@ -261,7 +300,7 @@
     .ev dt { color: var(--muted); font-weight: 650; }
     .ev dd { margin: 0 0 6px; font-family: var(--mono); font-size: 12px; }
     .bars { display: grid; gap: 10px; margin-top: 8px; }
-    .bar-row { display: grid; grid-template-columns: 110px 1fr 72px; gap: 10px; align-items: center; font-size: 13px; }
+    .bar-row { display: grid; grid-template-columns: 118px 1fr 72px; gap: 10px; align-items: center; font-size: 13px; }
     .bar {
       height: 18px;
       border-radius: 6px;
@@ -310,7 +349,7 @@
       grid-template-columns: 1fr 1fr 1fr;
       gap: 12px;
     }
-    .scene .card { min-height: 168px; }
+    .scene .card { min-height: 148px; }
     .pg {
       position: absolute;
       left: 50%;
@@ -318,21 +357,57 @@
       font-variant-numeric: tabular-nums;
       letter-spacing: .04em;
     }
-    .help { display: none; }
+    .lang-btn {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      z-index: 6;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      padding: 6px 12px;
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      font: 700 12px/1 var(--font);
+      cursor: pointer;
+    }
+    .lang-btn:hover { border-color: #D9B49C; }
+    .lang-btn:focus-visible { outline: 2px solid var(--clay); outline-offset: 2px; }
+    .lang-btn .now {
+      color: var(--clay);
+    }
+    .lang-btn .sep { color: var(--hairline); font-weight: 400; }
+    .lang-btn kbd {
+      font: 650 10px/1 var(--mono);
+      color: var(--muted);
+      border: 1px solid var(--hairline);
+      border-radius: 4px;
+      padding: 2px 5px;
+    }
     a { color: var(--clay); }
+    @media (prefers-reduced-motion: reduce) {
+      .slide { transition: none; }
+    }
     @media print {
       @page { size: landscape; margin: 0; }
       html, body { background: #fff; height: auto; overflow: visible; }
       .stage { display: block; height: auto; background: #fff; }
-      .help { display: none; }
+      .deck { transform: none !important; height: auto; overflow: visible; }
+      .lang-btn { display: none; }
       .slide {
         position: relative;
         display: flex !important;
+        opacity: 1 !important;
+        visibility: visible !important;
         transform: none !important;
         width: 100vw;
         height: 100vh;
         page-break-after: always;
         break-after: page;
+        transition: none;
       }
       .slide:last-child { page-break-after: auto; }
     }
@@ -340,493 +415,679 @@
 </head>
 <body>
   <div class="stage" id="stage">
+    <div class="deck" id="deck">
+      <button type="button" class="lang-btn" id="langBtn" aria-pressed="false">
+        <kbd>L</kbd>
+        <span class="now zh">中文</span><span class="now en">EN</span>
+        <span class="sep">/</span>
+        <span class="zh">EN</span><span class="en">中文</span>
+      </button>
 
-    <section class="slide active" aria-label="封面">
-      <div class="kicker">Winception briefing</div>
-      <h1>Windows 11 Zero-Touch<br>不必把人綁在每一台電腦前</h1>
-      <p class="lede">以知名開源方案 <strong>OSDCloud</strong> 為成像引擎，加上 PowerShell、依機型自動抓驅動、Torrent P2P 傳映像，以及瀏覽器就能開的 Web Console。</p>
-      <div class="flow">
-        <span class="step">OSDCloud</span><span class="arrow">→</span>
-        <span class="step">PowerShell</span><span class="arrow">→</span>
-        <span class="step">自動 Driver Pack</span><span class="arrow">→</span>
-        <span class="step">P2P 一份 WIM</span><span class="arrow">→</span>
-        <span class="step">Web Dashboard</span>
-      </div>
-      <div class="row" style="margin-top:28px">
-        <div class="card grow"><div class="stat">1.000×<small>兩台併發時，host 只送出一份 WIM 的流量（已實測）</small></div></div>
-        <div class="card grow"><div class="stat">PXE<small>目標電腦選 UEFI IPv4 開機，其餘自動跑完</small></div></div>
-        <div class="card grow"><div class="stat">一台筆電<small>部署主機可帶走，不必 SCCM／SQL 機房</small></div></div>
+    <section class="slide active" data-label-zh="封面" data-label-en="Title">
+      <div class="body">
+        <div class="kicker">Winception briefing</div>
+        <h1>Windows 11 Zero-Touch<br>
+          <span class="zh">不必把人綁在每一台電腦前</span>
+          <span class="en">Don’t station a person at every PC</span>
+        </h1>
+        <p class="lede zh">以知名開源方案 <strong>OSDCloud</strong> 為成像引擎，加上 PowerShell、依機型自動抓驅動、Torrent P2P 傳映像，以及瀏覽器就能開的 Web Console。</p>
+        <p class="lede en">Built on the well-known open-source <strong>OSDCloud</strong> engine, plus PowerShell, model-aware driver packs, Torrent P2P image transfer, and a Web Console that opens in a browser.</p>
+        <div class="flow">
+          <span class="step">OSDCloud</span><span class="arrow">→</span>
+          <span class="step">PowerShell</span><span class="arrow">→</span>
+          <span class="step zh">自動 Driver Pack</span><span class="step en">Auto driver packs</span><span class="arrow">→</span>
+          <span class="step zh">P2P 一份 WIM</span><span class="step en">P2P: one WIM</span><span class="arrow">→</span>
+          <span class="step">Web Dashboard</span>
+        </div>
+        <div class="row" style="margin-top:28px">
+          <div class="card grow"><div class="stat">1.000×<small class="zh">兩台併發時，host 只送出一份 WIM 的流量（已實測）</small><small class="en">Two concurrent clients: the host sent one WIM of traffic (measured)</small></div></div>
+          <div class="card grow"><div class="stat">PXE<small class="zh">目標電腦選 UEFI IPv4 開機，其餘自動跑完</small><small class="en">Target PCs boot UEFI IPv4; the rest finishes unattended</small></div></div>
+          <div class="card grow"><div class="stat zh">一台筆電<small>部署主機可帶走，不必 SCCM／SQL 機房</small></div><div class="stat en">One laptop<small>A portable host — no SCCM / SQL room</small></div></div>
+        </div>
       </div>
       <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>Windows 11 zero-touch deployment</div></div>
     </section>
 
-    <section class="slide" aria-label="傳統做法的代價">
-      <div class="kicker">問題</div>
-      <h2>Lite Touch 耗人力，經典 Zero Touch 耗機房與頻寬</h2>
-      <p class="lede">兩者都在「灌映像」。差在人要不要點精靈、以及 N 台電腦要不要各從同一台伺服器拉一份完整 WIM。</p>
-      <div class="row" style="margin-top:22px">
-        <div class="card grow">
-          <span class="pill warn">MDT Lite Touch</span>
-          <h3 style="margin-top:10px">人跟著電腦走</h3>
-          <ul class="list">
-            <li>每台要選工作序列、電腦名稱、應用程式</li>
-            <li>產業常見在場時間 <strong>45–90 分鐘／台</strong></li>
-            <li>勞動約 USD 26–82／台（時薪 35–55 估算）</li>
-            <li>驅動目錄要人工維護，新機型就重來</li>
-          </ul>
-        </div>
-        <div class="card grow">
-          <span class="pill err">經典 Zero Touch · MDT／SCCM</span>
-          <h3 style="margin-top:10px">人少了，佇列還在</h3>
-          <ul class="list">
-            <li>免精靈，但仍是一台 DP 對 N 台送 N 份 WIM</li>
-            <li>SCCM + SQL + 發佈點：建置與授權成本</li>
-            <li>每機型仍要維護 driver package</li>
-            <li>完成證明多半留在伺服器 log，難交班</li>
-          </ul>
-        </div>
-      </div>
-      <p class="note">工時與美元為產業常見區間，不是本產品實驗室數字。Winception 不取代 Windows Autopilot（那是雲端註冊，不是 PXE／USB 映像部署）。</p>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>對照的是成像路徑，不是 Intune 註冊</div></div>
-    </section>
-
-    <section class="slide" aria-label="一句話產品">
-      <div class="kicker">產品</div>
-      <h2>開機之後，其餘自動完成</h2>
-      <p class="lede">技術人員準備 runtime、Windows 映像與 deployment profile。目標電腦從 UEFI IPv4 PXE（或離線 USB）開機後，WinPE、OSDCloud、SetupComplete、應用程式與自訂腳本會一路跑到桌面就緒。</p>
-      <div class="flow">
-        <span class="step">PXE／USB</span><span class="arrow">→</span>
-        <span class="step">WinPE</span><span class="arrow">→</span>
-        <span class="step">OSDCloud 套用映像</span><span class="arrow">→</span>
-        <span class="step">SetupComplete</span><span class="arrow">→</span>
-        <span class="step">軟體／腳本</span><span class="arrow">→</span>
-        <span class="step">windows-desktop-ready</span>
-      </div>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:28px">
-        <div class="card"><h3>操作員在瀏覽器</h3><p class="muted">不鎖在伺服器本機 app。引導模式一個「下一步」；控制台看全部主機設定。</p></div>
-        <div class="card"><h3>資料面自動供料</h3><p class="muted">DHCP、TFTP、HTTP、SMB，加上 Torrent P2P 分攤 OS WIM。</p></div>
-        <div class="card"><h3>每台都有證據</h3><p class="muted">Fleet、Activity、Validation Evidence：完成、失敗、卡在哪一階都看得到。</p></div>
-      </div>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>Zero-touch imaging，現場只負責開機</div></div>
-    </section>
-
-    <section class="slide" aria-label="為什麼是 OSDCloud">
-      <div class="kicker">開源基底</div>
-      <h2>站在 OSDCloud 上，而不是從零重寫成像引擎</h2>
-      <p class="lede">OSDCloud 是 David Segura／OSDeploy 的開源 PowerShell 部署框架，社群與文件成熟，PowerShell Gallery 可安裝。Winception 用它處理 WinPE 套用 Windows，再補上可帶走的主機、Web 與 P2P。</p>
-      <div class="row" style="margin-top:20px">
-        <div class="card grow">
-          <h3>OSDCloud 本身就擅長的事</h3>
-          <ul class="list">
-            <li>WinPE 裡下載或套用 Windows 10／11</li>
-            <li>Dell、HP、Lenovo、Surface 官方 Driver Pack</li>
-            <li><span class="pill">Get-MyDriverPack</span> 依 SMBIOS 廠牌／型號選包</li>
-            <li>沒有官方包時可走 Microsoft Update Catalog</li>
-          </ul>
-        </div>
-        <div class="card grow">
-          <h3>Winception 加在上面的事</h3>
-          <ul class="list">
-            <li>本機 WIM 快取，不依賴每台去抓 Microsoft ESD</li>
-            <li>Torrent P2P 讓多台互傳映像</li>
-            <li>Web Console、profile、軟體目錄、Evidence</li>
-            <li>PXE Secure Boot、既有 DHCP 配對、USB 離線</li>
-          </ul>
-        </div>
-      </div>
-      <p class="note">公開來源：osdcloud.com、github.com/OSDeploy/OSD、PowerShell Gallery 套件 OSD。</p>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>開源引擎 + 產品化控制面</div></div>
-    </section>
-
-    <section class="slide" aria-label="PowerShell 彈性">
-      <div class="kicker">彈性</div>
-      <h2>全程 PowerShell，改規則不必改成像核心</h2>
-      <p class="lede">部署主機、WinPE、第一次開機、登入後安裝都是腳本。比 MDT task sequence XML 更好讀、更好審、更好為單一客戶改一條規則。</p>
-      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:20px">
-        <div class="card">
-          <h3>兩種加軟體的方式</h3>
-          <p><strong>Guided installer</strong>：選 MSI／EXE，由系統產生靜默安裝腳本（MSI 預設成功碼 0、1641、3010）。</p>
-          <p style="margin-top:8px"><strong>Custom PowerShell</strong>：帶 payload 與受信任管理員的 <span class="pill">install.ps1</span>，先做 Windows PowerShell 5.1 語法檢查。</p>
-        </div>
-        <div class="card">
-          <h3>執行契約</h3>
-          <ul class="list">
-            <li>順序由 profile 的 <strong>installSequence</strong> 決定</li>
-            <li>任一步失敗、缺檔或逾時 → fail-fast，後續不跑</li>
-            <li>登入後以 SYSTEM 任務安裝，畫面顯示即時耗時</li>
-            <li>Evidence 只記步驟名、狀態、秒數，不含秘密</li>
-          </ul>
-        </div>
-      </div>
-      <p class="note">需要外網的安裝放在登入後序列；映像套用階段只連 Winception 主機。</p>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>腳本是產品表面，不是後門</div></div>
-    </section>
-
-    <section class="slide" aria-label="驅動自動對型">
-      <div class="kicker">驅動</div>
-      <h2>自動識別廠牌、型號，按需下載官方 Driver Pack</h2>
-      <p class="lede">不必再維護 MDT 那種 Out-of-Box Drivers 樹，也不必每季把 HP／Dell CAB 手工匯進 SCCM package。</p>
-      <div class="row" style="margin-top:18px">
-        <div class="card grow" style="text-align:center">
-          <div class="pill">1</div>
-          <h3 style="margin-top:10px">Client 回報機型</h3>
-          <p class="muted">SetupComplete 送出 OSDCloud 的 manufacturer／model／product 中繼資料。</p>
-        </div>
-        <div class="card grow" style="text-align:center">
-          <div class="pill clay">2</div>
-          <h3 style="margin-top:10px">Host 第一次才下載</h3>
-          <p class="muted">只在該機型首次出現時抓官方 URL，快取到 DriverPacks。</p>
-        </div>
-        <div class="card grow" style="text-align:center">
-          <div class="pill ok">3</div>
-          <h3 style="margin-top:10px">之後同一型號直接用快取</h3>
-          <p class="muted">索引寫在 driverpack-cache；Web 看得到廠牌／型號／檔名摘要。</p>
-        </div>
-      </div>
-      <div class="card" style="margin-top:14px">
-        <strong>相對 LTI／ZTD 的時間：</strong>新機型常見要 0.5–2 人日整理 INF／CAB。這裡第一次碰到該型號才下載，現場不用為驅動目錄加班。
-      </div>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>Host-first、model-aware、按需快取</div></div>
-    </section>
-
-    <section class="slide" aria-label="多版本多語言">
-      <div class="kicker">映像與地區</div>
-      <h2>新的 Windows 版本、語言，加進 Cache 就能部署</h2>
-      <p class="lede">OS Image Cache 下載或匯入 ISO／ESD／WIM，檢查 DISM index，匯出單一可部署 WIM。Profile 把顯示語言、地區格式、輸入語言、時區分開設定。</p>
-      <div class="grid" style="grid-template-columns:1.2fr .8fr;margin-top:18px">
-        <div class="card">
-          <h3>加入一個新映像</h3>
-          <ul class="list">
-            <li>官方 catalog 或本機檔案上傳</li>
-            <li>選 Pro／Home 等 edition index（自動校正 ESD 前置 WinPE 索引偏移）</li>
-            <li>匯出後 publish profile，client 永遠套用 index 1 的那一份 WIM</li>
-            <li>未來 26H1／26H2 這類標籤，有上游資料就不必改程式</li>
-          </ul>
-        </div>
-        <div class="card">
-          <h3>一份 profile 四個地區欄位</h3>
-          <p><span class="pill">顯示語言</span> Windows UI</p>
-          <p style="margin-top:8px"><span class="pill">地區格式</span> 數字與日期</p>
-          <p style="margin-top:8px"><span class="pill">輸入語言</span> 鍵盤</p>
-          <p style="margin-top:8px"><span class="pill">時區</span> 僅時區</p>
-        </div>
-      </div>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>多語言不是重灌主機，是換映像與 profile</div></div>
-    </section>
-
-    <section class="slide" aria-label="軟體與自訂腳本">
-      <div class="kicker">應用程式</div>
-      <h2>軟體目錄 + 自訂腳本，第一次登入後自動安裝</h2>
-      <p class="lede">在 Web 新增 MSI／EXE，放進 profile 順序，必要時插入自訂 PowerShell。部署完成條件是桌面就緒，不是「映像灌完就算」。</p>
-      <div class="row" style="margin-top:18px">
-        <div class="card grow">
-          <h3>Catalog</h3>
-          <p class="muted">三步精靈：Package → Installation → Requirements。可宣告軟體相依；儲存時拒絕循環相依。</p>
-        </div>
-        <div class="card grow">
-          <h3>Sequence</h3>
-          <p class="muted">Chrome、7-Zip、自訂腳本、Notepad++ 這類順序已在四台併發回歸跑過，exit code 0。</p>
-        </div>
-        <div class="card grow">
-          <h3>需要重開的安裝器</h3>
-          <p class="muted">回傳 1641 時標成 restart pending，重開並登入後從下一步續跑。</p>
-        </div>
-      </div>
-      <div class="card" style="margin-top:14px">
-        <strong>相對 LTI：</strong>不必在每台精靈勾選應用程式。<strong>相對經典 ZTD：</strong>改一條安裝順序是 Web 操作，不是改 SCCM 應用程式套件再等發佈點複製。
-      </div>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>Minimal profile 可選擇不安裝額外軟體</div></div>
-    </section>
-
-    <section class="slide" aria-label="P2P 英雄頁">
-      <div class="kicker">最重要的槓桿</div>
-      <div class="row" style="align-items:flex-end;gap:28px;margin-top:8px">
-        <div class="grow">
-          <div class="hero-num">1.000×</div>
-          <h2 style="margin-top:8px">同波次多台互傳，host 大約只供一份 WIM</h2>
-          <p class="lede">BitTorrent：本機 HTTP tracker + host seeder + WinPE aria2。Host 用 striped bitfield 把片交錯分給同批 client，讓它們邊下載邊互相上傳。</p>
-        </div>
-        <div class="card" style="width:420px">
-          <span class="pill ok">已實測 · 2026-06-19</span>
-          <p style="margin-top:12px">WIM <strong>6,368,481,430 bytes</strong>（約 5.93 GiB）</p>
-          <p style="margin-top:8px">兩台 Secure Boot client 各拿一半 stripe</p>
-          <p style="margin-top:8px">Host 該波次送出剛好 <strong>1.000×</strong>，不是 2.000×</p>
-          <p style="margin-top:8px">互傳各約 3.18 GiB · SHA-256 通過 · 皆達桌面就緒</p>
-        </div>
-      </div>
-      <div class="topo">
-        <figure class="card" style="padding:10px 12px 8px">
-          <svg viewBox="0 0 360 140" aria-label="傳統星狀：全部流量經過 DP">
-            <circle cx="180" cy="70" r="18" fill="#9E3B32"/>
-            <text x="180" y="74" text-anchor="middle" fill="#fff" font-size="11" font-family="Segoe UI, sans-serif">DP</text>
-            <circle cx="40" cy="28" r="12" fill="#E8E0D3"/><circle cx="320" cy="28" r="12" fill="#E8E0D3"/>
-            <circle cx="40" cy="112" r="12" fill="#E8E0D3"/><circle cx="320" cy="112" r="12" fill="#E8E0D3"/>
-            <line x1="180" y1="70" x2="52" y2="28" stroke="#9E3B32" stroke-width="2"/>
-            <line x1="180" y1="70" x2="308" y2="28" stroke="#9E3B32" stroke-width="2"/>
-            <line x1="180" y1="70" x2="52" y2="112" stroke="#9E3B32" stroke-width="2"/>
-            <line x1="180" y1="70" x2="308" y2="112" stroke="#9E3B32" stroke-width="2"/>
-          </svg>
-          <figcaption>經典 ZTD：N 台各拉一份完整 WIM</figcaption>
-        </figure>
-        <figure class="card" style="padding:10px 12px 8px">
-          <svg viewBox="0 0 360 140" aria-label="P2P 網狀：host 一份，peer 互傳">
-            <circle cx="180" cy="28" r="16" fill="#9C4221"/>
-            <text x="180" y="32" text-anchor="middle" fill="#fff" font-size="10" font-family="Segoe UI, sans-serif">Host</text>
-            <circle cx="60" cy="100" r="14" fill="#38684A"/>
-            <circle cx="150" cy="118" r="14" fill="#38684A"/>
-            <circle cx="240" cy="118" r="14" fill="#38684A"/>
-            <circle cx="300" cy="100" r="14" fill="#38684A"/>
-            <line x1="180" y1="44" x2="60" y2="88" stroke="#9C4221" stroke-width="2"/>
-            <line x1="180" y1="44" x2="300" y2="88" stroke="#9C4221" stroke-width="2" stroke-dasharray="4 3"/>
-            <line x1="74" y1="100" x2="136" y2="118" stroke="#38684A" stroke-width="2"/>
-            <line x1="164" y1="118" x2="226" y2="118" stroke="#38684A" stroke-width="2"/>
-            <line x1="254" y1="118" x2="286" y2="100" stroke="#38684A" stroke-width="2"/>
-            <line x1="70" y1="90" x2="150" y2="104" stroke="#38684A" stroke-width="1.5"/>
-          </svg>
-          <figcaption>Winception：host 一份 stripe，其餘 peer 互傳</figcaption>
-        </figure>
-      </div>
-      <p class="note">180 秒沒進度才回落 SMB 直傳。四台併發連續兩輪（2026-06-20）8／8 桌面就緒。這是頻寬證據，不是保證任意場地的牆鐘時間。</p>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>P2P 是時間與交換器擁塞的主開關</div></div>
-    </section>
-
-    <section class="slide" aria-label="P2P 時間模型">
-      <div class="kicker">模型 · 約 6 GiB WIM</div>
-      <h2>台數愈多，相對傳統 DP 的流量差距愈大</h2>
-      <p class="lede">經典路徑：N 台各拉一份 → host／DP 上傳 N × 6 GiB。Winception 同波次目標：host ≈ 1 × 6 GiB，其餘 peer 互傳。</p>
-      <div class="row" style="margin-top:16px">
-        <div class="card grow">
-          <div class="bars">
-            <div class="bar-row"><div>2 台 · 傳統</div><div class="bar"><i style="width:8%"></i></div><div>12 GiB</div></div>
-            <div class="bar-row"><div>2 台 · 本品</div><div class="bar"><i class="win" style="width:4%"></i></div><div>6 GiB</div></div>
-            <div class="bar-row"><div>10 台 · 傳統</div><div class="bar"><i style="width:40%"></i></div><div>60 GiB</div></div>
-            <div class="bar-row"><div>10 台 · 本品</div><div class="bar"><i class="win" style="width:4%"></i></div><div>6 GiB</div></div>
-            <div class="bar-row"><div>50 台 · 傳統</div><div class="bar"><i style="width:100%"></i></div><div>300 GiB</div></div>
-            <div class="bar-row"><div>50 台 · 本品</div><div class="bar"><i class="win" style="width:4%"></i></div><div>6 GiB</div></div>
+    <section class="slide" data-label-zh="傳統做法的代價" data-label-en="Cost of the old path">
+      <div class="body">
+        <div class="kicker zh">問題</div>
+        <div class="kicker en">The problem</div>
+        <h2 class="zh">Lite Touch 耗人力，經典 Zero Touch 耗機房與頻寬</h2>
+        <h2 class="en">Lite Touch burns labor. Classic Zero Touch burns the datacenter and the pipe.</h2>
+        <p class="lede zh">兩者都在「灌映像」。差在人要不要點精靈、以及 N 台電腦要不要各從同一台伺服器拉一份完整 WIM。</p>
+        <p class="lede en">Both still image PCs. The difference is whether a person clicks a wizard, and whether N PCs each pull a full WIM from one server.</p>
+        <div class="row" style="margin-top:22px">
+          <div class="card grow">
+            <span class="pill warn">MDT Lite Touch</span>
+            <h3 class="zh" style="margin-top:10px">人跟著電腦走</h3>
+            <h3 class="en" style="margin-top:10px">A person follows each PC</h3>
+            <ul class="list zh">
+              <li>每台要選工作序列、電腦名稱、應用程式</li>
+              <li>產業常見在場時間 <strong>45–90 分鐘／台</strong></li>
+              <li>勞動約 USD 26–82／台（時薪 35–55 估算）</li>
+              <li>驅動目錄要人工維護，新機型就重來</li>
+            </ul>
+            <ul class="list en">
+              <li>Each PC needs a task sequence, name, and apps</li>
+              <li>Industry-typical hands-on time: <strong>45–90 min / PC</strong></li>
+              <li>About USD 26–82 labor / PC (at $35–55 / hr)</li>
+              <li>Driver catalogs are manual; a new model starts over</li>
+            </ul>
           </div>
-          <div class="legend"><span><i class="trad"></i>傳統 DP 上傳</span><span><i class="ours"></i>Winception host 上傳</span></div>
-        </div>
-        <div class="card" style="width:360px">
-          <h3>怎麼讀這張圖</h3>
-          <ul class="list">
-            <li>這是 <strong>host 上傳量</strong>模型，不是保證總部署分鐘數線性下降</li>
-            <li>交換器擁塞、磁碟、套用映像、OOBE 仍在</li>
-            <li>1 Gbps 傳 300 GiB 理論就超過 40 分鐘，實務 DP 還會更慢、得分波</li>
-            <li>P2P 讓開機潮可以擠在同一波，不必等 DP 排隊</li>
-          </ul>
-        </div>
-      </div>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>2 台 1.000× 已實測；N=10／50 是同一模型外推</div></div>
-    </section>
-
-    <section class="slide" aria-label="Web 介面">
-      <div class="kicker">操作面</div>
-      <h2>Web Console，不限制在伺服器本機 app</h2>
-      <p class="lede">瀏覽器開主機位址即可。現場第二台筆電、平板都能看 Fleet。引導模式只給一個下一步；需要調 endpoint、映像、profile 再切控制台。</p>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:18px">
-        <div class="card"><h3>引導</h3><p class="muted">繁中任務頁：目前部署內容、四個階段、阻擋項、PXE 指示。非專家跟按鈕即可。</p></div>
-        <div class="card"><h3>控制台</h3><p class="muted">Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、System Log。</p></div>
-        <div class="card"><h3>部署活動</h3><p class="muted">Fleet 搜尋、篩選、Evidence、封存、刪除與批次動作。</p></div>
-      </div>
-      <div class="card" style="margin-top:14px">
-        <strong>相對傳統主控台：</strong>不必遠端桌面進 WDS／SCCM 伺服器，也不必人站在部署主機前。LAN 非本機迴圈才需要 token；loopback 預設免登入方便本機操作。
-      </div>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>http://主機:8080 · 引導／控制台可切換</div></div>
-    </section>
-
-    <section class="slide" aria-label="Dashboard 與 Evidence">
-      <div class="kicker">可見性</div>
-      <h2>Dashboard 看全局，Evidence 交得出每一台</h2>
-      <div class="dash">
-        <div class="card">
-          <div class="mock-top"><span class="mark">W</span> 開始部署　<span class="pill">引導</span></div>
-          <div class="kpi">
-            <div class="card"><div class="n">3</div><div class="l">DEPLOYING</div></div>
-            <div class="card"><div class="n" style="color:var(--sage)">18</div><div class="l">READY</div></div>
-            <div class="card"><div class="n" style="color:var(--brick)">1</div><div class="l">FAILED</div></div>
-            <div class="card"><div class="n" style="color:var(--ochre)">2</div><div class="l">STALE</div></div>
-          </div>
-          <div class="svc" style="margin-top:10px">
-            <div class="card"><span class="dot"></span>HTTP :80　RUNNING</div>
-            <div class="card"><span class="dot"></span>TFTP :69　RUNNING</div>
-            <div class="card"><span class="dot"></span>DHCP　RUNNING</div>
-            <div class="card"><span class="dot"></span>Torrent　seeding WIM</div>
+          <div class="card grow">
+            <span class="pill err zh">經典 Zero Touch · MDT／SCCM</span>
+            <span class="pill err en">Classic Zero Touch · MDT / SCCM</span>
+            <h3 class="zh" style="margin-top:10px">人少了，佇列還在</h3>
+            <h3 class="en" style="margin-top:10px">Fewer people. The queue remains.</h3>
+            <ul class="list zh">
+              <li>免精靈，但仍是一台 DP 對 N 台送 N 份 WIM</li>
+              <li>SCCM + SQL + 發佈點：建置與授權成本</li>
+              <li>每機型仍要維護 driver package</li>
+              <li>完成證明多半留在伺服器 log，難交班</li>
+            </ul>
+            <ul class="list en">
+              <li>No wizard, but one DP still sends N copies of the WIM</li>
+              <li>SCCM + SQL + distribution points: build and license cost</li>
+              <li>Each model still needs a driver package</li>
+              <li>Proof of completion lives in server logs — hard to hand off</li>
+            </ul>
           </div>
         </div>
-        <div class="card">
-          <div class="mock-top">Validation Evidence</div>
-          <dl class="ev">
-            <dt>Final stage</dt><dd>windows-desktop-ready</dd>
-            <dt>Progress</dt><dd>100%</dd>
-            <dt>ExplorerRunning</dt><dd>true</dd>
-            <dt>DesktopReadyFile</dt><dd>true</dd>
-            <dt>OobeProcesses</dt><dd>&lt;empty&gt;</dd>
-            <dt>時間</dt><dd>host UTC+8，完成後不改寫</dd>
-          </dl>
-        </div>
+        <p class="note zh">工時與美元為產業常見區間，不是本產品實驗室數字。Winception 不取代 Windows Autopilot（那是雲端註冊，不是 PXE／USB 映像部署）。</p>
+        <p class="note en">Hours and dollars are industry ranges, not a Winception lab result. This is not a Windows Autopilot replacement (cloud enrollment, not PXE / USB imaging).</p>
       </div>
-      <p class="note">這是對審計、客訴與交班的時間節省：不用翻伺服器 log 拼出「那台到底有沒有好」。</p>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>畫面為示意，不是即時主機狀態</div></div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">對照的是成像路徑，不是 Intune 註冊</div><div class="en">Imaging paths, not Intune enrollment</div></div>
     </section>
 
-    <section class="slide" aria-label="可帶走的主機">
-      <div class="kicker">還值得講的能力</div>
-      <h2>一台 Windows 11 筆電就能當部署主機</h2>
-      <p class="lede">這幾項沒列在需求清單裡，但最能對上「為什麼不繼續用機房裡的 MDT／SCCM」。</p>
-      <div class="scene" style="margin-top:16px">
-        <div class="card">
-          <span class="pill">接線 A</span>
-          <h3 style="margin-top:8px">既有 LAN + PXE Proxy</h3>
-          <p class="muted">沿用現場 DHCP。WinPE 顯示配對碼，Console 核對核准後才發開機憑證。</p>
+    <section class="slide" data-label-zh="一句話產品" data-label-en="The product in one line">
+      <div class="body">
+        <div class="kicker zh">產品</div>
+        <div class="kicker en">Product</div>
+        <h2 class="zh">開機之後，其餘自動完成</h2>
+        <h2 class="en">After boot, the rest finishes on its own</h2>
+        <p class="lede zh">技術人員準備 runtime、Windows 映像與 deployment profile。目標電腦從 UEFI IPv4 PXE（或離線 USB）開機後，WinPE、OSDCloud、SetupComplete、應用程式與自訂腳本會一路跑到桌面就緒。</p>
+        <p class="lede en">Technicians prepare the runtime, Windows image, and deployment profile. After a UEFI IPv4 PXE (or offline USB) boot, WinPE, OSDCloud, SetupComplete, apps, and custom scripts run through to a ready desktop.</p>
+        <div class="flow">
+          <span class="step">PXE／USB</span><span class="arrow">→</span>
+          <span class="step">WinPE</span><span class="arrow">→</span>
+          <span class="step zh">OSDCloud 套用映像</span><span class="step en">OSDCloud apply</span><span class="arrow">→</span>
+          <span class="step">SetupComplete</span><span class="arrow">→</span>
+          <span class="step zh">軟體／腳本</span><span class="step en">Apps / scripts</span><span class="arrow">→</span>
+          <span class="step">windows-desktop-ready</span>
         </div>
-        <div class="card">
-          <span class="pill">接線 B</span>
-          <h3 style="margin-top:8px">既有 LAN + 自管 DHCP</h3>
-          <p class="muted">此網段確認沒有其他 DHCP 才能開 Server。Preflight 擋住誤開。</p>
-        </div>
-        <div class="card">
-          <span class="pill">接線 C</span>
-          <h3 style="margin-top:8px">直連 Dual NIC NAT</h3>
-          <p class="muted">筆電一張網卡上網、一張接 client。停止部署服務也不拆 NAT，登入後軟體仍可上網。</p>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:28px">
+          <div class="card"><h3 class="zh">操作員在瀏覽器</h3><h3 class="en">Operators use a browser</h3><p class="muted zh">不鎖在伺服器本機 app。引導模式一個「下一步」；控制台看全部主機設定。</p><p class="muted en">Not locked to a server-side app. Guided mode offers one Next action; Console shows every host control.</p></div>
+          <div class="card"><h3 class="zh">資料面自動供料</h3><h3 class="en">The data plane feeds itself</h3><p class="muted zh">DHCP、TFTP、HTTP、SMB，加上 Torrent P2P 分攤 OS WIM。</p><p class="muted en">DHCP, TFTP, HTTP, SMB, plus Torrent P2P to share the OS WIM.</p></div>
+          <div class="card"><h3 class="zh">每台都有證據</h3><h3 class="en">Evidence per PC</h3><p class="muted zh">Fleet、Activity、Validation Evidence：完成、失敗、卡在哪一階都看得到。</p><p class="muted en">Fleet, Activity, Validation Evidence: done, failed, or stuck — visible per stage.</p></div>
         </div>
       </div>
-      <div class="row" style="margin-top:12px">
-        <div class="card grow"><strong>Secure Boot 預設</strong><p class="muted">Microsoft 簽名 bootmgfw.efi。iPXE 只是 fallback。</p></div>
-        <div class="card grow"><strong>USB／ISO 離線</strong><p class="muted">無網場地仍可 zero-touch；不取代 PXE 主路徑。</p></div>
-        <div class="card grow"><strong>換場地</strong><p class="muted">保留映像與 profile，改介面後 Endpoint Sync 即可。</p></div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">Zero-touch imaging，現場只負責開機</div><div class="en">Zero-touch imaging: the floor only boots PCs</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="為什麼是 OSDCloud" data-label-en="Why OSDCloud">
+      <div class="body">
+        <div class="kicker zh">開源基底</div>
+        <div class="kicker en">Open-source base</div>
+        <h2 class="zh">站在 OSDCloud 上，而不是從零重寫成像引擎</h2>
+        <h2 class="en">Stand on OSDCloud. Do not rewrite the imaging engine.</h2>
+        <p class="lede zh">OSDCloud 是 David Segura／OSDeploy 的開源 PowerShell 部署框架，社群與文件成熟，PowerShell Gallery 可安裝。Winception 用它處理 WinPE 套用 Windows，再補上可帶走的主機、Web 與 P2P。</p>
+        <p class="lede en">OSDCloud is David Segura / OSDeploy’s open-source PowerShell deployment framework, with a mature community, docs, and a PowerShell Gallery package. Winception uses it to apply Windows from WinPE, then adds a portable host, Web, and P2P.</p>
+        <div class="row" style="margin-top:20px">
+          <div class="card grow">
+            <h3 class="zh">OSDCloud 本身就擅長的事</h3>
+            <h3 class="en">What OSDCloud already does well</h3>
+            <ul class="list zh">
+              <li>WinPE 裡下載或套用 Windows 10／11</li>
+              <li>Dell、HP、Lenovo、Surface 官方 Driver Pack</li>
+              <li><span class="pill">Get-MyDriverPack</span> 依 SMBIOS 廠牌／型號選包</li>
+              <li>沒有官方包時可走 Microsoft Update Catalog</li>
+            </ul>
+            <ul class="list en">
+              <li>Download or apply Windows 10 / 11 from WinPE</li>
+              <li>Official Dell, HP, Lenovo, and Surface driver packs</li>
+              <li><span class="pill">Get-MyDriverPack</span> matches SMBIOS make / model</li>
+              <li>Falls back to Microsoft Update Catalog when no OEM pack exists</li>
+            </ul>
+          </div>
+          <div class="card grow">
+            <h3 class="zh">Winception 加在上面的事</h3>
+            <h3 class="en">What Winception adds on top</h3>
+            <ul class="list zh">
+              <li>本機 WIM 快取，不依賴每台去抓 Microsoft ESD</li>
+              <li>Torrent P2P 讓多台互傳映像</li>
+              <li>Web Console、profile、軟體目錄、Evidence</li>
+              <li>PXE Secure Boot、既有 DHCP 配對、USB 離線</li>
+            </ul>
+            <ul class="list en">
+              <li>A local WIM cache — PCs do not each fetch a Microsoft ESD</li>
+              <li>Torrent P2P so many clients share the image</li>
+              <li>Web Console, profiles, software catalog, Evidence</li>
+              <li>PXE Secure Boot, existing-DHCP pairing, offline USB</li>
+            </ul>
+          </div>
+        </div>
+        <p class="note zh">公開來源：osdcloud.com、github.com/OSDeploy/OSD、PowerShell Gallery 套件 OSD。</p>
+        <p class="note en">Public sources: osdcloud.com, github.com/OSDeploy/OSD, PowerShell Gallery package OSD.</p>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">開源引擎 + 產品化控制面</div><div class="en">Open-source engine + a product control plane</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="PowerShell 彈性" data-label-en="PowerShell flexibility">
+      <div class="body">
+        <div class="kicker zh">彈性</div>
+        <div class="kicker en">Flexibility</div>
+        <h2 class="zh">全程 PowerShell，改規則不必改成像核心</h2>
+        <h2 class="en">PowerShell end to end. Change rules without touching the imaging core.</h2>
+        <p class="lede zh">部署主機、WinPE、第一次開機、登入後安裝都是腳本。比 MDT task sequence XML 更好讀、更好審、更好為單一客戶改一條規則。</p>
+        <p class="lede en">The host, WinPE, first boot, and post-logon install are all scripts. Easier to read, review, and change one customer rule than MDT task-sequence XML.</p>
+        <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:20px">
+          <div class="card">
+            <h3 class="zh">兩種加軟體的方式</h3>
+            <h3 class="en">Two ways to add software</h3>
+            <p class="zh"><strong>Guided installer</strong>：選 MSI／EXE，由系統產生靜默安裝腳本（MSI 預設成功碼 0、1641、3010）。</p>
+            <p class="en"><strong>Guided installer</strong>: pick an MSI / EXE; the system writes a silent install script (MSI success codes 0, 1641, 3010 by default).</p>
+            <p class="zh" style="margin-top:8px"><strong>Custom PowerShell</strong>：帶 payload 與受信任管理員的 <span class="pill">install.ps1</span>，先做 Windows PowerShell 5.1 語法檢查。</p>
+            <p class="en" style="margin-top:8px"><strong>Custom PowerShell</strong>: ship a payload and a trusted admin <span class="pill">install.ps1</span>, with a Windows PowerShell 5.1 syntax check first.</p>
+          </div>
+          <div class="card">
+            <h3 class="zh">執行契約</h3>
+            <h3 class="en">The run contract</h3>
+            <ul class="list zh">
+              <li>順序由 profile 的 <strong>installSequence</strong> 決定</li>
+              <li>任一步失敗、缺檔或逾時 → fail-fast，後續不跑</li>
+              <li>登入後以 SYSTEM 任務安裝，畫面顯示即時耗時</li>
+              <li>Evidence 只記步驟名、狀態、秒數，不含秘密</li>
+            </ul>
+            <ul class="list en">
+              <li>Order comes from the profile <strong>installSequence</strong></li>
+              <li>Any miss, failure, or timeout is fail-fast; later steps do not run</li>
+              <li>A SYSTEM task installs after logon; the screen shows live elapsed time</li>
+              <li>Evidence records step name, status, and seconds — never secrets</li>
+            </ul>
+          </div>
+        </div>
+        <p class="note zh">需要外網的安裝放在登入後序列；映像套用階段只連 Winception 主機。</p>
+        <p class="note en">Internet-dependent installs belong in the post-logon sequence; image apply only talks to the Winception host.</p>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">腳本是產品表面，不是後門</div><div class="en">Scripts are a product surface, not a back door</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="驅動自動對型" data-label-en="Model-aware drivers">
+      <div class="body">
+        <div class="kicker zh">驅動</div>
+        <div class="kicker en">Drivers</div>
+        <h2 class="zh">自動識別廠牌、型號，按需下載官方 Driver Pack</h2>
+        <h2 class="en">Detect make and model. Download the official driver pack on demand.</h2>
+        <p class="lede zh">不必再維護 MDT 那種 Out-of-Box Drivers 樹，也不必每季把 HP／Dell CAB 手工匯進 SCCM package。</p>
+        <p class="lede en">No MDT Out-of-Box Drivers tree. No quarterly hand-import of HP / Dell CABs into SCCM packages.</p>
+        <div class="row" style="margin-top:18px">
+          <div class="card grow" style="text-align:center">
+            <div class="pill">1</div>
+            <h3 class="zh" style="margin-top:10px">Client 回報機型</h3>
+            <h3 class="en" style="margin-top:10px">The client reports the model</h3>
+            <p class="muted zh">SetupComplete 送出 OSDCloud 的 manufacturer／model／product 中繼資料。</p>
+            <p class="muted en">SetupComplete sends OSDCloud manufacturer / model / product metadata.</p>
+          </div>
+          <div class="card grow" style="text-align:center">
+            <div class="pill clay">2</div>
+            <h3 class="zh" style="margin-top:10px">Host 第一次才下載</h3>
+            <h3 class="en" style="margin-top:10px">The host downloads once</h3>
+            <p class="muted zh">只在該機型首次出現時抓官方 URL，快取到 DriverPacks。</p>
+            <p class="muted en">The official URL is fetched the first time that model appears, then cached under DriverPacks.</p>
+          </div>
+          <div class="card grow" style="text-align:center">
+            <div class="pill ok">3</div>
+            <h3 class="zh" style="margin-top:10px">之後同一型號直接用快取</h3>
+            <h3 class="en" style="margin-top:10px">Later PCs reuse the cache</h3>
+            <p class="muted zh">索引寫在 driverpack-cache；Web 看得到廠牌／型號／檔名摘要。</p>
+            <p class="muted en">Indexed in driverpack-cache; the Web UI shows make / model / file summaries.</p>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <strong class="zh">相對 LTI／ZTD 的時間：</strong><span class="zh">新機型常見要 0.5–2 人日整理 INF／CAB。這裡第一次碰到該型號才下載，現場不用為驅動目錄加班。</span>
+          <strong class="en">Time vs LTI / ZTD: </strong><span class="en">A new model often costs 0.5–2 person-days of INF / CAB work. Here the first sighting downloads the pack; the floor does not overtime a driver tree.</span>
+        </div>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">Host-first、model-aware、按需快取</div><div class="en">Host-first, model-aware, on-demand cache</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="多版本多語言" data-label-en="Versions and languages">
+      <div class="body">
+        <div class="kicker zh">映像與地區</div>
+        <div class="kicker en">Images and locale</div>
+        <h2 class="zh">新的 Windows 版本、語言，加進 Cache 就能部署</h2>
+        <h2 class="en">Add a Windows version or language to the cache, then deploy it</h2>
+        <p class="lede zh">OS Image Cache 下載或匯入 ISO／ESD／WIM，檢查 DISM index，匯出單一可部署 WIM。Profile 把顯示語言、地區格式、輸入語言、時區分開設定。</p>
+        <p class="lede en">OS Image Cache downloads or imports ISO / ESD / WIM, inspects DISM indexes, and exports one deployable WIM. A profile sets display language, regional format, input language, and time zone independently.</p>
+        <div class="grid" style="grid-template-columns:1.2fr .8fr;margin-top:18px">
+          <div class="card">
+            <h3 class="zh">加入一個新映像</h3>
+            <h3 class="en">Add a new image</h3>
+            <ul class="list zh">
+              <li>官方 catalog 或本機檔案上傳</li>
+              <li>選 Pro／Home 等 edition index（自動校正 ESD 前置 WinPE 索引偏移）</li>
+              <li>匯出後 publish profile，client 永遠套用 index 1 的那一份 WIM</li>
+              <li>未來 26H1／26H2 這類標籤，有上游資料就不必改程式</li>
+            </ul>
+            <ul class="list en">
+              <li>Official catalog or a local file upload</li>
+              <li>Pick a Pro / Home edition index (ESD WinPE index shift is corrected)</li>
+              <li>After export and profile publish, clients always apply that WIM at index 1</li>
+              <li>Future tags such as 26H1 / 26H2 need no code change when upstream rows exist</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3 class="zh">一份 profile 四個地區欄位</h3>
+            <h3 class="en">Four locale fields per profile</h3>
+            <p><span class="pill zh">顯示語言</span><span class="pill en">Display language</span> Windows UI</p>
+            <p style="margin-top:8px"><span class="pill zh">地區格式</span><span class="pill en">Regional format</span> <span class="zh">數字與日期</span><span class="en">numbers and dates</span></p>
+            <p style="margin-top:8px"><span class="pill zh">輸入語言</span><span class="pill en">Input language</span> <span class="zh">鍵盤</span><span class="en">keyboard</span></p>
+            <p style="margin-top:8px"><span class="pill zh">時區</span><span class="pill en">Time zone</span> <span class="zh">僅時區</span><span class="en">time zone only</span></p>
+          </div>
+        </div>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">多語言不是重灌主機，是換映像與 profile</div><div class="en">A new language is a new image and profile, not a rebuilt host</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="軟體與自訂腳本" data-label-en="Software and scripts">
+      <div class="body">
+        <div class="kicker zh">應用程式</div>
+        <div class="kicker en">Applications</div>
+        <h2 class="zh">軟體目錄 + 自訂腳本，第一次登入後自動安裝</h2>
+        <h2 class="en">Software catalog + custom scripts, installed after first logon</h2>
+        <p class="lede zh">在 Web 新增 MSI／EXE，放進 profile 順序，必要時插入自訂 PowerShell。部署完成條件是桌面就緒，不是「映像灌完就算」。</p>
+        <p class="lede en">Add an MSI / EXE in the Web UI, place it in the profile order, and insert custom PowerShell when needed. Done means a ready desktop, not “the image landed.”</p>
+        <div class="row" style="margin-top:18px">
+          <div class="card grow">
+            <h3>Catalog</h3>
+            <p class="muted zh">三步精靈：Package → Installation → Requirements。可宣告軟體相依；儲存時拒絕循環相依。</p>
+            <p class="muted en">Three-step wizard: Package → Installation → Requirements. Software dependencies are declared; save rejects cycles.</p>
+          </div>
+          <div class="card grow">
+            <h3>Sequence</h3>
+            <p class="muted zh">Chrome、7-Zip、自訂腳本、Notepad++ 這類順序已在四台併發回歸跑過，exit code 0。</p>
+            <p class="muted en">Orders such as Chrome, 7-Zip, a custom script, and Notepad++ already passed four-wide regression with exit code 0.</p>
+          </div>
+          <div class="card grow">
+            <h3 class="zh">需要重開的安裝器</h3>
+            <h3 class="en">Installers that reboot</h3>
+            <p class="muted zh">回傳 1641 時標成 restart pending，重開並登入後從下一步續跑。</p>
+            <p class="muted en">Exit 1641 marks restart-pending; after reboot and logon, the sequence resumes at the next step.</p>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <span class="zh"><strong>相對 LTI：</strong>不必在每台精靈勾選應用程式。<strong>相對經典 ZTD：</strong>改一條安裝順序是 Web 操作，不是改 SCCM 應用程式套件再等發佈點複製。</span>
+          <span class="en"><strong>Vs LTI:</strong> no per-PC wizard checkboxes. <strong>Vs classic ZTD:</strong> changing install order is a Web action, not an SCCM app republish waiting on DPs.</span>
+        </div>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">Minimal profile 可選擇不安裝額外軟體</div><div class="en">A Minimal profile can install no extra software</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="P2P 英雄頁" data-label-en="P2P">
+      <div class="body">
+        <div class="kicker zh">最重要的槓桿</div>
+        <div class="kicker en">The main lever</div>
+        <div class="row" style="align-items:flex-end;gap:28px;margin-top:8px">
+          <div class="grow">
+            <div class="hero-num">1.000×</div>
+            <h2 class="zh" style="margin-top:8px">同波次多台互傳，host 大約只供一份 WIM</h2>
+            <h2 class="en" style="margin-top:8px">Peers share in the same wave. The host supplies about one WIM.</h2>
+            <p class="lede zh">BitTorrent：本機 HTTP tracker + host seeder + WinPE aria2。Host 用 striped bitfield 把片交錯分給同批 client，讓它們邊下載邊互相上傳。</p>
+            <p class="lede en">BitTorrent: a local HTTP tracker, a host seeder, and WinPE aria2. The host stripes the bitfield across the batch so clients upload to each other while they still download.</p>
+          </div>
+          <div class="card" style="width:420px">
+            <span class="pill ok zh">已實測 · 2026-06-19</span>
+            <span class="pill ok en">Measured · 2026-06-19</span>
+            <p style="margin-top:12px">WIM <strong>6,368,481,430 bytes</strong> <span class="zh">（約 5.93 GiB）</span><span class="en">(~5.93 GiB)</span></p>
+            <p class="zh" style="margin-top:8px">兩台 Secure Boot client 各拿一半 stripe</p>
+            <p class="en" style="margin-top:8px">Two Secure Boot clients each received half the stripe</p>
+            <p class="zh" style="margin-top:8px">Host 該波次送出剛好 <strong>1.000×</strong>，不是 2.000×</p>
+            <p class="en" style="margin-top:8px">Host upload for that wave was exactly <strong>1.000×</strong>, not 2.000×</p>
+            <p class="zh" style="margin-top:8px">互傳各約 3.18 GiB · SHA-256 通過 · 皆達桌面就緒</p>
+            <p class="en" style="margin-top:8px">~3.18 GiB each way · SHA-256 passed · both desktops ready</p>
+          </div>
+        </div>
+        <div class="topo">
+          <figure class="card" style="padding:10px 12px 8px">
+            <svg viewBox="0 0 360 140" aria-hidden="true">
+              <circle cx="180" cy="70" r="18" fill="#9E3B32"/>
+              <text x="180" y="74" text-anchor="middle" fill="#fff" font-size="11" font-family="Segoe UI, sans-serif">DP</text>
+              <circle cx="40" cy="28" r="12" fill="#E8E0D3"/><circle cx="320" cy="28" r="12" fill="#E8E0D3"/>
+              <circle cx="40" cy="112" r="12" fill="#E8E0D3"/><circle cx="320" cy="112" r="12" fill="#E8E0D3"/>
+              <line x1="180" y1="70" x2="52" y2="28" stroke="#9E3B32" stroke-width="2"/>
+              <line x1="180" y1="70" x2="308" y2="28" stroke="#9E3B32" stroke-width="2"/>
+              <line x1="180" y1="70" x2="52" y2="112" stroke="#9E3B32" stroke-width="2"/>
+              <line x1="180" y1="70" x2="308" y2="112" stroke="#9E3B32" stroke-width="2"/>
+            </svg>
+            <figcaption class="zh">經典 ZTD：N 台各拉一份完整 WIM</figcaption>
+            <figcaption class="en">Classic ZTD: each of N PCs pulls a full WIM</figcaption>
+          </figure>
+          <figure class="card" style="padding:10px 12px 8px">
+            <svg viewBox="0 0 360 140" aria-hidden="true">
+              <circle cx="180" cy="28" r="16" fill="#9C4221"/>
+              <text x="180" y="32" text-anchor="middle" fill="#fff" font-size="10" font-family="Segoe UI, sans-serif">Host</text>
+              <circle cx="60" cy="100" r="14" fill="#38684A"/>
+              <circle cx="150" cy="118" r="14" fill="#38684A"/>
+              <circle cx="240" cy="118" r="14" fill="#38684A"/>
+              <circle cx="300" cy="100" r="14" fill="#38684A"/>
+              <line x1="180" y1="44" x2="60" y2="88" stroke="#9C4221" stroke-width="2"/>
+              <line x1="180" y1="44" x2="300" y2="88" stroke="#9C4221" stroke-width="2" stroke-dasharray="4 3"/>
+              <line x1="74" y1="100" x2="136" y2="118" stroke="#38684A" stroke-width="2"/>
+              <line x1="164" y1="118" x2="226" y2="118" stroke="#38684A" stroke-width="2"/>
+              <line x1="254" y1="118" x2="286" y2="100" stroke="#38684A" stroke-width="2"/>
+              <line x1="70" y1="90" x2="150" y2="104" stroke="#38684A" stroke-width="1.5"/>
+            </svg>
+            <figcaption class="zh">Winception：host 一份 stripe，其餘 peer 互傳</figcaption>
+            <figcaption class="en">Winception: host one stripe; peers share the rest</figcaption>
+          </figure>
+        </div>
+        <p class="note zh">180 秒沒進度才回落 SMB 直傳。四台併發連續兩輪（2026-06-20）8／8 桌面就緒。這是頻寬證據，不是保證任意場地的牆鐘時間。</p>
+        <p class="note en">SMB-direct apply is the fallback after 180 seconds with no progress. Four concurrent clients, two rounds (2026-06-20): 8/8 desktops ready. Bandwidth evidence, not a wall-clock guarantee on every floor.</p>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">P2P 是時間與交換器擁塞的主開關</div><div class="en">P2P is the main switch for time and switch congestion</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="P2P 時間模型" data-label-en="P2P traffic model">
+      <div class="body">
+        <div class="kicker zh">模型 · 約 6 GiB WIM</div>
+        <div class="kicker en">Model · ~6 GiB WIM</div>
+        <h2 class="zh">台數愈多，相對傳統 DP 的流量差距愈大</h2>
+        <h2 class="en">The more PCs, the larger the gap versus a classic DP</h2>
+        <p class="lede zh">經典路徑：N 台各拉一份 → host／DP 上傳 N × 6 GiB。Winception 同波次目標：host ≈ 1 × 6 GiB，其餘 peer 互傳。</p>
+        <p class="lede en">Classic path: N PCs each pull a copy → host / DP uploads N × 6 GiB. Winception’s same-wave target: host ≈ 1 × 6 GiB; peers share the rest.</p>
+        <div class="row" style="margin-top:16px">
+          <div class="card grow">
+            <div class="bars">
+              <div class="bar-row"><div class="zh">2 台 · 傳統</div><div class="en">2 PCs · classic</div><div class="bar"><i style="width:8%"></i></div><div>12 GiB</div></div>
+              <div class="bar-row"><div class="zh">2 台 · 本品</div><div class="en">2 PCs · this</div><div class="bar"><i class="win" style="width:4%"></i></div><div>6 GiB</div></div>
+              <div class="bar-row"><div class="zh">10 台 · 傳統</div><div class="en">10 PCs · classic</div><div class="bar"><i style="width:40%"></i></div><div>60 GiB</div></div>
+              <div class="bar-row"><div class="zh">10 台 · 本品</div><div class="en">10 PCs · this</div><div class="bar"><i class="win" style="width:4%"></i></div><div>6 GiB</div></div>
+              <div class="bar-row"><div class="zh">50 台 · 傳統</div><div class="en">50 PCs · classic</div><div class="bar"><i style="width:100%"></i></div><div>300 GiB</div></div>
+              <div class="bar-row"><div class="zh">50 台 · 本品</div><div class="en">50 PCs · this</div><div class="bar"><i class="win" style="width:4%"></i></div><div>6 GiB</div></div>
+            </div>
+            <div class="legend"><span><i class="trad"></i><span class="zh">傳統 DP 上傳</span><span class="en">Classic DP upload</span></span><span><i class="ours"></i>Winception host <span class="zh">上傳</span><span class="en">upload</span></span></div>
+          </div>
+          <div class="card" style="width:360px">
+            <h3 class="zh">怎麼讀這張圖</h3>
+            <h3 class="en">How to read this</h3>
+            <ul class="list zh">
+              <li>這是 <strong>host 上傳量</strong>模型，不是保證總部署分鐘數線性下降</li>
+              <li>交換器擁塞、磁碟、套用映像、OOBE 仍在</li>
+              <li>1 Gbps 傳 300 GiB 理論就超過 40 分鐘，實務 DP 還會更慢、得分波</li>
+              <li>P2P 讓開機潮可以擠在同一波，不必等 DP 排隊</li>
+            </ul>
+            <ul class="list en">
+              <li>This is a <strong>host upload</strong> model, not a promise that wall-clock minutes fall linearly</li>
+              <li>Switch congestion, disk, apply-image, and OOBE still exist</li>
+              <li>300 GiB at 1 Gbps is already 40+ minutes in theory; a real DP is slower and often waved</li>
+              <li>P2P lets a boot surge share one wave instead of queuing on the DP</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">2 台 1.000× 已實測；N=10／50 是同一模型外推</div><div class="en">2-PC 1.000× is measured; N=10 / 50 is the same model extended</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="Web 介面" data-label-en="Web UI">
+      <div class="body">
+        <div class="kicker zh">操作面</div>
+        <div class="kicker en">Control plane</div>
+        <h2 class="zh">Web Console，不限制在伺服器本機 app</h2>
+        <h2 class="en">A Web Console. Not locked to an app on the server.</h2>
+        <p class="lede zh">瀏覽器開主機位址即可。現場第二台筆電、平板都能看 Fleet。引導模式只給一個下一步；需要調 endpoint、映像、profile 再切控制台。</p>
+        <p class="lede en">Open the host in a browser. A second laptop or a tablet on the floor can watch the Fleet. Guided mode offers one Next action; switch to Console to change endpoint, image, or profile.</p>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:18px">
+          <div class="card"><h3 class="zh">引導</h3><h3 class="en">Guided</h3><p class="muted zh">繁中任務頁：目前部署內容、四個階段、阻擋項、PXE 指示。非專家跟按鈕即可。</p><p class="muted en">A task page: current content, four stages, blockers, PXE instructions. Non-experts follow one button.</p></div>
+          <div class="card"><h3 class="zh">控制台</h3><h3 class="en">Console</h3><p class="muted">Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, System Log.</p></div>
+          <div class="card"><h3 class="zh">部署活動</h3><h3 class="en">Activity</h3><p class="muted zh">Fleet 搜尋、篩選、Evidence、封存、刪除與批次動作。</p><p class="muted en">Fleet search, filters, Evidence, archive, delete, and bulk actions.</p></div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <span class="zh"><strong>相對傳統主控台：</strong>不必遠端桌面進 WDS／SCCM 伺服器，也不必人站在部署主機前。LAN 非本機迴圈才需要 token；loopback 預設免登入方便本機操作。</span>
+          <span class="en"><strong>Vs a classic console:</strong> no RDP into WDS / SCCM, and nobody has to stand at the host. A token is required only off loopback; loopback stays token-free for local use.</span>
+        </div>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">http://主機:8080 · 引導／控制台可切換</div><div class="en">http://host:8080 · Guided / Console toggle</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="Dashboard 與 Evidence" data-label-en="Dashboard and Evidence">
+      <div class="body">
+        <div class="kicker zh">可見性</div>
+        <div class="kicker en">Visibility</div>
+        <h2 class="zh">Dashboard 看全局，Evidence 交得出每一台</h2>
+        <h2 class="en">A dashboard for the floor. Evidence for every PC.</h2>
+        <div class="dash">
+          <div class="card">
+            <div class="mock-top"><span class="mark">W</span> <span class="zh">開始部署</span><span class="en">Start</span>　<span class="pill zh">引導</span><span class="pill en">Guided</span></div>
+            <div class="kpi">
+              <div class="card"><div class="n">3</div><div class="l">DEPLOYING</div></div>
+              <div class="card"><div class="n" style="color:var(--sage)">18</div><div class="l">READY</div></div>
+              <div class="card"><div class="n" style="color:var(--brick)">1</div><div class="l">FAILED</div></div>
+              <div class="card"><div class="n" style="color:var(--ochre)">2</div><div class="l">STALE</div></div>
+            </div>
+            <div class="svc" style="margin-top:10px">
+              <div class="card"><span class="dot"></span>HTTP :80　RUNNING</div>
+              <div class="card"><span class="dot"></span>TFTP :69　RUNNING</div>
+              <div class="card"><span class="dot"></span>DHCP　RUNNING</div>
+              <div class="card"><span class="dot"></span>Torrent　seeding WIM</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="mock-top">Validation Evidence</div>
+            <dl class="ev">
+              <dt>Final stage</dt><dd>windows-desktop-ready</dd>
+              <dt>Progress</dt><dd>100%</dd>
+              <dt>ExplorerRunning</dt><dd>true</dd>
+              <dt>DesktopReadyFile</dt><dd>true</dd>
+              <dt>OobeProcesses</dt><dd>&lt;empty&gt;</dd>
+              <dt class="zh">時間</dt><dt class="en">Time</dt><dd class="zh">host UTC+8，完成後不改寫</dd><dd class="en">host UTC+8; immutable after complete</dd>
+            </dl>
+          </div>
+        </div>
+        <p class="note zh">這是對審計、客訴與交班的時間節省：不用翻伺服器 log 拼出「那台到底有沒有好」。</p>
+        <p class="note en">This is time saved on audit, complaints, and handoff: no digging server logs to learn whether that PC actually finished.</p>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">畫面為示意，不是即時主機狀態</div><div class="en">Illustration — not live host state</div></div>
+    </section>
+
+    <section class="slide" data-label-zh="可帶走的主機" data-label-en="A host you can carry">
+      <div class="body">
+        <div class="kicker zh">還值得講的能力</div>
+        <div class="kicker en">Worth adding</div>
+        <h2 class="zh">一台 Windows 11 筆電就能當部署主機</h2>
+        <h2 class="en">One Windows 11 laptop is the deployment host</h2>
+        <p class="lede zh">這幾項沒列在需求清單裡，但最能對上「為什麼不繼續用機房裡的 MDT／SCCM」。</p>
+        <p class="lede en">These were not on the original list, but they answer “why not keep MDT / SCCM in the server room.”</p>
+        <div class="scene" style="margin-top:16px">
+          <div class="card">
+            <span class="pill zh">接線 A</span><span class="pill en">Wiring A</span>
+            <h3 class="zh" style="margin-top:8px">既有 LAN + PXE Proxy</h3>
+            <h3 class="en" style="margin-top:8px">Existing LAN + PXE Proxy</h3>
+            <p class="muted zh">沿用現場 DHCP。WinPE 顯示配對碼，Console 核對核准後才發開機憑證。</p>
+            <p class="muted en">Keep the floor DHCP. WinPE shows a pairing code; the Console approves it before boot credentials are issued.</p>
+          </div>
+          <div class="card">
+            <span class="pill zh">接線 B</span><span class="pill en">Wiring B</span>
+            <h3 class="zh" style="margin-top:8px">既有 LAN + 自管 DHCP</h3>
+            <h3 class="en" style="margin-top:8px">Existing LAN + managed DHCP</h3>
+            <p class="muted zh">此網段確認沒有其他 DHCP 才能開 Server。Preflight 擋住誤開。</p>
+            <p class="muted en">Server DHCP starts only when this segment has no other DHCP. Preflight blocks a mistaken start.</p>
+          </div>
+          <div class="card">
+            <span class="pill zh">接線 C</span><span class="pill en">Wiring C</span>
+            <h3 class="zh" style="margin-top:8px">直連 Dual NIC NAT</h3>
+            <h3 class="en" style="margin-top:8px">Direct Dual NIC NAT</h3>
+            <p class="muted zh">筆電一張網卡上網、一張接 client。停止部署服務也不拆 NAT，登入後軟體仍可上網。</p>
+            <p class="muted en">One NIC to the internet, one to clients. Stopping deploy services does not tear down NAT, so post-logon software can still reach the internet.</p>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <div class="card grow"><strong class="zh">Secure Boot 預設</strong><strong class="en">Secure Boot by default</strong><p class="muted zh">Microsoft 簽名 bootmgfw.efi。iPXE 只是 fallback。</p><p class="muted en">Microsoft-signed bootmgfw.efi. iPXE is only the fallback.</p></div>
+          <div class="card grow"><strong class="zh">USB／ISO 離線</strong><strong class="en">Offline USB / ISO</strong><p class="muted zh">無網場地仍可 zero-touch；不取代 PXE 主路徑。</p><p class="muted en">Zero-touch with no network. It does not replace the PXE path.</p></div>
+          <div class="card grow"><strong class="zh">換場地</strong><strong class="en">Change of site</strong><p class="muted zh">保留映像與 profile，改介面後 Endpoint Sync 即可。</p><p class="muted en">Keep the image and profile; change the NIC, then Endpoint Sync.</p></div>
+        </div>
       </div>
       <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>One laptop, anywhere</div></div>
     </section>
 
-    <section class="slide" aria-label="三欄對照表">
-      <div class="kicker">對照</div>
-      <h2>相對 LTI 與經典 ZTD，時間花在哪裡</h2>
-      <table>
-        <thead>
-          <tr>
-            <th></th>
-            <th>MDT Lite Touch</th>
-            <th>經典 ZTD（MDT／SCCM）</th>
-            <th class="win">Winception</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>現場人力</td>
-            <td>每台精靈 + 等待 45–90 min 常見</td>
-            <td>免精靈，仍常盯 TS／DP 佇列</td>
-            <td class="win">PXE 後離開；瀏覽器監看</td>
-          </tr>
-          <tr>
-            <td>映像傳輸</td>
-            <td>每台從 share／DP 拉完整 WIM</td>
-            <td>同樣 N × WIM</td>
-            <td class="win">同波次 host ≈ 1 × WIM（2 台已證 1.000×）</td>
-          </tr>
-          <tr>
-            <td>驅動</td>
-            <td>人工維護 driver 目錄</td>
-            <td>SCCM 每機型 package</td>
-            <td class="win">OSDCloud 依廠牌型號按需快取</td>
-          </tr>
-          <tr>
-            <td>軟體</td>
-            <td>TS 步驟、現場勾選</td>
-            <td>TS／App 套件發佈</td>
-            <td class="win">Web catalog + 順序 + 自訂 ps1</td>
-          </tr>
-          <tr>
-            <td>基礎設施</td>
-            <td>WDS + MDT share</td>
-            <td>SCCM + SQL + DP</td>
-            <td class="win">一台 Win11 筆電 + Web</td>
-          </tr>
-          <tr>
-            <td>完成證明</td>
-            <td>伺服器 log</td>
-            <td>SCCM report</td>
-            <td class="win">Dashboard + 每 run Evidence</td>
-          </tr>
-          <tr>
-            <td>授權／機房</td>
-            <td>MDT 免費，實務常仍要 Windows Server</td>
-            <td>ConfigMgr 授權與 SQL／DP 維運</td>
-            <td class="win">OSDCloud 開源；一台 Win11 筆電</td>
-          </tr>
-          <tr>
-            <td>異地</td>
-            <td>搬伺服器或 VPN 回 share</td>
-            <td>更重</td>
-            <td class="win">換場地改介面 → Endpoint Sync</td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>授權：OSDCloud 開源；無 SCCM。MDT 雖免費，實務常仍要 Windows Server</div></div>
+    <section class="slide" data-label-zh="三欄對照表" data-label-en="Comparison">
+      <div class="body">
+        <div class="kicker zh">對照</div>
+        <div class="kicker en">Compare</div>
+        <h2 class="zh">相對 LTI 與經典 ZTD，時間花在哪裡</h2>
+        <h2 class="en">Where time goes versus LTI and classic ZTD</h2>
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>MDT Lite Touch</th>
+              <th class="zh">經典 ZTD（MDT／SCCM）</th>
+              <th class="en">Classic ZTD (MDT / SCCM)</th>
+              <th class="win">Winception</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="zh">現場人力</td><td class="en">Floor labor</td>
+              <td class="zh">每台精靈 + 等待 45–90 min 常見</td><td class="en">Per-PC wizard + 45–90 min typical</td>
+              <td class="zh">免精靈，仍常盯 TS／DP 佇列</td><td class="en">No wizard; still watch the TS / DP queue</td>
+              <td class="win zh">PXE 後離開；瀏覽器監看</td><td class="win en">PXE, then leave; watch in a browser</td>
+            </tr>
+            <tr>
+              <td class="zh">映像傳輸</td><td class="en">Image transfer</td>
+              <td class="zh">每台從 share／DP 拉完整 WIM</td><td class="en">Each PC pulls a full WIM from share / DP</td>
+              <td class="zh">同樣 N × WIM</td><td class="en">Also N × WIM</td>
+              <td class="win zh">同波次 host ≈ 1 × WIM（2 台已證 1.000×）</td><td class="win en">Same wave host ≈ 1 × WIM (2 PCs measured 1.000×)</td>
+            </tr>
+            <tr>
+              <td class="zh">驅動</td><td class="en">Drivers</td>
+              <td class="zh">人工維護 driver 目錄</td><td class="en">Hand-maintained driver tree</td>
+              <td class="zh">SCCM 每機型 package</td><td class="en">SCCM package per model</td>
+              <td class="win zh">OSDCloud 依廠牌型號按需快取</td><td class="win en">OSDCloud make/model cache on demand</td>
+            </tr>
+            <tr>
+              <td class="zh">軟體</td><td class="en">Software</td>
+              <td class="zh">TS 步驟、現場勾選</td><td class="en">TS steps, floor checkboxes</td>
+              <td class="zh">TS／App 套件發佈</td><td class="en">TS / app packages</td>
+              <td class="win zh">Web catalog + 順序 + 自訂 ps1</td><td class="win en">Web catalog + order + custom ps1</td>
+            </tr>
+            <tr>
+              <td class="zh">基礎設施</td><td class="en">Infrastructure</td>
+              <td>WDS + MDT share</td>
+              <td>SCCM + SQL + DP</td>
+              <td class="win zh">一台 Win11 筆電 + Web</td><td class="win en">One Win11 laptop + Web</td>
+            </tr>
+            <tr>
+              <td class="zh">完成證明</td><td class="en">Proof</td>
+              <td class="zh">伺服器 log</td><td class="en">Server logs</td>
+              <td>SCCM report</td>
+              <td class="win">Dashboard + Evidence</td>
+            </tr>
+            <tr>
+              <td class="zh">授權／機房</td><td class="en">License / room</td>
+              <td class="zh">MDT 免費，實務常仍要 Windows Server</td><td class="en">MDT is free; Windows Server is still common</td>
+              <td class="zh">ConfigMgr 授權與 SQL／DP 維運</td><td class="en">ConfigMgr licenses and SQL / DP ops</td>
+              <td class="win zh">OSDCloud 開源；一台 Win11 筆電</td><td class="win en">OSDCloud is open source; one Win11 laptop</td>
+            </tr>
+            <tr>
+              <td class="zh">異地</td><td class="en">Another site</td>
+              <td class="zh">搬伺服器或 VPN 回 share</td><td class="en">Move a server or VPN back to the share</td>
+              <td class="zh">更重</td><td class="en">Heavier</td>
+              <td class="win zh">換場地改介面 → Endpoint Sync</td><td class="win en">Change NIC → Endpoint Sync</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">授權：OSDCloud 開源；無 SCCM。MDT 雖免費，實務常仍要 Windows Server</div><div class="en">OSDCloud is open source; no SCCM. MDT is free, but Windows Server is still common</div></div>
     </section>
 
-    <section class="slide" aria-label="50 台假設模型">
-      <div class="kicker">代入你們的時薪</div>
-      <h2>場景：50 台、同一場地、約 6 GiB WIM</h2>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:16px">
-        <div class="card">
-          <span class="pill warn">LTI 勞動</span>
-          <div class="stat" style="font-size:40px;margin-top:10px">50 人時</div>
-          <p class="muted" style="margin-top:8px">50 × 60 min。產業 fully-loaded USD 35–55／hr → 約 <strong>USD 1,750–2,750</strong>，只算在場成像人力，尚未含驅動目錄與客訴重工。</p>
+    <section class="slide" data-label-zh="50 台假設模型" data-label-en="50-PC model">
+      <div class="body">
+        <div class="kicker zh">代入你們的時薪</div>
+        <div class="kicker en">Plug in your labor rate</div>
+        <h2 class="zh">場景：50 台、同一場地、約 6 GiB WIM</h2>
+        <h2 class="en">Scene: 50 PCs, one site, ~6 GiB WIM</h2>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:16px">
+          <div class="card">
+            <span class="pill warn zh">LTI 勞動</span>
+            <span class="pill warn en">LTI labor</span>
+            <div class="stat zh" style="font-size:40px;margin-top:10px">50 人時</div>
+            <div class="stat en" style="font-size:40px;margin-top:10px">50 person-hours</div>
+            <p class="muted zh" style="margin-top:8px">50 × 60 min。產業 fully-loaded USD 35–55／hr → 約 <strong>USD 1,750–2,750</strong>，只算在場成像人力，尚未含驅動目錄與客訴重工。</p>
+            <p class="muted en" style="margin-top:8px">50 × 60 min. Industry fully-loaded USD 35–55 / hr → about <strong>USD 1,750–2,750</strong> for imaging labor alone, before driver catalogs and rework.</p>
+          </div>
+          <div class="card">
+            <span class="pill err zh">經典 ZTD 頻寬</span>
+            <span class="pill err en">Classic ZTD bandwidth</span>
+            <div class="stat" style="font-size:40px;margin-top:10px">300 GiB</div>
+            <p class="muted zh" style="margin-top:8px">50 × 6 GiB 從單一 DP 出去。1 Gbps 理論超過 40 分鐘只傳檔；磁碟與擁塞會更長，實務得分波。</p>
+            <p class="muted en" style="margin-top:8px">50 × 6 GiB from one DP. At 1 Gbps that is already 40+ minutes of transfer; disk and congestion stretch it, so floors wave the job.</p>
+          </div>
+          <div class="card">
+            <span class="pill clay">Winception host</span>
+            <div class="stat" style="font-size:40px;margin-top:10px">≈ 6 GiB</div>
+            <p class="muted zh" style="margin-top:8px">同波次目標 1.000× 模型（2 台已實測）。N 越大，相對 DP 的倍數越明顯。人拿平板看 Fleet，失敗的有 Evidence 可交班。</p>
+            <p class="muted en" style="margin-top:8px">Same-wave 1.000× model (measured on 2 PCs). Larger N widens the gap versus a DP. Watch Fleet on a tablet; failures have Evidence for handoff.</p>
+          </div>
         </div>
-        <div class="card">
-          <span class="pill err">經典 ZTD 頻寬</span>
-          <div class="stat" style="font-size:40px;margin-top:10px">300 GiB</div>
-          <p class="muted" style="margin-top:8px">50 × 6 GiB 從單一 DP 出去。1 Gbps 理論超過 40 分鐘只傳檔；磁碟與擁塞會更長，實務得分波。</p>
+        <div class="card" style="margin-top:14px">
+          <span class="zh"><strong>現場敘事：</strong>LTI 是人跟著電腦、50 台要數個工作天。經典 ZTD 人少了，下午還在等最後一波 DP。Winception 把開機潮放進同一波 P2P；機房成本從 WDS／SCCM／SQL 收到一台筆電。請代入貴單位時薪與台數，不要把美元區間當成產品保證。</span>
+          <span class="en"><strong>Floor story:</strong> LTI follows each PC — 50 units take several workdays. Classic ZTD needs fewer people, then waits on the last DP wave. Winception puts the boot surge in one P2P wave; the server room collapses to a laptop. Plug in your rate and headcount; do not treat the USD range as a product guarantee.</span>
         </div>
-        <div class="card">
-          <span class="pill clay">Winception host</span>
-          <div class="stat" style="font-size:40px;margin-top:10px">≈ 6 GiB</div>
-          <p class="muted" style="margin-top:8px">同波次目標 1.000× 模型（2 台已實測）。N 越大，相對 DP 的倍數越明顯。人拿平板看 Fleet，失敗的有 Evidence 可交班。</p>
-        </div>
+        <p class="note zh">P2P 1.000× 是 repo 實測；人時與美元是產業區間。</p>
+        <p class="note en">P2P 1.000× is measured in this repo; person-hours and dollars are industry ranges.</p>
       </div>
-      <div class="card" style="margin-top:14px">
-        <strong>現場敘事：</strong>LTI 是人跟著電腦、50 台要數個工作天。經典 ZTD 人少了，下午還在等最後一波 DP。Winception 把開機潮放進同一波 P2P；機房成本從 WDS／SCCM／SQL 收到一台筆電。請代入貴單位時薪與台數，不要把美元區間當成產品保證。
-      </div>
-      <p class="note">P2P 1.000× 是 repo 實測；人時與美元是產業區間。</p>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>假設可改：台數、WIM 大小、時薪</div></div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">假設可改：台數、WIM 大小、時薪</div><div class="en">Assumptions you can change: headcount, WIM size, labor rate</div></div>
     </section>
 
-    <section class="slide" aria-label="收束">
-      <div class="kicker">帶走的三句話</div>
-      <h1 style="font-size:42px">開源引擎、一份 WIM、瀏覽器交班</h1>
-      <ul class="list" style="font-size:22px;margin-top:22px">
-        <li>成像核心是知名開源 <strong>OSDCloud</strong>，驅動依廠牌型號自動抓。</li>
-        <li>PowerShell 讓軟體與自訂腳本進 profile；新 Windows 版本與語言加進 Cache 就能佈。</li>
-        <li><strong>P2P 讓 host 大約只供一份映像</strong>——這是相對 LTI／經典 ZTD 最大的時間與頻寬差。</li>
-        <li>Web Dashboard 與 Evidence：人不必站在伺服器前，完成證明跟得上每一台。</li>
-      </ul>
-      <div class="card" style="margin-top:24px">
-        <strong>現場怎麼用：</strong>準備一次 → 開服務 → 電腦 PXE → 必要時核對配對碼 → 看部署活動 → 全部就緒後停服務。換場地只改介面，映像與 profile 帶走。
+    <section class="slide" data-label-zh="收束" data-label-en="Close">
+      <div class="body">
+        <div class="kicker zh">帶走的三句話</div>
+        <div class="kicker en">Three lines to take away</div>
+        <h1 class="zh" style="font-size:42px">開源引擎、一份 WIM、瀏覽器交班</h1>
+        <h1 class="en" style="font-size:42px">Open-source engine. One WIM. Handoff in a browser.</h1>
+        <ul class="list zh" style="font-size:22px;margin-top:22px">
+          <li>成像核心是知名開源 <strong>OSDCloud</strong>，驅動依廠牌型號自動抓。</li>
+          <li>PowerShell 讓軟體與自訂腳本進 profile；新 Windows 版本與語言加進 Cache 就能佈。</li>
+          <li><strong>P2P 讓 host 大約只供一份映像</strong>——這是相對 LTI／經典 ZTD 最大的時間與頻寬差。</li>
+          <li>Web Dashboard 與 Evidence：人不必站在伺服器前，完成證明跟得上每一台。</li>
+        </ul>
+        <ul class="list en" style="font-size:22px;margin-top:22px">
+          <li>Imaging runs on well-known open-source <strong>OSDCloud</strong>, with make/model driver packs.</li>
+          <li>PowerShell puts software and custom scripts in the profile; new Windows versions and languages go into the cache.</li>
+          <li><strong>P2P means the host supplies about one image</strong> — the largest time and bandwidth gap versus LTI / classic ZTD.</li>
+          <li>Web Dashboard and Evidence: nobody stands at the server; proof follows every PC.</li>
+        </ul>
+        <div class="card" style="margin-top:24px">
+          <span class="zh"><strong>現場怎麼用：</strong>準備一次 → 開服務 → 電腦 PXE → 必要時核對配對碼 → 看部署活動 → 全部就緒後停服務。換場地只改介面，映像與 profile 帶走。</span>
+          <span class="en"><strong>On the floor:</strong> prepare once → start services → PXE → approve a pairing code if needed → watch Activity → stop services when done. A new site is a NIC change; the image and profile travel with you.</span>
+        </div>
       </div>
-      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div>方向鍵翻頁 · F 全螢幕 · 可列印橫向 PDF</div></div>
+      <div class="foot"><div class="brand"><span class="mark">W</span> Winception</div><div class="zh">方向鍵翻頁 · L 中／EN · F 全螢幕</div><div class="en">Arrows next · L zh/EN · F fullscreen</div></div>
     </section>
 
+    </div>
   </div>
-  <div class="help" id="help">← → 翻頁　F 全螢幕　1–16 頁</div>
   <script>
     (function () {
+      var deck = document.getElementById('deck');
       var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
-      var help = document.getElementById('help');
+      var langBtn = document.getElementById('langBtn');
       var i = 0;
+      var ready = false;
+      var busy = false;
+      var queued = null;
       var x0 = null;
+      var titles = {
+        'zh-Hant': 'Winception · Windows 11 Zero-Touch 簡報',
+        en: 'Winception · Windows 11 Zero-Touch briefing'
+      };
 
       function fit() {
         var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-        slides.forEach(function (el) {
-          el.style.transform = 'scale(' + s + ')';
-        });
+        deck.style.transform = 'scale(' + s + ')';
       }
 
-      function go(n) {
-        i = Math.max(0, Math.min(slides.length - 1, n));
-        slides.forEach(function (el, idx) {
-          el.classList.toggle('active', idx === i);
-        });
+      function stamp() {
         slides.forEach(function (el, idx) {
           var pg = el.querySelector('.pg');
           if (!pg) {
@@ -836,7 +1097,76 @@
           }
           pg.textContent = (idx + 1) + ' / ' + slides.length;
         });
+      }
+
+      function lang() {
+        return document.documentElement.lang === 'en' ? 'en' : 'zh-Hant';
+      }
+
+      function setLang(next) {
+        var value = next === 'en' ? 'en' : 'zh-Hant';
+        document.documentElement.lang = value;
+        document.title = titles[value];
+        langBtn.setAttribute('aria-pressed', value === 'en' ? 'true' : 'false');
+        try { localStorage.setItem('winception-briefing-lang', value); } catch (e) {}
+        var slide = slides[i];
+        if (slide) {
+          slide.setAttribute('aria-label', value === 'en' ? slide.getAttribute('data-label-en') : slide.getAttribute('data-label-zh'));
+        }
+      }
+
+      function toggleLang() {
+        setLang(lang() === 'en' ? 'zh-Hant' : 'en');
+      }
+
+      function go(n, dir) {
+        n = Math.max(0, Math.min(slides.length - 1, n));
+        if (!ready) {
+          slides.forEach(function (el) { el.classList.remove('active'); });
+          i = n;
+          slides[i].classList.add('active');
+          stamp();
+          setLang(lang());
+          if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+          ready = true;
+          return;
+        }
+        if (n === i) return;
+        if (busy) {
+          queued = { n: n, dir: dir };
+          return;
+        }
+        dir = dir || (n > i ? 1 : -1);
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var from = slides[i];
+        var to = slides[n];
+        i = n;
+        stamp();
+        setLang(lang());
         if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+        if (reduce) {
+          from.classList.remove('active', 'enter-left', 'enter-right', 'exit-left', 'exit-right');
+          to.classList.add('active');
+          return;
+        }
+        busy = true;
+        from.classList.remove('enter-left', 'enter-right');
+        from.classList.add(dir > 0 ? 'exit-left' : 'exit-right');
+        from.classList.remove('active');
+        to.classList.remove('exit-left', 'exit-right');
+        to.classList.add(dir > 0 ? 'enter-right' : 'enter-left');
+        to.classList.add('active');
+        void to.offsetWidth;
+        to.classList.remove('enter-right', 'enter-left');
+        window.setTimeout(function () {
+          from.classList.remove('exit-left', 'exit-right');
+          busy = false;
+          if (queued) {
+            var q = queued;
+            queued = null;
+            go(q.n, q.dir);
+          }
+        }, 200);
       }
 
       function parseHash() {
@@ -845,21 +1175,30 @@
         else go(i);
       }
 
+      try {
+        var saved = localStorage.getItem('winception-briefing-lang');
+        if (saved === 'en' || saved === 'zh-Hant') document.documentElement.lang = saved;
+      } catch (e) {}
+
       window.addEventListener('resize', fit);
       window.addEventListener('hashchange', parseHash);
+      langBtn.addEventListener('click', function () { toggleLang(); langBtn.blur(); });
       document.addEventListener('keydown', function (e) {
         if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
           e.preventDefault();
-          go(i + 1);
+          go(i + 1, 1);
         } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Backspace') {
           e.preventDefault();
-          go(i - 1);
+          go(i - 1, -1);
         } else if (e.key === 'Home') {
           e.preventDefault();
-          go(0);
+          go(0, -1);
         } else if (e.key === 'End') {
           e.preventDefault();
-          go(slides.length - 1);
+          go(slides.length - 1, 1);
+        } else if (e.key === 'l' || e.key === 'L') {
+          e.preventDefault();
+          toggleLang();
         } else if (e.key === 'f' || e.key === 'F') {
           if (!document.fullscreenElement) document.documentElement.requestFullscreen();
           else document.exitFullscreen();
@@ -871,8 +1210,8 @@
       window.addEventListener('touchend', function (e) {
         if (x0 == null) return;
         var dx = e.changedTouches[0].clientX - x0;
-        if (dx > 50) go(i - 1);
-        if (dx < -50) go(i + 1);
+        if (dx > 50) go(i - 1, -1);
+        if (dx < -50) go(i + 1, 1);
         x0 = null;
       });
       fit();
