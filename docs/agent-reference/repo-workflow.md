@@ -36,7 +36,7 @@ Live site is **Operations Manual · v1.1.0**, published from `master` by `workfl
 
 Builder and workflow on `master`:
 
-- `tools/Build-GitHubPages.ps1` copies `docs/winception-operations-manual.html` to `index.html`, copies `docs/manual-assets/`, writes `.nojekyll`, and rewrites reference links to `https://github.com/davislinyd/winception/blob/master/...`.
+- `tools/Build-GitHubPages.ps1` copies `docs/winception-operations-manual.html` to `index.html`, copies `docs/manual-assets/`, copies `docs/winception_torrent_deck/` to `torrent/` (so https://davislinyd.github.io/winception/torrent/ does not replace the root manual), writes `.nojekyll`, and rewrites reference links to `https://github.com/davislinyd/winception/blob/master/...`.
 - It reads `package.json` version and requires the manual markers `Operations Manual · v{version}` and `Web v{version}`. It does **not** require a Git tag.
 - `.github/workflows/publish-pages.yml` is **workflow_dispatch-only** on `ubuntu-latest`. It must not run on `push` to `master` (`lab-deploy.yml` already does) and must not bind to `v1.*` tags.
 - Do **not** create a Git tag or GitHub Release just to refresh Pages.

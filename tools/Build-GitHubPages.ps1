@@ -19,6 +19,10 @@ $repositoryRoot = [System.IO.Path]::GetFullPath($SourceDirectory)
 $packagePath = Join-Path $repositoryRoot 'package.json'
 $manualPath = Join-Path $repositoryRoot 'docs\winception-operations-manual.html'
 $assetsPath = Join-Path $repositoryRoot 'docs\manual-assets'
+$torrentDeckPath = Join-Path $repositoryRoot 'docs\winception_torrent_deck'
+$torrentIndexPath = Join-Path $torrentDeckPath 'index.html'
+$torrentStylesPath = Join-Path $torrentDeckPath 'assets\styles.css'
+$torrentAppPath = Join-Path $torrentDeckPath 'assets\app.js'
 $resolvedOutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 
 if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
@@ -29,6 +33,15 @@ if (-not (Test-Path -LiteralPath $manualPath -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $assetsPath -PathType Container)) {
     throw "Missing manual assets: $assetsPath"
+}
+if (-not (Test-Path -LiteralPath $torrentIndexPath -PathType Leaf)) {
+    throw "Missing torrent briefing deck: $torrentIndexPath"
+}
+if (-not (Test-Path -LiteralPath $torrentStylesPath -PathType Leaf)) {
+    throw "Missing torrent briefing stylesheet: $torrentStylesPath"
+}
+if (-not (Test-Path -LiteralPath $torrentAppPath -PathType Leaf)) {
+    throw "Missing torrent briefing script: $torrentAppPath"
 }
 
 $utf8 = [System.Text.UTF8Encoding]::new($false)
@@ -73,6 +86,7 @@ foreach ($relativeLink in $referenceLinks.Keys) {
 $indexPath = Join-Path $resolvedOutputDirectory 'index.html'
 [System.IO.File]::WriteAllText($indexPath, $manual, $utf8)
 Copy-Item -LiteralPath $assetsPath -Destination (Join-Path $resolvedOutputDirectory 'manual-assets') -Recurse
+Copy-Item -LiteralPath $torrentDeckPath -Destination (Join-Path $resolvedOutputDirectory 'torrent') -Recurse
 New-Item -ItemType File -Path (Join-Path $resolvedOutputDirectory '.nojekyll') -Force | Out-Null
 
 Write-Output "Built Winception $manualVersion GitHub Pages site from $SourceRef at $resolvedOutputDirectory"

@@ -1,0 +1,18 @@
+flowchart TD
+  A[Publish profile / Endpoint sync] --> B[Generate or reuse WIM.torrent + os-torrent.json]
+  B --> C[Start HTTP / TFTP / DHCP]
+  C --> D[Start Torrent tracker + seeder]
+  D --> E[WinPE POST /osdcloud/boot-session]
+  E --> F[Map SMB and validate selected WIM]
+  F --> G{torrentEnabled + aria2 + metadata valid?}
+  G -- No --> H[Keep SMB ImageFile]
+  G -- Yes --> I[New-OSDisk + GET .torrent]
+  I --> J[Start aria2 BitTorrent download]
+  J --> K{Progress / timeout / SHA256 OK?}
+  K -- No --> H
+  K -- Yes --> L[Use local C:\\OSDCloud\\OS\\WIM]
+  L --> M[Invoke-OSDCloud with SkipAllDiskSteps]
+  H --> N[Invoke-OSDCloud with SMB-direct image]
+  M --> O[Continue seeding during apply]
+  O --> P[Seed wait / release / reboot]
+  N --> Q[Reboot]

@@ -1,0 +1,25 @@
+flowchart LR
+  Console[Winception Console\nController]
+  Cache[(OS Image Cache\nWIM + .torrent + os-torrent.json)]
+  HTTP[HTTP / boot-session]
+  Tracker[Local Tracker\n:6969 /announce]
+  Seeder[Host BitTorrent Seeder\n:6881]
+  WinPE[WinPE Client\nStart-OSDCloud-iPXE.ps1]
+  Disk[(Target Disk\nC:\\OSDCloud\\OS)]
+  Peer[Other WinPE Peers]
+  OSD[Invoke-OSDCloud]
+
+  Console -->|publish / regenerate torrent| Cache
+  Console -->|Start All Services| HTTP
+  Console --> Tracker
+  Console --> Seeder
+  Cache --> HTTP
+  Cache --> Seeder
+  WinPE -->|POST boot-session| HTTP
+  HTTP -->|torrentEnabled + URLs + SHA256| WinPE
+  WinPE -->|GET .torrent| HTTP
+  WinPE <-->|announce| Tracker
+  WinPE <-->|BT pieces| Seeder
+  WinPE <-->|BT pieces| Peer
+  WinPE -->|stage local WIM| Disk
+  Disk --> OSD

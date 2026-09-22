@@ -406,6 +406,7 @@ Last completed run : <run-id>
 ### 10. 參考文件
 
 - [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html)：中英雙語圖解操作手冊（現行）。安裝後也可在 Console 用 **使用手冊** 開啟 `/manual/`。公開手冊：<https://davislinyd.github.io/winception/>（v1.1.0；以 `workflow_dispatch` 更新，見 `.github/workflows/publish-pages.yml`）。
+- [`docs/winception_torrent_deck/`](docs/winception_torrent_deck/)：Torrent 部署技術簡報。公開頁：<https://davislinyd.github.io/winception/torrent/>（與操作手冊同一 Pages 站台的子路徑，不取代根目錄手冊）。
 - [`docs/diagrams/technical-flow.md`](docs/diagrams/technical-flow.md)：系統架構與資料流圖。
 - [`docs/diagrams/user-flow.md`](docs/diagrams/user-flow.md)：Web Console 操作流程圖。
 - [`osdcloud-assets/README.md`](osdcloud-assets/README.md)：versioned runtime mirror 的用途與邊界。
@@ -816,6 +817,7 @@ Last completed run : <run-id>
 ### 10. Reference Documents
 
 - [`docs/winception-operations-manual.html`](docs/winception-operations-manual.html): illustrated bilingual operations manual (current). After installation, the Console **使用手冊** link opens `/manual/`. Public manual: <https://davislinyd.github.io/winception/> (v1.1.0; refresh with `workflow_dispatch` of `.github/workflows/publish-pages.yml`).
+- [`docs/winception_torrent_deck/`](docs/winception_torrent_deck/): torrent deployment technical briefing. Public page: <https://davislinyd.github.io/winception/torrent/> (a subdirectory of the same Pages site; it does not replace the root operations manual).
 - [`docs/diagrams/technical-flow.md`](docs/diagrams/technical-flow.md): system architecture and data-flow diagram.
 - [`docs/diagrams/user-flow.md`](docs/diagrams/user-flow.md): Web Console operator-flow diagram.
 - [`osdcloud-assets/README.md`](osdcloud-assets/README.md): purpose and boundaries of the versioned runtime mirror.

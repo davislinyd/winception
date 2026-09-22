@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- GitHub Pages now also publishes the torrent briefing at `/torrent/` from `docs/winception_torrent_deck`. The site root remains Operations Manual v1.1.0; `workflow_dispatch` of `.github/workflows/publish-pages.yml` is still the only refresh path.
+
 - `Restart-HyperVms.ps1` now defaults to AutoLab `winception-autolab-01..04`, refuses the router/software-test/USB VMs, and can restore `Winception-Clean` (`-RestoreCheckpoint`) then reapply Secure Boot/TPM and Network-first boot. `-NoStart` leaves VMs Off after restore. Historical `winception-client-*` remains available only via `-VmPrefix`.
 
 - HostTools setup, reload, and bundle export now keep the Console brand `tools/osdcloud-console/web/logo.png`. The binary-extension filter still drops other PNG/JPEG artifacts, with the same curated exceptions as `docs/manual-assets`. Live `http://127.0.0.1:8080/` was 404ing the top-bar mark because HTML already referenced `logo.png` while the installed App only received `logo.ico`.
