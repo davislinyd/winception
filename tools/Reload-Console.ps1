@@ -265,7 +265,7 @@ try {
         $startArguments += '-DuringUpgrade'
     }
     Write-Host 'Starting Web Console...'
-    Start-Process -FilePath 'powershell.exe' -ArgumentList $startArguments
+    Start-Process -FilePath 'powershell.exe' -ArgumentList $startArguments -WindowStyle Hidden
 
     if (Test-Path -LiteralPath $upgradePointerPath -PathType Leaf) {
         $configPath = Join-Path $StateRoot 'config\osdcloud-console.json'
