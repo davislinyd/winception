@@ -309,7 +309,7 @@ dialog.embedded-open::backdrop { display: none !important; }
 .beginner-config-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
 .beginner-config-item { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 0; padding: 14px; border: 1px solid var(--outline-variant); border-radius: 9px; background: var(--surface-container-lowest); color: var(--ink); text-align: left; cursor: pointer; }
 .beginner-config-item:hover { border-color: var(--accent-tint-border); background: var(--surface-container-low); }
-.beginner-config-item:focus-visible, .beginner-link-button:focus-visible, .beginner-summary-item:focus-visible, .management-action-grid button:focus-visible, .beginner-flow-step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.beginner-config-item:focus-visible, .beginner-link-button:focus-visible, .beginner-summary-item:focus-visible, .management-action-grid :is(button, a[data-route]):focus-visible, .beginner-flow-step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .beginner-config-label { color: var(--on-surface-variant); font: 600 10px/1.2 Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
 .beginner-config-value { display: block; min-width: 0; width: 100%; color: var(--ink); font: 500 13px/1.4 Inter, sans-serif; overflow-wrap: anywhere; }
 .beginner-config-value > * { max-width: 100%; min-width: 0; }
@@ -362,8 +362,8 @@ dialog.embedded-open::backdrop { display: none !important; }
 .console-board-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .console-board-head h2 { margin: 4px 0 0; font: 600 22px/1.2 var(--font-display); color: var(--ink); }
 .console-jump { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.console-jump button { border: 1px solid var(--hairline); background: var(--surface-bright); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: 600 11px/1 Inter, sans-serif; cursor: pointer; }
-.console-jump button:hover { border-color: var(--accent-tint-border); background: var(--surface-container-low); }
+.console-jump :is(button, a[data-route]) { border: 1px solid var(--hairline); background: var(--surface-bright); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: 600 11px/1 Inter, sans-serif; cursor: pointer; }
+.console-jump :is(button, a[data-route]):hover { border-color: var(--accent-tint-border); background: var(--surface-container-low); }
 .console-strip { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 16px; background: var(--surface-bright); border: 1px solid var(--hairline); border-radius: 10px; }
 .console-strip-item { display: flex; flex-direction: column; gap: 3px; min-width: 72px; }
 .console-strip-item > span:first-child { color: var(--muted); font: 600 10px/1 Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -391,10 +391,10 @@ dialog.embedded-open::backdrop { display: none !important; }
 .management-section { padding: 16px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface-container-lowest); }
 .management-section-heading h3 { margin: 4px 0 0; color: var(--ink); font: 600 16px/1.25 var(--font-display); }
 .management-action-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 13px; }
-.management-action-grid button { display: flex; align-items: flex-start; gap: 9px; min-width: 0; padding: 12px; border: 1px solid var(--outline-variant); border-radius: 8px; background: var(--surface-bright); color: var(--ink); text-align: left; cursor: pointer; }
-.management-action-grid button:hover { border-color: var(--accent-tint-border); background: var(--surface-container-low); }
-.management-action-grid button > .material-symbols-outlined { flex: 0 0 auto; color: var(--accent); font-size: 20px; }
-.management-action-grid button > span:last-child { display: flex; flex-direction: column; min-width: 0; gap: 4px; }
+.management-action-grid :is(button, a[data-route]) { display: flex; align-items: flex-start; gap: 9px; min-width: 0; padding: 12px; border: 1px solid var(--outline-variant); border-radius: 8px; background: var(--surface-bright); color: var(--ink); text-align: left; cursor: pointer; }
+.management-action-grid :is(button, a[data-route]):hover { border-color: var(--accent-tint-border); background: var(--surface-container-low); }
+.management-action-grid :is(button, a[data-route]) > .material-symbols-outlined { flex: 0 0 auto; color: var(--accent); font-size: 20px; }
+.management-action-grid :is(button, a[data-route]) > span:last-child { display: flex; flex-direction: column; min-width: 0; gap: 4px; }
 .management-action-grid strong { font: 600 12px/1.25 Inter, sans-serif; overflow-wrap: anywhere; }
 .management-action-grid small { color: var(--on-surface-variant); font: 400 11px/1.35 Inter, sans-serif; overflow-wrap: anywhere; }
 .management-inline-panel { margin-top: 14px; border: 1px solid var(--hairline); border-radius: 9px; background: var(--surface-bright); }
@@ -472,3 +472,5 @@ dialog.embedded-open::backdrop { display: none !important; }
   .management-card { padding: 16px; }
   .management-header { top: -16px; margin: -16px -16px 0; padding: 15px 16px 12px; }
 }
+.topbar-navlink, a[data-route] { text-decoration: none; }
+a[data-route]:not(.topbar-navlink):not(.deploy-seg) { color: inherit; }

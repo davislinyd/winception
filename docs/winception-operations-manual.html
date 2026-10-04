@@ -431,6 +431,7 @@ cd '&lt;repo-root&gt;'
           <p class="section-kicker">05 · Preparation</p>
           <h2>部署前準備</h2>
           <p>目前 Web Console 首頁預設為繁體中文「引導」模式：頂部工作區是 <strong>開始部署</strong> 與 <strong>部署活動</strong>，並可用 <strong>引導 / 控制台</strong> 切換密度。引導模式會依 state 只顯示一個下一步，並以「主機設定 → 選擇 Windows → 檢查主機 → 啟動服務」呈現流程；服務、Endpoint Sync、Profile publish、Offline ISO 與其他有副作用的操作仍沿用既有確認視窗與安全門檻。</p>
+          <p>功能網址可收藏、複製及直接開啟；重新整理與瀏覽器上一頁／下一頁會恢復網址指定的功能。<code>/</code> 固定為開始部署，<code>/fleet</code> 為部署活動；設定入口包含 <code>/setup</code>、<code>/profiles</code>、<code>/profiles/software</code>、<code>/profiles/scripts</code>、<code>/os-images</code>、<code>/endpoint</code>、<code>/software-test</code>。控制台使用 <code>/services</code>、<code>/content</code>、<code>/network</code>、<code>/checks</code>、<code>/tools</code>、<code>/diagnostics</code>、<code>/offline-iso</code>、<code>/logs</code>。<code>?mode=guided</code> 或 <code>?mode=console</code> 保留模式；控制台專用入口固定為 console。開啟網址不會啟動服務或執行同步、診斷與測試。</p>
           <div class="callout"><strong>操作方式</strong>現場人員先看「下一步」卡片的主按鈕。若需要調整 Profile、OS Image、Endpoint、Boot Mode、DHCP Mode、NAT、Diagnostics、Software Test 或 System Log，切換到 <strong>控制台</strong>；完整 Fleet 搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions 位於 <strong>部署活動</strong>。</div>
           <ol>
             <li>確認 deployment project root；可輸入自訂絕對路徑，但不得位於 Git clone 或 <code>HostTools</code> 內。</li>

@@ -34,6 +34,7 @@ export function handleDocumentClick(event) {
   if (!target) {
     return;
   }
+  if (target.closest('a[data-route]')) return;
   const onboardingButton = target.closest('[data-onboarding-action]');
   if (onboardingButton) {
     handleOnboardingAction(onboardingButton).catch(showOperationError);

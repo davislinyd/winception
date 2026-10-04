@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Winception 部署主控台</title>
-  <link rel="stylesheet" href="./css/01-base.css">
-  <link rel="stylesheet" href="./css/02-cards-forms.css">
-  <link rel="stylesheet" href="./css/03-layout.css">
-  <link rel="stylesheet" href="./css/04-tables.css">
-  <link rel="stylesheet" href="./css/05-components.css">
-  <link rel="stylesheet" href="./css/06-shell.css">
-  <link rel="stylesheet" href="./css/07-views.css">
+  <link rel="stylesheet" href="/css/01-base.css">
+  <link rel="stylesheet" href="/css/02-cards-forms.css">
+  <link rel="stylesheet" href="/css/03-layout.css">
+  <link rel="stylesheet" href="/css/04-tables.css">
+  <link rel="stylesheet" href="/css/05-components.css">
+  <link rel="stylesheet" href="/css/06-shell.css">
+  <link rel="stylesheet" href="/css/07-views.css">
 </head>
 <body class="bg-paper text-ink h-screen overflow-hidden flex font-body" data-operator-mode="guided">
 
@@ -18,21 +18,21 @@
   <div class="shell">
     <header class="topbar">
       <div class="topbar-brand">
-        <img class="brand-mark" src="logo.png" width="36" height="36" alt="Winception" aria-hidden="true">
+        <img class="brand-mark" src="/logo.png" width="36" height="36" alt="Winception" aria-hidden="true">
         <div class="topbar-brand-text">
           <span class="topbar-brand-name">Winception</span>
           <span id="app-version" class="topbar-brand-version"></span>
         </div>
       </div>
       <nav class="topbar-nav" aria-label="主要工作區">
-        <button id="tab-dashboard" class="topbar-navlink active" type="button" title="開始部署">
+        <a id="tab-dashboard" class="topbar-navlink active" title="開始部署" data-route="/" href="/?mode=guided">
           <span class="material-symbols-outlined">rocket_launch</span>
           <span>開始部署</span>
-        </button>
-        <button id="tab-fleet" class="topbar-navlink" type="button" title="部署活動">
+        </a>
+        <a id="tab-fleet" class="topbar-navlink" title="部署活動" data-route="/fleet" href="/fleet?mode=guided">
           <span class="material-symbols-outlined">analytics</span>
           <span>部署活動</span>
-        </button>
+        </a>
       </nav>
       <div class="topbar-status">
         <div id="operator-mode-toggle" class="operator-mode-toggle" role="radiogroup" aria-label="操作模式">
@@ -94,7 +94,7 @@
                 </div>
                 <div class="beginner-next-actions">
                   <button id="beginner-primary-action" class="btn-primary beginner-primary-action" data-action="beginner-primary" type="button" disabled>正在載入</button>
-                  <button id="beginner-secondary-action" class="beginner-secondary-action" data-action="initialization" type="button">開啟逐步設定</button>
+                  <a id="beginner-secondary-action" class="beginner-secondary-action" data-action="initialization" data-route="/setup" href="/setup?mode=guided">開啟逐步設定</a>
                 </div>
               </section>
 
@@ -145,18 +145,18 @@
                   </div>
                 </div>
                 <div class="beginner-config-grid">
-                  <button class="beginner-config-item deploy-seg" data-action="profiles" data-operation-allowed="inspect" aria-controls="deployment-profiles-dialog" aria-expanded="false" type="button">
+                  <a class="beginner-config-item deploy-seg" data-action="profiles" data-operation-allowed="inspect" aria-controls="deployment-profiles-dialog" aria-expanded="false" data-route="/profiles" href="/profiles?mode=guided">
                     <span class="beginner-config-label">部署設定</span>
                     <span id="active-profile-details" class="beginner-config-value"></span>
-                  </button>
-                  <button class="beginner-config-item deploy-seg" data-action="os-images" data-operation-allowed="inspect" aria-controls="os-images-dialog" aria-expanded="false" type="button">
+                  </a>
+                  <a class="beginner-config-item deploy-seg" data-action="os-images" data-operation-allowed="inspect" aria-controls="os-images-dialog" aria-expanded="false" data-route="/os-images" href="/os-images?mode=guided">
                     <span class="beginner-config-label">Windows 映像</span>
                     <span id="active-os-details" class="beginner-config-value"></span>
-                  </button>
-                  <button class="beginner-config-item deploy-seg" data-action="interfaces" data-operation-allowed="inspect" aria-controls="endpoint-settings-dialog" aria-expanded="false" type="button">
+                  </a>
+                  <a class="beginner-config-item deploy-seg" data-action="interfaces" data-operation-allowed="inspect" aria-controls="endpoint-settings-dialog" aria-expanded="false" data-route="/endpoint" href="/endpoint?mode=guided">
                     <span class="beginner-config-label">網路位置</span>
                     <span id="summary-endpoint" class="beginner-config-value mono"></span>
-                  </button>
+                  </a>
                 </div>
               </section>
 
@@ -204,11 +204,11 @@
                 <h2>主機操作</h2>
               </div>
               <nav class="console-jump" aria-label="控制台章節">
-                <button type="button" data-action="console-jump" data-console-jump="console-services">服務</button>
-                <button type="button" data-action="console-jump" data-console-jump="console-content">內容</button>
-                <button type="button" data-action="console-jump" data-console-jump="console-network">網路</button>
-                <button type="button" data-action="console-jump" data-console-jump="console-checks">檢查</button>
-                <button type="button" data-action="console-jump" data-console-jump="console-tools">工具</button>
+                <a data-action="console-jump" data-console-jump="console-services" data-route="/services" href="/services?mode=console">服務</a>
+                <a data-action="console-jump" data-console-jump="console-content" data-route="/content" href="/content?mode=console">內容</a>
+                <a data-action="console-jump" data-console-jump="console-network" data-route="/network" href="/network?mode=console">網路</a>
+                <a data-action="console-jump" data-console-jump="console-checks" data-route="/checks" href="/checks?mode=console">檢查</a>
+                <a data-action="console-jump" data-console-jump="console-tools" data-route="/tools" href="/tools?mode=console">工具</a>
               </nav>
             </div>
 
@@ -245,7 +245,7 @@
                       <button data-action="preflight" data-icon="fact_check" class="warning" type="button">執行部署前檢查</button>
                     </section>
                     <section class="management-status-panel">
-                      <div class="panel-title-row"><h4>Diagnostics</h4><span id="diagnostics-status-badge" class="status-pill neutral" aria-live="polite">沒有資料</span></div>
+                      <div class="panel-title-row"><h4><a data-route="/diagnostics" href="/diagnostics?mode=console">Diagnostics</a></h4><span id="diagnostics-status-badge" class="status-pill neutral" aria-live="polite">沒有資料</span></div>
                       <div id="diagnostics-headline" class="font-ui-label text-ui-label">尚未產生診斷資料。</div>
                       <div id="diagnostics-summary" class="preflight-summary-list font-data-tabular text-data-tabular"></div>
                       <div class="management-button-row"><button id="diagnostics-run-button" data-action="diagnostics-run" data-diagnostics-scope="full" data-diagnostics-trigger="manual" data-icon="health_metrics" class="warning" type="button">執行診斷</button><button id="diagnostics-download-button" data-action="diagnostics-download" data-icon="download" type="button" disabled>下載 ZIP</button></div>
@@ -262,8 +262,8 @@
                 <section id="console-content" class="console-panel">
                   <div class="management-section-heading"><div><span class="beginner-section-kicker">部署內容</span><h3>選擇要部署的內容</h3></div></div>
                   <div class="management-action-grid">
-                    <button data-action="profiles" data-operation-allowed="inspect" type="button"><span class="material-symbols-outlined">badge</span><span><strong>Profiles</strong><small>選擇部署設定與軟體</small></span></button>
-                    <button data-action="os-images" data-operation-allowed="inspect" type="button"><span class="material-symbols-outlined">disc_full</span><span><strong>OS Image</strong><small>快取、下載或匯入映像</small></span></button>
+                    <a data-action="profiles" data-operation-allowed="inspect" data-route="/profiles" href="/profiles?mode=guided"><span class="material-symbols-outlined">badge</span><span><strong>Profiles</strong><small>選擇部署設定與軟體</small></span></a>
+                    <a data-action="os-images" data-operation-allowed="inspect" data-route="/os-images" href="/os-images?mode=guided"><span class="material-symbols-outlined">disc_full</span><span><strong>OS Image</strong><small>快取、下載或匯入映像</small></span></a>
                     <button data-action="software-add" type="button"><span class="material-symbols-outlined">install_desktop</span><span><strong>Client Software</strong><small>新增 MSI、EXE 安裝套件</small></span></button>
                     <button data-action="script-add" type="button"><span class="material-symbols-outlined">code</span><span><strong>PowerShell Scripts</strong><small>新增部署前後腳本</small></span></button>
                   </div>
@@ -272,7 +272,7 @@
                 <section id="console-network" class="console-panel">
                   <div class="management-section-heading"><div><span class="beginner-section-kicker">網路與服務</span><h3>Endpoint 與部署服務</h3></div></div>
                   <div class="management-action-grid">
-                    <button data-action="interfaces" data-operation-allowed="inspect" type="button"><span class="material-symbols-outlined">lan</span><span><strong>Endpoint Settings</strong><small>介面、Boot Mode、DHCP、NAT 與 Sync</small></span></button>
+                    <a data-action="interfaces" data-operation-allowed="inspect" data-route="/endpoint" href="/endpoint?mode=guided"><span class="material-symbols-outlined">lan</span><span><strong>Endpoint Settings</strong><small>介面、Boot Mode、DHCP、NAT 與 Sync</small></span></a>
                     <button data-action="initialization" data-initialization-step="endpoint" type="button"><span class="material-symbols-outlined">fact_check</span><span><strong>完整檢查清單</strong><small>查看所有 10 個部署步驟</small></span></button>
                   </div>
                   <section id="endpoint-summary" class="endpoint-summary-grid" aria-label="Endpoint summary"></section>
@@ -294,7 +294,7 @@
                   <div class="management-section-heading"><div><span class="beginner-section-kicker">工具</span><h3>ISO、測試與紀錄</h3></div></div>
                   <div class="management-check-grid">
                     <section class="management-status-panel">
-                      <div class="panel-title-row"><h4>Offline ISO</h4><span id="offline-iso-status-badge" class="status-pill neutral" aria-live="polite">閒置</span></div>
+                      <div class="panel-title-row"><h4><a data-route="/offline-iso" href="/offline-iso?mode=console">Offline ISO</a></h4><span id="offline-iso-status-badge" class="status-pill neutral" aria-live="polite">閒置</span></div>
                       <div id="offline-iso-headline" class="font-ui-label text-ui-label">從目前部署狀態建立主機端 ISO。</div>
                       <dl id="offline-iso-details" class="stitch-details font-data-tabular text-data-tabular"></dl>
                       <button id="offline-iso-create-button" data-action="offline-iso-create" data-icon="download" class="warning" type="button">建立 ISO</button>
@@ -375,7 +375,7 @@
     <section id="console-dock" class="console-dock collapsed" aria-label="Console output">
       <div id="console-dock-head" class="console-dock-head" role="button" tabindex="0" aria-expanded="false" aria-controls="logs">
         <span class="material-symbols-outlined console-dock-icon">terminal</span>
-        <span class="console-dock-title">Console</span>
+        <a class="console-dock-title" data-route="/logs" href="/logs?mode=console">Console</a>
         <span id="console-op-label" class="console-dock-op font-technical-string"></span>
         <span id="console-op-badge" class="status-pill neutral" aria-live="polite">Idle</span>
         <span id="console-op-error" class="console-dock-error" hidden></span>
@@ -514,10 +514,10 @@
           </div>
         </section>
 
-        <section class="drawer-section">
+        <section id="software-test-section" class="drawer-section">
           <div class="drawer-section-header">
             <div>
-              <h4>Software Test VM</h4>
+              <h4><a data-route="/software-test" href="/software-test?mode=console">Software Test VM</a></h4>
               <div id="software-test-summary" class="drawer-subtitle">一次登記專用乾淨 VM，之後不用 PXE 就能測試 software。</div>
             </div>
             <div class="drawer-actions">
@@ -534,10 +534,10 @@
           </div>
         </section>
 
-        <section class="drawer-section">
+        <section id="software-catalog-section" class="drawer-section">
           <div class="drawer-section-header">
             <div>
-              <h4>Software Catalog</h4>
+              <h4><a data-route="/profiles/software" href="/profiles/software?mode=guided">Software Catalog</a></h4>
               <div class="drawer-subtitle">
                 <span>Add packages here, then use Edit active to include them in a profile.</span>
               </div>
@@ -562,10 +562,10 @@
           </div>
         </section>
 
-        <section class="drawer-section">
+        <section id="script-catalog-section" class="drawer-section">
           <div class="drawer-section-header">
             <div>
-              <h4>Custom Scripts</h4>
+              <h4><a data-route="/profiles/scripts" href="/profiles/scripts?mode=guided">Custom Scripts</a></h4>
               <div class="drawer-subtitle">
                 <span>Upload PowerShell scripts (.ps1) that run before or after app installation.</span>
               </div>
@@ -1245,6 +1245,6 @@
     </form>
   </dialog>
 
-  <script src="./js/main.js" type="module"></script>
+  <script src="/js/main.js" type="module"></script>
 </body>
 </html>

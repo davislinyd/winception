@@ -1,4 +1,5 @@
 import { switchToView } from './actions.js';
+import { navigate, isApplyingRoute, closeRoutePanel, currentRoute } from './navigation.js';
 import { api, mutate } from './api.js';
 import { $, $$, elements } from './dom.js';
 import { operationErrorDetails, showOperationError, showOperationNotice } from './errorDialog.js';
@@ -120,6 +121,9 @@ export function closeEmbeddedConfig(except = null) {
     host.hidden = true;
   }
   syncEmbeddedConfigSummaryState();
+  if (!except) {
+    for (const name of ['deploymentProfilesDialog', 'osImagesDialog', 'endpointSettingsDialog']) closeRoutePanel(name);
+  }
 }
 
 export function restoreEmbeddedDialog(dialog) {
@@ -158,7 +162,7 @@ export function openEmbeddedConfig(dialog) {
     dialog.dataset.embeddedCloseBound = '1';
     dialog.addEventListener('close', () => restoreEmbeddedDialog(dialog));
   }
-  switchToView('dashboard');
+  switchToView('dashboard', { internal: true });
   host.hidden = false;
   host.append(dialog);
   dialog.classList.add('embedded-open');
@@ -190,6 +194,16 @@ export function bindEmbeddedConfigHeaderToggles() {
 }
 
 export function openDialog(dialog) {
+  if (!isApplyingRoute()) {
+    const path = dialog === elements.deploymentProfilesDialog ? '/profiles'
+      : dialog === elements.osImagesDialog ? '/os-images'
+        : dialog === elements.endpointSettingsDialog ? '/endpoint'
+          : dialog === elements.initializationDialog ? '/setup' : null;
+    if (path && currentRoute()?.path !== path) {
+      navigate(path);
+      return;
+    }
+  }
   if (isEmbeddedConfigDialog(dialog)) {
     openEmbeddedConfig(dialog);
     return;
@@ -210,6 +224,7 @@ export function closeDialog(dialog, returnValue = '') {
   if (!isDialogOpen(dialog)) {
     return;
   }
+  dialog.dataset.routeSilentClose = 'true';
   if (typeof dialog.close === 'function') {
     dialog.close(returnValue);
   } else {
@@ -231,6 +246,9 @@ export function cancelDialog(dialog) {
   const shouldClose = dialog.dispatchEvent(cancelEvent);
   if (shouldClose && isDialogOpen(dialog)) {
     closeDialog(dialog, 'cancel');
+    for (const name of ['initializationDialog', 'deploymentProfilesDialog', 'osImagesDialog', 'endpointSettingsDialog']) {
+      if (elements[name] === dialog) closeRoutePanel(name);
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import { $, $$, elements } from './dom.js';
 import { text } from './format.js';
 import { state } from './state.js';
+import { currentRoute } from './navigation.js';
 
 let consoleDockAttentionTimer = null;
 
@@ -299,7 +300,7 @@ export function renderConsoleDock(appState) {
     || operation?.status === 'completed'
     || Boolean(operation?.error)
     || Boolean(activeTest);
-  elements.consoleDock.classList.toggle('console-dock-idle', !hasActivity);
+  elements.consoleDock.classList.toggle('console-dock-idle', !hasActivity && currentRoute()?.path !== '/logs');
   const label = operation?.label ?? (pending ? 'Starting operation...' : '');
   elements.consoleOpLabel.textContent = label;
   let statusText = 'Idle';

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { uiRoutes } from '../web/js/routes.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -407,6 +408,33 @@ async function makeServer(root, overrides = {}) {
   await server.start({ host: overrides.listenHost ?? '127.0.0.1', port: 0 });
   return server;
 }
+
+test('UI route allowlist serves GET/HEAD without masking missing resources or APIs', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-routes-'));
+  const server = await makeServer(root);
+  try {
+    const base = `http://127.0.0.1:${server.address.port}`;
+    for (const route of uiRoutes) {
+      for (const suffix of ['', '/']) {
+        const url = `${base}${route.path === '/' ? '/' : route.path + suffix}?mode=console`;
+        const response = await fetch(url);
+        assert.equal(response.status, 200, url);
+        assert.match(await response.text(), /Smoke/);
+        const head = await fetch(url, { method: 'HEAD' });
+        assert.equal(head.status, 200);
+        assert.equal(await head.text(), '');
+      }
+      assert.equal((await fetch(`${base}${route.path}`, { method: 'POST' })).status, 405);
+    }
+    for (const pathname of ['/unknown', '/profiles/missing', '/css/missing.css', '/js/missing.js', '/api/missing']) {
+      assert.equal((await fetch(`${base}${pathname}`)).status, 404, pathname);
+    }
+    assert.equal((await fetch(`${base}/manual/`)).status, 200);
+  } finally {
+    await server.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('serves static UI and read-only state', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'osdcloud-web-state-'));

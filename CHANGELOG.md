@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Web Console now provides allowlisted feature URLs and explicit guided/console modes, with direct entry, refresh, bookmarks and Back/Forward. Settings keep their existing embedded panels; navigation never runs deployment actions. The root always opens Start deployment, independent of legacy local view preferences.
+
 - GitHub Pages now also publishes the torrent briefing at `/torrent/` from `docs/winception_torrent_deck`. The site root remains Operations Manual v1.1.0; `workflow_dispatch` of `.github/workflows/publish-pages.yml` is still the only refresh path.
 
 - `Restart-HyperVms.ps1` now defaults to AutoLab `winception-autolab-01..04`, refuses the router/software-test/USB VMs, and can restore `Winception-Clean` (`-RestoreCheckpoint`) then reapply Secure Boot/TPM and Network-first boot. `-NoStart` leaves VMs Off after restore. Historical `winception-client-*` remains available only via `-VmPrefix`.

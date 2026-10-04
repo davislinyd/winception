@@ -446,9 +446,7 @@ export function renderInitialization(appState) {
   const deploymentReady = initialization.deploymentReady === true;
   const deploymentLive = initialization.deploymentLive === true;
   if (state.currentView === null) {
-    const saved = localStorage.getItem('winception-view');
-    const valid = new Set(['dashboard', 'fleet', 'services', 'logs']);
-    state.currentView = saved === 'prepare' || saved === 'guided' ? 'dashboard' : (saved && valid.has(saved)) ? saved : 'dashboard';
+    state.currentView = 'dashboard';
   }
 
   // Toggle active views and nav tabs (Deploy / Monitor)
@@ -696,13 +694,6 @@ export function renderInitialization(appState) {
     elements.initializationNext.disabled = initializationBusy;
   }
 
-  if (!initialized && !state.initializationAutoOpened && !document.querySelector('dialog[open]')) {
-    state.initializationAutoOpened = true;
-    if (!localStorage.getItem('winception-view')) {
-      switchToView('dashboard');
-    }
-    openDialog(elements.initializationDialog);
-  }
   renderWizardNavigation(appState, initialization);
   restoreInitializationDialogScrollPosition(dialogScrollPosition);
   restoreInitializationTextControlFocus(focusedTextControl);

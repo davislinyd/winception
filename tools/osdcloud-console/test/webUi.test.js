@@ -43,7 +43,7 @@ function readWebStyles() {
   const cssDir = path.join(webRoot, 'css');
   if (fs.existsSync(cssDir)) {
     const html = fs.readFileSync(path.join(webRoot, 'index.html'), 'utf8');
-    const hrefs = [...html.matchAll(/<link[^>]+href="\.\/(css\/[^"]+\.css)"/g)].map((m) => m[1]);
+    const hrefs = [...html.matchAll(/<link[^>]+href="(?:\.\/|\/)(css\/[^"]+\.css)"/g)].map((m) => m[1]);
     if (hrefs.length) {
       return hrefs.map((h) => fs.readFileSync(path.join(webRoot, h), 'utf8')).join('\n');
     }
@@ -130,7 +130,7 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(html, /class="shell"/);
   assert.match(html, /class="topbar"/);
   assert.match(html, /class="topbar-nav"/);
-  assert.match(html, /class="brand-mark" src="logo\.png"/);
+  assert.match(html, /class="brand-mark" src="\/logo\.png"/);
   assert.match(html, /id="manual-link"[^>]*href="\/manual\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
   assert.match(html, /id="update-check-button"[^>]*data-action="update-check"/);
   assert.match(html, /id="update-status" role="status">檢查更新/);
@@ -530,7 +530,6 @@ test('web UI exposes dashboard view topology', () => {
   assert.match(script, /restoreInitializationDetailScrollPosition\(step\.id, detailList\);/);
   assert.match(script, /!hasInlineSecretsForm/);
   assert.match(script, /dataset\.initAction = 'save-secrets'/);
-  assert.match(script, /initializationAutoOpened/);
   assert.match(script, /\/api\/secrets/);
   assert.match(script, /dataset\.initAction/);
   assert.match(script, /\/api\/runtime\/prepare/);

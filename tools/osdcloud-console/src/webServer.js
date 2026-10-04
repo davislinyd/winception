@@ -4,6 +4,7 @@ import path from 'node:path';
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { webServerConfig } from './config.js';
+import { findUiRoute } from '../web/js/routes.js';
 import { ServiceController } from './controller/index.js';
 import { publicApiError } from './controller/helpers.js';
 import { ensureWebConsoleToken, tokenMatches, webAuthState } from './webAuth.js';
@@ -751,7 +752,7 @@ export class WebManagementServer {
       return;
     }
 
-    const filePath = resolveStaticPath(this.staticRoot, requestUrl.pathname);
+    const filePath = resolveStaticPath(this.staticRoot, findUiRoute(requestUrl.pathname) ? '/' : requestUrl.pathname);
     if (!filePath) {
       sendText(res, 403, 'Forbidden');
       return;

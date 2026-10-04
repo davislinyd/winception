@@ -19,6 +19,7 @@ Winception 是一套 Windows 11 zero-touch deployment 工具。技術人員在�
 - 首頁預設為繁體中文「引導」模式：只顯示目前部署內容、狀態、單一下一步、四個階段與簡短部署概況；頂部可切換到「控制台」模式查看全部主機控制項。
 - 透過 Client Fleet、Activity、Validation Evidence 與 System Log 追蹤每台電腦的部署狀態。
 - `部署活動` 保留 Fleet 的搜尋、篩選、Evidence、Archive、Delete 與 Bulk actions；`控制台` 模式集中 Profiles、OS Image、Endpoint、Services、Diagnostics、Offline ISO、Software Test 與 System Log。
+- 功能網址支援直接開啟、收藏及瀏覽器上一頁／下一頁：`/` 固定為開始部署，`/fleet` 為部署活動；`/setup`、`/profiles`、`/profiles/software`、`/profiles/scripts`、`/os-images`、`/endpoint`、`/software-test` 可開啟設定入口。控制台區塊使用 `/services`、`/content`、`/network`、`/checks`、`/tools`、`/diagnostics`、`/offline-iso`、`/logs`。網址以 `?mode=guided` 或 `?mode=console` 保留模式；控制台專用入口固定使用 console。開啟網址只顯示內容，不會執行部署操作。
 - 在 Web Console 版本號旁自動檢查正式 GitHub Release；只提示可用更新與 Release 指引，不會下載、覆寫或重啟服務。
 
 適用對象：
@@ -588,6 +589,8 @@ Rules:
 - The Web Console API bypasses token auth on loopback (`localhost` / `127.x` / `::1`). If the Web host binds to a non-loopback address, every `/api/*` endpoint except `/api/auth/status` requires `X-Winception-Token`. The token lives at `C:\OSDCloud\HostTools\State\config\web-console-token.json` and is never written to the repo or returned by API responses.
 
 ### 05. Pre-Deployment Preparation
+
+Feature URLs support bookmarks, direct entry, refresh and browser Back/Forward. `/` always opens Start deployment; `/fleet` opens Activity. Settings use `/setup`, `/profiles`, `/profiles/software`, `/profiles/scripts`, `/os-images`, `/endpoint` and `/software-test`. Console sections use `/services`, `/content`, `/network`, `/checks`, `/tools`, `/diagnostics`, `/offline-iso` and `/logs`. `?mode=guided` or `?mode=console` preserves the display mode; console-only routes require console mode. Opening a URL displays content without executing deployment actions.
 
 The Web Console top bar has **Start deployment** / **Activity**, plus a **Guided / Console** density toggle. First visit defaults to Guided: one state-derived next action, the selected deployment content, a four-stage flow, and a short deployment summary. Console mode is the in-page ops board for Profiles, OS Image, Endpoint, Services, Diagnostics, Offline ISO, Software Test, and System Log. Activity remains the full Fleet workspace. Actions with side effects keep the existing confirmation dialogs, Preflight gates, and DHCP safety rules. On first launch, choose `完成基本設定` and complete Guided Setup in its closable dialog (the UI says “查看所有 10 個部署步驟”). The five-stage first-use wizard also inserts a wiring-scene choice; the full checklist is:
 

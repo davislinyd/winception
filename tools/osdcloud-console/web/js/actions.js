@@ -10,6 +10,7 @@ import { confirmPrepareRuntime } from './setup.js';
 import { state } from './state.js';
 import { applyOperatorMode } from './operatorMode.js';
 import { dhcpSafetyText } from './onboarding.js';
+import { navigate, navigateAction, isApplyingRoute } from './navigation.js';
 import { copyTextWithFeedback, setConsoleDockCollapsed, setControlsDisabled } from './ui.js';
 
 export function setFleetExpanded(expanded) {
@@ -20,7 +21,11 @@ export function setFleetExpanded(expanded) {
   renderFleetExpandedState();
 }
 
-export function switchToView(viewName) {
+export function switchToView(viewName, options = {}) {
+  if (!isApplyingRoute() && !options.internal) {
+    navigate(viewName === 'fleet' ? '/fleet' : viewName === 'prepare' || viewName === 'guided' ? '/setup' : '/');
+    return;
+  }
   const normalizedView = viewName === 'prepare' || viewName === 'guided' ? 'dashboard' : viewName;
   const opensSetup = viewName === 'prepare' || viewName === 'guided';
   if (state.currentView === normalizedView) {
@@ -32,7 +37,6 @@ export function switchToView(viewName) {
     return;
   }
   state.currentView = normalizedView;
-  localStorage.setItem('winception-view', normalizedView);
   if (opensSetup) {
     state.guidedStepCollapsed = false;
   }
@@ -582,6 +586,11 @@ async function handleUpdateCheck() {
 }
 
 export async function handleAction(action, source = null) {
+  if (action === 'initialization' || source?.dataset?.managementTarget === 'initialization') {
+    state.selectedGuidedStepId = source?.dataset?.initializationStep ?? source?.dataset?.managementStep ?? state.selectedGuidedStepId;
+    state.guidedStepCollapsed = false;
+  }
+  if (navigateAction(action, source)) return;
   const services = state.current?.services ?? {};
   if (action === 'operator-mode') {
     applyOperatorMode(source?.dataset?.operatorMode, { applyDockDefault: true });
@@ -714,6 +723,7 @@ export async function handleAction(action, source = null) {
     elements.softwareTestContent.hidden = !expanded;
     elements.softwareTestToggle.textContent = expanded ? '收合' : '展開';
     elements.softwareTestToggle.setAttribute('aria-expanded', String(expanded));
+    navigate(expanded ? '/software-test' : '/profiles');
   } else if (action === 'software-test-settings') {
     await showSoftwareTestDialog(state.current?.softwareTest?.configuration ?? {}, async (input) => {
       await mutate('/api/software-test/config', input, { alertOnError: false, rethrow: true });

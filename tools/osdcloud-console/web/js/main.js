@@ -1,19 +1,55 @@
 import { handleAction, setFleetExpanded, switchToView } from './actions.js';
 import { handleDocumentClick } from './actionRegistry.js';
-import { api, loadAuthStatus, refresh, saveAuthToken, storedAuthToken } from './api.js';
+import { api, loadAuthStatus, loadInterfaces, refresh, saveAuthToken, storedAuthToken } from './api.js';
 import { clearRefineFilters, openValidationEvidenceFromTarget } from './deploy.js';
-import { bindEmbeddedConfigHeaderToggles, closeDialog, closeEmbeddedConfig, enableBackdropCloseForDialogs, isInsideStandaloneDialog, suppressBackdropCloseClickThrough } from './dialogs.js';
+import { bindEmbeddedConfigHeaderToggles, cancelDialog, closeDialog, closeEmbeddedConfig, enableBackdropCloseForDialogs, isInsideStandaloneDialog, openDialog, suppressBackdropCloseClickThrough } from './dialogs.js';
 import { $, $$, elements } from './dom.js';
 import { showOperationError } from './errorDialog.js';
 import { renderFleetCards } from './fleet.js';
 import { render } from './render.js';
 import { state } from './state.js';
-import { applyOperatorMode, readStoredOperatorMode } from './operatorMode.js';
+import { applyOperatorMode } from './operatorMode.js';
+import { initializeNavigation, currentRoute, navigationReady, closeRoutePanel } from './navigation.js';
 import { copyConsoleLog, hydrateActionIcons, hydrateStaticIcons, setConsoleDockCollapsed } from './ui.js';
 
 hydrateStaticIcons();
 hydrateActionIcons();
-applyOperatorMode(readStoredOperatorMode(), { persist: false, applyDockDefault: true });
+initializeNavigation((route) => {
+  const panel = route.panel ? elements[route.panel] : null;
+  closeEmbeddedConfig(panel);
+  for (const dialog of document.querySelectorAll('dialog[open]:not(.embedded-open)')) {
+    if (dialog !== panel) cancelDialog(dialog);
+  }
+  state.currentView = route.view ?? 'dashboard';
+  applyOperatorMode(route.mode, { applyDockDefault: true });
+  render();
+  if (panel && !panel.hasAttribute('open')) openDialog(panel);
+  if (route.path === '/endpoint') void loadInterfaces();
+  if (route.path === '/software-test') {
+    const content = document.getElementById('software-test-content');
+    if (content) content.hidden = false;
+    elements.softwareTestToggle?.setAttribute('aria-expanded', 'true');
+    if (elements.softwareTestToggle) elements.softwareTestToggle.textContent = '收合';
+  }
+  if (route.path === '/logs') {
+    state.consoleDockUserToggled = true;
+    setConsoleDockCollapsed(false);
+  }
+  if (route.target) requestAnimationFrame(() => {
+    if (currentRoute()?.href === route.href) document.getElementById(route.target)?.scrollIntoView({ block: 'start' });
+  });
+});
+state.currentView = currentRoute()?.view ?? 'dashboard';
+applyOperatorMode(currentRoute()?.mode ?? 'guided', { persist: false, applyDockDefault: true });
+for (const name of ['initializationDialog', 'deploymentProfilesDialog', 'osImagesDialog', 'endpointSettingsDialog']) {
+  elements[name]?.addEventListener('close', () => {
+    if (elements[name].dataset.routeSilentClose) {
+      delete elements[name].dataset.routeSilentClose;
+      return;
+    }
+    closeRoutePanel(name);
+  });
+}
 
 let deployTooltipTarget = null;
 let deployTooltipHideTimer = null;
@@ -230,6 +266,9 @@ document.addEventListener('submit', (event) => {
   }
   event.preventDefault();
   closeDialog(dialog, event.submitter?.value ?? '');
+  for (const name of ['initializationDialog', 'deploymentProfilesDialog', 'osImagesDialog', 'endpointSettingsDialog']) {
+    if (elements[name] === dialog) closeRoutePanel(name);
+  }
 });
 
 elements.endpointSettingsDialog?.addEventListener('close', () => {
@@ -246,7 +285,7 @@ document.addEventListener('mousedown', (event) => {
   const target = event.target instanceof Element ? event.target : event.target?.parentElement;
   if (!target) return;
   // deploy-seg segment buttons have their own toggle logic — don't interfere
-  if (target.closest('.deploy-seg[data-action]')) return;
+  if (target.closest('.deploy-seg[data-action], a[data-route], [data-action="operator-mode"], [data-action="initialization"]')) return;
   if (isInsideStandaloneDialog(target)) return;
   if (!target.closest('#config-embed')) {
     closeEmbeddedConfig();
@@ -305,7 +344,7 @@ elements.authForm?.addEventListener('submit', (event) => {
   event.preventDefault();
   saveAuthToken(elements.webTokenInput?.value ?? '');
   refresh()
-    .then(() => renderAuthGate())
+    .then(() => { renderAuthGate(); navigationReady(); })
     .catch(() => renderAuthGate());
 });
 
@@ -381,10 +420,6 @@ elements.consoleDockCopy?.addEventListener('click', (event) => {
 
 // Header workspace switcher (開始部署 / 部署活動). Advanced controls live in Management.
 if (elements.tabDashboard) {
-  elements.tabDashboard.addEventListener('click', () => switchToView('dashboard'));
-  if (elements.tabFleet) {
-    elements.tabFleet.addEventListener('click', () => switchToView('fleet'));
-  }
   if (elements.navServices) {
     elements.navServices.addEventListener('click', () => {
       switchToView('dashboard');
@@ -427,6 +462,7 @@ async function boot() {
   renderAuthGate();
   if (!state.auth.required || storedAuthToken()) {
     await refresh();
+    navigationReady();
     renderAuthGate();
   }
 }
@@ -438,6 +474,6 @@ boot().catch((error) => {
 });
 setInterval(() => {
   if (!state.auth.required || storedAuthToken()) {
-    refresh().then(() => renderAuthGate()).catch(() => renderAuthGate());
+    refresh().then(() => { renderAuthGate(); navigationReady(); }).catch(() => renderAuthGate());
   }
 }, 2500);

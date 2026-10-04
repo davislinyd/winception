@@ -1,3 +1,14 @@
+# Feature URL acceptance — 2026-10-05
+
+Source / isolated UI only; app version remains **1.1.0**. Installed 8080, deployment services, PXE, VMs and physical clients were not changed or validated by this task.
+
+- Added 17 allowlisted feature routes with explicit `mode`, direct entry/reload, native link/new-tab behavior and Back/Forward. `/` always opens Start deployment; legacy local view/mode preferences cannot override the URL. Settings retain the existing embedded panels and dialogs.
+- `npm run check`, `npm run smoke`, and `npm run acceptance:source`: **Passed**. Full Node suite: **499 passed / 3 skipped / 0 failed** (502 total). Direct `npm test` required filtering the inherited bundled `codex-runtimes` PowerShell module path in the child environment; the existing source acceptance runner already applies this filter. No project or machine module configuration was changed.
+- Full isolated UI suite: **33 passed / 0 failed / cleanup Passed** on installed Microsoft Edge (`PLAYWRIGHT_CHANNEL=msedge`). An additional targeted scenario for explicit close buttons and child editor cancellation also **Passed**. The bundled Playwright Chromium executable was unavailable.
+- UI scenarios cover all routes and reloads, mode normalization, legacy preferences, blocked localStorage, authentication and failed initial reads, origin restoration across panels, repeated toggles, browser history, Ctrl-click/new tabs, idle logs, polling/scroll stability, and narrow layouts. Opening/reloading routes emits no deployment mutation requests.
+- Local evidence (excluded from commits): `test-results/navigation-full-test.txt`, `test-results/navigation-close.txt`, `test-results/navigation-ui-full.txt`, `test-results/acceptance-source/result.json`, `test-results/acceptance-ui-report/result.json`, and `test-results/acceptance-ui-cleanup.json`. Source acceptance was run against the working tree before the delivery commit; its `sourceCommit` is the base commit and its hash identifies that validation snapshot.
+- README, operations manual and Unreleased changelog describe the route contract. No SemVer declaration was found in the applicable project conventions, so no automatic version bump, release ZIP, tag, push or official-console promotion was performed.
+
 # Current acceptance status — 2026-09-21
 
 AutoLab `-Mode SecureBoot` four-VM live proof **Passed** on evidence root `secureboot-20260920e` (source commit `9960aad`, cleanup Passed, profile restored to `IZVZO7PU`).
