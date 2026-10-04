@@ -1,3 +1,13 @@
+# Installed feature URL acceptance — 2026-10-05
+
+Official `http://127.0.0.1:8080/` now serves the feature-route Console. The operator explicitly approved interruption and requested deployment services remain stopped after the update.
+
+- Promotion source: `codex/feature-route-promotion-20261005` at `da8d2d7`, in `.ai/feature-route-promotion`; its Console source and Web assets are identical to the implementation commit `ff7b997`. The candidate retains the previously verified transactional HostTools upgrade scripts from `a76c0be` and starts the Console with a hidden window. Root checkout's existing `AGENTS.md` deletion was preserved.
+- Initial staging smoke exited abnormally (`-1073740791`), before any App cutover. Isolated staged-App smoke and an elevated source smoke passed. A separately prepared official stage then passed locked dependency installation and smoke; only this validated stage was used for cutover. No validation bypass was used.
+- Transaction `20261004-232730-985` committed after HTTP and `/api/state` readiness. The prior App and declared State snapshot remain available through the existing HostTools rollback workflow. No full State copy, diagnostics deletion, deployment-service restart, push or release artifact was performed.
+- Installed-browser verification: **17 routes Passed**, HEAD requests Passed, navigation/Back/Forward/reload Passed, `/api/state` returned `ok:true`, and navigation emitted **0 mutating API requests**. HTTP/TFTP/DHCP/Torrent were all **stopped** after verification. Version remains **1.1.0**. This is installed Console evidence, not PXE/client acceptance.
+- Local evidence (excluded from commits): `.ai/promotion-cutover.log`, `.ai/promotion-cutover-result.json`, `.ai/promotion-official-stage.log`, `.ai/promotion-browser-result.json`, `.ai/promotion-official.png`, and `.ai/promotion-installation-validation.txt` (4 installer/rollback tests Passed).
+
 # Feature URL acceptance — 2026-10-05
 
 Source / isolated UI only; app version remains **1.1.0**. Installed 8080, deployment services, PXE, VMs and physical clients were not changed or validated by this task.
