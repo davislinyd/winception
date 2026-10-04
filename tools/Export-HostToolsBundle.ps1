@@ -155,6 +155,11 @@ function Get-BundleFiles {
         'tools\Start-InstalledWebConsole.ps1',
         'tools\Start-WebConsoleTray.ps1',
         'tools\lib\Common.ps1',
+        'tools\lib\HostManagementUpgrade.ps1',
+        'tools\Restore-HostManagementUpgrade.ps1',
+        'tools\Complete-HostManagementUpgrade.ps1',
+        'tools\Backup-HostManagementState.ps1',
+        'tools\Get-HostManagementStateBackupInventory.ps1',
         'tools\Restore-HostManagementState.ps1',
         'Softwares\Install-Apps.ps1',
         'Softwares\Show-DeploymentProgress.ps1',
@@ -226,6 +231,29 @@ function Get-GitCommit {
     }
 }
 
+function Get-GitSourceState {
+    Push-Location -LiteralPath $SourceRoot
+    try {
+        $branch = $null
+        $clean = $null
+        try {
+            $branchValue = & git branch --show-current 2>$null
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace([string]$branchValue)) {
+                $branch = ([string]($branchValue | Select-Object -First 1)).Trim()
+            }
+            $status = @(& git status --porcelain --untracked-files=all 2>$null)
+            if ($LASTEXITCODE -eq 0) { $clean = $status.Count -eq 0 }
+        } catch {}
+        [pscustomobject]@{
+            branch = $branch
+            clean = $clean
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 function Get-Version {
     if (-not [string]::IsNullOrWhiteSpace($Version)) {
         return $Version.Trim()
@@ -236,6 +264,7 @@ function Get-Version {
 
 $OutputRoot = Assert-SafeOutputRoot $OutputRoot
 $commitValue = Get-GitCommit
+$sourceGitState = Get-GitSourceState
 $versionValue = Get-Version
 $stageRoot = Join-Path $OutputRoot 'HostTools'
 $manifestPath = Join-Path $stageRoot 'bundle-manifest.json'
@@ -278,6 +307,8 @@ $manifest = [ordered]@{
         paths = @($fixtureRecords | ForEach-Object { $_.path })
     }
     repoCommit = $commitValue
+    repoBranch = $sourceGitState.branch
+    sourceTreeClean = $sourceGitState.clean
     version = $versionValue
     artifactCount = $records.Count
     files = @($records.ToArray())
@@ -303,6 +334,8 @@ if ($CreateZip) {
     dataPolicy = $manifest.dataPolicy
     fixturePresence = $manifest.fixturePresence.included
     repoCommit = $commitValue
+    repoBranch = $sourceGitState.branch
+    sourceTreeClean = $sourceGitState.clean
     version = $versionValue
     artifactCount = $records.Count
 } | ConvertTo-Json -Depth 6

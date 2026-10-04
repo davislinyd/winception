@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch] $NoBrowser
+    [switch] $NoBrowser,
+    [switch] $DuringUpgrade
 )
 
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
@@ -13,6 +14,40 @@ $OutputEncoding = $Utf8NoBom
 
 $AppRoot = Split-Path -Parent $PSScriptRoot
 $HostToolsRoot = Split-Path -Parent $AppRoot
+$upgradeModulePath = Join-Path $HostToolsRoot 'HostManagementUpgrade.ps1'
+if (-not (Test-Path -LiteralPath $upgradeModulePath -PathType Leaf)) {
+    $upgradeModulePath = Join-Path $PSScriptRoot 'lib\HostManagementUpgrade.ps1'
+}
+if (-not (Test-Path -LiteralPath $upgradeModulePath -PathType Leaf)) {
+    throw "HostTools upgrade recovery module not found: $upgradeModulePath"
+}
+. $upgradeModulePath
+if (-not $DuringUpgrade) {
+    $upgradePointerPath = Join-Path $HostToolsRoot 'upgrade-current.json'
+    if (Test-Path -LiteralPath $upgradePointerPath -PathType Leaf) {
+        $recoveryConfigPath = Join-Path $HostToolsRoot 'State\config\osdcloud-console.json'
+        $recoveryOverlayPath = Join-Path $HostToolsRoot 'State\config\osdcloud-console.local.json'
+        $recoveryPort = 8080
+        if (Test-Path -LiteralPath $recoveryConfigPath -PathType Leaf) {
+            try {
+                $recoveryConfig = Get-Content -LiteralPath $recoveryConfigPath -Raw | ConvertFrom-Json
+                if ($recoveryConfig.web.port) { $recoveryPort = [int]$recoveryConfig.web.port }
+            } catch {}
+        }
+        if (Test-Path -LiteralPath $recoveryOverlayPath -PathType Leaf) {
+            try {
+                $recoveryOverlay = Get-Content -LiteralPath $recoveryOverlayPath -Raw | ConvertFrom-Json
+                if ($recoveryOverlay.web.port) { $recoveryPort = [int]$recoveryOverlay.web.port }
+            } catch {}
+        }
+        $listener = Get-NetTCPConnection -LocalPort $recoveryPort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($listener) {
+            throw "A HostTools upgrade is pending while Web Console port $recoveryPort is still listening. Stop the console, then run Restore-HostManagementUpgrade.ps1."
+        }
+        [void](Restore-HostToolsUpgradeFromPointer -HostToolsRoot $HostToolsRoot)
+    }
+}
+
 $StateConfigPath = Join-Path $HostToolsRoot 'State\config\osdcloud-console.json'
 $LocalConfigPath = Join-Path $HostToolsRoot 'State\config\osdcloud-console.local.json'
 $RunRoot = Join-Path $HostToolsRoot 'State\run'

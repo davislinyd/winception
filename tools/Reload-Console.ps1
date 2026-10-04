@@ -159,98 +159,154 @@ function Stop-WebConsoleFallback {
     }
 }
 
-function Assert-StateCanBeBackedUp {
-    $secretsPath = Join-Path $StateRoot 'config\osdcloud-secrets.json'
-    if (-not (Test-Path -LiteralPath $secretsPath -PathType Leaf)) {
-        return
-    }
-    try {
-        $stream = [System.IO.File]::Open(
-            $secretsPath,
-            [System.IO.FileMode]::Open,
-            [System.IO.FileAccess]::Read,
-            [System.IO.FileShare]::ReadWrite
-        )
-        $stream.Dispose()
-    }
-    catch {
-        throw "Cannot read HostTools State secrets for backup. osdcloud-secrets.json is ACL-protected; run Reload-Console.ps1 from an elevated PowerShell session. $($_.Exception.Message)"
-    }
-}
-
-function Clear-DiagnosticsState {
-    $stateRoot = [System.IO.Path]::GetFullPath((Join-Path $HostToolsRoot 'State'))
-    $diagnosticsRoot = [System.IO.Path]::GetFullPath((Join-Path $stateRoot 'diagnostics'))
-    if (-not $diagnosticsRoot.StartsWith("$stateRoot\", [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing to remove diagnostics outside HostTools State: $diagnosticsRoot"
-    }
-    if (Test-Path -LiteralPath $diagnosticsRoot) {
-        Write-Host "Removing prior diagnostics: $diagnosticsRoot"
-        Remove-Item -LiteralPath $diagnosticsRoot -Recurse -Force
-    }
-}
-
 if (-not (Test-IsAdministrator)) {
-    throw 'Reload-Console.ps1 must run from an elevated PowerShell session. HostTools State includes ACL-protected osdcloud-secrets.json, which a standard session cannot back up.'
-}
-Assert-StateCanBeBackedUp
-
-Write-Host "Stopping active Web Console..."
-if ((Request-TrayStop) -and (Wait-TrayStop)) {
-    Write-Host "Web Console tray stopped gracefully."
-}
-else {
-    Stop-WebConsoleFallback
+    throw 'Reload-Console.ps1 must run from an elevated PowerShell session to update the installed HostTools App and its scoped State files.'
 }
 
-if ($ReloadFromInstalledApp) {
-    Write-Host 'Reloading installed HostTools App without reinstalling it from itself.'
-}
-else {
-    Write-Host "Installing filtered $((Get-InstallChannel)) HostTools App from $SourceRoot..."
-    # Install-HostManagementBundle's production allowlist copies docs\winception-operations-manual.html,
-    # docs\manual-assets, and New-WinceptionUsbInstaller.cmd without mirroring development state.
-    $installScript = Join-Path $SourceRoot 'tools\Install-HostManagementBundle.ps1'
-    if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
-        throw "Missing HostTools installer: $installScript"
+$rootRecoveryScript = Join-Path $HostToolsRoot 'Restore-HostManagementUpgrade.ps1'
+$upgradePointerPath = Join-Path $HostToolsRoot 'upgrade-current.json'
+$completeScript = Join-Path $AppRoot 'tools\Complete-HostManagementUpgrade.ps1'
+$stagedAppPath = $null
+
+try {
+    $consoleStopped = $false
+    if (Test-Path -LiteralPath $upgradePointerPath -PathType Leaf) {
+        Write-Host 'Stopping Web Console to recover the interrupted HostTools upgrade...'
+        if ((Request-TrayStop) -and (Wait-TrayStop)) {
+            Write-Host 'Web Console tray stopped gracefully.'
+        } else {
+            Stop-WebConsoleFallback
+        }
+        if (-not (Test-Path -LiteralPath $rootRecoveryScript -PathType Leaf)) {
+            throw "HostTools recovery script was not found: $rootRecoveryScript"
+        }
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $rootRecoveryScript -HostToolsRoot $HostToolsRoot -ConsoleAlreadyStopped
+        if ($LASTEXITCODE -ne 0) { throw "Previous pending transaction recovery failed with exit code $LASTEXITCODE." }
+        $consoleStopped = $true
     }
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installScript `
-        -SourceRoot $SourceRoot `
-        -AppRoot $AppRoot `
-        -StateRoot $StateRoot `
-        -Channel (Get-InstallChannel) `
-        -Force
-    if ($LASTEXITCODE -ne 0) {
-        throw "HostTools App reload failed with exit code $LASTEXITCODE"
-    }
-}
-Clear-DiagnosticsState
 
-Write-Host "Installing Web console dependencies..."
-$npmCmd = Join-Path $env:ProgramFiles 'nodejs\npm.cmd'
-if (-not (Test-Path -LiteralPath $npmCmd -PathType Leaf)) {
-    $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
-    if (-not $npmCommand) {
-        $npmCommand = Get-Command npm -ErrorAction SilentlyContinue
+    if (-not $ReloadFromInstalledApp) {
+        $stageId = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff')
+        $stagedAppPath = Join-Path (Join-Path $HostToolsRoot 'Staging') "HostTools-App-$stageId"
+        Write-Host "Building and validating a staged $((Get-InstallChannel)) HostTools App from $SourceRoot..."
+        $installScript = Join-Path $SourceRoot 'tools\Install-HostManagementBundle.ps1'
+        if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
+            throw "Missing HostTools installer: $installScript"
+        }
+        $stageArguments = @(
+            '-NoProfile',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-File',
+            $installScript,
+            '-SourceRoot',
+            $SourceRoot,
+            '-AppRoot',
+            $AppRoot,
+            '-StateRoot',
+            $StateRoot,
+            '-Channel',
+            (Get-InstallChannel),
+            '-Force',
+            '-StageOnly',
+            '-StagePath',
+            $stagedAppPath,
+            '-PrepareDependencies',
+            '-RunSmoke'
+        )
+        & powershell.exe @stageArguments
+        if ($LASTEXITCODE -ne 0) { throw "HostTools App staging or validation failed with exit code $LASTEXITCODE" }
+    } else {
+        Write-Host 'Reloading installed HostTools App without reinstalling it from itself.'
     }
-    if (-not $npmCommand) {
-        throw 'npm is not available. Install Node.js LTS, then rerun Reload-Console.ps1 from an elevated PowerShell session.'
+
+    if (-not $consoleStopped) {
+        Write-Host 'Stopping active Web Console...'
+        if ((Request-TrayStop) -and (Wait-TrayStop)) {
+            Write-Host 'Web Console tray stopped gracefully.'
+        } else {
+            Stop-WebConsoleFallback
+        }
     }
-    $npmCmd = $npmCommand.Source
-}
-$npmInstall = Start-Process -FilePath $npmCmd -ArgumentList @('install') -WorkingDirectory $AppRoot -Wait -PassThru -NoNewWindow
-if ($npmInstall.ExitCode -ne 0) {
-    throw "npm install failed with exit code $($npmInstall.ExitCode) in $AppRoot"
-}
 
-Write-Host "Starting Web Console..."
-Start-Process -FilePath "powershell.exe" -ArgumentList @(
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-File",
-    (Join-Path $AppRoot "tools\Start-InstalledWebConsole.ps1"),
-    "-NoBrowser"
-)
+    if ($stagedAppPath) {
+        Write-Host 'Switching the validated HostTools App and applying scoped State changes...'
+        $installArguments = @(
+            '-NoProfile',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-File',
+            $installScript,
+            '-SourceRoot',
+            $SourceRoot,
+            '-AppRoot',
+            $AppRoot,
+            '-StateRoot',
+            $StateRoot,
+            '-Channel',
+            (Get-InstallChannel),
+            '-Force',
+            '-StagedAppPath',
+            $stagedAppPath
+        )
+        & powershell.exe @installArguments
+        if ($LASTEXITCODE -ne 0) { throw "HostTools App cutover failed with exit code $LASTEXITCODE" }
+    }
 
-Write-Host "Reload complete!"
+    $startArguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        (Join-Path $AppRoot 'tools\Start-InstalledWebConsole.ps1'),
+        '-NoBrowser'
+    )
+    if (Test-Path -LiteralPath $upgradePointerPath -PathType Leaf) {
+        $startArguments += '-DuringUpgrade'
+    }
+    Write-Host 'Starting Web Console...'
+    Start-Process -FilePath 'powershell.exe' -ArgumentList $startArguments
+
+    if (Test-Path -LiteralPath $upgradePointerPath -PathType Leaf) {
+        $configPath = Join-Path $StateRoot 'config\osdcloud-console.json'
+        $localConfigPath = Join-Path $StateRoot 'config\osdcloud-console.local.json'
+        $webHost = '127.0.0.1'
+        $webPort = Get-WebPort
+        if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+            $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+            if ($config.web.host) { $webHost = [string]$config.web.host }
+        }
+        if (Test-Path -LiteralPath $localConfigPath -PathType Leaf) {
+            try {
+                $localConfig = Get-Content -LiteralPath $localConfigPath -Raw | ConvertFrom-Json
+                if ($localConfig.web.host) { $webHost = [string]$localConfig.web.host }
+                if ($localConfig.web.port) { $webPort = [int]$localConfig.web.port }
+            } catch {}
+        }
+        if (-not (Test-Path -LiteralPath $completeScript -PathType Leaf)) {
+            throw "HostTools completion script was not found: $completeScript"
+        }
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $completeScript -WebHost $webHost -WebPort $webPort -HostToolsRoot $HostToolsRoot
+        if ($LASTEXITCODE -ne 0) { throw "HostTools HTTP/API readiness validation failed with exit code $LASTEXITCODE." }
+    }
+    Write-Host 'Reload complete.'
+} catch {
+    $failure = $_.Exception.Message
+    if (Test-Path -LiteralPath $upgradePointerPath -PathType Leaf) {
+        try {
+            Stop-WebConsoleFallback
+            if (-not (Test-Path -LiteralPath $rootRecoveryScript -PathType Leaf)) {
+                throw "HostTools recovery script was not found: $rootRecoveryScript"
+            }
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $rootRecoveryScript -HostToolsRoot $HostToolsRoot -ConsoleAlreadyStopped
+            if ($LASTEXITCODE -ne 0) { throw "HostTools transaction recovery failed with exit code $LASTEXITCODE." }
+        } catch {
+            Write-Error "HostTools transaction recovery did not finish. Run $rootRecoveryScript after stopping the Web Console. $($_.Exception.Message)"
+        }
+    }
+    if ($stagedAppPath -and (Test-Path -LiteralPath $stagedAppPath -PathType Container) -and
+        [System.IO.Path]::GetFullPath($stagedAppPath).StartsWith(([System.IO.Path]::GetFullPath((Join-Path $HostToolsRoot 'Staging')).TrimEnd('\') + '\'), [System.StringComparison]::OrdinalIgnoreCase)) {
+        Remove-Item -LiteralPath $stagedAppPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    throw "Reload-Console failed: $failure"
+}
