@@ -377,6 +377,15 @@ test('HostTools exporter emits verifiable hashes and excludes untracked secrets'
       path.join(root, 'tools', 'Export-HostToolsBundle.ps1'),
       path.join(fixture, 'tools', 'Export-HostToolsBundle.ps1'),
     );
+    for (const relativePath of [
+      'tools/lib/HostManagementUpgrade.ps1',
+      'tools/Restore-HostManagementUpgrade.ps1',
+      'tools/Complete-HostManagementUpgrade.ps1',
+      'tools/Backup-HostManagementState.ps1',
+      'tools/Get-HostManagementStateBackupInventory.ps1',
+    ]) {
+      fs.copyFileSync(path.join(root, relativePath), path.join(fixture, relativePath));
+    }
     write('package.json', '{"version":"0.0.0"}\n');
     write('package-lock.json', '{}\n');
     write('Setup-DeploymentServer.cmd', '@echo off\n');

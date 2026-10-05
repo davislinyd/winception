@@ -1,3 +1,13 @@
+# v1.2.0 release validation — 2026-10-05
+
+Version 1.2.0 synchronizes package metadata, current README/manual markers and changelog. The release source includes the deployed transactional HostTools reload and matching test fixtures.
+
+- Source acceptance: check, full Node tests and smoke **Passed**; **500 passed / 3 skipped / 0 failed** (503 total).
+- Isolated UI acceptance: **34 passed / 0 failed / cleanup Passed**, using Microsoft Edge. No deployment services or live clients were used for this layer.
+- Historical `v1.1.0` targets the pre-route 1.1.0 baseline `94a1c45`. Publication is restricted to `codex/release-v1.2.0` and the two version tags; remote master and its Lab push trigger are excluded.
+- Official promotion is separately verified with the existing staged transaction and scoped State rollback. Installed evidence stays in `.ai/release-v1.2.0-*`, outside Git. No ZIP or GitHub Release is generated.
+- Local source/UI evidence: `.ai/release-v1.2.0-source.txt`, `.ai/release-v1.2.0-ui.txt`, and the existing acceptance result files. The source result identifies the validated pre-commit snapshot.
+
 # Installed feature URL acceptance — 2026-10-05
 
 Official `http://127.0.0.1:8080/` now serves the feature-route Console. The operator explicitly approved interruption and requested deployment services remain stopped after the update.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.2.0 — 2026-10-05
+
+- HostTools reload preserves the deployed staged transaction, scoped State backup and rollback workflow; the reloaded Console starts in a hidden window. Package metadata and current manual markers are synchronized to 1.2.0.
+
 - Web Console now provides allowlisted feature URLs and explicit guided/console modes, with direct entry, refresh, bookmarks and Back/Forward. Settings keep their existing embedded panels; navigation never runs deployment actions. The root always opens Start deployment, independent of legacy local view preferences.
 
 - GitHub Pages now also publishes the torrent briefing at `/torrent/` from `docs/winception_torrent_deck`. The site root remains Operations Manual v1.1.0; `workflow_dispatch` of `.github/workflows/publish-pages.yml` is still the only refresh path.

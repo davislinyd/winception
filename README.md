@@ -1,5 +1,7 @@
 # Winception Windows 11 Zero-Touch Deployment
 
+目前版本 / Current version: **1.2.0**.
+
 [繁體中文](#繁體中文) | [English](#english)
 
 ## 繁體中文

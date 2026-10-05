@@ -68,6 +68,17 @@ function createSetupSourceFixture(root) {
     path.join(process.cwd(), 'tools', 'Install-HostManagementBundle.ps1'),
     path.join(root, 'tools', 'Install-HostManagementBundle.ps1'),
   );
+  for (const fileName of [
+    'Restore-HostManagementUpgrade.ps1',
+    'Complete-HostManagementUpgrade.ps1',
+    'Backup-HostManagementState.ps1',
+    'Get-HostManagementStateBackupInventory.ps1',
+  ]) {
+    fs.copyFileSync(
+      path.join(process.cwd(), 'tools', fileName),
+      path.join(root, 'tools', fileName),
+    );
+  }
   fs.copyFileSync(
     path.join(process.cwd(), 'tools', 'Start-InstalledWebConsole.ps1'),
     path.join(root, 'tools', 'Start-InstalledWebConsole.ps1'),
@@ -81,6 +92,10 @@ function createSetupSourceFixture(root) {
   fs.copyFileSync(
     path.join(process.cwd(), 'tools', 'lib', 'Common.ps1'),
     path.join(root, 'tools', 'lib', 'Common.ps1'),
+  );
+  fs.copyFileSync(
+    path.join(process.cwd(), 'tools', 'lib', 'HostManagementUpgrade.ps1'),
+    path.join(root, 'tools', 'lib', 'HostManagementUpgrade.ps1'),
   );
   fs.writeFileSync(path.join(root, 'tools', 'osdcloud-console', 'src', 'webServer.js'), 'export {};\n', 'utf8');
   fs.copyFileSync(
@@ -483,10 +498,12 @@ test('runtime readiness reports dependency order and blocked downstream artifact
 });
 
 test('setup wizard stays lightweight and leaves runtime preparation to Web', () => {
-  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'), 'utf8');
+  const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Setup-DeploymentServer.ps1'), 'utf8').replace(/\r\n/g, '\n');
   const reloadScript = fs.readFileSync(path.join(process.cwd(), 'tools', 'Reload-Console.ps1'), 'utf8');
-  assert.match(script, /npm' -ArgumentList @\('install'\)/);
-  assert.match(script, /npm' -ArgumentList @\('run', 'smoke'\)/);
+  assert.match(script, /\$arguments \+= '-PrepareDependencies'/);
+  assert.match(script, /\$arguments \+= '-RunSmoke'/);
+  assert.doesNotMatch(script, /npm' -ArgumentList @\('install'\)/);
+  assert.doesNotMatch(script, /npm' -ArgumentList @\('run', 'smoke'\)/);
   assert.match(script, /Install-HostManagementBundle\.ps1/);
   assert.match(script, /\[string\] \$AppRoot = 'C:\\OSDCloud\\HostTools\\App'/);
   assert.match(script, /\[string\] \$StateRoot = 'C:\\OSDCloud\\HostTools\\State'/);
@@ -494,6 +511,9 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.match(script, /function Get-UniquePathEntries/);
   assert.match(script, /function Add-NodeInstallPaths/);
   assert.match(script, /function Test-NodeAndNpmAvailable/);
+  const stageCall = script.indexOf('\n    Stage-HostManagementBundle\n');
+  const processStopScan = script.indexOf('$runningTray = Get-CimInstance', stageCall);
+  assert.ok(stageCall >= 0 && processStopScan > stageCall, 'setup must stage the App before inspecting and stopping the current Console');
   assert.match(script, /OpenJS\.NodeJS\.LTS/);
   assert.match(script, /wingetExitCode/);
   assert.match(script, /node\/npm are available now\. Continuing setup/);
@@ -525,9 +545,13 @@ test('setup wizard stays lightweight and leaves runtime preparation to Web', () 
   assert.doesNotMatch(script, /Set-OsdCloudIpxeEndpoint\.ps1/);
   assert.doesNotMatch(script, /server:preflight/);
   assert.doesNotMatch(script, /Start-Pxe|Start-Dhcp|Start-Tftp|Start-Http/);
-  assert.match(reloadScript, /docs\\winception-operations-manual\.html/);
-  assert.match(reloadScript, /docs\\manual-assets/);
-  assert.match(reloadScript, /New-WinceptionUsbInstaller\.cmd/);
+  const installerScript = fs.readFileSync(path.join(process.cwd(), 'tools', 'Install-HostManagementBundle.ps1'), 'utf8');
+  assert.match(reloadScript, /Install-HostManagementBundle\.ps1/);
+  assert.match(reloadScript, /-StageOnly/);
+  assert.ok(reloadScript.indexOf('Building and validating a staged') < reloadScript.indexOf('Stopping active Web Console'), 'reload must validate the staged App before stopping the current Console');
+  assert.match(installerScript, /docs\\winception-operations-manual\.html/);
+  assert.match(installerScript, /docs\\manual-assets/);
+  assert.match(installerScript, /New-WinceptionUsbInstaller\.cmd/);
 });
 
 test('setup prerequisite refresh keeps a long inherited PATH within Windows limits', () => {
@@ -766,6 +790,8 @@ test('installed Web console launcher escapes environment assignment and reads lo
   assert.match(script, /function Stop-StaleWebConsole/);
   assert.match(script, /function Stop-WebPortOwner/);
   assert.match(script, /Get-NetTCPConnection -LocalPort \$webPort -State Listen/);
+  assert.match(script, /A HostTools upgrade is pending while Web Console port \$recoveryPort is still listening/);
+  assert.match(script, /Restore-HostToolsUpgradeFromPointer/);
   assert.match(script, /ParentProcessId/);
   assert.match(script, /Wait-Process -Id \$process\.Id -Timeout 5/);
   assert.match(script, /\$argumentList = @\(/);
@@ -803,7 +829,8 @@ test('host bundle dry-run preserves diagnostics state', () => {
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(fs.existsSync(path.join(diagnosticsRoot, 'latest.json')), true);
-    assert.match(result.stdout, /remove .*diagnostics/i);
+    assert.match(result.stdout, /dry-run.*stage App.*begin a scoped upgrade transaction/i);
+    assert.equal(fs.existsSync(path.join(root, 'HostTools', 'upgrade-current.json')), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -830,11 +857,12 @@ test('Web console tray prefers checked-in Web logo icon with host fallback', () 
 test('reload stops the Web console tray gracefully before process fallback', () => {
   const script = fs.readFileSync(path.join(process.cwd(), 'tools', 'Reload-Console.ps1'), 'utf8');
   assert.match(script, /Test-IsAdministrator/);
-  assert.match(script, /function Assert-StateCanBeBackedUp/);
-  assert.match(script, /must run from an elevated PowerShell session/);
-  assert.ok(script.indexOf('Assert-StateCanBeBackedUp') < script.indexOf('Stopping active Web Console'), 'State backup readability must be checked before stopping the Web console');
-  assert.ok(script.indexOf('HostTools App reload failed') < script.indexOf('Installing Web console dependencies'), 'npm install must run after a successful HostTools App copy');
-  assert.match(script, /npm install failed with exit code/);
+  assert.match(script, /must run from an elevated PowerShell session to update the installed HostTools App and its scoped State files/);
+  assert.match(script, /-PrepareDependencies/);
+  assert.match(script, /-RunSmoke/);
+  assert.match(script, /Complete-HostManagementUpgrade\.ps1/);
+  assert.match(script, /Restore-HostManagementUpgrade\.ps1/);
+  assert.doesNotMatch(script, /Assert-StateCanBeBackedUp|Unable to backup HostTools State/);
   assert.match(script, /function Request-TrayStop/);
   assert.match(script, /function Wait-TrayStop/);
   assert.match(script, /function Wait-WebPortClosed/);
@@ -842,8 +870,7 @@ test('reload stops the Web console tray gracefully before process fallback', () 
   assert.match(script, /function Stop-WebPortOwner/);
   assert.match(script, /ReloadFromInstalledApp/);
   assert.match(script, /without reinstalling it from itself/);
-  assert.match(script, /function Clear-DiagnosticsState/);
-  assert.match(script, /Removing prior diagnostics:/);
+  assert.doesNotMatch(script, /function Clear-DiagnosticsState/);
   assert.match(script, /web-console-tray\.json/);
   assert.match(script, /web-console-tray\.stop\.json/);
   assert.match(script, /Get-NetTCPConnection -LocalPort \$webPort -State Listen/);
