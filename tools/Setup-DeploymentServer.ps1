@@ -51,14 +51,15 @@ foreach ($Path in $DefaultModulePaths) {
 }
 
 # Explicitly import PackageManagement and PowerShellGet to ensure cmdlets are loaded
-Import-Module PackageManagement -ErrorAction SilentlyContinue
-Import-Module PowerShellGet -ErrorAction SilentlyContinue
+try { Import-Module PackageManagement -ErrorAction SilentlyContinue } catch {}
+try { Import-Module PowerShellGet -ErrorAction SilentlyContinue } catch {}
 
 $SourceRoot = Split-Path -Parent $PSScriptRoot
 $ConfigPath = Join-Path $SourceRoot 'config\osdcloud-console.json'
 $InstallScriptPath = Join-Path $SourceRoot 'tools\Install-HostManagementBundle.ps1'
 $AppRoot = [System.IO.Path]::GetFullPath($AppRoot)
 $StateRoot = [System.IO.Path]::GetFullPath($StateRoot)
+$HostToolsRoot = Split-Path -Parent $AppRoot
 $StateConfigPath = Join-Path $StateRoot 'config\osdcloud-console.json'
 $LocalConfigPath = Join-Path $StateRoot 'config\osdcloud-console.local.json'
 $WebPort = 8080
@@ -199,13 +200,12 @@ function Ensure-Command {
     }
 }
 
-function Install-HostManagementBundle {
+function Get-HostManagementBundleArguments {
     if (-not (Test-Path -LiteralPath $InstallScriptPath -PathType Leaf)) {
         throw "Missing install script: $InstallScriptPath"
     }
 
-    Write-Step 'Installing host management bundle'
-    $arguments = @(
+    @(
         '-NoProfile',
         '-ExecutionPolicy',
         'Bypass',
@@ -221,8 +221,31 @@ function Install-HostManagementBundle {
         $Channel,
         '-Force'
     )
+}
+
+function Stage-HostManagementBundle {
+    if ($DryRun) { return }
+    $stageId = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff')
+    $script:HostManagementStagedAppPath = Join-Path (Join-Path $HostToolsRoot 'Staging') "HostTools-App-$stageId"
+    $arguments = @(Get-HostManagementBundleArguments)
+    $arguments += @('-StageOnly', '-StagePath', $script:HostManagementStagedAppPath)
+    if (-not $SkipNpmInstall) { $arguments += '-PrepareDependencies' }
+    if (-not $SkipSmoke) { $arguments += '-RunSmoke' }
+    if ($SkipNpmInstall -or $SkipSmoke) { $arguments += '-AllowUnvalidatedStage' }
+    Write-Step 'Building and validating staged HostTools App'
+    Invoke-ExternalCommand -FilePath 'powershell.exe' -ArgumentList $arguments
+}
+
+function Install-HostManagementBundle {
+    Write-Step 'Installing host management bundle'
+    $arguments = @(Get-HostManagementBundleArguments)
     if ($DryRun) {
         $arguments += '-DryRun'
+    } elseif ($script:HostManagementStagedAppPath) {
+        $arguments += @('-StagedAppPath', $script:HostManagementStagedAppPath)
+        if ($SkipNpmInstall -or $SkipSmoke) { $arguments += '-AllowUnvalidatedStage' }
+    } else {
+        throw 'A validated HostTools App stage is required before installation.'
     }
     Invoke-ExternalCommand -FilePath 'powershell.exe' -ArgumentList $arguments
 }
@@ -460,6 +483,59 @@ function Start-WebConsole {
     Start-Process "http://${HostIp}:$WebPort"
 }
 
+function Stop-ConsoleForUpgradeRollback {
+    $stoppedProcessIds = New-Object System.Collections.Generic.HashSet[int]
+    $trayStatePath = Join-Path $StateRoot 'run\web-console-tray.json'
+    if (Test-Path -LiteralPath $trayStatePath -PathType Leaf) {
+        try {
+            $trayState = Get-Content -LiteralPath $trayStatePath -Raw | ConvertFrom-Json
+            $trayAppRoot = [string]$trayState.appRoot
+            if ($trayAppRoot -and [System.IO.Path]::GetFullPath($trayAppRoot) -ieq $AppRoot) {
+                foreach ($processId in @($trayState.nodePid, $trayState.trayPid)) {
+                    if ($processId) {
+                        [void]$stoppedProcessIds.Add([int]$processId)
+                        Stop-Process -Id ([int]$processId) -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        } catch {}
+    }
+    try {
+        $processes = Get-CimInstance Win32_Process -ErrorAction Stop
+        $matchingNodes = @($processes | Where-Object {
+            $_.Name -eq 'node.exe' -and
+            $_.CommandLine -like '*webServer.js*' -and
+            $_.CommandLine.IndexOf($AppRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        })
+        foreach ($process in $matchingNodes) {
+            [void]$stoppedProcessIds.Add([int]$process.ProcessId)
+            Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction SilentlyContinue
+        }
+    } catch {}
+    foreach ($processId in $stoppedProcessIds) {
+        Wait-Process -Id $processId -Timeout 10 -ErrorAction SilentlyContinue
+        if (Get-Process -Id $processId -ErrorAction SilentlyContinue) {
+            throw "Web Console process $processId did not stop; refusing HostTools rollback."
+        }
+    }
+}
+
+function Restore-PendingHostManagementUpgrade {
+    $pointerPath = Join-Path $HostToolsRoot 'upgrade-current.json'
+    $restoreScript = Join-Path $HostToolsRoot 'Restore-HostManagementUpgrade.ps1'
+    if (-not (Test-Path -LiteralPath $pointerPath -PathType Leaf)) { return }
+    try {
+        Stop-ConsoleForUpgradeRollback
+        if (-not (Test-Path -LiteralPath $restoreScript -PathType Leaf)) {
+            throw "HostTools recovery script was not found: $restoreScript"
+        }
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $restoreScript -HostToolsRoot $HostToolsRoot -ConsoleAlreadyStopped
+        if ($LASTEXITCODE -ne 0) { throw "HostTools transaction recovery failed with exit code $LASTEXITCODE." }
+    } catch {
+        Write-Warning "A HostTools upgrade remains pending. Run $restoreScript after stopping the Web Console. $($_.Exception.Message)"
+    }
+}
+
 function Invoke-SetupDiagnosticsFallback {
     param([string] $FailureMessage)
 
@@ -524,6 +600,14 @@ try {
     Ensure-Command -Name 'git'
     Ensure-NodeAndNpm
     Ensure-HostPowerShellModules
+    $upgradePointerPath = Join-Path $HostToolsRoot 'upgrade-current.json'
+    if (-not $DryRun -and (Test-Path -LiteralPath $upgradePointerPath -PathType Leaf)) {
+        Restore-PendingHostManagementUpgrade
+        if (Test-Path -LiteralPath $upgradePointerPath -PathType Leaf) {
+            throw 'A pending HostTools upgrade could not be restored; stopping before building a new App stage.'
+        }
+    }
+    Stage-HostManagementBundle
     # Check if OSDCloud Web Console tray application or node server is running from
     # the AppRoot this setup is about to overwrite. Consoles running from any other
     # root (e.g. another install, or the live host console while tests run setup
@@ -619,17 +703,6 @@ try {
         )
     }
 
-    if (-not $SkipNpmInstall) {
-        Write-Step 'Installing Web console dependencies'
-        Invoke-ExternalCommand -FilePath 'npm' -ArgumentList @('install') -WorkingDirectory $AppRoot
-    }
-    if (-not $SkipSmoke) {
-        Write-Step 'Running Web console smoke test'
-        # Run node directly to bypass npm command path resolution bugs on Windows.
-        # This comment preserves the unit test regex match: npm' -ArgumentList @('run', 'smoke')
-        Invoke-ExternalCommand -FilePath 'node' -ArgumentList @('tools/osdcloud-console/src/smoke.js') -WorkingDirectory $AppRoot
-    }
-
     $SelectedWebHost = Select-WebServiceHost
     Save-WebConsoleOverlay -HostIp $SelectedWebHost
 
@@ -638,6 +711,13 @@ try {
         Write-Host 'Launching the Web console in an elevated PowerShell window because Runtime Readiness and service controls require administrator rights.'
     }
     Start-WebConsole -HostIp $SelectedWebHost
+    if (-not $NoLaunch -and -not $DryRun) {
+        $completeScript = Join-Path $AppRoot 'tools\Complete-HostManagementUpgrade.ps1'
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $completeScript -WebHost $SelectedWebHost -WebPort $WebPort -HostToolsRoot $HostToolsRoot
+        if ($LASTEXITCODE -ne 0) { throw "HostTools HTTP/API readiness validation failed with exit code $LASTEXITCODE." }
+    } else {
+        Write-Warning 'Setup skipped HTTP readiness validation; the pending App transaction will roll back when Restore-HostManagementUpgrade.ps1 runs.'
+    }
 
     Write-Step 'Setup completed'
     Write-Host "Setup installed the host management bundle under $AppRoot."
@@ -646,6 +726,11 @@ try {
 }
 catch {
     $diagnosticsBundle = Invoke-SetupDiagnosticsFallback -FailureMessage $_.Exception.Message
+    Restore-PendingHostManagementUpgrade
+    if ($script:HostManagementStagedAppPath -and (Test-Path -LiteralPath $script:HostManagementStagedAppPath -PathType Container) -and
+        [System.IO.Path]::GetFullPath($script:HostManagementStagedAppPath).StartsWith(([System.IO.Path]::GetFullPath((Join-Path $HostToolsRoot 'Staging')).TrimEnd('\') + '\'), [System.StringComparison]::OrdinalIgnoreCase)) {
+        Remove-Item -LiteralPath $script:HostManagementStagedAppPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
     Write-Error $_.Exception.Message
     if ($diagnosticsBundle) {
         Write-Host "Share this diagnostics ZIP: $diagnosticsBundle"

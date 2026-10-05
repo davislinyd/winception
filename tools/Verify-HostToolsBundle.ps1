@@ -44,6 +44,16 @@ Assert-Value -Actual $manifest.dataPolicy -Expected $expectedPolicy -Label 'mani
 Assert-Value -Actual $manifest.allowlist -Expected 'hosttools-production-v1' -Label 'manifest allowlist'
 Assert-Value -Actual $manifest.secretPolicy -Expected 'no-plaintext-secrets' -Label 'manifest secret policy'
 Assert-Value -Actual $manifest.statePolicy -Expected 'fresh-empty-preserve-on-upgrade' -Label 'manifest State policy'
+if ($manifest.PSObject.Properties.Name -notcontains 'repoBranch') {
+    Add-Failure 'bundle manifest has no source branch field.'
+} elseif ($null -ne $manifest.repoBranch -and $manifest.repoBranch -isnot [string]) {
+    Add-Failure 'bundle manifest source branch must be a string or null.'
+}
+if ($manifest.PSObject.Properties.Name -notcontains 'sourceTreeClean') {
+    Add-Failure 'bundle manifest has no source-tree cleanliness field.'
+} elseif ($null -ne $manifest.sourceTreeClean -and $manifest.sourceTreeClean -isnot [bool]) {
+    Add-Failure 'bundle manifest sourceTreeClean must be a Boolean or null.'
+}
 if ($null -eq $manifest.files) {
     Add-Failure 'bundle manifest has no files inventory.'
 }
@@ -198,6 +208,8 @@ if ($failures.Count -gt 0) {
     dataPolicy = $manifest.dataPolicy
     fixturePresence = [bool] $manifest.fixturePresence.included
     repoCommit = $manifest.repoCommit
+    repoBranch = $manifest.repoBranch
+    sourceTreeClean = $manifest.sourceTreeClean
     version = $manifest.version
     artifactCount = $records.Count
     verified = $true

@@ -11,13 +11,15 @@ $ErrorActionPreference = 'Stop'
 $stateFull = Get-FullPath $StateRoot
 $backupFull = Get-FullPath $BackupPath
 $hostToolsRoot = Split-Path -Parent $stateFull
-$backupParent = Split-Path -Parent $backupFull
 
 if (-not (Test-Path -LiteralPath $backupFull -PathType Container)) {
     throw "State backup directory not found: $backupFull"
 }
-if (-not ($backupFull.StartsWith("$hostToolsRoot\", [System.StringComparison]::OrdinalIgnoreCase))) {
-    throw "Refusing to restore a backup outside HostTools Backups: $backupFull"
+if ((Split-Path -Leaf $backupFull) -notlike 'HostTools-State-*' -or
+    $backupFull.StartsWith("$stateFull\", [System.StringComparison]::OrdinalIgnoreCase) -or
+    $stateFull.StartsWith("$backupFull\", [System.StringComparison]::OrdinalIgnoreCase) -or
+    $backupFull.StartsWith("$hostToolsRoot\App\", [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing an invalid or overlapping HostTools State backup path: $backupFull"
 }
 if ($stateFull -eq [System.IO.Path]::GetPathRoot($stateFull) -or $stateFull.Length -lt 8) {
     throw "Refusing unsafe State root: $stateFull"
